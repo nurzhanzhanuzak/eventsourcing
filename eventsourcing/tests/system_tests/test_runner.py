@@ -418,10 +418,14 @@ class TestNewSingleThreadedRunner(
 
     def test_received_notifications_accumulate(self):
         self.start_runner(
-            System([[
-                BankAccounts,
-                EmailProcess,
-            ]])
+            System(
+                [
+                    [
+                        BankAccounts,
+                        EmailProcess,
+                    ]
+                ]
+            )
         )
 
         accounts = self.runner.get(BankAccounts)
