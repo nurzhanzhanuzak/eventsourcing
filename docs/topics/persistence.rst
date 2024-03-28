@@ -1253,8 +1253,19 @@ infrastructure.
 
 
 The environment variables ``POSTGRES_DBNAME``, ``POSTGRES_HOST``, ``POSTGRES_PORT``,
-``POSTGRES_USER``, and ``POSTGRES_PASSWORD`` are required to set the name of a database,
-the database server's host name and port number, and the database user name and password.
+``POSTGRES_USER``, and ``POSTGRES_PASSWORD`` (or ``POSTGRES_GET_PASSWORD_TOPIC``) are
+required to set the name of a database, the database server's host name and port number,
+and the database user name and password.
+
+As an alternative to setting a fixed password in ``POSTGRES_PASSWORD``, you can set
+``POSTGRES_GET_PASSWORD_TOPIC`` to indicate the :ref:`topic <Topics>` of a function
+that returns passwords. This function will be called each time when creating new database
+connections. This variable supports using database services authenticated with Identity
+Access Management (IAM), sometimes referred to as token-based authentication, for which
+the password is a token that is changed perhaps every 15 minutes. If ``POSTGRES_GET_PASSWORD_TOPIC``
+is set, the ``POSTGRES_PASSWORD`` variable is not required and will be ignored. The value
+of this variable should be resolvable using :func:`~eventsourcing.utils.resolve_topic` to
+a Python function that expects no arguments and returns a Python ``str``.
 
 The optional environment variable ``POSTGRES_CONNECT_TIMEOUT`` may be used to timeout
 attempts to create new database connections. If set, an integer value is required.

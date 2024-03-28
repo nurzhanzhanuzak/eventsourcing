@@ -23,6 +23,9 @@ $ brew services start postgresql
 $ psql postgres
 postgres=# CREATE DATABASE eventsourcing;
 postgres=# CREATE USER eventsourcing WITH PASSWORD 'eventsourcing';
+postgres=# CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';
+
+Also edit pg_hba.conf so that passwords are required when connecting with TCP/IP.
 
 
 To setup Redis:

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Sequence
 
 import psycopg
 import psycopg.errors
+import psycopg_pool
 from psycopg import Connection, Cursor
 from psycopg.rows import DictRow, dict_row
-from psycopg_pool import ConnectionPool
 
 from eventsourcing.persistence import (
     AggregateRecorder,
@@ -28,13 +28,29 @@ from eventsourcing.persistence import (
     StoredEvent,
     Tracking,
 )
-from eventsourcing.utils import Environment, retry, strtobool
+from eventsourcing.utils import Environment, resolve_topic, retry, strtobool
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID
 
 logging.getLogger("psycopg.pool").setLevel(logging.CRITICAL)
 logging.getLogger("psycopg").setLevel(logging.CRITICAL)
+
+
+class ConnectionPool(psycopg_pool.ConnectionPool[Any]):
+    def __init__(
+        self,
+        *args: Any,
+        get_password_func: Callable[[], str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.get_password_func = get_password_func
+        super().__init__(*args, **kwargs)
+
+    def _connect(self, timeout: float | None = None) -> Connection[Any]:
+        if self.get_password_func:
+            self.kwargs["password"] = self.get_password_func()
+        return super()._connect(timeout=timeout)
 
 
 class PostgresDatastore:
@@ -56,6 +72,7 @@ class PostgresDatastore:
         lock_timeout: int = 0,
         schema: str = "",
         pool_open_timeout: int | None = None,
+        get_password_func: Callable[[], str] | None = None,
     ):
         self.idle_in_transaction_session_timeout = idle_in_transaction_session_timeout
         self.pre_ping = pre_ping
@@ -64,6 +81,7 @@ class PostgresDatastore:
         check = ConnectionPool.check_connection if pre_ping else None
         kwargs: Dict[str, Any] = {"check": check}
         self.pool = ConnectionPool(
+            get_password_func=get_password_func,
             connection_class=Connection[DictRow],
             kwargs={
                 "dbname": dbname,
@@ -536,6 +554,7 @@ class Factory(InfrastructureFactory):
     POSTGRES_PORT = "POSTGRES_PORT"
     POSTGRES_USER = "POSTGRES_USER"
     POSTGRES_PASSWORD = "POSTGRES_PASSWORD"  # noqa: S105
+    POSTGRES_GET_PASSWORD_TOPIC = "POSTGRES_GET_PASSWORD_TOPIC"  # noqa: S105
     POSTGRES_CONNECT_TIMEOUT = "POSTGRES_CONNECT_TIMEOUT"
     POSTGRES_CONN_MAX_AGE = "POSTGRES_CONN_MAX_AGE"
     POSTGRES_PRE_PING = "POSTGRES_PRE_PING"
@@ -584,14 +603,20 @@ class Factory(InfrastructureFactory):
             )
             raise OSError(msg)
 
-        password = self.env.get(self.POSTGRES_PASSWORD)
-        if password is None:
-            msg = (
-                "Postgres password not found "
-                "in environment with key "
-                f"'{self.POSTGRES_PASSWORD}'"
-            )
-            raise OSError(msg)
+        get_password_func = None
+        get_password_topic = self.env.get(self.POSTGRES_GET_PASSWORD_TOPIC)
+        if not get_password_topic:
+            password = self.env.get(self.POSTGRES_PASSWORD)
+            if password is None:
+                msg = (
+                    "Postgres password not found "
+                    "in environment with key "
+                    f"'{self.POSTGRES_PASSWORD}'"
+                )
+                raise OSError(msg)
+        else:
+            get_password_func = resolve_topic(get_password_topic)
+            password = ""
 
         connect_timeout = 5
         connect_timeout_str = self.env.get(self.POSTGRES_CONNECT_TIMEOUT)
@@ -703,6 +728,7 @@ class Factory(InfrastructureFactory):
             port=port,
             user=user,
             password=password,
+            get_password_func=get_password_func,
             connect_timeout=connect_timeout,
             idle_in_transaction_session_timeout=idle_in_transaction_session_timeout,
             pool_size=pool_size,

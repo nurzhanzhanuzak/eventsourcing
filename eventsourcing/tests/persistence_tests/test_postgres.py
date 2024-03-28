@@ -45,7 +45,7 @@ from eventsourcing.tests.postgres_utils import (
     drop_postgres_table,
     pg_close_all_connections,
 )
-from eventsourcing.utils import Environment
+from eventsourcing.utils import Environment, get_topic
 
 
 class TestPostgresDatastore(TestCase):
@@ -222,6 +222,53 @@ class TestPostgresDatastore(TestCase):
             curs.execute("SELECT 1")
             self.assertFalse(curs.closed)
             sleep(2)
+
+    def test_get_password_func(self):
+        # Check correct password is required, wrong password causes operational error.
+        datastore = PostgresDatastore(
+            dbname="eventsourcing",
+            host="127.0.0.1",
+            port="5432",
+            user="eventsourcing",
+            password="wrong",  # noqa: S106
+            pool_size=1,
+        )
+
+        conn: Connection
+        with self.assertRaises(
+            OperationalError
+        ), datastore.get_connection() as conn, conn.cursor() as curs:
+            curs.execute("SELECT 1")
+
+        # Define a "get password" function, with a generator that returns
+        # wrong password a few times first.
+        def password_token_generator():
+            yield "wrong"
+            yield "wrong"
+            yield "eventsourcing"
+
+        password_generator = password_token_generator()
+
+        def get_password_func():
+            return next(password_generator)
+
+        # Construct datastore with "get password" function.
+        datastore = PostgresDatastore(
+            dbname="eventsourcing",
+            host="127.0.0.1",
+            port="5432",
+            user="eventsourcing",
+            password="",
+            pool_size=1,
+            get_password_func=get_password_func,
+            connect_timeout=10,
+        )
+
+        # Create a connection, and check it works (this test depends on psycopg
+        # retrying attempt to connect, should call "get password" twice).
+        with datastore.get_connection() as conn, conn.cursor() as curs:
+            curs.execute("SELECT 1")
+            self.assertEqual(curs.fetchall(), [{"?column?": 1}])
 
 
 # Use maximally long identifier for table name.
@@ -863,6 +910,20 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.env[Factory.POSTGRES_PRE_PING] = "on"
         self.factory = Factory(self.env)
         self.assertEqual(self.factory.datastore.pre_ping, True)
+
+    def test_get_password_topic_not_set(self):
+        self.factory = Factory(self.env)
+        self.assertIsNone(self.factory.datastore.pool.get_password_func, None)
+
+    def test_get_password_topic_set(self):
+        def get_password_func():
+            return "eventsourcing"
+
+        self.env[Factory.POSTGRES_GET_PASSWORD_TOPIC] = get_topic(get_password_func)
+        self.factory = Factory(self.env)
+        self.assertEqual(
+            self.factory.datastore.pool.get_password_func, get_password_func
+        )
 
     def test_environment_error_raised_when_conn_max_age_not_a_float(self):
         self.env[Factory.POSTGRES_CONN_MAX_AGE] = "abc"
