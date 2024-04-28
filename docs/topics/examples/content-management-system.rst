@@ -27,7 +27,7 @@ a list of page IDs.
 
 The ``SearchIndexApplication`` class in this example works in a similar way to the ``SearchableContentApplication``
 class in :doc:`/topics/examples/searchable-content`, by setting variable keyword arguments
-``insert_pages`` and ``update_pages`` on a the :class:`~eventsourcing.application.ProcessingEvent` object.
+``insert_pages`` and ``update_pages`` on a :class:`~eventsourcing.application.ProcessingEvent` object.
 However, rather than populating the variable keyword arguments in the ``save()`` method, it populates ``insert_pages``
 and ``update_pages`` within its ``policy()`` function. The ``insert_pages`` and ``update_pages`` arguments are set
 on the :class:`~eventsourcing.application.ProcessingEvent` object passed into the ``policy()``
