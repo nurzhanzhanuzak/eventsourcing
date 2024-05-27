@@ -730,6 +730,7 @@ class TestAggregateCreation(TestCase):
         order = Order("name")
         pending = order.collect_events()
         self.assertEqual(type(pending[0]).__name__, "Started")
+        self.assertTrue(isinstance(pending[0], Order.Created))
 
     def test_raises_when_given_created_event_name_conflicts_with_created_event_class(
         self,
@@ -1096,6 +1097,19 @@ class TestAggregateEventsAreSubclassed(TestCase):
         self.assertTrue(
             MySubclass.Ended.__qualname__.endswith("MySubclass.Ended"),
             MySubclass.Ended.__qualname__,
+        )
+
+        self.assertTrue(
+            MySubclass._created_event_class.__qualname__.endswith("MySubclass.Opened")
+        )
+
+        class MySubSubClass(MySubclass):
+            pass
+
+        self.assertTrue(
+            MySubSubClass._created_event_class.__qualname__.endswith(
+                "MySubSubClass.Opened"
+            )
         )
 
 
