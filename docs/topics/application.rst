@@ -245,7 +245,7 @@ The repository :func:`~eventsourcing.application.Repository.get` method accepts
 three arguments: ``aggregate_id``, ``version``, and ``projector_func``.
 The ``aggregate_id`` argument is required, and should be the ID of an already existing
 aggregate. If the aggregate is not found, the exception
-:class:`~eventsourcing.application.AggregateNotFound` will be raised.
+:class:`~eventsourcing.application.AggregateNotFoundError` will be raised.
 
 The ``version`` argument is optional, and represents the required version of the aggregate.
 If the requested version is greater than the highest available version of the aggregate, the

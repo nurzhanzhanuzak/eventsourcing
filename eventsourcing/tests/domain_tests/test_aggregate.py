@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.case import TestCase
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
+from eventsourcing.application import AggregateNotFound, AggregateNotFoundError
 from eventsourcing.domain import (
     Aggregate,
     AggregateCreated,
@@ -1171,3 +1172,9 @@ class TestBankAccount(TestCase):
         # Collect pending events.
         pending = account.collect_events()
         self.assertEqual(len(pending), 7)
+
+
+class TestAggregateNotFound(TestCase):
+    def test(self):
+        e = AggregateNotFound()
+        self.assertIsInstance(e, AggregateNotFoundError)
