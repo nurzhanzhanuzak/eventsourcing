@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "eventsourcing"
-version = "9.3.0-alpha.1"
+version = "9.3.0-beta.1"
 
 description = "Event sourcing in Python"
 authors = [
@@ -8,8 +8,8 @@ authors = [
 ]
 license = "BSD 3-Clause"
 classifiers = [
-    "Development Status :: 3 - Alpha",
-#    "Development Status :: 4 - Beta",
+#    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
 #    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
