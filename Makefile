@@ -56,7 +56,7 @@ lint-mypy:
 #
 
 .PHONY: fmt
-fmt: fmt-ruff fmt-isort fmt-black
+fmt: fmt-isort fmt-black fmt-ruff
 
 .PHONY: fmt-ruff
 fmt-ruff:

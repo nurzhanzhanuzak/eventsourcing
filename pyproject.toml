@@ -182,7 +182,7 @@ sections = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
 [tool.ruff]
 # Same as Black.
 line-length = 88
-indent-width = 4
+#indent-width = 4
 
 # Assume Python 3.8
 target-version = "py38"
@@ -196,6 +196,7 @@ select = [
 ]
 ignore = [
     "UP006",  # [*] Use `type` instead of `Type` for type annotation / Use `tuple` instead of `Tuple` for type annotation / etc  <- ignore while supporting Python3.8
+    "A003",  # "Class attribute `id/type` is shadowing a Python builtin
     "ANN",
     "D",
     "PT",
@@ -253,14 +254,14 @@ line-ending = "auto"
 #
 # This is currently disabled by default, but it is planned for this
 # to be opt-out in the future.
-docstring-code-format = false
+#docstring-code-format = false
 
 # Set the line length limit used when formatting code snippets in
 # docstrings.
 #
 # This only has an effect when the `docstring-code-format` setting is
 # enabled.
-docstring-code-line-length = "dynamic"
+#docstring-code-line-length = "dynamic"
 
 [tool.ruff.pydocstyle]
 convention = "google"

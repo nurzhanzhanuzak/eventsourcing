@@ -957,14 +957,13 @@ class MetaAggregate(type, Generic[TAggregate]):
                 sub_class = cls._define_event_class(name, (value, base_event_cls), None)
                 setattr(cls, name, sub_class)
         for name, value in tuple(cls.__dict__.items()):
-            if (
-                isinstance(value, type)
-                and issubclass(value, CanInitAggregate)
-            ):
+            if isinstance(value, type) and issubclass(value, CanInitAggregate):
                 created_event_classes[name] = value
 
         # Disallow using both '_created_event_class' and 'created_event_name'.
-        created_event_class: Type[CanInitAggregate] | None = cls.__dict__.get("_created_event_class")
+        created_event_class: Type[CanInitAggregate] | None = cls.__dict__.get(
+            "_created_event_class"
+        )
         if created_event_class and created_event_name:
             msg = "Can't use both '_created_event_class' and 'created_event_name'"
             raise TypeError(msg)
@@ -989,7 +988,9 @@ class MetaAggregate(type, Generic[TAggregate]):
 
             # Does the decorator specify a "created" event class?
             if init_decorator.given_event_cls:
-                created_event_class = cast(Type[CanInitAggregate], init_decorator.given_event_cls)
+                created_event_class = cast(
+                    Type[CanInitAggregate], init_decorator.given_event_cls
+                )
             # Does the decorator specify a "created" event name?
             elif init_decorator.event_cls_name:
                 created_event_name = init_decorator.event_cls_name
@@ -1066,15 +1067,16 @@ class MetaAggregate(type, Generic[TAggregate]):
             # Define a "created" event class for this aggregate.
             if issubclass(base_created_event_cls, base_event_cls):
                 # Don't subclass from base event class twice.
-                bases: Tuple[Type[CanMutateAggregate], ...] = (
-                    base_created_event_cls,
-                )
+                bases: Tuple[Type[CanMutateAggregate], ...] = (base_created_event_cls,)
             else:
                 bases = (base_created_event_cls, base_event_cls)
-            created_event_class = cls._define_event_class(
-                created_event_name,
-                bases,
-                init_method,
+            created_event_class = cast(
+                Type[CanInitAggregate],
+                cls._define_event_class(
+                    created_event_name,
+                    bases,
+                    init_method,
+                ),
             )
             # Set the event class as an attribute of the aggregate class.
             setattr(cls, created_event_name, created_event_class)
@@ -1083,10 +1085,7 @@ class MetaAggregate(type, Generic[TAggregate]):
             cls._created_event_class = created_event_class
         else:
             # Prepare to disallow ambiguity of choice between created event classes.
-            aggregate_has_many_created_event_classes[cls] = list(
-                created_event_classes
-            )
-
+            aggregate_has_many_created_event_classes[cls] = list(created_event_classes)
 
         # Prepare the subsequent event classes.
         for attr_name, attr_value in tuple(cls.__dict__.items()):
