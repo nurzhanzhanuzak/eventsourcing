@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterator, List, Sequence
 
 import psycopg
 import psycopg.errors
@@ -79,7 +79,6 @@ class PostgresDatastore:
         self.pool_open_timeout = pool_open_timeout
 
         check = ConnectionPool.check_connection if pre_ping else None
-        kwargs: Dict[str, Any] = {"check": check}
         self.pool = ConnectionPool(
             get_password_func=get_password_func,
             connection_class=Connection[DictRow],
@@ -98,7 +97,7 @@ class PostgresDatastore:
             timeout=connect_timeout,
             max_waiting=round(pool_timeout),
             max_lifetime=conn_max_age,
-            **kwargs,  # use the 'check' argument when no longer supporting Python 3.7
+            check=check,
         )
         self.lock_timeout = lock_timeout
         self.schema = schema.strip()
