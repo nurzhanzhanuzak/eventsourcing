@@ -23,11 +23,12 @@ the underlying principles are the same, and so conversion of
 code and stored events is very possible.
 
 
-Version 9.3.0 (released 28 May 2024)
-------------------------------------
+Version 9.3.0 (released 20 August 2024)
+---------------------------------------
 
 * Changed postgres persistence module to use pyscopg version 3.
 * Added 'POSTGRES_GET_PASSWORD_TOPIC' option to support using databases in cloud with IAM.
+* Added PostgreSQL 16 to GitHub Actions workflow matrix.
 * Improved MetaAggregate to decide "created" event class on subclasses in a better way.
 * Started using ruff for linting.
 * Improved docs, comments, syntax, and typing annotations.
