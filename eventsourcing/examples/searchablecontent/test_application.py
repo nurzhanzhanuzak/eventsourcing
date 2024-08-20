@@ -96,16 +96,15 @@ class TestWithPostgres(SearchableContentApplicationTestCase):
         super().tearDown()
 
     def drop_tables(self) -> None:
-        db = PostgresDatastore(
+        with PostgresDatastore(
             os.environ["POSTGRES_DBNAME"],
             os.environ["POSTGRES_HOST"],
             os.environ["POSTGRES_PORT"],
             os.environ["POSTGRES_USER"],
             os.environ["POSTGRES_PASSWORD"],
-        )
-        drop_postgres_table(db, "public.searchablecontentapplication_events")
-        drop_postgres_table(db, "public.pages_projection_example")
-        db.close()
+        ) as datastore:
+            drop_postgres_table(datastore, "public.searchablecontentapplication_events")
+            drop_postgres_table(datastore, "public.pages_projection_example")
 
 
 del SearchableContentApplicationTestCase

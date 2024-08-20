@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import contextlib
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, ClassVar, Dict, Iterable, List, Type, TypeVar, cast
+from typing import Any, Iterable, List, Type, TypeVar, cast
 from uuid import UUID, uuid4
 
 from eventsourcing.dispatch import singledispatchmethod
@@ -29,6 +27,7 @@ class Aggregate:
     id: UUID
     version: int
     created_on: datetime
+    _pending_events: List[DomainEvent]
 
     def __init__(self, event: DomainEvent):
         self.id = event.originator_id
@@ -47,15 +46,15 @@ class Aggregate:
             timestamp=event_class.create_timestamp(),
         )
         new_event = event_class(**kwargs)
-        self.apply(new_event)
-        self.pending_events.append(new_event)
+        self._apply(new_event)
+        self._pending_events.append(new_event)
 
     @singledispatchmethod
-    def apply(self, event: DomainEvent) -> None:
+    def _apply(self, event: DomainEvent) -> None:
         """Applies event to aggregate."""
 
     def collect_events(self) -> List[DomainEvent]:
-        events, self.pending_events = self.pending_events, []
+        events, self._pending_events = self._pending_events, []
         return events
 
     @classmethod
@@ -64,24 +63,11 @@ class Aggregate:
         _: TAggregate | None,
         events: Iterable[DomainEvent],
     ) -> TAggregate | None:
-        aggregate = object.__new__(cls)
+        aggregate: TAggregate = object.__new__(cls)
+        aggregate._pending_events = []
         for event in events:
-            aggregate.apply(event)
+            aggregate._apply(event)
         return aggregate
-
-    @property
-    def pending_events(self) -> List[DomainEvent]:
-        return type(self).__pending_events[id(self)]
-
-    @pending_events.setter
-    def pending_events(self, pending_events: List[DomainEvent]) -> None:
-        type(self).__pending_events[id(self)] = pending_events
-
-    __pending_events: ClassVar[Dict[int, List[DomainEvent]]] = defaultdict(list)
-
-    def __del__(self) -> None:
-        with contextlib.suppress(KeyError):
-            type(self).__pending_events.pop(id(self))
 
 
 class Dog(Aggregate):
@@ -102,27 +88,27 @@ class Dog(Aggregate):
             name=name,
         )
         dog = cast(Dog, cls.projector(None, [event]))
-        dog.pending_events.append(event)
+        dog._pending_events.append(event)
         return dog
 
     def add_trick(self, trick: str) -> None:
         self.trigger_event(self.TrickAdded, trick=trick)
 
     @singledispatchmethod
-    def apply(self, event: DomainEvent) -> None:
+    def _apply(self, event: DomainEvent) -> None:
         """Applies event to aggregate."""
 
-    @apply.register(Registered)
+    @_apply.register(Registered)
     def _(self, event: Registered) -> None:
         super().__init__(event)
         self.name = event.name
         self.tricks: List[str] = []
 
-    @apply.register(TrickAdded)
+    @_apply.register(TrickAdded)
     def _(self, event: TrickAdded) -> None:
         self.tricks.append(event.trick)
         self.version = event.originator_version
 
-    @apply.register(Snapshot)
+    @_apply.register(Snapshot)
     def _(self, event: Snapshot) -> None:
         self.__dict__.update(event.state)

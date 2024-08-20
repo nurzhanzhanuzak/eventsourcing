@@ -738,28 +738,28 @@ class TestMultiThreadedRunnerWithPostgres(TestMultiThreadedRunner):
         os.environ["POSTGRES_USER"] = "eventsourcing"
         os.environ["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
 
-        db = PostgresDatastore(
+        with PostgresDatastore(
             os.getenv("POSTGRES_DBNAME"),
             os.getenv("POSTGRES_HOST"),
             os.getenv("POSTGRES_PORT"),
             os.getenv("POSTGRES_USER"),
             os.getenv("POSTGRES_PASSWORD"),
-        )
-        drop_postgres_table(db, f"{BankAccounts.name.lower()}_events")
-        drop_postgres_table(db, f"{EmailProcess.name.lower()}_events")
-        drop_postgres_table(db, f"{EmailProcess.name.lower()}_tracking")
-        drop_postgres_table(db, f"{EmailProcess.name.lower()}2_events")
-        drop_postgres_table(db, f"{EmailProcess.name.lower()}2_tracking")
-        drop_postgres_table(db, "brokenprocessing_events")
-        drop_postgres_table(db, "brokenprocessing_tracking")
-        drop_postgres_table(db, "brokenconverting_events")
-        drop_postgres_table(db, "brokenconverting_tracking")
-        drop_postgres_table(db, "brokenpulling_events")
-        drop_postgres_table(db, "brokenpulling_tracking")
-        drop_postgres_table(db, "commands_events")
-        drop_postgres_table(db, "commands_tracking")
-        drop_postgres_table(db, "results_events")
-        drop_postgres_table(db, "results_tracking")
+        ) as datastore:
+            drop_postgres_table(datastore, f"{BankAccounts.name.lower()}_events")
+            drop_postgres_table(datastore, f"{EmailProcess.name.lower()}_events")
+            drop_postgres_table(datastore, f"{EmailProcess.name.lower()}_tracking")
+            drop_postgres_table(datastore, f"{EmailProcess.name.lower()}2_events")
+            drop_postgres_table(datastore, f"{EmailProcess.name.lower()}2_tracking")
+            drop_postgres_table(datastore, "brokenprocessing_events")
+            drop_postgres_table(datastore, "brokenprocessing_tracking")
+            drop_postgres_table(datastore, "brokenconverting_events")
+            drop_postgres_table(datastore, "brokenconverting_tracking")
+            drop_postgres_table(datastore, "brokenpulling_events")
+            drop_postgres_table(datastore, "brokenpulling_tracking")
+            drop_postgres_table(datastore, "commands_events")
+            drop_postgres_table(datastore, "commands_tracking")
+            drop_postgres_table(datastore, "results_events")
+            drop_postgres_table(datastore, "results_tracking")
 
         os.environ["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
 

@@ -9,6 +9,7 @@ import psycopg.errors
 import psycopg_pool
 from psycopg import Connection, Cursor
 from psycopg.rows import DictRow, dict_row
+from typing_extensions import Self
 
 from eventsourcing.persistence import (
     AggregateRecorder,
@@ -62,11 +63,11 @@ class PostgresDatastore:
         user: str,
         password: str,
         *,
-        connect_timeout: int = 5,
+        connect_timeout: int = 30,
         idle_in_transaction_session_timeout: int = 0,
         pool_size: int = 2,
         max_overflow: int = 2,
-        pool_timeout: float = 5.0,
+        max_waiting: int = 0,
         conn_max_age: float = 60 * 60.0,
         pre_ping: bool = False,
         lock_timeout: int = 0,
@@ -95,7 +96,7 @@ class PostgresDatastore:
             open=False,
             configure=self.after_connect,
             timeout=connect_timeout,
-            max_waiting=round(pool_timeout),
+            max_waiting=max_waiting,
             max_lifetime=conn_max_age,
             check=check,
         )
@@ -153,6 +154,12 @@ class PostgresDatastore:
         self.pool.close()
 
     def __del__(self) -> None:
+        self.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
         self.close()
 
 
@@ -557,10 +564,10 @@ class Factory(InfrastructureFactory):
     POSTGRES_CONNECT_TIMEOUT = "POSTGRES_CONNECT_TIMEOUT"
     POSTGRES_CONN_MAX_AGE = "POSTGRES_CONN_MAX_AGE"
     POSTGRES_PRE_PING = "POSTGRES_PRE_PING"
-    POSTGRES_POOL_TIMEOUT = "POSTGRES_POOL_TIMEOUT"
+    POSTGRES_MAX_WAITING = "POSTGRES_MAX_WAITING"
     POSTGRES_LOCK_TIMEOUT = "POSTGRES_LOCK_TIMEOUT"
     POSTGRES_POOL_SIZE = "POSTGRES_POOL_SIZE"
-    POSTGRES_POOL_MAX_OVERFLOW = "POSTGRES_POOL_MAX_OVERFLOW"
+    POSTGRES_MAX_OVERFLOW = "POSTGRES_MAX_OVERFLOW"
     POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT = (
         "POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT"
     )
@@ -617,7 +624,7 @@ class Factory(InfrastructureFactory):
             get_password_func = resolve_topic(get_password_topic)
             password = ""
 
-        connect_timeout = 5
+        connect_timeout = 30
         connect_timeout_str = self.env.get(self.POSTGRES_CONNECT_TIMEOUT)
         if connect_timeout_str:
             try:
@@ -663,30 +670,30 @@ class Factory(InfrastructureFactory):
                 raise OSError(msg) from None
 
         pool_max_overflow = 10
-        pool_max_overflow_str = self.env.get(self.POSTGRES_POOL_MAX_OVERFLOW)
+        pool_max_overflow_str = self.env.get(self.POSTGRES_MAX_OVERFLOW)
         if pool_max_overflow_str:
             try:
                 pool_max_overflow = int(pool_max_overflow_str)
             except ValueError:
                 msg = (
                     "Postgres environment value for key "
-                    f"'{self.POSTGRES_POOL_MAX_OVERFLOW}' is invalid. "
+                    f"'{self.POSTGRES_MAX_OVERFLOW}' is invalid. "
                     "If set, an integer or empty string is expected: "
                     f"'{pool_max_overflow_str}'"
                 )
                 raise OSError(msg) from None
 
-        pool_timeout = 30.0
-        pool_timeout_str = self.env.get(self.POSTGRES_POOL_TIMEOUT)
-        if pool_timeout_str:
+        max_waiting = 0
+        max_waiting_str = self.env.get(self.POSTGRES_MAX_WAITING)
+        if max_waiting_str:
             try:
-                pool_timeout = float(pool_timeout_str)
+                max_waiting = int(max_waiting_str)
             except ValueError:
                 msg = (
                     "Postgres environment value for key "
-                    f"'{self.POSTGRES_POOL_TIMEOUT}' is invalid. "
-                    "If set, a float or empty string is expected: "
-                    f"'{pool_timeout_str}'"
+                    f"'{self.POSTGRES_MAX_WAITING}' is invalid. "
+                    "If set, an integer or empty string is expected: "
+                    f"'{max_waiting_str}'"
                 )
                 raise OSError(msg) from None
 
@@ -732,12 +739,15 @@ class Factory(InfrastructureFactory):
             idle_in_transaction_session_timeout=idle_in_transaction_session_timeout,
             pool_size=pool_size,
             max_overflow=pool_max_overflow,
-            pool_timeout=pool_timeout,
+            max_waiting=max_waiting,
             conn_max_age=conn_max_age,
             pre_ping=pre_ping,
             lock_timeout=lock_timeout,
             schema=schema,
         )
+
+    def env_create_table(self) -> bool:
+        return strtobool(self.env.get(self.CREATE_TABLE) or "yes")
 
     def aggregate_recorder(self, purpose: str = "events") -> AggregateRecorder:
         prefix = self.env.name.lower() or "stored"
@@ -781,9 +791,6 @@ class Factory(InfrastructureFactory):
         if self.env_create_table():
             recorder.create_table()
         return recorder
-
-    def env_create_table(self) -> bool:
-        return strtobool(self.env.get(self.CREATE_TABLE) or "yes")
 
     def close(self) -> None:
         if hasattr(self, "datastore"):

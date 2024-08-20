@@ -53,26 +53,26 @@ class TestPostgresDatastore(TestCase):
         self.assertTrue(psycopg.Pipeline.is_supported())
 
     def test_has_connection_pool(self):
-        datastore = PostgresDatastore(
+        with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
             port="5432",
             user="eventsourcing",
             password="eventsourcing",  # noqa: S106
-        )
-        self.assertIsInstance(datastore.pool, ConnectionPool)
+        ) as datastore:
+            self.assertIsInstance(datastore.pool, ConnectionPool)
 
     def test_get_connection(self):
-        datastore = PostgresDatastore(
+        with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
             port="5432",
             user="eventsourcing",
             password="eventsourcing",  # noqa: S106
-        )
-        conn: Connection
-        with datastore.get_connection() as conn:
-            self.assertIsInstance(conn, Connection)
+        ) as datastore:
+            conn: Connection
+            with datastore.get_connection() as conn:
+                self.assertIsInstance(conn, Connection)
 
     def test_context_manager_converts_exceptions_and_conditionally_calls_close(self):
         cases = [
@@ -88,31 +88,30 @@ class TestPostgresDatastore(TestCase):
             (TypeError, TypeError(), True),
             (TypeError, TypeError, True),
         ]
-        datastore = PostgresDatastore(
+        with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
             port="5432",
             user="eventsourcing",
             password="eventsourcing",  # noqa: S106
-        )
-        for expected_exc_type, raised_exc, expect_conn_closed in cases:
-            with self.assertRaises(expected_exc_type):
-                conn: Connection
-                with datastore.get_connection() as conn:
-                    self.assertFalse(conn.closed)
-                    raise raised_exc
-                self.assertTrue(conn.closed is expect_conn_closed, raised_exc)
+        ) as datastore:
+            for expected_exc_type, raised_exc, expect_conn_closed in cases:
+                with self.assertRaises(expected_exc_type):
+                    conn: Connection
+                    with datastore.get_connection() as conn:
+                        self.assertFalse(conn.closed)
+                        raise raised_exc
+                    self.assertTrue(conn.closed is expect_conn_closed, raised_exc)
 
     def test_transaction_from_datastore(self):
-        datastore = PostgresDatastore(
+        with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
             port="5432",
             user="eventsourcing",
             password="eventsourcing",  # noqa: S106
-        )
-        # As a convenience, we can use the transaction() method.
-        with datastore.transaction(commit=False) as curs:
+        ) as datastore, datastore.transaction(commit=False) as curs:
+            # As a convenience, we can use the transaction() method.
             curs.execute("SELECT 1")
             self.assertEqual(curs.fetchall(), [{"?column?": 1}])
 
@@ -128,15 +127,14 @@ class TestPostgresDatastore(TestCase):
         with self.assertRaises(OperationalError), datastore.get_connection():
             pass
 
-        datastore = PostgresDatastore(
+        with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
             port="987654321",  # bad value
             user="eventsourcing",
             password="eventsourcing",  # noqa: S106
             pool_open_timeout=2,
-        )
-        with self.assertRaises(OperationalError), datastore.get_connection():
+        ) as datastore, self.assertRaises(OperationalError), datastore.get_connection():
             pass
 
     @skipIf(
@@ -146,7 +144,7 @@ class TestPostgresDatastore(TestCase):
     def test_pre_ping(self):
         # Define method to open and close a connection, and then execute a statement.
         def open_close_execute(*, pre_ping: bool):
-            datastore = PostgresDatastore(
+            with PostgresDatastore(
                 dbname="eventsourcing",
                 host="127.0.0.1",
                 port="5432",
@@ -154,28 +152,28 @@ class TestPostgresDatastore(TestCase):
                 password="eventsourcing",  # noqa: S106
                 pool_size=1,
                 pre_ping=pre_ping,
-            )
+            ) as datastore:
 
-            # Create a connection.
-            conn: Connection
-            with datastore.get_connection() as conn, conn.cursor() as curs:
-                curs.execute("SELECT 1")
-                self.assertEqual(curs.fetchall(), [{"?column?": 1}])
-
-            # Close all connections via separate connection.
-            pg_close_all_connections()
-
-            # Check the connection doesn't think it's closed.
-            self.assertTrue(datastore.pool._pool)
-            self.assertFalse(datastore.pool._pool[0].closed)
-
-            # Get a closed connection.
-            conn: Connection
-            with datastore.get_connection() as conn:
-                self.assertFalse(conn.closed)
-
-                with conn.cursor() as curs:
+                # Create a connection.
+                conn: Connection
+                with datastore.get_connection() as conn, conn.cursor() as curs:
                     curs.execute("SELECT 1")
+                    self.assertEqual(curs.fetchall(), [{"?column?": 1}])
+
+                # Close all connections via separate connection.
+                pg_close_all_connections()
+
+                # Check the connection doesn't think it's closed.
+                self.assertTrue(datastore.pool._pool)
+                self.assertFalse(datastore.pool._pool[0].closed)
+
+                # Get a closed connection.
+                conn: Connection
+                with datastore.get_connection() as conn:
+                    self.assertFalse(conn.closed)
+
+                    with conn.cursor() as curs:
+                        curs.execute("SELECT 1")
 
         # Check using the closed connection gives an error.
         with self.assertRaises(OperationalError):
@@ -185,60 +183,62 @@ class TestPostgresDatastore(TestCase):
         open_close_execute(pre_ping=True)
 
     def test_idle_in_transaction_session_timeout(self):
-        datastore = PostgresDatastore(
+        with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
             port="5432",
             user="eventsourcing",
             password="eventsourcing",  # noqa: S106
             idle_in_transaction_session_timeout=1,
-        )
+        ) as datastore:
 
-        # Error on commit is raised.
-        with self.assertRaises(OperationalError), datastore.get_connection() as curs:
-            curs.execute("BEGIN")
-            curs.execute("SELECT 1")
-            self.assertFalse(curs.closed)
-            sleep(2)
+            # Error on commit is raised.
+            with self.assertRaises(
+                OperationalError
+            ), datastore.get_connection() as curs:
+                curs.execute("BEGIN")
+                curs.execute("SELECT 1")
+                self.assertFalse(curs.closed)
+                sleep(2)
 
-        # Error on commit is raised.
-        with self.assertRaises(OperationalError), datastore.transaction(
-            commit=True
-        ) as curs:
-            # curs.execute("BEGIN")
-            curs.execute("SELECT 1")
-            self.assertFalse(curs.closed)
-            sleep(2)
+            # Error on commit is raised.
+            with self.assertRaises(OperationalError), datastore.transaction(
+                commit=True
+            ) as curs:
+                # curs.execute("BEGIN")
+                curs.execute("SELECT 1")
+                self.assertFalse(curs.closed)
+                sleep(2)
 
-        # Force rollback. Error is ignored.
-        with datastore.transaction(commit=False) as curs:
-            # curs.execute("BEGIN")
-            curs.execute("SELECT 1")
-            self.assertFalse(curs.closed)
-            sleep(2)
+            # Force rollback. Error is ignored.
+            with datastore.transaction(commit=False) as curs:
+                # curs.execute("BEGIN")
+                curs.execute("SELECT 1")
+                self.assertFalse(curs.closed)
+                sleep(2)
 
-        # Autocommit mode - transaction is commited in time.
-        with datastore.get_connection() as curs:
-            curs.execute("SELECT 1")
-            self.assertFalse(curs.closed)
-            sleep(2)
+            # Autocommit mode - transaction is commited in time.
+            with datastore.get_connection() as curs:
+                curs.execute("SELECT 1")
+                self.assertFalse(curs.closed)
+                sleep(2)
 
     def test_get_password_func(self):
         # Check correct password is required, wrong password causes operational error.
-        datastore = PostgresDatastore(
+        with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
             port="5432",
             user="eventsourcing",
             password="wrong",  # noqa: S106
             pool_size=1,
-        )
+        ) as datastore:
 
-        conn: Connection
-        with self.assertRaises(
-            OperationalError
-        ), datastore.get_connection() as conn, conn.cursor() as curs:
-            curs.execute("SELECT 1")
+            conn: Connection
+            with self.assertRaises(
+                OperationalError
+            ), datastore.get_connection() as conn, conn.cursor() as curs:
+                curs.execute("SELECT 1")
 
         # Define a "get password" function, with a generator that returns
         # wrong password a few times first.
@@ -253,7 +253,7 @@ class TestPostgresDatastore(TestCase):
             return next(password_generator)
 
         # Construct datastore with "get password" function.
-        datastore = PostgresDatastore(
+        with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
             port="5432",
@@ -262,11 +262,9 @@ class TestPostgresDatastore(TestCase):
             pool_size=1,
             get_password_func=get_password_func,
             connect_timeout=10,
-        )
-
-        # Create a connection, and check it works (this test depends on psycopg
-        # retrying attempt to connect, should call "get password" twice).
-        with datastore.get_connection() as conn, conn.cursor() as curs:
+        ) as datastore, datastore.get_connection() as conn, conn.cursor() as curs:
+            # Create a connection, and check it works (this test depends on psycopg
+            # retrying attempt to connect, should call "get password" twice).
             curs.execute("SELECT 1")
             self.assertEqual(curs.fetchall(), [{"?column?": 1}])
 
@@ -781,15 +779,15 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         super().tearDown()
 
     def drop_tables(self):
-        datastore = PostgresDatastore(
+        with PostgresDatastore(
             "eventsourcing",
             "127.0.0.1",
             "5432",
             "eventsourcing",
             "eventsourcing",
-        )
-        drop_postgres_table(datastore, "testcase_events")
-        drop_postgres_table(datastore, "testcase_tracking")
+        ) as datastore:
+            drop_postgres_table(datastore, "testcase_events")
+            drop_postgres_table(datastore, "testcase_tracking")
 
     def test_close(self):
         factory = Factory(self.env)
@@ -820,16 +818,16 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.assertEqual(self.factory.datastore.pool.min_size, 5)
 
     def test_max_overflow_is_ten_by_default(self):
-        self.assertTrue(Factory.POSTGRES_POOL_MAX_OVERFLOW not in self.env)
+        self.assertTrue(Factory.POSTGRES_MAX_OVERFLOW not in self.env)
         self.factory = Factory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_size, 15)
 
-        self.env[Factory.POSTGRES_POOL_MAX_OVERFLOW] = ""
+        self.env[Factory.POSTGRES_MAX_OVERFLOW] = ""
         self.factory = Factory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_size, 15)
 
     def test_max_overflow_is_set(self):
-        self.env[Factory.POSTGRES_POOL_MAX_OVERFLOW] = "7"
+        self.env[Factory.POSTGRES_MAX_OVERFLOW] = "7"
         self.factory = Factory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_size, 12)
 
@@ -838,31 +836,31 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.factory = Factory(self.env)
         self.assertEqual(self.factory.datastore.pool.min_size, 6)
 
-    def test_connect_timeout_is_five_by_default(self):
+    def test_connect_timeout_is_thirty_by_default(self):
         self.assertTrue(Factory.POSTGRES_CONNECT_TIMEOUT not in self.env)
         self.factory = Factory(self.env)
-        self.assertEqual(self.factory.datastore.pool.timeout, 5)
+        self.assertEqual(self.factory.datastore.pool.timeout, 30)
 
         self.env[Factory.POSTGRES_CONNECT_TIMEOUT] = ""
         self.factory = Factory(self.env)
-        self.assertEqual(self.factory.datastore.pool.timeout, 5)
+        self.assertEqual(self.factory.datastore.pool.timeout, 30)
 
     def test_connect_timeout_is_set(self):
         self.env[Factory.POSTGRES_CONNECT_TIMEOUT] = "8"
         self.factory = Factory(self.env)
         self.assertEqual(self.factory.datastore.pool.timeout, 8)
 
-    def test_pool_timeout_is_30_by_default(self):
-        self.assertTrue(Factory.POSTGRES_POOL_TIMEOUT not in self.env)
+    def test_max_waiting_is_0_by_default(self):
+        self.assertTrue(Factory.POSTGRES_MAX_WAITING not in self.env)
         self.factory = Factory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_waiting, 30)
+        self.assertEqual(self.factory.datastore.pool.max_waiting, 0)
 
-        self.env[Factory.POSTGRES_POOL_TIMEOUT] = ""
+        self.env[Factory.POSTGRES_MAX_WAITING] = ""
         self.factory = Factory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_waiting, 30)
+        self.assertEqual(self.factory.datastore.pool.max_waiting, 0)
 
-    def test_pool_timeout_is_set(self):
-        self.env[Factory.POSTGRES_POOL_TIMEOUT] = "8"
+    def test_max_waiting_is_set(self):
+        self.env[Factory.POSTGRES_MAX_WAITING] = "8"
         self.factory = Factory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_waiting, 8)
 
@@ -945,14 +943,14 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "is invalid. If set, an integer or empty string is expected: 'abc'",
         )
 
-    def test_environment_error_raised_when_pool_timeout_not_an_integer(self):
-        self.env[Factory.POSTGRES_POOL_TIMEOUT] = "abc"
+    def test_environment_error_raised_when_max_waiting_not_an_integer(self):
+        self.env[Factory.POSTGRES_MAX_WAITING] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             Factory(self.env)
         self.assertEqual(
             cm.exception.args[0],
-            "Postgres environment value for key 'POSTGRES_POOL_TIMEOUT' "
-            "is invalid. If set, a float or empty string is expected: 'abc'",
+            "Postgres environment value for key 'POSTGRES_MAX_WAITING' "
+            "is invalid. If set, an integer or empty string is expected: 'abc'",
         )
 
     def test_environment_error_raised_when_lock_timeout_not_an_integer(self):
@@ -976,12 +974,12 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_environment_error_raised_when_max_conn_not_an_integer(self):
-        self.env[Factory.POSTGRES_POOL_MAX_OVERFLOW] = "abc"
+        self.env[Factory.POSTGRES_MAX_OVERFLOW] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             Factory(self.env)
         self.assertEqual(
             cm.exception.args[0],
-            "Postgres environment value for key 'POSTGRES_POOL_MAX_OVERFLOW' "
+            "Postgres environment value for key 'POSTGRES_MAX_OVERFLOW' "
             "is invalid. If set, an integer or empty string is expected: 'abc'",
         )
 

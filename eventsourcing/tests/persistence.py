@@ -839,6 +839,9 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         self.transcoder.register(DecimalAsStr())
         self.transcoder.register(DatetimeAsISO())
 
+    def tearDown(self):
+        self.factory.close()
+
     def test_createmapper(self):
         # Want to construct:
         #  - application recorder

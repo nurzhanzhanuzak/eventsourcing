@@ -28,9 +28,13 @@ Version 9.3.0 (released 20 August 2024)
 
 * Changed postgres persistence module to use pyscopg version 3.
 * Added 'POSTGRES_GET_PASSWORD_TOPIC' option to support using databases in cloud with IAM.
-* Added PostgreSQL 16 to GitHub Actions workflow matrix.
-* Improved MetaAggregate to decide "created" event class on subclasses in a better way.
+* Removed 'POSTGRES_POOL_TIMEOUT' option ('POSTGRES_CONNECT_TIMEOUT' now includes this).
+* Increased default value of 'POSTGRES_CONNECT_TIMEOUT' (because it now includes waiting time).
+* Added 'POSTGRES_MAX_WAITING' option to support limiting queue of connection requests.
+* Dropped support for Python 3.7, and added Python 3.13 to GitHub Actions test workflow matrix.
+* Added PostgreSQL 16 to GitHub Actions test workflow matrix.
 * Started using ruff for linting.
+* Improved MetaAggregate to decide "created" event class on subclasses in a better way.
 * Improved docs, comments, syntax, and typing annotations.
 
 

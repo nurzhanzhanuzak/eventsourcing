@@ -1241,13 +1241,13 @@ infrastructure.
     environ["POSTGRES_PORT"] = "5432"
     environ["POSTGRES_USER"] = "eventsourcing"
     environ["POSTGRES_PASSWORD"] = "eventsourcing"
-    environ["POSTGRES_CONNECT_TIMEOUT"] = "5"
+    environ["POSTGRES_CONNECT_TIMEOUT"] = "30"
     environ["POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT"] = "5"
     environ["POSTGRES_POOL_SIZE"] = "5"
     environ["POSTGRES_MAX_OVERFLOW"] = "10"
+    environ["POSTGRES_MAX_WAITING"] = "0"
     environ["POSTGRES_CONN_MAX_AGE"] = ""
     environ["POSTGRES_PRE_PING"] = "n"
-    environ["POSTGRES_POOL_TIMEOUT"] = "30"
     environ["POSTGRES_LOCK_TIMEOUT"] = "5"
     environ["POSTGRES_SCHEMA"] = "public"
 
@@ -1267,9 +1267,9 @@ is set, the ``POSTGRES_PASSWORD`` variable is not required and will be ignored. 
 of this variable should be resolvable using :func:`~eventsourcing.utils.resolve_topic` to
 a Python function that expects no arguments and returns a Python ``str``.
 
-The optional environment variable ``POSTGRES_CONNECT_TIMEOUT`` may be used to timeout
-attempts to create new database connections. If set, an integer value is required.
-The default value is 5.
+The optional environment variable ``POSTGRES_CONNECT_TIMEOUT`` may be used to set
+the maximum time in seconds that a client can wait to receive a connection from the pool.
+If set, an integer value is required. The default value is 30.
 
 The optional environment variable ``POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT`` may be used to
 timeout sessions that are idle in a transaction. If a transaction cannot be ended for some reason,
@@ -1293,23 +1293,17 @@ that can be opened is the sum of ``POSTGRES_POOL_SIZE`` and ``POSTGRES_MAX_OVERF
 connections that are returned to the pool when it is full will be immediately closed. If set, an
 integer value is required. The default value is 10.
 
-The optional environment variable ``POSTGRES_POOL_TIMEOUT`` may be used to control how many seconds
-to wait before raising a "pool exhausted" exception for a connection to be returned to a pool that
-has already opened the maximum number of connections configured by ``POSTGRES_POOL_SIZE`` and
-``POSTGRES_MAX_OVERFLOW``. If set, a floating point number is required. The default value is 30.
+The optional environment variable ``POSTGRES_MAX_WAITING`` is used to control the maximum number
+of connection requests that can be queued to the pool, after which new requests will fail.
+If set, an integer is required. The default value is 0, which means there is no queue limit.
 
-The optional environment variable ``POSTGRES_CONN_MAX_AGE`` is used to control the length of time in
-seconds before a connection is closed. By default this value is not set, and connections will
-be reused indefinitely, until an operational database error is encountered, or the connection
-is returned to a pool that is full. If this value is set to a positive integer, the connection
-will be closed after this number of seconds from the time it was created, but only when the
-connection is not in use after the connection has been returned to the pool. If this value if
-set to zero, each connection will only be used once. Setting this value to an empty string has
-the same effect as not setting this value. Setting this value to any other value will cause an
-environment error exception to be raised. If your database terminates idle connections after some
+The optional environment variable ``POSTGRES_CONN_MAX_AGE`` is used to control the length of time
+in seconds before a connection is closed when returned to the pool. If this value is zero, each
+connection will only be used once. If your database terminates idle connections after some
 time, you should set ``POSTGRES_CONN_MAX_AGE`` to a lower value, so that attempts are not made to
 use connections that have been terminated by the database server, and so that your connections are
-not suddenly terminated in the middle of a transaction.
+not suddenly terminated in the middle of a transaction. If set, an float is required. The default
+value is 3600.0 (one hour).
 
 The optional environment variable ``POSTGRES_PRE_PING`` may be used to enable pessimistic
 disconnection handling. Setting this to a "true" value (``"y"``, ``"yes"``, ``"t"``, ``"true"``,

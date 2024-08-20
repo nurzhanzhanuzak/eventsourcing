@@ -20,32 +20,32 @@ class TestDocs(TestCase):
         super().setUp()
         self.uris = tmpfile_uris()
 
-        db = PostgresDatastore(
+        with PostgresDatastore(
             "eventsourcing",
             "127.0.0.1",
             "5432",
             "eventsourcing",
             "eventsourcing",
-        )
-        drop_postgres_table(db, "dogschool_events")
-        drop_postgres_table(db, "counters_events")
-        drop_postgres_table(db, "counters_tracking")
+        ) as datastore:
+            drop_postgres_table(datastore, "dogschool_events")
+            drop_postgres_table(datastore, "counters_events")
+            drop_postgres_table(datastore, "counters_tracking")
 
     def tearDown(self) -> None:
         self.clean_env()
 
     def clean_env(self):
         clear_topic_cache()
-        db = PostgresDatastore(
+        with PostgresDatastore(
             "eventsourcing",
             "127.0.0.1",
             "5432",
             "eventsourcing",
             "eventsourcing",
-        )
-        drop_postgres_table(db, "dogschool_events")
-        drop_postgres_table(db, "counters_events")
-        drop_postgres_table(db, "counters_tracking")
+        ) as datastore:
+            drop_postgres_table(datastore, "dogschool_events")
+            drop_postgres_table(datastore, "counters_events")
+            drop_postgres_table(datastore, "counters_tracking")
 
         keys = [
             "PERSISTENCE_MODULE",

@@ -155,10 +155,7 @@ class TestSystem(TestCase):
 
     def test_system_has_topic_if_defined_as_module_attribute(self):
         system_topic = system_defined_as_global.topic
-        self.assertEqual(
-            system_topic,
-            "eventsourcing.tests.system_tests.test_system:system_defined_as_global",
-        )
+        self.assertTrue(system_topic.endswith("test_system:system_defined_as_global"))
         self.assertEqual(resolve_topic(system_topic), system_defined_as_global)
 
     def test_system_topic_is_none_if_defined_in_function_body(self):

@@ -3,7 +3,7 @@ Installation
 ============
 
 This version of the library is compatible with Python versions 3.8, 3.9,
-3.10, 3.11, and 3.12. The library's suite of tests is run against these
+3.10, 3.11, 3.12, and 3.13. The library's suite of tests is run against these
 versions and has 100% line and branch coverage.
 
 This package depends only on modules from the Python Standard Library,
@@ -103,13 +103,8 @@ Please note, the `pre-built binary <https://pypi.org/project/psycopg-binary/>`_ 
 ``psycopg[binary]`` is a convenient alternative for development and testing, and for those
 unable to meet the prerequisites needed for building ``psycopg[c]``.
 
-::
-
-    $ pip install "eventsourcing[postgres_dev]"
-
-
 Options can be combined, so that if you want to store encrypted events in PostgreSQL,
-then install with the ``crypto`` and ``postgres`` options.
+then install with both the ``crypto`` and the ``postgres`` options.
 
 ::
 
@@ -141,37 +136,41 @@ Developers
 ==========
 
 If you want to install the code for the purpose of developing the library, then
-fork and clone the GitHub repository and install into a Python virtual environment
-from the root folder with the 'dev' option. This option will install a number of
-packages that help with development and documentation, such as the above extra
-dependencies along with Sphinx, Coverage.py, Black, mypy, Flake8, and isort.
+fork and clone the GitHub repository.
+
+Once you have cloned the project's GitHub repository, change into the root folder,
+or open the project in an IDE. You should see a Makefile.
+
+If you don't already have Poetry installed, run `make install-poetry`.
 
 ::
 
-    $ pip install -U pip
-    $ pip install wheel
-    $ pip install -e ".[dev]"
+    $ make install-poetry
 
-Alternatively, the project's Makefile can be used to the same effect with
-the following command.
+
+Run `make install-packages` to create a new virtual environment and
+install packages that needed for development, such as Sphinx, Coverage.py, Black,
+mypy, ruff, and isort.
 
 ::
 
-    $ make install
+    $ make install-packages
 
 
-Once installed, you can check the unit tests pass and the code is 100% covered
-by the tests with the following command.
+Once installed, check the project's test suite passes by running `make test`.
 
 ::
 
     $ make test
 
 
-Before the tests will pass, you will need setup PostgreSQL. The following commands
-will install PostgreSQL on MacOS and setup the database and database user. If you
-already have PostgreSQL installed, just create the database and user. If you prefer
-to run PostgreSQL in a Docker container, feel free to do that too.
+Before the tests will pass, you will need setup PostgreSQL, with a database
+called 'eventsourcing' that can be accessed by a user called 'eventsourcing'
+that has password 'eventsourcing'.
+
+The following commands will install PostgreSQL on MacOS and setup the database and
+database user. If you already have PostgreSQL installed, just create the database
+and user. You may prefer to run PostgreSQL in a Docker container.
 
 ::
 
@@ -185,8 +184,7 @@ to run PostgreSQL in a Docker container, feel free to do that too.
     postgres=# CREATE SCHEMA myschema AUTHORIZATION eventsourcing;
 
 
-You can also check the syntax and static types are correct with the
-following command (which uses isort, Black, Flake8, and mypy).
+Check the syntax and static types are correct by running `make lint`.
 
 ::
 
@@ -194,7 +192,7 @@ following command (which uses isort, Black, Flake8, and mypy).
 
 
 The code can be automatically reformatted using the following command
-(which uses isort and Black). Flake8 and mypy errors will often need
+(which uses isort and Black). Ruff and mypy errors will often need
 to be fixed by hand.
 
 ::
@@ -202,21 +200,11 @@ to be fixed by hand.
     $ make fmt
 
 
-You can build the docs, and make sure they build, with the following command
-(which uses Sphinx).
+You can build the docs (and check they build) with `make docs`.
 
 ::
 
     $ make docs
 
-
-If you wish to submit changes to the library, before submitting a pull
-request please check all three things (lint, docs, and test) which you
-can do conveniently with the following command.
-
-::
-
-    $ make prepush
-
-If you wish to submit a pull request on GitHub, please target the main
-branch. Improvements of any size are always welcome.
+Before submitting Pull Requests on GitHub, please make sure everything is working
+by running `make docs lint test`.

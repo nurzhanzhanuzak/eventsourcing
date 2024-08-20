@@ -4,7 +4,7 @@ DOTENV_FILE ?= dev/.env
 -include $(DOTENV_FILE)
 
 POETRY ?= poetry
-POETRY_VERSION=1.5.1
+POETRY_VERSION=1.8.3
 POETRY_INSTALLER_URL ?= https://install.python-poetry.org
 PYTHONUNBUFFERED=1
 SAMPLES_LINE_LENGTH=70

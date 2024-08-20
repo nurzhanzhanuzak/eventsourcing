@@ -10,7 +10,7 @@ jobs:
       max-parallel: 30
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13-dev"]
         postgres-version: ["12", "13", "14", "15", "16"]
 
     # Service containers to run with `runner-job`
@@ -33,10 +33,10 @@ jobs:
           - 5432:5432
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -48,7 +48,9 @@ jobs:
         PGPASSWORD=postgres psql eventsourcing -c "CREATE SCHEMA myschema AUTHORIZATION eventsourcing" -U postgres -h localhost
 
     - name: Install Poetry
-      run: make install-poetry
+      run: |
+        make install-poetry
+        poetry config installer.parallel false
 
     - name: Install packages
       run: make install-packages
@@ -73,25 +75,27 @@ jobs:
       max-parallel: 5
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13-dev"]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install Poetry
-      run: make install-poetry
+      run: |
+        make install-poetry
+        poetry config installer.parallel false
 
     - name: Buid and Test Distribution
       run: |
         pip install -U pip
         pip install wheel
         make build
-        pip install dist/*.whl
+        find ./dist -type f -name '*.whl' -exec pip install '{}[postgres]' \;
         rm -r dist
         mv eventsourcing/tests eventsourcing_tests
         rm -r eventsourcing
@@ -99,6 +103,7 @@ jobs:
         python -m unittest -v eventsourcing_tests/domain_tests/test_aggregate.py
         python -m unittest -v eventsourcing_tests/application_tests/test_application_with_popo.py
         python -m unittest -v eventsourcing_tests/application_tests/test_processapplication.py
+        python -c "import eventsourcing.postgres"
 
   coveralls_finish:
     needs: lint-and-test-code

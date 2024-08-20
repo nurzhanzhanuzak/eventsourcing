@@ -76,16 +76,19 @@ class WithPostgreSQL(SearchableTimestampsTestCase):
         super().tearDown()
 
     def drop_tables(self) -> None:
-        db = PostgresDatastore(
+        with PostgresDatastore(
             os.environ["POSTGRES_DBNAME"],
             os.environ["POSTGRES_HOST"],
             os.environ["POSTGRES_PORT"],
             os.environ["POSTGRES_USER"],
             os.environ["POSTGRES_PASSWORD"],
-        )
-        drop_postgres_table(db, "public.searchabletimestampsapplication_events")
-        drop_postgres_table(db, "public.searchabletimestampsapplication_timestamps")
-        db.close()
+        ) as datastore:
+            drop_postgres_table(
+                datastore, "public.searchabletimestampsapplication_events"
+            )
+            drop_postgres_table(
+                datastore, "public.searchabletimestampsapplication_timestamps"
+            )
 
 
 del SearchableTimestampsTestCase

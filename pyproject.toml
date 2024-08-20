@@ -45,9 +45,22 @@ keywords=[
 
 [tool.poetry.dependencies]
 python = ">=3.8,<4.0"
+typing_extensions = "*"
 "backports.zoneinfo" = { version = "*", python =  "<3.9" }
 pycryptodome = { version = "<=3.20.99999", optional = true }
-psycopg = { version = "<=3.9.99999", optional = true, extras = ["c", "pool"]}
+
+psycopg = [
+    { version = "<=3.2.1", optional = true, python = "<=3.12.999999" },
+    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg", optional = true, python = ">3.12.999999" }
+]
+psycopg-c = [
+    { version = "<=3.2.1", optional = true, python = "<=3.12.999999" },
+    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg_c", optional = true, python = ">3.12.999999" }
+]
+psycopg-pool = [
+    { version = "<=3.2.2", optional = true, python = "<=3.12.999999" },
+    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg_pool", optional = true, python = ">3.12.999999" }
+]
 
 Sphinx = { version = "*", optional = true }
 sphinx_rtd_theme = { version = "*", optional = true }
@@ -56,7 +69,7 @@ orjson = { version = "*", optional = true }
 
 [tool.poetry.extras]
 crypto = ["pycryptodome"]
-postgres = ["psycopg"]
+postgres = ["psycopg", "psycopg-c", "psycopg-pool"]
 docs = ["Sphinx", "sphinx_rtd_theme", "pydantic", "orjson"]
 
 
@@ -103,7 +116,20 @@ flake8-tidy-imports = "*"
 isort = "*"
 mypy = "*"
 python-coveralls = "*"
-psycopg = { version = "<=3.9.99999", extras = ["binary", "pool"] }
+psycopg = [
+    { version = "<=3.2.1", python = "<=3.12.999999" },
+    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg", python = ">3.12.999999" }
+]
+psycopg-binary = [
+    { version = "<=3.2.1", python = "<=3.12.999999" },
+]
+psycopg-c = [
+    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg_c", python = ">3.12.999999" }
+]
+psycopg-pool = [
+    { version = "<=3.2.2", python = "<=3.12.999999" },
+    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg_pool", python = ">3.12.999999" }
+]
 ruff = "^0.1.14"
 
 

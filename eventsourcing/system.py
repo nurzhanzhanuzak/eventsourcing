@@ -8,6 +8,7 @@ from queue import Full, Queue
 from threading import Event, Lock, RLock, Thread
 from types import FrameType, ModuleType
 from typing import (
+    Any,
     ClassVar,
     Dict,
     Iterable,
@@ -20,6 +21,8 @@ from typing import (
     Union,
     cast,
 )
+
+from typing_extensions import Self
 
 from eventsourcing.application import (
     Application,
@@ -524,6 +527,13 @@ class SingleThreadedRunner(Runner, RecordingEventReceiver):
         app = self.apps[cls.name]
         assert isinstance(app, cls)
         return app
+
+    def __enter__(self) -> Self:
+        self.start()
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        self.stop()
 
 
 class NewSingleThreadedRunner(Runner, RecordingEventReceiver):
