@@ -49,7 +49,7 @@ dependency on this library in the following way.
 
     [tool.poetry.dependencies]
     python = "^3.8"
-    eventsourcing = { version = "~9.3.0" }
+    eventsourcing = { version = "~9.3" }
 
 
 Specifying the major and minor version number in this way will avoid any
