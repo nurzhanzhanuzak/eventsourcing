@@ -23,6 +23,14 @@ the underlying principles are the same, and so conversion of
 code and stored events is very possible.
 
 
+Version 9.3.1 (released 22 August 2024)
+---------------------------------------
+
+* Fixed AggregateNotFoundError to inherit from AggregateNotFound, so that user code
+  with try/except using deprecated AggregateNotFound will still catch the new
+  AggregateNotFoundError class.
+
+
 Version 9.3.0 (released 20 August 2024)
 ---------------------------------------
 
