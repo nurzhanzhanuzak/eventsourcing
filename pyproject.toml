@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python",
@@ -47,20 +48,9 @@ keywords=[
 python = ">=3.8,<4.0"
 typing_extensions = "*"
 "backports.zoneinfo" = { version = "*", python =  "<3.9" }
-pycryptodome = { version = "<=3.20.99999", optional = true }
+pycryptodome = { version = "~3.20", optional = true }
 
-psycopg = [
-    { version = "<=3.2.1", optional = true, python = "<=3.12.999999" },
-    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg", optional = true, python = ">3.12.999999" }
-]
-psycopg-c = [
-    { version = "<=3.2.1", optional = true, python = "<=3.12.999999" },
-    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg_c", optional = true, python = ">3.12.999999" }
-]
-psycopg-pool = [
-    { version = "<=3.2.2", optional = true, python = "<=3.12.999999" },
-    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg_pool", optional = true, python = ">3.12.999999" }
-]
+psycopg = { version = "<=3.2.1", optional = true, extras = ["c", "pool"], python = "<=3.12.999999" }
 
 Sphinx = { version = "*", optional = true }
 sphinx_rtd_theme = { version = "*", optional = true }
@@ -69,40 +59,8 @@ orjson = { version = "*", optional = true }
 
 [tool.poetry.extras]
 crypto = ["pycryptodome"]
-postgres = ["psycopg", "psycopg-c", "psycopg-pool"]
+postgres = ["psycopg"]
 docs = ["Sphinx", "sphinx_rtd_theme", "pydantic", "orjson"]
-
-
-#Sphinx = { version = "*"}
-##docutils = { version = "0.17.1"}
-#sphinx_rtd_theme = { version = "*"}
-##sphinxcontrib-applehelp = { version = "1.0.4"}
-##sphinxcontrib-devhelp = { version = "1.0.2"}
-##sphinxcontrib-htmlhelp = { version = "2.0.1"}
-##sphinxcontrib-jquery = { version = "4.1"}
-##sphinxcontrib-qthelp = { version = "1.0.3"}
-##sphinxcontrib-serializinghtml = { version = "1.1.5"}
-##Jinja2 = { version = "3.1.2"}
-##Pygments = { version = "2.16.1"}
-##snowballstemmer = { version = "2.2.0"}
-##alabaster = { version = "0.7.13"}
-##Babel = { version = "2.13.0"}
-##imagesize = { version = "1.4.1"}
-##requests = { version = "2.31.0"}
-##packaging = { version = "23.2"}
-##MarkupSafe = { version = "2.1.3"}
-##charset_normalizer = { version = "3.3.0"}
-##idna = { version = "3.4"}
-##urllib3 = { version = "2.0.7"}
-##certifi = { version = "2023.7.22"}
-#
-#pydantic = { version = "*"}
-##pydantic-core = { version = "2.10.1"}
-##annotated-types = { version = "0.6.0"}
-##typing-extensions = { version = "4.8.0"}
-#
-#orjson = { version = "*"}
-
 
 [tool.poetry.group.dev.dependencies]
 black = { version = "*", allow-prereleases = true }
