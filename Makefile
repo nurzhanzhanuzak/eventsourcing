@@ -16,15 +16,18 @@ install-poetry:
 
 .PHONY: install
 install:
-	$(POETRY) install --extras "crypto docs" -vv $(opts)
+	$(POETRY) install --sync --extras "crypto docs" -vv $(opts)
 
 .PHONY: install-packages
 install-packages:
-	$(POETRY) install --no-root --extras "crypto docs" -vv $(opts)
+	$(POETRY) install --sync --no-root --extras "crypto docs" -vv $(opts)
+
+.PHONY: update-lockfile
+update-lockfile:
+	$(POETRY) lock --no-update
 
 .PHONY: update-packages
-update-packages:
-	$(POETRY) update -vv
+update-packages: update-lockfile install-packages
 
 .PHONY: lint
 lint: lint-black lint-ruff lint-isort lint-mypy #lint-dockerfile
