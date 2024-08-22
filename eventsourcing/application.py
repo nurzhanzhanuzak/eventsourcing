@@ -910,7 +910,9 @@ class Application:
 TApplication = TypeVar("TApplication", bound=Application)
 
 
-@deprecated("AggregateNotFound is deprecated, use AggregateNotFoundError instead")
+@deprecated(
+    "AggregateNotFound is deprecated, use AggregateNotFoundError instead", category=None
+)
 class AggregateNotFound(EventSourcingError):  # noqa: N818
     pass
 

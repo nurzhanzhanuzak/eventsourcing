@@ -1177,24 +1177,24 @@ class TestBankAccount(TestCase):
 
 class TestAggregateNotFound(TestCase):
     def test(self):
-        # Verify deprecation warning.
-        with warnings.catch_warnings(record=True) as w:
-            AggregateNotFound()
-
-        self.assertEqual(len(w), 1)
-        self.assertIs(w[-1].category, DeprecationWarning)
-        self.assertEqual(
-            "AggregateNotFound is deprecated, use AggregateNotFoundError instead",
-            w[-1].message.args[0],
-        )
-
-        # Verify no deprecation warning.
-        with warnings.catch_warnings(record=True) as w:
-            AggregateNotFoundError()
-        self.assertEqual(len(w), 0)
-
         # Check we didn't break any code.
         try:
             raise AggregateNotFoundError
         except AggregateNotFound:
             pass
+
+        # # Verify deprecation warning.
+        # with warnings.catch_warnings(record=True) as w:
+        #     AggregateNotFound()
+        #
+        # self.assertEqual(len(w), 1)
+        # self.assertIs(w[-1].category, DeprecationWarning)
+        # self.assertEqual(
+        #     "AggregateNotFound is deprecated, use AggregateNotFoundError instead",
+        #     w[-1].message.args[0],
+        # )
+
+        # Verify no deprecation warning.
+        with warnings.catch_warnings(record=True) as w:
+            AggregateNotFoundError()
+        self.assertEqual(len(w), 0)

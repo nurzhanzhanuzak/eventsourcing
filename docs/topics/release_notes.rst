@@ -23,6 +23,14 @@ the underlying principles are the same, and so conversion of
 code and stored events is very possible.
 
 
+Version 9.3.2 (released 22 August 2024)
+---------------------------------------
+
+* Adjusted @deprecated decorator of AggregateNotFound class to avoid raising runtime
+  warning and more simply to mark the class as deprecated so that IDEs can display class as
+  deprecated.
+
+
 Version 9.3.1 (released 22 August 2024)
 ---------------------------------------
 
