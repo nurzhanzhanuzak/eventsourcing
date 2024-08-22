@@ -25,6 +25,8 @@ from typing import (
 )
 from warnings import warn
 
+from typing_extensions import deprecated
+
 from eventsourcing.domain import (
     Aggregate,
     CanMutateProtocol,
@@ -908,21 +910,16 @@ class Application:
 TApplication = TypeVar("TApplication", bound=Application)
 
 
-class AggregateNotFoundError(EventSourcingError):
+@deprecated("AggregateNotFound is deprecated, use AggregateNotFoundError instead")
+class AggregateNotFound(EventSourcingError):  # noqa: N818
+    pass
+
+
+class AggregateNotFoundError(AggregateNotFound):
     """
     Raised when an :class:`~eventsourcing.domain.Aggregate`
     object is not found in a :class:`Repository`.
     """
-
-
-class AggregateNotFound(AggregateNotFoundError):  # noqa: N818
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        warn(
-            "AggregateNotFound is deprecated, use AggregateNotFoundError instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)
 
 
 class EventSourcedLog(Generic[TDomainEvent]):
