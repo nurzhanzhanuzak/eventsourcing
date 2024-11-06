@@ -21,9 +21,14 @@ To setup PostgreSQL:
 $ brew install postgresql
 $ brew services start postgresql
 $ psql postgres
-postgres=# CREATE DATABASE eventsourcing;
-postgres=# CREATE USER eventsourcing WITH PASSWORD 'eventsourcing';
-postgres=# CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';
+postgres=> CREATE DATABASE eventsourcing;
+postgres=> CREATE USER eventsourcing WITH PASSWORD 'eventsourcing';
+postgres=> ALTER DATABASE eventsourcing OWNER TO eventsourcing;
+$ psql -U eventsourcing
+eventsourcing=> CREATE SCHEMA myschema AUTHORIZATION eventsourcing;
+
+Maybe also: (?)
+postgres=> CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';
 
 Also edit pg_hba.conf so that passwords are required when connecting with TCP/IP.
 
