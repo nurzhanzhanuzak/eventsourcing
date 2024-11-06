@@ -23,6 +23,16 @@ the underlying principles are the same, and so conversion of
 code and stored events is very possible.
 
 
+Version 9.3.3 (released 7 November 2024)
+----------------------------------------
+
+* Improved aggregate example 8 (Pydantic validation of datetime values in aggregate snapshots).
+* Updated build matrix to use Python 3.13 and PostgreSQL 17.
+* Removed unnecessary 'docs' package extra.
+* Improved documentation of installation options.
+* Improved documentation build config.
+
+
 Version 9.3.2 (released 22 August 2024)
 ---------------------------------------
 
