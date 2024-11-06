@@ -1222,7 +1222,7 @@ PostgreSQL module
 =================
 
 The persistence module :mod:`eventsourcing.postgres` supports storing events in
-`PostgresSQL <https://www.postgresql.org/>`_ using the third party `Psycopg 3 <https://www.psycopg.org>`_
+`PostgresSQL <https://www.postgresql.org/>`_ using the third party `Psycopg v3 <https://www.psycopg.org>`_
 package. This code is tested with PostgreSQL versions 12, 13, 14, 15, 16, and 17.
 
 .. code-block:: python
