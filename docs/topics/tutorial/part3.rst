@@ -520,15 +520,12 @@ uses `Psycopg v3 <https://www.psycopg.org>`_, along with its connection pool pac
 and either its C optimization package, or its pre-built binary package.
 
 To use the PostgreSQL persistence module, either install the
-library with the ``postgres`` option, or install ``psycopg[c,pool]``
-directly.
+library with the ``postgres`` option, or install either ``psycopg[c,pool]``
+or ``psycopg[binary,pool]`` directly.
 
 ::
 
     $ pip install eventsourcing[postgres]
-
-Please note, the Psycopg pre-built binary optimization option``psycopg[binary,pool]``
- is a practical choice for development and testing.
 
 The example below compresses and encrypts stored events with zlib and AES.
 To use the library's encryption functionality, which depends on PyCryptodome,
