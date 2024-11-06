@@ -103,6 +103,9 @@ Please note, the `pre-built binary <https://pypi.org/project/psycopg-binary/>`_ 
 ``psycopg[binary]`` is a convenient alternative for development and testing, and for those
 unable to meet the prerequisites needed for building ``psycopg[c]``.
 
+See :ref:`PostgreSQL persistence module <postgres-module>` documentation
+for more information about storing events in PostgreSQL.
+
 Options can be combined, so that if you want to store encrypted events in PostgreSQL,
 then install with both the ``crypto`` and the ``postgres`` options.
 

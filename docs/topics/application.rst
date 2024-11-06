@@ -1017,8 +1017,8 @@ about using SQLite.
 
 To use the library's PostgreSQL persistence module,
 set ``PERSISTENCE_MODULE`` to the value ``"eventsourcing.postgres"``.
-See :ref:`PostgreSQL module <postgres-module>` documentation
-for more information about using PostgreSQL.
+See :ref:`PostgreSQL persistence module <postgres-module>` documentation
+for more information about storing events in PostgreSQL.
 
 
 Configuring compression
