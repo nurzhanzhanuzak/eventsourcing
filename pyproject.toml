@@ -49,9 +49,7 @@ python = ">=3.8,<4.0"
 typing_extensions = "*"
 "backports.zoneinfo" = { version = "*", python =  "<3.9" }
 pycryptodome = { version = "~3.20", optional = true }
-
-psycopg = { version = "<=3.2.1", optional = true, extras = ["c", "pool"], python = "<=3.12.999999" }
-
+psycopg = { version = "<=3.2.99999", optional = true, extras = ["c", "pool"]}
 Sphinx = { version = "*", optional = true }
 sphinx_rtd_theme = { version = "*", optional = true }
 pydantic = { version = "*", optional = true }
@@ -74,20 +72,7 @@ flake8-tidy-imports = "*"
 isort = "*"
 mypy = "*"
 python-coveralls = "*"
-psycopg = [
-    { version = "<=3.2.1", python = "<=3.12.999999" },
-    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg", python = ">3.12.999999" }
-]
-psycopg-binary = [
-    { version = "<=3.2.1", python = "<=3.12.999999" },
-]
-psycopg-c = [
-    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg_c", python = ">3.12.999999" }
-]
-psycopg-pool = [
-    { version = "<=3.2.2", python = "<=3.12.999999" },
-    { git = "https://github.com/psycopg/psycopg", branch="master", subdirectory = "psycopg_pool", python = ">3.12.999999" }
-]
+psycopg = { version = "<=3.2.99999", extras = ["binary", "pool"] }
 ruff = "^0.1.14"
 
 
