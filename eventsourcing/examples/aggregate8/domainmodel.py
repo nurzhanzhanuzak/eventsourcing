@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TCH003
-from typing import List
-from uuid import UUID  # noqa: TCH003
+from datetime import datetime
+from typing import Any, List
+from uuid import UUID
 
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from eventsourcing.domain import (
     Aggregate as BaseAggregate,
@@ -16,12 +16,28 @@ from eventsourcing.domain import (
 
 
 class DomainEvent(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     originator_id: UUID
     originator_version: int
     timestamp: datetime
 
-    class Config:
-        frozen = True
+
+datetime_adapter = TypeAdapter(datetime)
+
+
+class SnapshotState(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="allow")
+
+    def __init__(self, **kwargs: Any) -> None:
+        for key in ["_created_on", "_modified_on"]:
+            kwargs[key] = datetime_adapter.validate_python(kwargs[key])
+        super().__init__(**kwargs)
+
+
+class AggregateSnapshot(DomainEvent, CanSnapshotAggregate):
+    topic: str
+    state: SnapshotState
 
 
 class Aggregate(BaseAggregate):
@@ -32,28 +48,18 @@ class Aggregate(BaseAggregate):
         originator_topic: str
 
 
-class SnapshotState(BaseModel):
-    class Config:
-        extra = Extra.allow
-
-
-class AggregateSnapshot(DomainEvent, CanSnapshotAggregate):
-    topic: str
-    state: SnapshotState
-
-
 class Trick(BaseModel):
     name: str
 
 
-class DogState(SnapshotState):
+class DogSnapshotState(SnapshotState):
     name: str
     tricks: List[Trick]
 
 
 class Dog(Aggregate):
     class Snapshot(AggregateSnapshot):
-        state: DogState
+        state: DogSnapshotState
 
     @event("Registered")
     def __init__(self, name: str) -> None:

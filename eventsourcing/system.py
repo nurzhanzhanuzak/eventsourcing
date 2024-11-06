@@ -8,6 +8,7 @@ from queue import Full, Queue
 from threading import Event, Lock, RLock, Thread
 from types import FrameType, ModuleType
 from typing import (
+    TYPE_CHECKING,
     Any,
     ClassVar,
     Dict,
@@ -22,7 +23,8 @@ from typing import (
     cast,
 )
 
-from typing_extensions import Self
+if TYPE_CHECKING:  # pragma: nocover
+    from typing_extensions import Self
 
 from eventsourcing.application import (
     Application,

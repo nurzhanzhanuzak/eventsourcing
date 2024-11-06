@@ -36,7 +36,12 @@ class DogSchool(Application):
 
     def get_dog(self, dog_id: UUID) -> Dict[str, Any]:
         dog = self.repository.get(dog_id, projector_func=project_dog)
-        return {"name": dog.name, "tricks": tuple([t.name for t in dog.tricks])}
+        return {
+            "name": dog.name,
+            "tricks": tuple([t.name for t in dog.tricks]),
+            "created_on": dog.created_on,
+            "modified_on": dog.modified_on,
+        }
 
     def construct_mapper(self) -> Mapper:
         return self.factory.mapper(

@@ -7,18 +7,17 @@ from functools import singledispatch
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from eventsourcing.utils import get_topic
 
 
 class DomainEvent(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     originator_id: UUID
     originator_version: int
     timestamp: datetime
-
-    class Config:
-        frozen = True
 
 
 def create_timestamp() -> datetime:
@@ -26,13 +25,12 @@ def create_timestamp() -> datetime:
 
 
 class Aggregate(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     id: UUID
     version: int
     created_on: datetime
     modified_on: datetime
-
-    class Config:
-        frozen = True
 
     def hold_event(self, event: DomainEvent) -> None:
         all_pending_events[id(self)].append(event)
