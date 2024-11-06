@@ -13,14 +13,15 @@ build:
     post_create_environment:
       # Install poetry
       # https://python-poetry.org/docs/#installing-manually
-      - make install-poetry
+      - POETRY=/home/docs/.local/bin/poetry make install-poetry
 #      - pip install poetry
     post_install:
       # Install dependencies with 'docs' dependency group
       # https://python-poetry.org/docs/managing-dependencies/#dependency-groups
       # VIRTUAL_ENV needs to be set manually for now.
       # See https://github.com/readthedocs/readthedocs.org/pull/11152/
-      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install --extras "crypto" --with docs
+      - POETRY=/home/docs/.local/bin/poetry VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH make install
+#      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install --extras "crypto" --with docs
 #  jobs:
 #    pre_create_environment:
 #      # Select Python version (keep in sync with other versions):
