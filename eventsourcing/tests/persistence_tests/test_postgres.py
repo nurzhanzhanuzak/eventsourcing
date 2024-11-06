@@ -232,6 +232,7 @@ class TestPostgresDatastore(TestCase):
             user="eventsourcing",
             password="wrong",  # noqa: S106
             pool_size=1,
+            connect_timeout=3,
         ) as datastore:
 
             conn: Connection
@@ -261,7 +262,7 @@ class TestPostgresDatastore(TestCase):
             password="",
             pool_size=1,
             get_password_func=get_password_func,
-            connect_timeout=10,
+            connect_timeout=3,
         ) as datastore, datastore.get_connection() as conn, conn.cursor() as curs:
             # Create a connection, and check it works (this test depends on psycopg
             # retrying attempt to connect, should call "get password" twice).
