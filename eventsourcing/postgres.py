@@ -9,7 +9,6 @@ import psycopg.errors
 import psycopg_pool
 from psycopg import Connection, Cursor
 from psycopg.rows import DictRow, dict_row
-from typing_extensions import Self
 
 from eventsourcing.persistence import (
     AggregateRecorder,
@@ -33,6 +32,8 @@ from eventsourcing.utils import Environment, resolve_topic, retry, strtobool
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID
+
+    from typing_extensions import Self
 
 logging.getLogger("psycopg.pool").setLevel(logging.CRITICAL)
 logging.getLogger("psycopg").setLevel(logging.CRITICAL)
