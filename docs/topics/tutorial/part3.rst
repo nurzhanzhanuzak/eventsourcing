@@ -458,9 +458,11 @@ tutorial so far.
 SQLite environment
 ==================
 
-We can also configure an application to use SQLite for storing events.
+Alternatively, we can configure an application to use SQLite for storing events.
+
 To use the library's :ref:`SQLite persistence module <sqlite-module>`,
 set ``PERSISTENCE_MODULE`` to the value ``'eventsourcing.sqlite'``.
+
 When using the library's SQLite persistence module, the environment variable
 ``SQLITE_DBNAME`` must also be set. This value will be passed to Python's
 :func:`sqlite3.connect`.
@@ -508,10 +510,14 @@ we can expect the recorded values to be visible in the database records.
 PostgreSQL environment
 ======================
 
-We can also configure a "production" environment to use PostgreSQL.
-Using the library's :ref:`PostgresSQL persistence module <postgres-module>`
-will keep stored events in a PostgresSQL database. This persistence module
-uses `Psycopg v3 <https://www.psycopg.org>`_.
+We can configure a "production" environment to use PostgreSQL. The example
+below shows how to store events in PostgreSQL that have been compressed and
+encrypted.
+
+We can use the library's :ref:`PostgresSQL persistence module <postgres-module>`
+to store events in a PostgresSQL database. This persistence module
+uses `Psycopg v3 <https://www.psycopg.org>`_, along with its connection pool package,
+and either its C optimization package, or its pre-built binary package.
 
 To use the PostgreSQL persistence module, either install the
 library with the ``postgres`` option, or install ``psycopg[c,pool]``
@@ -521,23 +527,20 @@ directly.
 
     $ pip install eventsourcing[postgres]
 
-Please note, the library option ``postgres_dev`` will install Psycopg v3
-with the connection pool option, and the pre-built binary optimization option ``psycopg[binary]``
-which is much faster to install than ``psycopg[c]``, but possibly less optimal. The binary
-package is a practical choice for development and testing, but in production
-it is advised to use ``psycopg[c]`` if you can meet the prerequistes for
-building the C extension.
+Please note, the Psycopg pre-built binary optimization option``psycopg[binary,pool]``
+ is a practical choice for development and testing.
 
-The example below also uses zlib and AES to compress and encrypt the
-stored events. To use the library's encryption functionality,
-either install the library with the ``crypto`` option, or install the
-``pycryptodome`` directly.
+The example below compresses and encrypts stored events with zlib and AES.
+To use the library's encryption functionality, which depends on PyCryptodome,
+either install the library with the ``crypto`` option, or install ``pycryptodome``
+directly. The ``zlib`` package is included with the
+`Python Standard Library <https://docs.python.org/3/library/zlib.html>`_.
 
 ::
 
     $ pip install eventsourcing[crypto]
 
-Both the ``crypto`` and the ``postgres`` options can be installed together
+Both the ``postgres`` and the ``crypto`` options can be installed together
 with the following command.
 
 ::

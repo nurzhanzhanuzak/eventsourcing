@@ -16,11 +16,11 @@ install-poetry:
 
 .PHONY: install
 install:
-	$(POETRY) install --sync --extras "crypto docs" -vv $(opts)
+	$(POETRY) install --sync --extras "crypto" --with "docs" -vv $(opts)
 
 .PHONY: install-packages
 install-packages:
-	$(POETRY) install --sync --no-root --extras "crypto docs" -vv $(opts)
+	$(POETRY) install --sync --no-root --extras "crypto" --with "docs" -vv $(opts)
 
 .PHONY: update-lockfile
 update-lockfile:
@@ -40,9 +40,9 @@ lint-black:
 lint-ruff:
 	$(POETRY) run ruff check eventsourcing
 
-.PHONY: lint-flake8
-lint-flake8:
-	$(POETRY) run flake8 eventsourcing
+# .PHONY: lint-flake8
+# lint-flake8:
+# 	$(POETRY) run flake8 eventsourcing
 
 .PHONY: lint-isort
 lint-isort:
