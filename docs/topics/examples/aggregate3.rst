@@ -21,18 +21,18 @@ class as if it were a normal Python object class, albeit the aggregate class met
 Domain model
 ------------
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate3/domainmodel.py
+.. literalinclude:: ../../../examples/aggregate3/domainmodel.py
 
 
 Application
 -----------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate3/application.py
+.. literalinclude:: ../../../examples/aggregate3/application.py
 
 
 Test case
 ---------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate3/test_application.py
+.. literalinclude:: ../../../examples/aggregate3/test_application.py

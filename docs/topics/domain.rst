@@ -1331,7 +1331,8 @@ for an example of this style of implementing aggregate projector functions.
 ..
     #include-when-testing
 ..
-    from eventsourcing.examples.cargoshipping.domainmodel import Location, singledispatchmethod
+    from eventsourcing.dispatch import singledispatchmethod
+    from examples.cargoshipping.domainmodel import Location
 
 .. code-block:: python
 

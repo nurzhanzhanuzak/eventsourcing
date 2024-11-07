@@ -14,7 +14,7 @@ closed. Deposits and withdraws can be made on open accounts. Transfers can be
 made between open accounts, if there are sufficient funds on the debited account.
 All actions are atomic, including transfers between accounts.
 
-.. literalinclude:: ../../../eventsourcing/examples/bankaccounts/application.py
+.. literalinclude:: ../../../examples/bankaccounts/application.py
 
 
 Domain model
@@ -29,7 +29,7 @@ the account has been closed. Debits are not allowed if the
 balance would go below the overdraft limit. The overdraft
 limit can be adjusted.
 
-.. literalinclude:: ../../../eventsourcing/examples/bankaccounts/domainmodel.py
+.. literalinclude:: ../../../examples/bankaccounts/domainmodel.py
 
 
 Test case
@@ -40,4 +40,4 @@ might be used, the test runs through a scenario that
 exercises all the methods of the application in one
 test method.
 
-.. literalinclude:: ../../../eventsourcing/examples/bankaccounts/test.py
+.. literalinclude:: ../../../examples/bankaccounts/test.py

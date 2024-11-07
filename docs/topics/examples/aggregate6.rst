@@ -20,18 +20,18 @@ repository and when taking snapshots.
 Domain model
 ------------
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate6/domainmodel.py
+.. literalinclude:: ../../../examples/aggregate6/domainmodel.py
 
 
 Application
 -----------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate6/application.py
+.. literalinclude:: ../../../examples/aggregate6/application.py
 
 
 Test case
 ---------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate6/test_application.py
+.. literalinclude:: ../../../examples/aggregate6/test_application.py

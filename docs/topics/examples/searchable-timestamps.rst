@@ -17,7 +17,7 @@ events that will be used by the recorder to insert event timestamps into an inde
 introduces a ``get_cargo_at_timestamp()`` method that expects a ``tracking_id`` and a
 ``timestamp`` argument, then returns a ``Cargo`` aggregate as it was at the specified time.
 
-.. literalinclude:: ../../../eventsourcing/examples/searchabletimestamps/application.py
+.. literalinclude:: ../../../examples/searchabletimestamps/application.py
 
 
 Persistence
@@ -30,7 +30,7 @@ define SQL statements that insert and select from the rows of the table.
 They define a ``get_version_at_timestamp()`` method which returns the version of
 an aggregate at a particular time.
 
-.. literalinclude:: ../../../eventsourcing/examples/searchabletimestamps/persistence.py
+.. literalinclude:: ../../../examples/searchabletimestamps/persistence.py
 
 The application recorder classes extend the ``_insert_events()`` method by inserting rows,
 according to the event timestamp data passed down from the application.
@@ -43,13 +43,13 @@ so that a ``SearchableTimestampsApplicationRecorder`` is constructed as the appl
 PostgreSQL
 ----------
 
-.. literalinclude:: ../../../eventsourcing/examples/searchabletimestamps/postgres.py
+.. literalinclude:: ../../../examples/searchabletimestamps/postgres.py
 
 
 SQLite
 ------
 
-.. literalinclude:: ../../../eventsourcing/examples/searchabletimestamps/sqlite.py
+.. literalinclude:: ../../../examples/searchabletimestamps/sqlite.py
 
 
 Test case
@@ -60,4 +60,4 @@ state of a ``Cargo`` aggregate. The aggregate is then reconstructed as it was at
 particular times in its evolution. The test is executed twice, with the application
 configured for both PostgreSQL and SQLite.
 
-.. literalinclude:: ../../../eventsourcing/examples/searchabletimestamps/test_searchabletimestamps.py
+.. literalinclude:: ../../../examples/searchabletimestamps/test_searchabletimestamps.py

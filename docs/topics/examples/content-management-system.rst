@@ -45,7 +45,7 @@ system module guarantees that the diffs will always be applied in the correct or
 this guarantee, the projection could become inconsistent, with the consequence that the diffs
 will fail to be applied.
 
-.. literalinclude:: ../../../eventsourcing/examples/contentmanagementsystem/application.py
+.. literalinclude:: ../../../examples/contentmanagementsystem/application.py
 
 System
 ------
@@ -54,7 +54,7 @@ A :class:`~eventsourcing.system.System` of applications is defined, in which the
 ``SearchIndexApplication`` follows the ``ContentManagementApplication``. This system
 can then be used in any :class:`~eventsourcing.system.Runner`.
 
-.. literalinclude:: ../../../eventsourcing/examples/contentmanagementsystem/system.py
+.. literalinclude:: ../../../examples/contentmanagementsystem/system.py
 
 PostgreSQL
 ----------
@@ -65,7 +65,7 @@ The PostgreSQL :class:`~eventsourcing.postgres.Factory` class is extended to inv
 in a custom persistence module so that it can be used by the ``SearchIndexApplication``.
 
 
-.. literalinclude:: ../../../eventsourcing/examples/contentmanagementsystem/postgres.py
+.. literalinclude:: ../../../examples/contentmanagementsystem/postgres.py
 
 SQLite
 ------
@@ -75,7 +75,7 @@ is used to define a custom :class:`~eventsourcing.persistence.ProcessRecorder` f
 The SQLite :class:`~eventsourcing.sqlite.Factory` class is extended to involve this custom recorder
 in a custom persistence module so that it can be used by the ``SearchIndexApplication``.
 
-.. literalinclude:: ../../../eventsourcing/examples/contentmanagementsystem/sqlite.py
+.. literalinclude:: ../../../examples/contentmanagementsystem/sqlite.py
 
 
 Test case
@@ -86,4 +86,4 @@ and 'minerals'. Content is added to the pages. The content is searched with vari
 the search results are checked. The test is executed twice, once with the application configured
 for both PostgreSQL, and once for SQLite.
 
-.. literalinclude:: ../../../eventsourcing/examples/contentmanagementsystem/test_system.py
+.. literalinclude:: ../../../examples/contentmanagementsystem/test_system.py

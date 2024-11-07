@@ -28,7 +28,7 @@ to be registered.
 The ``Booking`` application defines and registers custom transcodings for the
 custom value objects that are defined and used in the domain model.
 
-.. literalinclude:: ../../../eventsourcing/examples/cargoshipping/application.py
+.. literalinclude:: ../../../examples/cargoshipping/application.py
 
 Domain model
 ------------
@@ -48,7 +48,7 @@ For the purpose of simplicity in this example, a fixed collection of routes betw
 locations are also defined, but in practice these would be editable and could be
 also modelled as event-sourced aggregates.
 
-.. literalinclude:: ../../../eventsourcing/examples/cargoshipping/domainmodel.py
+.. literalinclude:: ../../../examples/cargoshipping/domainmodel.py
 
 
 Interface
@@ -66,7 +66,7 @@ the purposes of testing, we need to simulate the user selecting a preferred
 itinerary from a list, which we do by picking the first in the list of presented
 options using the ``select_preferred_itinerary()`` function.
 
-.. literalinclude:: ../../../eventsourcing/examples/cargoshipping/interface.py
+.. literalinclude:: ../../../examples/cargoshipping/interface.py
 
 
 Test case
@@ -80,4 +80,4 @@ handling events as it is shipped around the world, recovering by
 assigning a new route after the cargo was unloaded in the wrong place,
 until finally the cargo is claimed at its correct destination.
 
-.. literalinclude:: ../../../eventsourcing/examples/cargoshipping/test.py
+.. literalinclude:: ../../../examples/cargoshipping/test.py

@@ -39,7 +39,7 @@ Please note, although the domain model (see below) involves a ``user_id`` event 
 none of the application command methods mention a ``user_id`` argument. Instead the value
 is set in a context variable by callers of the application command methods (see the test below).
 
-.. literalinclude:: ../../../eventsourcing/examples/contentmanagement/application.py
+.. literalinclude:: ../../../examples/contentmanagement/application.py
 
 
 Domain model
@@ -67,13 +67,13 @@ pages of text, with editable titles, and with editable "slugs" that can be used 
 
 A ``PageLogged`` event is also defined, and used to define a "page log" in the application.
 
-.. literalinclude:: ../../../eventsourcing/examples/contentmanagement/domainmodel.py
+.. literalinclude:: ../../../examples/contentmanagement/domainmodel.py
 
 
 The ``create_diff()`` and ``apply_patch()`` functions use the Unix command line
 tools ``patch`` and ``diff``.
 
-.. literalinclude:: ../../../eventsourcing/examples/contentmanagement/utils.py
+.. literalinclude:: ../../../examples/contentmanagement/utils.py
 
 
 Test case
@@ -83,4 +83,4 @@ The test case below sets a user ID in the context variable. A page is created
 and updated in various ways. At the end, all the page events are checked to
 make sure they all have the user ID that was set in the context variable.
 
-.. literalinclude:: ../../../eventsourcing/examples/contentmanagement/test.py
+.. literalinclude:: ../../../examples/contentmanagement/test.py

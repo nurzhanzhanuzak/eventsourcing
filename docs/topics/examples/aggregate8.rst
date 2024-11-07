@@ -30,25 +30,25 @@ aggregate events and from recorded snapshots.
 Domain model
 ------------
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate8/domainmodel.py
+.. literalinclude:: ../../../examples/aggregate8/domainmodel.py
 
 
 Application
 -----------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate8/application.py
+.. literalinclude:: ../../../examples/aggregate8/application.py
 
 
 Persistence
 -----------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate8/persistence.py
+.. literalinclude:: ../../../examples/aggregate8/persistence.py
 
 
 Test case
 ---------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate8/test_application.py
+.. literalinclude:: ../../../examples/aggregate8/test_application.py

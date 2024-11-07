@@ -16,18 +16,18 @@ Python object class.
 Domain model
 ------------
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate1/domainmodel.py
+.. literalinclude:: ../../../examples/aggregate1/domainmodel.py
 
 
 Application
 -----------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate1/application.py
+.. literalinclude:: ../../../examples/aggregate1/application.py
 
 
 Test case
 ---------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate1/test_application.py
+.. literalinclude:: ../../../examples/aggregate1/test_application.py

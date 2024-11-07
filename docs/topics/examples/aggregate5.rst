@@ -27,18 +27,18 @@ supplied when getting an aggregate from the repository and when taking snapshots
 Domain model
 ------------
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate5/domainmodel.py
+.. literalinclude:: ../../../examples/aggregate5/domainmodel.py
 
 
 Application
 -----------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate5/application.py
+.. literalinclude:: ../../../examples/aggregate5/application.py
 
 
 Test case
 ---------
 
 
-.. literalinclude:: ../../../eventsourcing/examples/aggregate5/test_application.py
+.. literalinclude:: ../../../examples/aggregate5/test_application.py
