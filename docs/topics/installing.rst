@@ -3,11 +3,11 @@ Installation
 ============
 
 This version of the library is compatible with Python versions 3.8, 3.9,
-3.10, 3.11, 3.12, and 3.13. The library's suite of tests is run against these
-versions and has 100% line and branch coverage.
+3.10, 3.11, 3.12, and 3.13.
 
 This package depends only on modules from the Python Standard Library,
-except for the extra install options described below.
+except for ``typing_extensions`` and the extra install options described below.
+
 
 Pip install
 ===========
