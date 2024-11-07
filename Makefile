@@ -34,11 +34,11 @@ lint: lint-black lint-ruff lint-isort lint-mypy #lint-dockerfile
 
 .PHONY: lint-black
 lint-black:
-	$(POETRY) run black --check --diff eventsourcing
+	$(POETRY) run black --check --diff eventsourcing tests examples
 
 .PHONY: lint-ruff
 lint-ruff:
-	$(POETRY) run ruff check eventsourcing
+	$(POETRY) run ruff check eventsourcing tests examples
 
 # .PHONY: lint-flake8
 # lint-flake8:
@@ -46,11 +46,11 @@ lint-ruff:
 
 .PHONY: lint-isort
 lint-isort:
-	$(POETRY) run isort --check-only --diff eventsourcing
+	$(POETRY) run isort --check-only --diff eventsourcing tests examples
 
 .PHONY: lint-mypy
 lint-mypy:
-	$(POETRY) run mypy eventsourcing
+	$(POETRY) run mypy eventsourcing tests examples
 
 
 # .PHONY: lint-dockerfile
@@ -63,7 +63,7 @@ fmt: fmt-isort fmt-black fmt-ruff
 
 .PHONY: fmt-ruff
 fmt-ruff:
-	$(POETRY) run ruff --fix eventsourcing
+	$(POETRY) run ruff --fix eventsourcing tests examples
 
 .PHONY: fmt-ruff-unsafe
 fmt-ruff-unsafe:
@@ -71,11 +71,11 @@ fmt-ruff-unsafe:
 
 .PHONY: fmt-black
 fmt-black:
-	$(POETRY) run black eventsourcing
+	$(POETRY) run black eventsourcing tests examples
 
 .PHONY: fmt-isort
 fmt-isort:
-	$(POETRY) run isort eventsourcing
+	$(POETRY) run isort eventsourcing tests examples
 
 
 
@@ -101,15 +101,15 @@ timeit: timeit_popo timeit_sqlite timeit_postgres
 
 .PHONY: timeit_popo
 timeit_popo:
-	TEST_TIMEIT_FACTOR=500 $(POETRY) run python -m unittest eventsourcing.tests.application_tests.test_application_with_popo
+	TEST_TIMEIT_FACTOR=500 $(POETRY) run python -m unittest tests.application_tests.test_application_with_popo
 
 .PHONY: timeit_sqlite
 timeit_sqlite:
-	TEST_TIMEIT_FACTOR=500 $(POETRY) run python -m unittest eventsourcing.tests.application_tests.test_application_with_sqlite
+	TEST_TIMEIT_FACTOR=500 $(POETRY) run python -m unittest tests.application_tests.test_application_with_sqlite
 
 .PHONY: timeit_postgres
 timeit_postgres:
-	TEST_TIMEIT_FACTOR=500 $(POETRY) run python -m unittest eventsourcing.tests.application_tests.test_application_with_postgres
+	TEST_TIMEIT_FACTOR=500 $(POETRY) run python -m unittest tests.application_tests.test_application_with_postgres
 
 .PHONY: build
 build:

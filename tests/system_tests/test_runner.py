@@ -42,10 +42,10 @@ from eventsourcing.system import (
     System,
 )
 from eventsourcing.tests.application import BankAccounts
-from eventsourcing.tests.application_tests.test_processapplication import EmailProcess
 from eventsourcing.tests.persistence import tmpfile_uris
 from eventsourcing.tests.postgres_utils import drop_postgres_table
 from eventsourcing.utils import clear_topic_cache, get_topic
+from tests.application_tests.test_processapplication import EmailProcess
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID

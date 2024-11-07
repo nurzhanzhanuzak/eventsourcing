@@ -12,10 +12,8 @@ from eventsourcing.system import (
     RecordingEventReceiver,
 )
 from eventsourcing.tests.application import BankAccounts, EmailAddressAsStr
-from eventsourcing.tests.application_tests.test_processingpolicy import (
-    EmailNotification,
-)
 from eventsourcing.tests.domain import BankAccount
+from tests.application_tests.test_processingpolicy import EmailNotification
 
 
 class TestProcessApplication(TestCase):

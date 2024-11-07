@@ -15,9 +15,9 @@ from eventsourcing.system import (
     System,
 )
 from eventsourcing.tests.application import BankAccounts
-from eventsourcing.tests.application_tests.test_processapplication import EmailProcess
 from eventsourcing.tests.domain import BankAccount
 from eventsourcing.utils import get_topic, resolve_topic
+from tests.application_tests.test_processapplication import EmailProcess
 
 system_defined_as_global = System(
     pipes=[

@@ -38,14 +38,12 @@ from eventsourcing.tests.persistence import (
     InfrastructureFactoryTestCase,
     ProcessRecorderTestCase,
 )
-from eventsourcing.tests.persistence_tests.test_connection_pool import (
-    TestConnectionPool,
-)
 from eventsourcing.tests.postgres_utils import (
     drop_postgres_table,
     pg_close_all_connections,
 )
 from eventsourcing.utils import Environment, get_topic
+from tests.persistence_tests.test_connection_pool import TestConnectionPool
 
 
 class TestPostgresDatastore(TestCase):

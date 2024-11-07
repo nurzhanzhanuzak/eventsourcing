@@ -33,10 +33,8 @@ from eventsourcing.tests.persistence import (
     ProcessRecorderTestCase,
     tmpfile_uris,
 )
-from eventsourcing.tests.persistence_tests.test_connection_pool import (
-    TestConnectionPool,
-)
 from eventsourcing.utils import Environment
+from tests.persistence_tests.test_connection_pool import TestConnectionPool
 
 
 class TestTransaction(TestCase):

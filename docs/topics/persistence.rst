@@ -1346,7 +1346,7 @@ constructed and used in a standard way.
 ..
     #include-when-testing
 ..
-    from eventsourcing.tests.persistence_tests.test_postgres import drop_postgres_table
+    from eventsourcing.tests.postgres_utils import drop_postgres_table
     factory = InfrastructureFactory.construct(environ)
     drop_postgres_table(factory.datastore, "stored_events")
     del factory
