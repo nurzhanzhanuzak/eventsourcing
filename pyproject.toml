@@ -97,9 +97,7 @@ exclude = '''
 
 [tool.coverage.run]
 branch = true
-omit = [
-    "esdbclient/protos/*"
-]
+omit = []
 
 [tool.coverage.report]
 exclude_lines = [
