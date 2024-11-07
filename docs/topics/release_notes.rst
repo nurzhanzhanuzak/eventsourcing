@@ -23,6 +23,11 @@ the underlying principles are the same, and so conversion of
 code and stored events is very possible.
 
 
+Version 9.3.4 (released 7 November 2024)
+----------------------------------------
+
+* Excluded examples package, and test cases not used by extension projects, from distribution.
+
 Version 9.3.3 (released 7 November 2024)
 ----------------------------------------
 
