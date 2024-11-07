@@ -30,9 +30,9 @@ readme = "README.md"
 homepage = "https://github.com/pyeventsourcing/eventsourcing"
 repository = "https://github.com/pyeventsourcing/eventsourcing"
 include = ["eventsourcing/py.typed"]
-packages = [
-    { include = "eventsourcing" },
-    { include = "eventsourcing/tests" },
+exclude = [
+    "eventsourcing/examples",
+    "eventsourcing/tests/*_tests/*",
 ]
 keywords=[
     "event sourcing",
