@@ -5,12 +5,10 @@ from typing import ClassVar, Dict
 from unittest import TestCase
 from uuid import uuid4
 
-from examples.contentmanagement.domainmodel import user_id_cvar
-from examples.searchablecontent.application import (
-    SearchableContentApplication,
-)
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.tests.postgres_utils import drop_postgres_table
+from examples.contentmanagement.domainmodel import user_id_cvar
+from examples.searchablecontent.application import SearchableContentApplication
 
 
 class SearchableContentApplicationTestCase(TestCase):

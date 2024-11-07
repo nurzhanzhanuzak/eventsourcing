@@ -4,9 +4,7 @@ from typing import TYPE_CHECKING, List, cast
 
 from examples.cargoshipping.application import BookingApplication
 from examples.cargoshipping.domainmodel import Cargo
-from examples.searchabletimestamps.persistence import (
-    SearchableTimestampsRecorder,
-)
+from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
 if TYPE_CHECKING:  # pragma: nocover
     from datetime import datetime

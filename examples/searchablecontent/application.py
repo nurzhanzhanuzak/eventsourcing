@@ -7,9 +7,7 @@ from examples.contentmanagement.application import (
     PageDetailsType,
 )
 from examples.contentmanagement.domainmodel import Page
-from examples.searchablecontent.persistence import (
-    SearchableContentRecorder,
-)
+from examples.searchablecontent.persistence import SearchableContentRecorder
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID

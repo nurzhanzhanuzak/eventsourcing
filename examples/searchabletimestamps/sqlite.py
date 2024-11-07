@@ -5,15 +5,13 @@ from typing import TYPE_CHECKING, Any, List, Sequence, Tuple, cast
 from uuid import UUID
 
 from eventsourcing.domain import Aggregate
-from examples.searchabletimestamps.persistence import (
-    SearchableTimestampsRecorder,
-)
 from eventsourcing.sqlite import (
     Factory,
     SQLiteApplicationRecorder,
     SQLiteCursor,
     SQLiteDatastore,
 )
+from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
 if TYPE_CHECKING:  # pragma: nocover
     from eventsourcing.persistence import ApplicationRecorder, StoredEvent

@@ -1,7 +1,5 @@
-from examples.searchablecontent.sqlite import (
-    SQLiteSearchableContentRecorder,
-)
 from eventsourcing.sqlite import Factory, SQLiteProcessRecorder
+from examples.searchablecontent.sqlite import SQLiteSearchableContentRecorder
 
 
 class SearchableContentProcessRecorder(

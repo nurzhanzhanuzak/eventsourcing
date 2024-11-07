@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, cast
 
 from eventsourcing.application import Application
+from eventsourcing.persistence import Transcoder, Transcoding
 from examples.cargoshipping.domainmodel import (
     REGISTERED_ROUTES,
     Cargo,
@@ -11,7 +12,6 @@ from examples.cargoshipping.domainmodel import (
     Leg,
     Location,
 )
-from eventsourcing.persistence import Transcoder, Transcoding
 
 if TYPE_CHECKING:  # pragma: nocover
     from datetime import datetime

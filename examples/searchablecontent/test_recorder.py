@@ -5,15 +5,11 @@ from typing import ClassVar, Dict, cast
 from unittest import TestCase
 from uuid import uuid4
 
-from examples.contentmanagement.application import PageNotFoundError
-from examples.searchablecontent.application import (
-    SearchableContentApplication,
-)
-from examples.searchablecontent.persistence import (
-    SearchableContentRecorder,
-)
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.tests.postgres_utils import drop_postgres_table
+from examples.contentmanagement.application import PageNotFoundError
+from examples.searchablecontent.application import SearchableContentApplication
+from examples.searchablecontent.persistence import SearchableContentRecorder
 
 
 class SearchableContentRecorderTestCase(TestCase):

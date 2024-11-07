@@ -4,17 +4,13 @@ from typing import cast
 from unittest import TestCase
 from uuid import uuid4
 
+from eventsourcing.system import NotificationLogReader
 from examples.contentmanagement.application import (
     ContentManagementApplication,
     PageNotFoundError,
     SlugConflictError,
 )
-from examples.contentmanagement.domainmodel import (
-    Index,
-    Page,
-    user_id_cvar,
-)
-from eventsourcing.system import NotificationLogReader
+from examples.contentmanagement.domainmodel import Index, Page, user_id_cvar
 
 
 class TestContentManagement(TestCase):

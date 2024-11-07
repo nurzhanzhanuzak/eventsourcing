@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, List, Sequence, Tuple
 
-from examples.contentmanagement.application import PageNotFoundError
-from examples.searchablecontent.persistence import (
-    SearchableContentRecorder,
-)
 from eventsourcing.postgres import (
     Factory,
     PostgresAggregateRecorder,
     PostgresApplicationRecorder,
 )
+from examples.contentmanagement.application import PageNotFoundError
+from examples.searchablecontent.persistence import SearchableContentRecorder
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID

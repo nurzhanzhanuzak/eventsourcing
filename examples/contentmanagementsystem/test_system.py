@@ -4,19 +4,13 @@ from typing import ClassVar, Dict
 from unittest import TestCase
 from uuid import uuid4
 
-from examples.contentmanagement.application import (
-    ContentManagementApplication,
-)
-from examples.contentmanagement.domainmodel import user_id_cvar
-from examples.contentmanagementsystem.application import (
-    SearchIndexApplication,
-)
-from examples.contentmanagementsystem.system import (
-    ContentManagementSystem,
-)
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.system import SingleThreadedRunner
 from eventsourcing.tests.postgres_utils import drop_postgres_table
+from examples.contentmanagement.application import ContentManagementApplication
+from examples.contentmanagement.domainmodel import user_id_cvar
+from examples.contentmanagementsystem.application import SearchIndexApplication
+from examples.contentmanagementsystem.system import ContentManagementSystem
 
 
 class ContentManagementSystemTestCase(TestCase):

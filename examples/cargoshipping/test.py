@@ -5,10 +5,7 @@ from datetime import timedelta
 
 from examples.cargoshipping.application import BookingApplication
 from examples.cargoshipping.domainmodel import Cargo
-from examples.cargoshipping.interface import (
-    BookingService,
-    select_preferred_itinerary,
-)
+from examples.cargoshipping.interface import BookingService, select_preferred_itinerary
 
 
 class TestBookingService(unittest.TestCase):

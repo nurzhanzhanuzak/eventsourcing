@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar, Dict, List, cast
 
+from eventsourcing.system import ProcessApplication
 from examples.contentmanagement.domainmodel import Page
 from examples.contentmanagement.utils import apply_patch
-from examples.searchablecontent.persistence import (
-    SearchableContentRecorder,
-)
-from eventsourcing.system import ProcessApplication
+from examples.searchablecontent.persistence import SearchableContentRecorder
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID

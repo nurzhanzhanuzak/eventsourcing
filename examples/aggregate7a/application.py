@@ -3,10 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, Type
 
 from eventsourcing.application import Application, ProjectorFunction
-from examples.aggregate7.persistence import (
-    OrjsonTranscoder,
-    PydanticMapper,
-)
+from examples.aggregate7.persistence import OrjsonTranscoder, PydanticMapper
 from examples.aggregate7a.domainmodel import (
     Dog,
     Snapshot,

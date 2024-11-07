@@ -10,10 +10,7 @@ from examples.aggregate7.domainmodel import (
     project_dog,
     register_dog,
 )
-from examples.aggregate7.persistence import (
-    OrjsonTranscoder,
-    PydanticMapper,
-)
+from examples.aggregate7.persistence import OrjsonTranscoder, PydanticMapper
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID

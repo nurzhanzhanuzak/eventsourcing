@@ -8,12 +8,10 @@ from unittest import TestCase
 
 from eventsourcing.application import AggregateNotFoundError
 from eventsourcing.domain import create_utc_datetime_now
-from examples.cargoshipping.domainmodel import Location
-from examples.searchabletimestamps.application import (
-    SearchableTimestampsApplication,
-)
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.tests.postgres_utils import drop_postgres_table
+from examples.cargoshipping.domainmodel import Location
+from examples.searchabletimestamps.application import SearchableTimestampsApplication
 
 
 class SearchableTimestampsTestCase(TestCase):

@@ -1,7 +1,5 @@
-from examples.searchablecontent.postgres import (
-    PostgresSearchableContentRecorder,
-)
 from eventsourcing.postgres import Factory, PostgresProcessRecorder
+from examples.searchablecontent.postgres import PostgresSearchableContentRecorder
 
 
 class SearchableContentProcessRecorder(

@@ -5,14 +5,12 @@ from typing import TYPE_CHECKING, Any, List, Tuple, cast
 from uuid import UUID
 
 from eventsourcing.domain import Aggregate
-from examples.searchabletimestamps.persistence import (
-    SearchableTimestampsRecorder,
-)
 from eventsourcing.postgres import (
     Factory,
     PostgresApplicationRecorder,
     PostgresDatastore,
 )
+from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
 if TYPE_CHECKING:  # pragma: nocover
     from psycopg import Cursor

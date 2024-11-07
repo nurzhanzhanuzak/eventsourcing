@@ -4,14 +4,8 @@ import unittest
 from decimal import Decimal
 from uuid import uuid4
 
-from examples.bankaccounts.application import (
-    AccountNotFoundError,
-    BankAccounts,
-)
-from examples.bankaccounts.domainmodel import (
-    AccountClosedError,
-    InsufficientFundsError,
-)
+from examples.bankaccounts.application import AccountNotFoundError, BankAccounts
+from examples.bankaccounts.domainmodel import AccountClosedError, InsufficientFundsError
 
 
 class TestBankAccounts(unittest.TestCase):

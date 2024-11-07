@@ -3,12 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, Type
 
 from eventsourcing.application import Application, ProjectorFunction
-from examples.aggregate6a.domainmodel import (
-    Dog,
-    add_trick,
-    project_dog,
-    register_dog,
-)
+from examples.aggregate6a.domainmodel import Dog, add_trick, project_dog, register_dog
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID
