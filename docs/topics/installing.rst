@@ -78,7 +78,7 @@ You can also make your project depend directly on the extra dependencies.
 For example, if you want to store cryptographically encrypted events,
 then install with the ``crypto`` option. This simply installs
 `PyCryptodome <https://pypi.org/project/pycryptodome/>`_
-so feel free to make your project directly depend on that package.
+so feel free to make your project depend directly on `pycryptodome`.
 Please note, you will need to :ref:`configure your application <Application configuration>`
 environment to enable encryption.
 
@@ -89,21 +89,18 @@ environment to enable encryption.
 
 If you want to :ref:`store events with PostgreSQL <postgres-module>`, then install with
 the ``postgres`` option. This installs `Psycopg v3 <https://pypi.org/project/psycopg/>`_
-with the `optional C optimization <https://pypi.org/project/psycopg-c/>`_ package ``psycopg_c``
-and the connection pool package,
-so feel free to make your project depend on ``psycopg[c,pool]`` instead. The C optimization
-is recommended by the `Psycopg <https://www.psycopg.org>`_  developers for production usage.
-See the :ref:`PostgreSQL persistence module documentation <postgres-module>` for more information
+with its C optimization and connection pool packages, so feel free to make your project depend
+directly on ``psycopg[c,pool]`` instead. The C optimization is recommended by the
+`Psycopg <https://www.psycopg.org>`_  developers for production usage. The pre-built binary
+option ``psycopg[binary]`` is a convenient alternative for development and testing, and for those
+unable to meet the prerequisites needed for building ``psycopg[c]``. See the
+:ref:`PostgreSQL persistence module documentation <postgres-module>` for more information
 about storing events in PostgreSQL.
-
 
 ::
 
     $ pip install "eventsourcing[postgres]"
 
-Please note, the `pre-built binary <https://pypi.org/project/psycopg-binary/>`_ option
-``psycopg[binary]`` is a convenient alternative for development and testing, and for those
-unable to meet the prerequisites needed for building ``psycopg[c]``.
 
 Options can be combined, so that if you want to store encrypted events in PostgreSQL,
 then install with both the ``crypto`` and the ``postgres`` options.
