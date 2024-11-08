@@ -1,6 +1,5 @@
 from unittest.case import TestCase
 
-from eventsourcing.application import RecordingEvent
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import AggregateEvent
 from eventsourcing.persistence import Transcoder
@@ -9,6 +8,7 @@ from eventsourcing.system import (
     Leader,
     ProcessApplication,
     ProcessingEvent,
+    RecordingEvent,
     RecordingEventReceiver,
 )
 from eventsourcing.tests.application import BankAccounts, EmailAddressAsStr

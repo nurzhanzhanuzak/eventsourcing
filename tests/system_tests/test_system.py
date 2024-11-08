@@ -4,13 +4,14 @@ from typing import ClassVar, Sequence
 from unittest.case import TestCase
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from eventsourcing.application import Application, RecordingEvent
+from eventsourcing.application import Application
 from eventsourcing.domain import Aggregate
 from eventsourcing.persistence import IntegrityError, Notification, Tracking
 from eventsourcing.system import (
     Follower,
     Leader,
     ProcessApplication,
+    RecordingEvent,
     RecordingEventReceiver,
     System,
 )

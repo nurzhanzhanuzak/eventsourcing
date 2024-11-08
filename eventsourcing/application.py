@@ -599,18 +599,6 @@ class ProcessingEvent:
         self.collect_events(*aggregates, **kwargs)
 
 
-class RecordingEvent:
-    def __init__(
-        self,
-        application_name: str,
-        recordings: List[Recording],
-        previous_max_notification_id: int | None,
-    ):
-        self.application_name = application_name
-        self.recordings = recordings
-        self.previous_max_notification_id = previous_max_notification_id
-
-
 class Application:
     """
     Base class for event-sourced applications.
@@ -659,9 +647,6 @@ class Application:
         self._repository = self.construct_repository()
         self._notification_log = self.construct_notification_log()
         self.closing = Event()
-        self.previous_max_notification_id: int | None = (
-            self.recorder.max_notification_id()
-        )
 
     @property
     def repository(self) -> Repository:

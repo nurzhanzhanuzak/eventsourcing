@@ -21,7 +21,6 @@ from typing import (
 from unittest.case import TestCase
 from unittest.mock import MagicMock
 
-from eventsourcing.application import ProcessingEvent, RecordingEvent
 from eventsourcing.domain import Aggregate, AggregateEvent, event
 from eventsourcing.persistence import Notification, ProgrammingError
 from eventsourcing.postgres import PostgresDatastore
@@ -36,6 +35,7 @@ from eventsourcing.system import (
     ProcessApplication,
     ProcessingJob,
     PullingThread,
+    RecordingEvent,
     Runner,
     RunnerAlreadyStartedError,
     SingleThreadedRunner,
@@ -49,6 +49,8 @@ from tests.application_tests.test_processapplication import EmailProcess
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID
+
+    from eventsourcing.application import ProcessingEvent
 
 
 class EmailProcess2(EmailProcess):

@@ -30,11 +30,10 @@ from eventsourcing.application import (
     Application,
     NotificationLog,
     ProcessingEvent,
-    RecordingEvent,
     Section,
     TApplication,
 )
-from eventsourcing.domain import DomainEventProtocol
+from eventsourcing.domain import DomainEventProtocol, MutableOrImmutableAggregate
 from eventsourcing.persistence import (
     IntegrityError,
     Mapper,
@@ -46,6 +45,20 @@ from eventsourcing.persistence import (
 from eventsourcing.utils import EnvType, get_topic, resolve_topic
 
 ProcessingJob = Tuple[DomainEventProtocol, Tracking]
+
+
+class RecordingEvent:
+    def __init__(
+        self,
+        application_name: str,
+        recordings: List[Recording],
+        previous_max_notification_id: int | None,
+    ):
+        self.application_name = application_name
+        self.recordings = recordings
+        self.previous_max_notification_id = previous_max_notification_id
+
+
 ConvertingJob = Optional[Union[RecordingEvent, List[Notification]]]
 
 
@@ -230,6 +243,7 @@ class Leader(Application):
 
     def __init__(self, env: EnvType | None = None) -> None:
         super().__init__(env)
+        self.previous_max_notification_id: int | None = None
         self.followers: List[RecordingEventReceiver] = []
 
     def lead(self, follower: RecordingEventReceiver) -> None:
@@ -237,6 +251,15 @@ class Leader(Application):
         Adds given follower to a list of followers.
         """
         self.followers.append(follower)
+
+    def save(
+        self,
+        *objs: MutableOrImmutableAggregate | DomainEventProtocol | None,
+        **kwargs: Any,
+    ) -> List[Recording]:
+        if self.previous_max_notification_id is None:
+            self.previous_max_notification_id = self.recorder.max_notification_id()
+        return super().save(*objs, **kwargs)
 
     def _notify(self, recordings: List[Recording]) -> None:
         """
