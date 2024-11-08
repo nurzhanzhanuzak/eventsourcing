@@ -23,6 +23,16 @@ the underlying principles are the same, and so conversion of
 code and stored events is very possible.
 
 
+Version 9.3.5 (released 8 November 2024)
+----------------------------------------
+
+* Adjusted Application class so it doesn't call max_notification_id() when constructed:
+
+  * Pushed previous_max_notification_id attribute down to Leader class.
+  * Extended save() method on Leader class to call max_notification_id() if previous_max_notification_id is None.
+
+* Moved RecordingEvent class to system module.
+
 Version 9.3.4 (released 7 November 2024)
 ----------------------------------------
 
