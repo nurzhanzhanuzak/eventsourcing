@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import sys
+from concurrent.futures.thread import ThreadPoolExecutor
+from datetime import datetime
 from threading import Event, Thread
 from time import sleep
 from typing import List
 from unittest import TestCase, skipIf
+from unittest.mock import Mock
 from uuid import uuid4
 
 import psycopg
@@ -31,6 +34,7 @@ from eventsourcing.postgres import (
     PostgresApplicationRecorder,
     PostgresDatastore,
     PostgresProcessRecorder,
+    PostgresSubscription,
 )
 from eventsourcing.tests.persistence import (
     AggregateRecorderTestCase,
@@ -451,6 +455,65 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder.select_events(originator_id=originator_id)
 
 
+class TestPostgresSubscription(TestCase):
+    def test(self):
+        # Check it's okay to call stop() without having a listen_conn.
+        mock_recorder = Mock(spec=PostgresApplicationRecorder)
+        subscription = PostgresSubscription(mock_recorder, 0)
+        subscription.stop()
+
+        # Check _listen_for_notifications() catches error.
+        subscription = PostgresSubscription(mock_recorder, 0)
+        subscription._listen()
+        self.assertIsInstance(subscription._thread_error, AttributeError)
+
+        # Check _listen_for_notifications() preserves first error.
+        subscription = PostgresSubscription(mock_recorder, 0)
+        subscription._thread_error = ValueError()
+        subscription._listen()
+        self.assertIsInstance(subscription._thread_error, ValueError)
+
+        # Check _loop_on_selecting_notifications() catches error.
+        mock_datastore = Mock(spec=PostgresDatastore)
+        mock_recorder.datastore = mock_datastore
+        subscription = PostgresSubscription(mock_recorder, 0)
+        subscription._loop_on_pull()
+        self.assertIsInstance(subscription._thread_error, TypeError)
+
+        # Check _loop_on_selecting_notifications() preserves first error.
+        mock_datastore = Mock(spec=PostgresDatastore)
+        mock_recorder.datastore = mock_datastore
+        subscription = PostgresSubscription(mock_recorder, 0)
+        subscription._thread_error = ValueError()
+        subscription._loop_on_pull()
+        self.assertIsInstance(subscription._thread_error, ValueError)
+
+        # Check __next__() raises thread error.
+        subscription = PostgresSubscription(mock_recorder, 0)
+        subscription.stop()
+        with self.assertRaises(StopIteration):
+            next(subscription)
+        subscription._thread_error = ValueError()
+        with self.assertRaises(ValueError):
+            next(subscription)
+
+        # Check __iter__() raises if not called __enter__().
+        subscription = PostgresSubscription(mock_recorder, 0)
+        with self.assertRaises(ProgrammingError):
+            iter(subscription)
+
+        # Check __exit__() raises if not called __enter__().
+        subscription = PostgresSubscription(mock_recorder, 0)
+        with self.assertRaises(ProgrammingError):
+            subscription.__exit__()
+
+        # Check __enter__() raises if not already called __enter__().
+        subscription = PostgresSubscription(mock_recorder, 0)
+        subscription.__enter__()
+        with self.assertRaises(ProgrammingError):
+            subscription.__enter__()
+
+
 class TestPostgresApplicationRecorder(
     SetupPostgresDatastore, ApplicationRecorderTestCase
 ):
@@ -467,6 +530,75 @@ class TestPostgresApplicationRecorder(
 
     def test_insert_select(self) -> None:
         super().test_insert_select()
+
+    def test_insert_subscribe(self) -> None:
+        super().optional_test_insert_subscribe()
+
+    def test_subscribe_concurrent_reading_and_writing(self) -> None:
+        recorder = self.create_recorder()
+
+        num_batches = 20
+        batch_size = 100
+        num_events = num_batches * batch_size
+
+        def read(last_notification_id: int):
+            start = datetime.now()
+            with recorder.subscribe(last_notification_id) as subscription:
+                for i, notification in enumerate(subscription):
+                    # print("Read", i+1, "notifications")
+                    last_notification_id = notification.id
+                    if i + 1 == num_events:
+                        break
+            duration = datetime.now() - start
+            print(
+                "Finished reading",
+                num_events,
+                "events in",
+                duration.total_seconds(),
+                "seconds",
+            )
+
+        def write():
+            start = datetime.now()
+            for _ in range(num_batches):
+                events = []
+                for _ in range(batch_size):
+                    stored_event = StoredEvent(
+                        originator_id=uuid4(),
+                        originator_version=self.INITIAL_VERSION,
+                        topic="topic1",
+                        state=b"state1",
+                    )
+                    events.append(stored_event)
+                recorder.insert_events(events)
+                # print("Wrote", i + 1, "notifications")
+            duration = datetime.now() - start
+            print(
+                "Finished writing",
+                num_events,
+                "events in",
+                duration.total_seconds(),
+                "seconds",
+            )
+
+        thread_pool = ThreadPoolExecutor(max_workers=2)
+
+        print("Concurrent...")
+        # Get the max notification ID (for the subscription).
+        last_notification_id = recorder.max_notification_id()
+        write_job = thread_pool.submit(write)
+        read_job = thread_pool.submit(read, last_notification_id)
+        write_job.result()
+        read_job.result()
+
+        print("Sequential...")
+        last_notification_id = recorder.max_notification_id()
+        write_job = thread_pool.submit(write)
+        write_job.result()
+        read_job = thread_pool.submit(read, last_notification_id)
+        read_job.result()
+
+        thread_pool.shutdown(wait=True, cancel_futures=True)
 
     def test_concurrent_no_conflicts(self):
         super().test_concurrent_no_conflicts()

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+from asyncio import CancelledError
 from contextlib import contextmanager
+from threading import Thread
 from typing import TYPE_CHECKING, Any, Callable, Iterator, List, Sequence
 
 import psycopg
 import psycopg.errors
 import psycopg_pool
-from psycopg import Connection, Cursor
+from psycopg import Connection, Cursor, Error
+from psycopg.generators import notifies
 from psycopg.rows import DictRow, dict_row
 
 from eventsourcing.persistence import (
@@ -19,6 +22,7 @@ from eventsourcing.persistence import (
     IntegrityError,
     InterfaceError,
     InternalError,
+    ListenNotifySubscription,
     Notification,
     NotSupportedError,
     OperationalError,
@@ -37,6 +41,14 @@ if TYPE_CHECKING:  # pragma: nocover
 
 logging.getLogger("psycopg.pool").setLevel(logging.CRITICAL)
 logging.getLogger("psycopg").setLevel(logging.CRITICAL)
+
+# Copy of "private" psycopg.errors._NO_TRACEBACK (in case it changes)
+# From psycopg: "Don't show a complete traceback upon raising these exception.
+# Usually the traceback starts from internal functions (for instance in the
+# server communication callbacks) but, for the end user, it's more important
+# to get the high level information about where the exception was raised, for
+# instance in a certain `Cursor.execute()`."
+NO_TRACEBACK = (Error, KeyboardInterrupt, CancelledError)
 
 
 class ConnectionPool(psycopg_pool.ConnectionPool[Any]):
@@ -173,6 +185,7 @@ class PostgresAggregateRecorder(AggregateRecorder):
         self.check_table_name_length(events_table_name, datastore.schema)
         self.datastore = datastore
         self.events_table_name = events_table_name
+        self._channel_name = events_table_name.replace(".", "_")
         # Index names can't be qualified names, but
         # are created in the same schema as the table.
         if "." in self.events_table_name:
@@ -269,7 +282,10 @@ class PostgresAggregateRecorder(AggregateRecorder):
     ) -> None:
         # Only do something if there is something to do.
         if len(stored_events) > 0:
+            # print(f"Inserting {len(stored_events)} events")
             self._lock_table(c)
+
+            self._notify_channel(c)
 
             # Insert events.
             c.executemany(
@@ -287,6 +303,9 @@ class PostgresAggregateRecorder(AggregateRecorder):
             )
 
     def _lock_table(self, c: Cursor[DictRow]) -> None:
+        pass
+
+    def _notify_channel(self, c: Cursor[DictRow]) -> None:
         pass
 
     def _fetch_ids_after_insert_events(
@@ -381,6 +400,8 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
         Returns a list of event notifications
@@ -388,7 +409,11 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         """
 
         params: List[int | str | Sequence[str]] = [start]
-        statement = f"SELECT * FROM {self.events_table_name} WHERE notification_id>=%s"
+        statement = f"SELECT * FROM {self.events_table_name}"
+        if inclusive_of_start:
+            statement += " WHERE notification_id>=%s"
+        else:
+            statement += " WHERE notification_id>%s"
 
         if stop is not None:
             params.append(stop)
@@ -451,6 +476,9 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         for lock_statement in self.lock_table_statements:
             c.execute(lock_statement, prepare=True)
 
+    def _notify_channel(self, c: Cursor[DictRow]) -> None:
+        c.execute("NOTIFY " + self._channel_name)
+
     def _fetch_ids_after_insert_events(
         self,
         c: Cursor[DictRow],
@@ -464,6 +492,8 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
                 (c.statusmessage == "SET")
                 and c.nextset()
                 and (c.statusmessage == "LOCK TABLE")
+                and c.nextset()
+                and (c.statusmessage == "NOTIFY")
             ):
                 while c.nextset() and len(notification_ids) != len_events:
                     row = c.fetchone()
@@ -473,6 +503,42 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
                 msg = "Couldn't get all notification IDs"
                 raise ProgrammingError(msg)
         return notification_ids
+
+    def subscribe(self, last_notification_id: int) -> PostgresSubscription:
+        return PostgresSubscription(self, last_notification_id)
+
+
+class PostgresSubscription(ListenNotifySubscription[PostgresApplicationRecorder]):
+    def __enter__(self) -> Self:
+        super().__enter__()
+        self._listen_thread = Thread(target=self._listen)
+        self._listen_thread.start()
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        super().__exit__(*args, **kwargs)
+        self._listen_thread.join()
+
+    def _listen(self) -> None:
+        try:
+            with self._recorder.datastore.get_connection() as conn:
+                conn.execute("LISTEN " + self._recorder._channel_name)
+                while not self._has_been_stopped and not self._thread_error:
+                    # This block simplifies psycopg's conn.notifies(), because
+                    # we aren't interested in the actual notify messages, and
+                    # also we want to stop consuming notify messages when the
+                    # subscription has an error or is otherwise stopped.
+                    with conn.lock:
+                        try:
+                            if conn.wait(notifies(conn.pgconn), interval=0.1):
+                                self._has_been_notified.set()
+                        except NO_TRACEBACK as ex:  # pragma: no cover
+                            raise ex.with_traceback(None) from None
+
+        except BaseException as e:
+            if self._thread_error is None:
+                self._thread_error = e
+            self.stop()
 
 
 class PostgresProcessRecorder(PostgresApplicationRecorder, ProcessRecorder):

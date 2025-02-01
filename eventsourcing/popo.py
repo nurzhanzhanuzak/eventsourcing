@@ -1,23 +1,28 @@
 from __future__ import annotations
 
+import contextlib
 from collections import defaultdict
-from threading import Lock
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Sequence
+from threading import Event, Lock
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Sequence, Set
 
 from eventsourcing.persistence import (
     AggregateRecorder,
     ApplicationRecorder,
     InfrastructureFactory,
     IntegrityError,
+    ListenNotifySubscription,
     Notification,
     ProcessRecorder,
     StoredEvent,
+    Subscription,
     Tracking,
 )
 from eventsourcing.utils import reversed_keys
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID
+
+    from typing_extensions import Self
 
 
 class POPOAggregateRecorder(AggregateRecorder):
@@ -92,10 +97,16 @@ class POPOAggregateRecorder(AggregateRecorder):
 
 
 class POPOApplicationRecorder(ApplicationRecorder, POPOAggregateRecorder):
+    def __init__(self) -> None:
+        super().__init__()
+        self._listeners: Set[Event] = set()
+
     def insert_events(
         self, stored_events: List[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
-        return self._insert_events(stored_events, **kwargs)
+        notification_ids = self._insert_events(stored_events, **kwargs)
+        self._notify_listeners()
+        return notification_ids
 
     def select_notifications(
         self,
@@ -103,9 +114,13 @@ class POPOApplicationRecorder(ApplicationRecorder, POPOAggregateRecorder):
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         with self._database_lock:
             results = []
+            if not inclusive_of_start:
+                start += 1
             start = max(start, 1)  # Don't use negative indexes!
             i = start - 1
             while True:
@@ -133,6 +148,31 @@ class POPOApplicationRecorder(ApplicationRecorder, POPOAggregateRecorder):
     def max_notification_id(self) -> int:
         with self._database_lock:
             return len(self._stored_events)
+
+    def subscribe(self, last_notification_id: int) -> Subscription[ApplicationRecorder]:
+        return POPOSubscription(self, last_notification_id)
+
+    def listen(self, event: Event) -> None:
+        self._listeners.add(event)
+
+    def unlisten(self, event: Event) -> None:
+        with contextlib.suppress(KeyError):
+            self._listeners.remove(event)
+
+    def _notify_listeners(self) -> None:
+        for listener in self._listeners:
+            listener.set()
+
+
+class POPOSubscription(ListenNotifySubscription[POPOApplicationRecorder]):
+    def __enter__(self) -> Self:
+        super().__enter__()
+        self._recorder.listen(self._has_been_notified)
+        return self
+
+    def stop(self) -> None:
+        super().stop()
+        self._recorder.unlisten(self._has_been_notified)
 
 
 class POPOProcessRecorder(ProcessRecorder, POPOApplicationRecorder):

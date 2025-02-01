@@ -7,10 +7,12 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from threading import Condition, Event, Lock, Semaphore, Timer
+from queue import Queue
+from threading import Condition, Event, Lock, Semaphore, Thread, Timer
 from time import time
 from types import ModuleType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Dict,
     Generic,
@@ -34,6 +36,9 @@ from eventsourcing.utils import (
     resolve_topic,
     strtobool,
 )
+
+if TYPE_CHECKING:  # pragma: nocover
+    from typing_extensions import Self
 
 
 class Transcoding(ABC):
@@ -462,6 +467,8 @@ class ApplicationRecorder(AggregateRecorder):
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
         Returns a list of event notifications
@@ -474,6 +481,14 @@ class ApplicationRecorder(AggregateRecorder):
         """
         Returns the maximum notification ID.
         """
+
+    def subscribe(self, last_notification_id: int) -> Subscription[ApplicationRecorder]:
+        """
+        Returns a NotificationSubscription iterator that yields Notification
+        recorded after the given notification ID.
+        """
+        msg = f"The {type(self).__qualname__} recorder does not support subscriptions"
+        raise NotImplementedError(msg)
 
 
 class ProcessRecorder(ApplicationRecorder):
@@ -1197,3 +1212,118 @@ class ConnectionPool(ABC, Generic[TConnection]):
 
     def __del__(self) -> None:
         self.close()
+
+
+TApplicationRecorder_co = TypeVar(
+    "TApplicationRecorder_co", bound=ApplicationRecorder, covariant=True
+)
+
+
+class Subscription(Iterator[Notification], Generic[TApplicationRecorder_co]):
+    def __init__(
+        self, recorder: TApplicationRecorder_co, last_notification_id: int
+    ) -> None:
+        self._recorder = recorder
+        self._last_notification_id = last_notification_id
+        self._has_been_entered = False
+        self._has_been_stopped = False
+
+    def __enter__(self) -> Self:
+        if self._has_been_entered:
+            msg = "Already entered notification subscription"
+            raise ProgrammingError(msg)
+        self._has_been_entered = True
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        if not self._has_been_entered:
+            msg = "Not already entered notification subscription"
+            raise ProgrammingError(msg)
+        self.stop()
+
+    def stop(self) -> None:
+        self._has_been_stopped = True
+
+    def __iter__(self) -> Self:
+        if not self._has_been_entered:
+            msg = "Notification subscription must be used as a context manager"
+            raise ProgrammingError(msg)
+        return self
+
+    @abstractmethod
+    def __next__(self) -> Notification:
+        pass  # pragma: no cover
+
+
+class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
+    def __init__(
+        self, recorder: TApplicationRecorder_co, last_notification_id: int
+    ) -> None:
+        super().__init__(recorder=recorder, last_notification_id=last_notification_id)
+        self._select_limit = 500
+        self._notifications: List[Notification] = []
+        self._notifications_index: int = 0
+        self._notifications_queue: Queue[List[Notification]] = Queue()
+        self._has_been_notified = Event()
+        self._thread_error: BaseException | None = None
+
+    def __enter__(self) -> Self:
+        super().__enter__()
+        self._pull_thread = Thread(target=self._loop_on_pull)
+        self._pull_thread.start()
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        super().__exit__(*args, **kwargs)
+        self._pull_thread.join()
+
+    def stop(self) -> None:
+        super().stop()
+        self._notifications_queue.put([])
+        self._has_been_notified.set()
+
+    def __next__(self) -> Notification:
+        # Maybe get a new list of notifications from the recorder.
+        if (
+            self._notifications_index == len(self._notifications)
+            and not self._has_been_stopped
+        ):
+            self._notifications = self._notifications_queue.get()
+            self._notifications_index = 0
+
+        # Stop the iteration if necessary, maybe raise thread error.
+        if self._has_been_stopped or not self._notifications:
+            if self._thread_error is not None:
+                raise self._thread_error
+            raise StopIteration
+
+        # Return a notification from previously obtained list.
+        notification = self._notifications[self._notifications_index]
+        self._notifications_index += 1
+        return notification
+
+    def _loop_on_pull(self) -> None:
+        try:
+            self._pull()  # Already recorded events.
+            while not self._has_been_stopped:
+                self._has_been_notified.wait()
+                self._pull()  # Newly recorded events.
+        except BaseException as e:
+            if self._thread_error is None:
+                self._thread_error = e
+            self.stop()
+
+    def _pull(self) -> None:
+        while not self._has_been_stopped:
+            self._has_been_notified.clear()
+            notifications = self._recorder.select_notifications(
+                start=self._last_notification_id,
+                limit=self._select_limit,
+                inclusive_of_start=False,
+            )
+            if len(notifications) > 0:
+                # print("Putting", len(notifications), "notifications into queue")
+                self._notifications_queue.put(notifications)
+                self._last_notification_id = notifications[-1].id
+            if len(notifications) < self._select_limit:
+                break

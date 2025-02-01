@@ -26,6 +26,7 @@ from eventsourcing.persistence import (
     IntegrityError,
     JSONTranscoder,
     Mapper,
+    Notification,
     ProcessRecorder,
     StoredEvent,
     Tracking,
@@ -206,6 +207,7 @@ class AggregateRecorderTestCase(TestCase, ABC):
 
 class ApplicationRecorderTestCase(TestCase, ABC):
     INITIAL_VERSION = 1
+    EXPECT_CONTIGUOUS_NOTIFICATION_IDS = True
 
     @abstractmethod
     def create_recorder(self) -> ApplicationRecorder:
@@ -224,6 +226,14 @@ class ApplicationRecorderTestCase(TestCase, ABC):
         )
         self.assertEqual(
             len(recorder.select_notifications(max_notification_id + 1, 3)),
+            0,
+        )
+        self.assertEqual(
+            len(
+                recorder.select_notifications(
+                    max_notification_id, 3, inclusive_of_start=False
+                )
+            ),
             0,
         )
         self.assertEqual(
@@ -554,6 +564,90 @@ class ApplicationRecorderTestCase(TestCase, ABC):
         ended = datetime.now()
         rate = num_jobs * num_events / (ended - started).total_seconds()
         print(f"Rate: {rate:.0f} inserts per second")
+
+    def optional_test_insert_subscribe(self) -> None:
+
+        recorder = self.create_recorder()
+
+        # Get the max notification ID (for the subscription).
+        max_notification_id = recorder.max_notification_id()
+
+        # Write two stored events.
+        originator_id1 = uuid4()
+        originator_id2 = uuid4()
+
+        stored_event1 = StoredEvent(
+            originator_id=originator_id1,
+            originator_version=self.INITIAL_VERSION,
+            topic="topic1",
+            state=b"state1",
+        )
+        stored_event2 = StoredEvent(
+            originator_id=originator_id1,
+            originator_version=self.INITIAL_VERSION + 1,
+            topic="topic2",
+            state=b"state2",
+        )
+
+        notification_ids = recorder.insert_events([stored_event1, stored_event2])
+        if self.EXPECT_CONTIGUOUS_NOTIFICATION_IDS:
+            self.assertEqual(
+                notification_ids, [max_notification_id + 1, max_notification_id + 2]
+            )
+
+        # Start a subscription.
+        with recorder.subscribe(max_notification_id) as subscription:
+
+            # Receive events from the subscription.
+            notifications: List[Notification] = []
+            for notification in subscription:
+                notifications.append(notification)
+                if len(notifications) == 2:
+                    break
+
+            # Check the events we received are the ones that were written.
+            self.assertEqual(
+                stored_event1.originator_id, notifications[0].originator_id
+            )
+            self.assertEqual(
+                stored_event1.originator_version, notifications[0].originator_version
+            )
+            self.assertEqual(
+                stored_event2.originator_id, notifications[1].originator_id
+            )
+            self.assertEqual(
+                stored_event2.originator_version, notifications[1].originator_version
+            )
+            if self.EXPECT_CONTIGUOUS_NOTIFICATION_IDS:
+                self.assertEqual(max_notification_id + 1, notifications[0].id)
+                self.assertEqual(max_notification_id + 2, notifications[1].id)
+
+            # Store a third event.
+            stored_event3 = StoredEvent(
+                originator_id=originator_id2,
+                originator_version=self.INITIAL_VERSION,
+                topic="topic3",
+                state=b"state3",
+            )
+            notification_ids = recorder.insert_events([stored_event3])
+            if self.EXPECT_CONTIGUOUS_NOTIFICATION_IDS:
+                self.assertEqual(notification_ids, [max_notification_id + 3])
+
+            # Receive events from the subscription.
+            for notification in subscription:
+                notifications.append(notification)
+                if len(notifications) == 3:
+                    break
+
+            # Check the events we received are the ones that were written.
+            self.assertEqual(
+                stored_event3.originator_id, notifications[2].originator_id
+            )
+            self.assertEqual(
+                stored_event3.originator_version, notifications[2].originator_version
+            )
+            if self.EXPECT_CONTIGUOUS_NOTIFICATION_IDS:
+                self.assertEqual(max_notification_id + 3, notifications[2].id)
 
     def close_db_connection(self, *args: Any) -> None:
         """"""

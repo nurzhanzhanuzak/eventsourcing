@@ -251,6 +251,11 @@ class TestSQLiteApplicationRecorderErrors(TestCase):
         with self.assertRaises(OperationalError):
             recorder.max_notification_id()
 
+    def test_subscribe_raised_not_implemented_error(self):
+        recorder = SQLiteApplicationRecorder(SQLiteDatastore(":memory:"))
+        with self.assertRaises(NotImplementedError):
+            recorder.subscribe(0)
+
 
 class TestSQLiteProcessRecorder(ProcessRecorderTestCase):
     def create_recorder(self):

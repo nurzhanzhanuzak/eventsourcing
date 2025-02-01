@@ -393,13 +393,19 @@ class SQLiteApplicationRecorder(
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
         Returns a list of event notifications
         from 'start', limited by 'limit'.
         """
         params: List[int | str] = [start]
-        statement = f"SELECT rowid, * FROM {self.events_table_name} WHERE rowid>=? "
+        statement = f"SELECT rowid, * FROM {self.events_table_name} "
+        if inclusive_of_start:
+            statement += "WHERE rowid>=? "
+        else:
+            statement += "WHERE rowid>? "
 
         if stop is not None:
             params.append(stop)
