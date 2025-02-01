@@ -894,7 +894,7 @@ than the state of a stored event that is not encrypted.
     assert len(encrypted_stored_event.state) > len(stored_event.state)
 
 If you want to use a different cipher strategy, then implement the base
-class class:`~eventsourcing.cipher.Cipher`.
+class :class:`~eventsourcing.cipher.Cipher`.
 
 
 Compression and encryption
