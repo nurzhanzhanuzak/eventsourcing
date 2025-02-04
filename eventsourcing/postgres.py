@@ -488,19 +488,14 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         notification_ids: List[int] = []
         len_events = len(stored_events)
         if len_events:
-            if (
-                (c.statusmessage == "SET")
-                and c.nextset()
-                and (c.statusmessage == "LOCK TABLE")
-                and c.nextset()
-                and (c.statusmessage == "NOTIFY")
-            ):
-                while c.nextset() and len(notification_ids) != len_events:
+            while c.nextset() and len(notification_ids) != len_events:
+                if c.statusmessage and c.statusmessage.startswith("INSERT"):
                     row = c.fetchone()
                     assert row is not None
                     notification_ids.append(row["notification_id"])
             if len(notification_ids) != len(stored_events):
-                msg = "Couldn't get all notification IDs"
+                msg = "Couldn't get all notification IDs "
+                msg += f"(got {len(notification_ids)}, expected {len(stored_events)}"
                 raise ProgrammingError(msg)
         return notification_ids
 

@@ -758,7 +758,6 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
                 )
             ]
 
-        #
         # Check it actually works.
         recorder = PostgresApplicationRecorder(
             datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
@@ -769,13 +768,13 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
         self.assertEqual(len(notification_ids), 1)
         self.assertEqual(max_notification_id + 1, notification_ids[0])
 
-        # Events but no lock table statements.
+        # Insert statement has no RETURNING clause.
         with self.assertRaises(ProgrammingError):
             recorder = PostgresApplicationRecorder(
                 datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
             )
+            recorder.insert_events_statement = recorder.insert_events_statement.partition("RETURNING")[0]
             recorder.create_table()
-            recorder.lock_table_statements = []
             recorder.insert_events(make_events())
 
 
