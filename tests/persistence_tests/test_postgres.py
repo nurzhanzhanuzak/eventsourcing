@@ -773,7 +773,9 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder = PostgresApplicationRecorder(
                 datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
             )
-            recorder.insert_events_statement = recorder.insert_events_statement.partition("RETURNING")[0]
+            recorder.insert_events_statement = (
+                recorder.insert_events_statement.partition("RETURNING")[0]
+            )
             recorder.create_table()
             recorder.insert_events(make_events())
 
