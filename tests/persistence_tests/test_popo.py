@@ -123,7 +123,7 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase):
         read_job = thread_pool.submit(read, last_notification_id)
         read_job.result()
 
-        thread_pool.shutdown(wait=True, cancel_futures=True)
+        thread_pool.shutdown()
 
 
 class TestPOPOProcessRecorder(ProcessRecorderTestCase):

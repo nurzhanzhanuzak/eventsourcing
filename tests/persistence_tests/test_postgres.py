@@ -598,7 +598,7 @@ class TestPostgresApplicationRecorder(
         read_job = thread_pool.submit(read, last_notification_id)
         read_job.result()
 
-        thread_pool.shutdown(wait=True, cancel_futures=True)
+        thread_pool.shutdown()
 
     def test_concurrent_no_conflicts(self):
         super().test_concurrent_no_conflicts()
