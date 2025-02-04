@@ -460,7 +460,7 @@ SQLite environment
 
 Alternatively, we can configure an application to use SQLite for storing events.
 
-To use the library's :ref:`SQLite persistence module <sqlite-module>`,
+To use the library's :ref:`SQLite persistence module <sqlite-environment>`,
 set ``PERSISTENCE_MODULE`` to the value ``'eventsourcing.sqlite'``.
 
 When using the library's SQLite persistence module, the environment variable
@@ -514,7 +514,7 @@ We can configure a "production" environment to use PostgreSQL. The example
 below shows how to store events in PostgreSQL that have been compressed and
 encrypted.
 
-We can use the library's :ref:`PostgresSQL persistence module <postgres-module>`
+We can use the library's :ref:`PostgresSQL persistence module <postgres-environment>`
 to store events in a PostgresSQL database. This persistence module
 uses `Psycopg v3 <https://www.psycopg.org>`_, along with its connection pool package,
 and either its C optimization package, or its pre-built binary package.

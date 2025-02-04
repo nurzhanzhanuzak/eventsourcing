@@ -504,8 +504,8 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
                 raise ProgrammingError(msg)
         return notification_ids
 
-    def subscribe(self, last_notification_id: int) -> PostgresSubscription:
-        return PostgresSubscription(self, last_notification_id)
+    def subscribe(self, gt: int | None = None) -> PostgresSubscription:
+        return PostgresSubscription(self, gt)
 
 
 class PostgresSubscription(ListenNotifySubscription[PostgresApplicationRecorder]):
@@ -545,8 +545,8 @@ class PostgresProcessRecorder(PostgresApplicationRecorder, ProcessRecorder):
     def __init__(
         self,
         datastore: PostgresDatastore,
-        events_table_name: str,
-        tracking_table_name: str,
+        events_table_name: str = "stored_events",
+        tracking_table_name: str = "notification_tracking",
     ):
         self.check_table_name_length(tracking_table_name, datastore.schema)
         self.tracking_table_name = tracking_table_name

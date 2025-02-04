@@ -205,19 +205,16 @@ class StoredEvent:
     Frozen dataclass that represents :class:`~eventsourcing.domain.DomainEvent`
     objects, such as aggregate :class:`~eventsourcing.domain.Aggregate.Event`
     objects and :class:`~eventsourcing.domain.Snapshot` objects.
-
-    Constructor parameters:
-
-    :param UUID originator_id: ID of the originating aggregate
-    :param int originator_version: version of the originating aggregate
-    :param str topic: topic of the domain event object class
-    :param bytes state: serialised state of the domain event object
     """
 
     originator_id: uuid.UUID
+    """ID of the originating aggregate."""
     originator_version: int
+    """Position in an aggregate sequence."""
     topic: str
+    """Topic of a domain event object class."""
     state: bytes
+    """Serialised state of a domain event object."""
 
 
 class Compressor(ABC):
@@ -413,8 +410,7 @@ class NotSupportedError(DatabaseError):
 
 class AggregateRecorder(ABC):
     """
-    Abstract base class for recorders that record and
-    retrieve stored events for domain model aggregates.
+    Abstract base class for inserting and selecting stored events.
     """
 
     @abstractmethod
@@ -447,17 +443,13 @@ class Notification(StoredEvent):
     """
 
     id: int
+    """Position in an application sequence."""
 
 
 class ApplicationRecorder(AggregateRecorder):
     """
-    Abstract base class for recorders that record and
-    retrieve stored events for domain model aggregates.
-
-    Extends the behaviour of aggregate recorders by
-    recording aggregate events in a total order that
-    allows the stored events also to be retrieved
-    as event notifications.
+    Abstract base class for recording events in both aggregate
+    and application sequences.
     """
 
     @abstractmethod
@@ -471,9 +463,12 @@ class ApplicationRecorder(AggregateRecorder):
         inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
-        Returns a list of event notifications
-        from 'start', limited by 'limit' and
-        optionally by 'stop'.
+        Returns a list of Notification objects representing events from an
+        application sequence. If `inclusive_of_start` is True (the default),
+        the returned Notification objects will have IDs greater than or equal
+        to `start` and less than or equal to `stop`. If `inclusive_of_start`
+        is False, the Notification objects will have IDs greater than `start`
+        and less than or equal to `stop`.
         """
 
     @abstractmethod
@@ -482,10 +477,15 @@ class ApplicationRecorder(AggregateRecorder):
         Returns the maximum notification ID.
         """
 
-    def subscribe(self, last_notification_id: int) -> Subscription[ApplicationRecorder]:
+    def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
         """
-        Returns a NotificationSubscription iterator that yields Notification
-        recorded after the given notification ID.
+        Returns an iterator of Notification objects representing events from an
+        application sequence.
+
+        The iterator will block after the last recorded event has been yielded, but
+        will then continue yielding newly recorded events when they are recorded.
+
+        Notifications will have IDs greater than the optional `gt` argument.
         """
         msg = f"The {type(self).__qualname__} recorder does not support subscriptions"
         raise NotImplementedError(msg)
@@ -513,15 +513,19 @@ class ProcessRecorder(ApplicationRecorder):
     @abstractmethod
     def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
         """
-        Returns true if a tracking record with the given application name
-        and notification ID exists, otherwise returns false.
+        Returns True if a tracking record with the given application name
+        and notification ID exists, otherwise returns False.
         """
 
 
 @dataclass(frozen=True)
 class Recording:
+    """Represents the recording of a domain event."""
+
     domain_event: DomainEventProtocol
+    """The domain event that has been recorded."""
     notification: Notification
+    """A Notification that represents the domain event in the application sequence."""
 
 
 class EventStore:
@@ -605,7 +609,7 @@ class InfrastructureFactory(ABC):
 
     @classmethod
     def construct(
-        cls: Type[TInfrastructureFactory], env: Environment
+        cls: Type[TInfrastructureFactory], env: Environment | None = None
     ) -> TInfrastructureFactory:
         """
         Constructs concrete infrastructure factory for given
@@ -613,6 +617,8 @@ class InfrastructureFactory(ABC):
         topic from environment variable 'PERSISTENCE_MODULE'.
         """
         factory_cls: Type[InfrastructureFactory]
+        if env is None:
+            env = Environment()
         topic = (
             env.get(
                 cls.PERSISTENCE_MODULE,
@@ -1221,45 +1227,50 @@ TApplicationRecorder_co = TypeVar(
 
 class Subscription(Iterator[Notification], Generic[TApplicationRecorder_co]):
     def __init__(
-        self, recorder: TApplicationRecorder_co, last_notification_id: int
+        self, recorder: TApplicationRecorder_co, gt: int | None = None
     ) -> None:
         self._recorder = recorder
-        self._last_notification_id = last_notification_id
+        self._last_notification_id = gt
         self._has_been_entered = False
         self._has_been_stopped = False
 
     def __enter__(self) -> Self:
         if self._has_been_entered:
-            msg = "Already entered notification subscription"
+            msg = "Already entered subscription context manager"
             raise ProgrammingError(msg)
         self._has_been_entered = True
         return self
 
     def __exit__(self, *args: object, **kwargs: Any) -> None:
         if not self._has_been_entered:
-            msg = "Not already entered notification subscription"
+            msg = "Not already entered subscription context manager"
             raise ProgrammingError(msg)
         self.stop()
 
     def stop(self) -> None:
+        """
+        Stops the subscription.
+        """
         self._has_been_stopped = True
 
     def __iter__(self) -> Self:
         if not self._has_been_entered:
-            msg = "Notification subscription must be used as a context manager"
+            msg = "Subscription must be used as a context manager"
             raise ProgrammingError(msg)
         return self
 
     @abstractmethod
     def __next__(self) -> Notification:
-        pass  # pragma: no cover
+        """
+        Returns the next Notification object in the application sequence.
+        """
 
 
 class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
     def __init__(
-        self, recorder: TApplicationRecorder_co, last_notification_id: int
+        self, recorder: TApplicationRecorder_co, gt: int | None = None
     ) -> None:
-        super().__init__(recorder=recorder, last_notification_id=last_notification_id)
+        super().__init__(recorder=recorder, gt=gt)
         self._select_limit = 500
         self._notifications: List[Notification] = []
         self._notifications_index: int = 0
@@ -1278,12 +1289,15 @@ class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
         self._pull_thread.join()
 
     def stop(self) -> None:
+        """
+        Stops the subscription.
+        """
         super().stop()
         self._notifications_queue.put([])
         self._has_been_notified.set()
 
     def __next__(self) -> Notification:
-        # Maybe get a new list of notifications from the recorder.
+        # If necessary, get a new list of notifications from the recorder.
         if (
             self._notifications_index == len(self._notifications)
             and not self._has_been_stopped
@@ -1317,7 +1331,7 @@ class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
         while not self._has_been_stopped:
             self._has_been_notified.clear()
             notifications = self._recorder.select_notifications(
-                start=self._last_notification_id,
+                start=self._last_notification_id or 0,
                 limit=self._select_limit,
                 inclusive_of_start=False,
             )

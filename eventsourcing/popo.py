@@ -149,8 +149,8 @@ class POPOApplicationRecorder(ApplicationRecorder, POPOAggregateRecorder):
         with self._database_lock:
             return len(self._stored_events)
 
-    def subscribe(self, last_notification_id: int) -> Subscription[ApplicationRecorder]:
-        return POPOSubscription(self, last_notification_id)
+    def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
+        return POPOSubscription(self, gt)
 
     def listen(self, event: Event) -> None:
         self._listeners.add(event)

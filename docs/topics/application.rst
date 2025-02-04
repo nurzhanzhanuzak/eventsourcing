@@ -972,10 +972,10 @@ If you want the state of the application object to endure, you will need to
 use an alternative persistence module. To use alternative persistence
 infrastructure, set the variable ``PERSISTENCE_MODULE`` in the application
 environment. Using an alternative persistence module may involve setting
-further environment variables, perhaps to configure access to a real database,
+further :ref:`environment variables <environment-variables>`, perhaps to configure access to a real database,
 such as a database name, a user name, and a password.
 
-For example, to use the library's :ref:`SQLite persistence module <sqlite-module>`,
+For example, to use the library's :ref:`SQLite persistence module <sqlite-environment>`,
 set ``PERSISTENCE_MODULE`` to the value ``"eventsourcing.sqlite"``.
 The environment variable ``SQLITE_DBNAME`` must also be set. This value
 will be passed to Python's :func:`sqlite3.connect` function.
@@ -1017,7 +1017,7 @@ about using SQLite.
 
 To use the library's PostgreSQL persistence module,
 set ``PERSISTENCE_MODULE`` to the value ``"eventsourcing.postgres"``.
-See :ref:`PostgreSQL persistence module <postgres-module>` documentation
+See :ref:`PostgreSQL persistence module <postgres-environment>` documentation
 for more information about storing events in PostgreSQL.
 
 
@@ -1210,8 +1210,8 @@ than 2, perhaps more like 100.
     assert snapshots[1].originator_version == 4
 
 
-Classes
-=======
+Code reference
+==============
 
 .. automodule:: eventsourcing.application
     :show-inheritance:
