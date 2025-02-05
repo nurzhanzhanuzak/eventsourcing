@@ -455,7 +455,7 @@ class ApplicationRecorder(AggregateRecorder):
     @abstractmethod
     def select_notifications(
         self,
-        start: int,
+        start: int | None,
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
@@ -472,7 +472,7 @@ class ApplicationRecorder(AggregateRecorder):
         """
 
     @abstractmethod
-    def max_notification_id(self) -> int:
+    def max_notification_id(self) -> int | None:
         """
         Returns the maximum notification ID.
         """
@@ -491,21 +491,22 @@ class ApplicationRecorder(AggregateRecorder):
         raise NotImplementedError(msg)
 
 
-class ProcessRecorder(ApplicationRecorder):
+class TrackingRecorder(ABC):
     """
-    Abstract base class for recorders that record and
-    retrieve stored events for domain model aggregates.
-
-    Extends the behaviour of applications recorders by
-    recording aggregate events with tracking information
-    that records the position of a processed event
-    notification in a notification log.
+    Abstract base class for recorders that record tracking
+    objects atomically with other state.
     """
 
     @abstractmethod
-    def max_tracking_id(self, application_name: str) -> int:
+    def insert_tracking(self, tracking: Tracking) -> None:
         """
-        Returns the largest notification ID across all tracking records
+        Records a tracking object.
+        """
+
+    @abstractmethod
+    def max_tracking_id(self, application_name: str) -> int | None:
+        """
+        Returns the largest notification ID across all recorded tracking objects
         for the named application. Returns zero if there are no tracking
         records.
         """
@@ -513,9 +514,13 @@ class ProcessRecorder(ApplicationRecorder):
     @abstractmethod
     def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
         """
-        Returns True if a tracking record with the given application name
-        and notification ID exists, otherwise returns False.
+        Returns True if a tracking object with the given application name
+        and notification ID has been recorded, otherwise returns False.
         """
+
+
+class ProcessRecorder(TrackingRecorder, ApplicationRecorder, ABC):
+    pass
 
 
 @dataclass(frozen=True)
@@ -768,7 +773,7 @@ class InfrastructureFactory(ABC):
 
     def close(self) -> None:
         """
-        Closes any database connections, or anything else that needs closing.
+        Closes any database connections, and anything else that needs closing.
         """
 
 

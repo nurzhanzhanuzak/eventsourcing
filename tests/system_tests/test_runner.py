@@ -286,7 +286,7 @@ class RunnerTestCase(TestCase, Generic[TRunner]):
         )
 
         # Check we processed nothing.
-        self.assertEqual(email_process1.recorder.max_tracking_id("BankAccounts"), 0)
+        self.assertEqual(email_process1.recorder.max_tracking_id("BankAccounts"), None)
 
         # Start the runner.
         self.runner.start()
@@ -784,7 +784,12 @@ class TestNewMultiThreadedRunner(TestMultiThreadedRunner):
 
     class BrokenPulling(EmailProcess):
         def pull_notifications(
-            self, leader_name: str, start: int, stop: int | None = None
+            self,
+            leader_name: str,
+            start: int,
+            stop: int | None = None,
+            *,
+            inclusive_of_start: bool = True,
         ) -> Iterator[List[Notification]]:
             msg = "Just testing error handling when pulling is broken"
             raise ProgrammingError(msg)

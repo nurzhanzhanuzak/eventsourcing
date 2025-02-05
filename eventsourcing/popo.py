@@ -16,6 +16,7 @@ from eventsourcing.persistence import (
     StoredEvent,
     Subscription,
     Tracking,
+    TrackingRecorder,
 )
 from eventsourcing.utils import reversed_keys
 
@@ -25,11 +26,16 @@ if TYPE_CHECKING:  # pragma: nocover
     from typing_extensions import Self
 
 
-class POPOAggregateRecorder(AggregateRecorder):
+class POPORecorder:
     def __init__(self) -> None:
+        self._database_lock = Lock()
+
+
+class POPOAggregateRecorder(POPORecorder, AggregateRecorder):
+    def __init__(self) -> None:
+        super().__init__()
         self._stored_events: List[StoredEvent] = []
         self._stored_events_index: Dict[UUID, Dict[int, int]] = defaultdict(dict)
-        self._database_lock = Lock()
 
     def insert_events(
         self, stored_events: List[StoredEvent], **kwargs: Any
@@ -96,7 +102,7 @@ class POPOAggregateRecorder(AggregateRecorder):
             return results
 
 
-class POPOApplicationRecorder(ApplicationRecorder, POPOAggregateRecorder):
+class POPOApplicationRecorder(POPOAggregateRecorder, ApplicationRecorder):
     def __init__(self) -> None:
         super().__init__()
         self._listeners: Set[Event] = set()
@@ -110,7 +116,7 @@ class POPOApplicationRecorder(ApplicationRecorder, POPOAggregateRecorder):
 
     def select_notifications(
         self,
-        start: int,
+        start: int | None,
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
@@ -119,10 +125,13 @@ class POPOApplicationRecorder(ApplicationRecorder, POPOAggregateRecorder):
     ) -> List[Notification]:
         with self._database_lock:
             results = []
+            if start is None:
+                start = 1
+                inclusive_of_start = True
             if not inclusive_of_start:
                 start += 1
             start = max(start, 1)  # Don't use negative indexes!
-            i = start - 1
+            i = start - 1  # Zero-based indexing.
             while True:
                 if stop is not None and i > stop - 1:
                     break
@@ -145,9 +154,9 @@ class POPOApplicationRecorder(ApplicationRecorder, POPOAggregateRecorder):
                     break
             return results
 
-    def max_notification_id(self) -> int:
+    def max_notification_id(self) -> int | None:
         with self._database_lock:
-            return len(self._stored_events)
+            return len(self._stored_events) or None
 
     def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
         return POPOSubscription(self, gt)
@@ -175,23 +184,50 @@ class POPOSubscription(ListenNotifySubscription[POPOApplicationRecorder]):
         self._recorder.unlisten(self._has_been_notified)
 
 
-class POPOProcessRecorder(ProcessRecorder, POPOApplicationRecorder):
+class POPOTrackingRecorder(POPORecorder, TrackingRecorder):
     def __init__(self) -> None:
         super().__init__()
         self._tracking_table: Dict[str, set[int]] = defaultdict(set)
-        self._max_tracking_ids: Dict[str, int] = defaultdict(lambda: 0)
+        self._max_tracking_ids: Dict[str, int | None] = defaultdict(lambda: None)
 
+    def _assert_tracking_uniqueness(self, tracking: Tracking) -> None:
+        if tracking.notification_id in self._tracking_table[tracking.application_name]:
+            msg = (
+                f"Already recorded notification ID {tracking.notification_id} "
+                f"for application {tracking.application_name}"
+            )
+            raise IntegrityError(msg)
+
+    def insert_tracking(self, tracking: Tracking) -> None:
+        with self._database_lock:
+            self._assert_tracking_uniqueness(tracking)
+            self._insert_tracking(tracking)
+
+    def _insert_tracking(self, tracking: Tracking) -> None:
+        self._tracking_table[tracking.application_name].add(tracking.notification_id)
+        max_tracking_id = self._max_tracking_ids[tracking.application_name]
+        if max_tracking_id is None or max_tracking_id < tracking.notification_id:
+            self._max_tracking_ids[tracking.application_name] = tracking.notification_id
+
+    def max_tracking_id(self, application_name: str) -> int | None:
+        with self._database_lock:
+            return self._max_tracking_ids[application_name]
+
+    def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
+        with self._database_lock:
+            return notification_id in self._tracking_table[application_name]
+
+
+class POPOProcessRecorder(
+    POPOTrackingRecorder, POPOApplicationRecorder, ProcessRecorder
+):
     def _assert_uniqueness(
         self, stored_events: List[StoredEvent], **kwargs: Any
     ) -> None:
         super()._assert_uniqueness(stored_events, **kwargs)
         t: Tracking | None = kwargs.get("tracking", None)
-        if t and t.notification_id in self._tracking_table[t.application_name]:
-            msg = (
-                f"Already recorded notification ID {t.notification_id} "
-                f"for application {t.application_name}"
-            )
-            raise IntegrityError(msg)
+        if t:
+            self._assert_tracking_uniqueness(t)
 
     def _update_table(
         self, stored_events: List[StoredEvent], **kwargs: Any
@@ -199,18 +235,8 @@ class POPOProcessRecorder(ProcessRecorder, POPOApplicationRecorder):
         notification_ids = super()._update_table(stored_events, **kwargs)
         t: Tracking | None = kwargs.get("tracking", None)
         if t:
-            self._tracking_table[t.application_name].add(t.notification_id)
-            if self._max_tracking_ids[t.application_name] < t.notification_id:
-                self._max_tracking_ids[t.application_name] = t.notification_id
+            self._insert_tracking(t)
         return notification_ids
-
-    def max_tracking_id(self, application_name: str) -> int:
-        with self._database_lock:
-            return self._max_tracking_ids[application_name]
-
-    def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
-        with self._database_lock:
-            return notification_id in self._tracking_table[application_name]
 
 
 class Factory(InfrastructureFactory):

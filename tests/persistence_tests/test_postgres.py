@@ -35,12 +35,14 @@ from eventsourcing.postgres import (
     PostgresDatastore,
     PostgresProcessRecorder,
     PostgresSubscription,
+    PostgresTrackingRecorder,
 )
 from eventsourcing.tests.persistence import (
     AggregateRecorderTestCase,
     ApplicationRecorderTestCase,
     InfrastructureFactoryTestCase,
     ProcessRecorderTestCase,
+    TrackingRecorderTestCase,
 )
 from eventsourcing.tests.postgres_utils import (
     drop_postgres_table,
@@ -763,10 +765,9 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
             datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
         )
         recorder.create_table()
-        max_notification_id = recorder.max_notification_id()
         notification_ids = recorder.insert_events(make_events())
         self.assertEqual(len(notification_ids), 1)
-        self.assertEqual(max_notification_id + 1, notification_ids[0])
+        self.assertEqual(1, notification_ids[0])
 
         # Insert statement has no RETURNING clause.
         with self.assertRaises(ProgrammingError):
@@ -782,6 +783,37 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
 
 TRACKING_TABLE_NAME = "n" * 42 + "notification_tracking"
 _check_identifier_is_max_len(TRACKING_TABLE_NAME)
+
+
+class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestCase):
+    def drop_tables(self):
+        super().drop_tables()
+        tracking_table_name = TRACKING_TABLE_NAME
+        if self.datastore.schema:
+            tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
+        drop_postgres_table(self.datastore, tracking_table_name)
+
+    def create_recorder(self) -> PostgresTrackingRecorder:
+        tracking_table_name = TRACKING_TABLE_NAME
+        if self.datastore.schema:
+            tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
+        recorder = PostgresTrackingRecorder(
+            datastore=self.datastore,
+            tracking_table_name=tracking_table_name,
+        )
+        recorder.create_table()
+        return recorder
+
+    def test_insert_tracking(self):
+        super().test_insert_tracking()
+
+    def test_excessively_long_table_names_raise_error(self):
+        with self.assertRaises(ProgrammingError):
+            PostgresProcessRecorder(
+                datastore=self.datastore,
+                events_table_name=EVENTS_TABLE_NAME,
+                tracking_table_name="n" + TRACKING_TABLE_NAME,
+            )
 
 
 class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCase):
@@ -807,16 +839,13 @@ class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCas
         recorder.create_table()
         return recorder
 
-    def test_insert_select(self):
-        super().test_insert_select()
-
     def test_performance(self):
         super().test_performance()
 
     def test_excessively_long_table_names_raise_error(self):
         with self.assertRaises(ProgrammingError):
             PostgresProcessRecorder(
-                datastore=self.datastore,
+                self.datastore,
                 events_table_name="e" + EVENTS_TABLE_NAME,
                 tracking_table_name=TRACKING_TABLE_NAME,
             )
@@ -1244,6 +1273,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
 
 del AggregateRecorderTestCase
 del ApplicationRecorderTestCase
+del TrackingRecorderTestCase
 del ProcessRecorderTestCase
 del InfrastructureFactoryTestCase
 del SetupPostgresDatastore

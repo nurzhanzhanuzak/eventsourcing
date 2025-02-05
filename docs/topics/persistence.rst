@@ -776,8 +776,9 @@ catastrophic inconsistencies in the state of a system.
 Recorders
 =========
 
-A recorder object adapts a database management system for the purpose of
-recording stored events. This library defines three kinds of recorder.
+A recorder object adapts a database management system for the purposes of event sourcing.
+
+This library defines four kinds of recorder.
 
 An **aggregate recorder** simply stores domain events in aggregate sequences,
 without also positioning the stored events in a total order. An aggregate
@@ -790,11 +791,14 @@ by also positioning stored events in an application sequence.
 Application recorders can be used for storing aggregate events
 in applications that will provide event notifications.
 
-A **process recorder** extends an application recorder by
-supporting the atomic recording of stored events with a tracking
-object that indicates the position in an application sequence of
-an event notification that was being processed when the stored events
-were generated.
+An **tracking recorder** supports the atomic recording of a tracking
+object along with new state. The tracking object indicates the position
+in an application sequence of an event notification that was being processed
+when the new state was generated.
+
+A **process recorder** combines the method of an application recorder and a
+tracking recorder so that stored events can be recorded atomically with a
+tracking object.
 
 The library has an abstract base class for each kind of recorder. These abstract base classes
 are implemented in concrete "persistence modules" that each encapsulate a particular database
@@ -851,6 +855,29 @@ after the subscription has begun.
 .. literalinclude:: ../../eventsourcing/persistence.py
    :pyobject: ApplicationRecorder
 
+.. _Tracking recorder:
+
+Tracking recorder
+-----------------
+
+The library's :class:`~eventsourcing.persistence.TrackingRecorder` class is an abstract base class
+for recording :ref:`tracking objects <Tracking objects>` and querying successfully recorded tracking
+objects.
+
+The :func:`~eventsourcing.persistence.ProcessRecorder.insert_tracking` method defines a method signature for
+recording tracking objects.
+
+The :func:`~eventsourcing.persistence.ProcessRecorder.max_tracking_id` method defines a method signature for
+discovering the notification ID of the last successfully recorded tracking object. This is useful when resuming
+the processing of event notifications from an application sequence.
+
+The :func:`~eventsourcing.persistence.ProcessRecorder.has_tracking_id` method defines a method signature for
+discovering whether an event notification has been successfully processed, and can be used by user interfaces
+to wait for an eventually consistent materialised view of the state of an event-sourced application to be updated.
+
+.. literalinclude:: ../../eventsourcing/persistence.py
+   :pyobject: TrackingRecorder
+
 .. _Process recorder:
 
 Process recorder
@@ -859,15 +886,12 @@ Process recorder
 The library's :class:`~eventsourcing.persistence.ProcessRecorder` class is an abstract base class
 for recording :ref:`stored event objects <Stored event objects>` in both an aggregate and application sequences,
 along with :ref:`tracking objects <Tracking objects>`. :class:`~eventsourcing.persistence.ProcessRecorder` is a
-subclass of the :ref:`application recorder <Application recorder>` class.
+subclass of the :ref:`application recorder <Application recorder>` and :ref:`tracking recorder <Tracking recorder>`
+classes.
 
 Concrete process recorders will extend the :func:`~eventsourcing.persistence.AggregateRecorder.insert_events`
 method so that a :ref:`tracking object <Tracking objects>` will be recorded within the same transaction
 as the events.
-
-The :func:`~eventsourcing.persistence.ProcessRecorder.max_tracking_id` method defines a method signature for
-discovering the notification ID of the last successfully recorded tracking object. This is useful when resuming
-the processing of event notifications from an application sequence.
 
 .. literalinclude:: ../../eventsourcing/persistence.py
    :pyobject: ProcessRecorder
@@ -1099,7 +1123,7 @@ The :mod:`eventsourcing.postgres` persistence module supports storing events in
 `PostgresSQL <https://www.postgresql.org/>`_ using the third party `Psycopg v3 <https://www.psycopg.org>`_
 package. This code is tested with PostgreSQL versions 12, 13, 14, 15, 16, and 17.
 
-The :class:`~eventsourcing.sqlite.PostgresDatastore` class encapsulates a Postgres database
+The :class:`~eventsourcing.postgres.PostgresDatastore` class encapsulates a Postgres database
 and provides a connection pool.
 
 .. code-block:: python
@@ -1115,7 +1139,7 @@ and provides a connection pool.
         password = "eventsourcing",
     )
 
-The :class:`~eventsourcing.sqlite.PostgresAggregateRecorder` class implements
+The :class:`~eventsourcing.postgres.PostgresAggregateRecorder` class implements
 the :ref:`aggregate recorder <Aggregate recorder>` abstract base class, and provides
 a method to create a database table for stored events.
 
@@ -1130,7 +1154,7 @@ a method to create a database table for stored events.
     from eventsourcing.postgres import PostgresAggregateRecorder
 
     # Construct aggregate recorder and create table.
-    aggregate_recorder = PostgresAggregateRecorder(datastore, "stored_events")
+    aggregate_recorder = PostgresAggregateRecorder(datastore)
     aggregate_recorder.create_table()
 
     # Insert stored events.
@@ -1141,7 +1165,7 @@ a method to create a database table for stored events.
     assert recorded_events[0] == stored_event, (recorded_events[0], stored_event)
 
 
-The :class:`~eventsourcing.sqlite.PostgresApplicationRecorder` class
+The :class:`~eventsourcing.postgres.PostgresApplicationRecorder` class
 implements the :ref:`application recorder <Application recorder>`
 by extending :class:`~eventsourcing.popo.PostgresAggregateRecorder`.
 
@@ -1184,9 +1208,44 @@ by extending :class:`~eventsourcing.popo.PostgresAggregateRecorder`.
             assert notifications[0].originator_version == stored_event.originator_version
             subscription.stop()
 
-The :class:`~eventsourcing.sqlite.PostgresProcessRecorder` class
+
+The :class:`~eventsourcing.postgres.PostgresTrackingRecorder` class implements the
+:ref:`tracking recorder <Tracking recorder>` abstract base class, and provides
+a method to create a database table for tracking records.
+
+..
+    #include-when-testing
+..
+    from eventsourcing.tests.postgres_utils import drop_postgres_table
+    drop_postgres_table(datastore, "notification_tracking")
+
+
+.. code-block:: python
+
+    from eventsourcing.postgres import PostgresTrackingRecorder
+
+    # Construct tracking recorder and create table.
+    tracking_recorder = PostgresTrackingRecorder(datastore)
+    tracking_recorder.create_table()
+
+    # Construct tracking object.
+    tracking = Tracking(notification_id=21, application_name="upstream")
+
+    # Insert tracking object.
+    tracking_recorder.insert_tracking(tracking=tracking)
+
+    # Get latest tracked position.
+    assert tracking_recorder.max_tracking_id("upstream") == 21
+
+    # Check if an event notification has been processed.
+    assert tracking_recorder.has_tracking_id("upstream", 21)
+    assert not tracking_recorder.has_tracking_id("upstream", 22)
+
+
+The :class:`~eventsourcing.postgres.PostgresProcessRecorder` class
 implements the :ref:`process recorder <Process recorder>` abstract base class
-by extending :class:`~eventsourcing.sqlite.PostgresApplicationRecorder`.
+by combining and extending :class:`~eventsourcing.postgres.PostgresApplicationRecorder` and
+:class:`~eventsourcing.postgres.PostgresTrackingRecorder`.
 
 ..
     #include-when-testing
@@ -1625,6 +1684,8 @@ constructed and used in a standard way.
     factory = InfrastructureFactory.construct(environ)
     drop_postgres_table(factory.datastore, "stored_events")
     del factory
+
+
 
 
 .. code-block:: python

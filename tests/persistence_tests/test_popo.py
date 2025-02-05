@@ -8,12 +8,14 @@ from eventsourcing.popo import (
     POPOAggregateRecorder,
     POPOApplicationRecorder,
     POPOProcessRecorder,
+    POPOTrackingRecorder,
 )
 from eventsourcing.tests.persistence import (
     AggregateRecorderTestCase,
     ApplicationRecorderTestCase,
     InfrastructureFactoryTestCase,
     ProcessRecorderTestCase,
+    TrackingRecorderTestCase,
 )
 from eventsourcing.utils import Environment
 
@@ -126,6 +128,11 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase):
         thread_pool.shutdown()
 
 
+class TestPOPOTrackingRecorder(TrackingRecorderTestCase):
+    def create_recorder(self):
+        return POPOTrackingRecorder()
+
+
 class TestPOPOProcessRecorder(ProcessRecorderTestCase):
     def create_recorder(self):
         return POPOProcessRecorder()
@@ -191,5 +198,6 @@ class TestPOPOInfrastructureFactory(InfrastructureFactoryTestCase):
 
 del AggregateRecorderTestCase
 del ApplicationRecorderTestCase
+del TrackingRecorderTestCase
 del ProcessRecorderTestCase
 del InfrastructureFactoryTestCase

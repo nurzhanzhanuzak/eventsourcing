@@ -213,8 +213,11 @@ class BankAccountsHTTPHandler(BaseHTTPRequestHandler):
             args = {p[0]: p[1] for p in args}
             start = int(args["start"])
             limit = int(args["limit"])
+            inclusive_of_start = bool(int(args["inclusive_of_start"]))
 
-            body = bank_accounts_service.get_notifications(start=start, limit=limit)
+            body = bank_accounts_service.get_notifications(
+                start=start, limit=limit, inclusive_of_start=inclusive_of_start
+            )
             status = 200
         else:
             body = "Not found: " + self.path
@@ -236,9 +239,20 @@ class BankAccountsHTTPClient(BankAccountsInterface):
         return self._request("GET", f"/notifications/{section_id}")
 
     def get_notifications(
-        self, start: int, limit: int, topics: Sequence[str] = ()
+        self,
+        start: int | None,
+        limit: int,
+        topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> str:
-        return self._request("GET", f"/notifications?start={start}&limit={limit}")
+        return self._request(
+            "GET",
+            (
+                f"/notifications?start={start}&limit={limit}"
+                f"&inclusive_of_start={1 if inclusive_of_start else 0}"
+            ),
+        )
 
     def open_account(self, body: str) -> str:
         return self._request("PUT", "/accounts/", body.encode("utf8"))

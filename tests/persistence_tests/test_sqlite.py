@@ -31,6 +31,7 @@ from eventsourcing.tests.persistence import (
     ApplicationRecorderTestCase,
     InfrastructureFactoryTestCase,
     ProcessRecorderTestCase,
+    TrackingRecorderTestCase,
     tmpfile_uris,
 )
 from eventsourcing.utils import Environment
@@ -257,6 +258,16 @@ class TestSQLiteApplicationRecorderErrors(TestCase):
             recorder.subscribe(0)
 
 
+class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
+    def create_recorder(self):
+        recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
+        recorder.create_table()
+        return recorder
+
+    def test_insert_tracking(self):
+        super().test_insert_tracking()
+
+
 class TestSQLiteProcessRecorder(ProcessRecorderTestCase):
     def create_recorder(self):
         recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
@@ -346,6 +357,7 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
 
 del AggregateRecorderTestCase
 del ApplicationRecorderTestCase
+del TrackingRecorderTestCase
 del ProcessRecorderTestCase
 del InfrastructureFactoryTestCase
 del SQLiteConnectionPoolTestCase
