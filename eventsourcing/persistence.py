@@ -474,7 +474,8 @@ class ApplicationRecorder(AggregateRecorder):
     @abstractmethod
     def max_notification_id(self) -> int | None:
         """
-        Returns the maximum notification ID.
+        Returns the largest notification ID in an application sequence,
+        or None if no stored events have been recorded.
         """
 
     def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
@@ -507,8 +508,7 @@ class TrackingRecorder(ABC):
     def max_tracking_id(self, application_name: str) -> int | None:
         """
         Returns the largest notification ID across all recorded tracking objects
-        for the named application. Returns zero if there are no tracking
-        records.
+        for the named application, or None if no tracking objects have been recorded.
         """
 
     @abstractmethod
