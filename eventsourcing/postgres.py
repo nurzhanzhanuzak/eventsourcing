@@ -108,7 +108,7 @@ class PostgresDatastore:
             min_size=pool_size,
             max_size=pool_size + max_overflow,
             open=False,
-            configure=self.after_connect,
+            configure=self.after_connect_func(),
             timeout=connect_timeout,
             max_waiting=max_waiting,
             max_lifetime=conn_max_age,
@@ -117,12 +117,15 @@ class PostgresDatastore:
         self.lock_timeout = lock_timeout
         self.schema = schema.strip()
 
-    def after_connect(self, conn: Connection[DictRow]) -> None:
-        conn.autocommit = True
-        conn.cursor().execute(
+    def after_connect_func(self) -> None:
+        statement = (
             "SET idle_in_transaction_session_timeout = "
             f"'{self.idle_in_transaction_session_timeout}s'"
         )
+        def after_connect(conn: Connection[DictRow]) -> None:
+            conn.autocommit = True
+            conn.cursor().execute(statement)
+        return after_connect
 
     @contextmanager
     def get_connection(self) -> Iterator[Connection[DictRow]]:
