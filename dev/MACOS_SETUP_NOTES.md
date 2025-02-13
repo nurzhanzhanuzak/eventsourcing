@@ -1,63 +1,32 @@
-This document describes how to setup MacOS with databases needed to run the test suite:
+This section describes how to setup PostgreSQL on MacOS so developers can run the test suite:
 
-- MySQL
-- PostgreSQL
-- Redis
-- Cassandra
-- Axon Server
-
-
-To setup MySQL:
-
-$ brew install mysql
-$ brew services start mysql
-$ mysql -u root
-mysql> CREATE DATABASE eventsourcing;
-mysql> CREATE USER 'eventsourcing'@'localhost' IDENTIFIED BY 'eventsourcing';
-mysql> GRANT ALL PRIVILEGES ON eventsourcing.* TO 'eventsourcing'@'localhost';
-
-To setup PostgreSQL:
+- install postgresl with homebrew:
 
 $ brew install postgresql
+
+- edit pg_hba.conf so that passwords are required when connecting with TCP/IP:
+
+$ vim /opt/homebrew/var/postgresql@14/pg_hba.conf
+
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+# "local" is for Unix domain socket connections only
+local   all             all                                     trust
+# IPv4 local connections:
+host    all             all             127.0.0.1/32            md5
+# IPv6 local connections:
+host    all             all             ::1/128                 md5
+
+- start PostgreSQL
+
 $ brew services start postgresql
+
+- use psql with the postgres database and your user to create roles for postgres and eventsourcing and database for eventsourcing
 $ psql postgres
+postgres=> CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';
 postgres=> CREATE DATABASE eventsourcing;
 postgres=> CREATE USER eventsourcing WITH PASSWORD 'eventsourcing';
 postgres=> ALTER DATABASE eventsourcing OWNER TO eventsourcing;
+
+- use psql with the eventsourcing user to create schema in eventsourcing database
 $ psql -U eventsourcing
 eventsourcing=> CREATE SCHEMA myschema AUTHORIZATION eventsourcing;
-
-Maybe also: (?)
-postgres=> CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';
-
-Also edit pg_hba.conf so that passwords are required when connecting with TCP/IP.
-
-
-To setup Redis:
-
-$ brew install redis
-$ brew services start redis
-
-
-To setup Cassandra:
-
-$ brew install cassandra
-$ brew services start cassandra
-
-If that doesn't actually start Cassandra, then try this in a terminal:
-$ cassandra -f
-
-
-To setup Axon:
-$ ./dev/download_axon_server.sh
-$ ./axonserver/axonserver.jar
-
-
-After this, the databases can be stopped with:
-
-$ make brew-services-stop
-
-
-The database can be started with:
-
-$ make brew-services-start
