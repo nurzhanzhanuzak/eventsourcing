@@ -4,7 +4,6 @@ from uuid import uuid4
 
 from eventsourcing.persistence import StoredEvent, Tracking
 from eventsourcing.popo import (
-    Factory,
     POPOAggregateRecorder,
     POPOApplicationRecorder,
     POPOFactory,

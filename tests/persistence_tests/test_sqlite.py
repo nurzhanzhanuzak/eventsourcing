@@ -18,11 +18,11 @@ from eventsourcing.persistence import (
     StoredEvent,
 )
 from eventsourcing.sqlite import (
-    Factory,
     SQLiteAggregateRecorder,
     SQLiteApplicationRecorder,
     SQLiteConnectionPool,
     SQLiteDatastore,
+    SQLiteFactory,
     SQLiteProcessRecorder,
     SQLiteTransaction,
 )

@@ -1,10 +1,17 @@
+import warnings
 from dataclasses import _DataclassParams
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from time import sleep
 from unittest.case import TestCase
 from uuid import UUID, uuid4
 
-from eventsourcing.domain import DomainEvent, MetaDomainEvent
+import eventsourcing.domain
+from eventsourcing.domain import (
+    DomainEvent,
+    MetaDomainEvent,
+    create_utc_datetime_now,
+    datetime_now_with_tzinfo,
+)
 
 
 class TestMetaDomainEvent(TestCase):

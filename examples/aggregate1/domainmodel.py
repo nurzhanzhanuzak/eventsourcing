@@ -6,6 +6,7 @@ from eventsourcing.domain import Aggregate, event
 
 
 class Dog(Aggregate):
+
     @event("Registered")
     def __init__(self, name: str) -> None:
         self.name = name

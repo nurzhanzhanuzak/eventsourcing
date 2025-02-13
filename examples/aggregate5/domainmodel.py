@@ -80,12 +80,12 @@ class Dog(Aggregate):
             timestamp=DomainEvent.create_timestamp(),
             name=name,
         )
-        dog = Dog.mutate(event, None)
+        dog: Dog = Dog.mutate(event, None)
         return dog, event
 
     def add_trick(self, trick: str) -> Tuple[Dog, DomainEvent]:
         event = self.trigger_event(Dog.TrickAdded, trick=trick)
-        dog = Dog.mutate(event, self)
+        dog: Dog = Dog.mutate(event, self)
         return dog, event
 
     @singledispatchmethod

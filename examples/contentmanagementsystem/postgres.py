@@ -1,4 +1,8 @@
-from eventsourcing.postgres import Factory, PostgresProcessRecorder
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, List, Type
+
+from eventsourcing.persistence import StoredEvent
 from eventsourcing.postgres import PostgresFactory, PostgresProcessRecorder
 from examples.searchablecontent.postgres import PostgresSearchableContentRecorder
 
@@ -9,9 +13,10 @@ class SearchableContentProcessRecorder(
     pass
 
 
-class SearchableContentInfrastructureFactory(Factory):
-    process_recorder_class = SearchableContentProcessRecorder
 class SearchableContentFactory(PostgresFactory):
+    process_recorder_class: Type[PostgresProcessRecorder] = (
+        PostgresSearchableContentProcessRecorder
+    )
 
 
 del PostgresFactory

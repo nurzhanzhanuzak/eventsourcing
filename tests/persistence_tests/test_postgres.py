@@ -273,9 +273,6 @@ class TestPostgresDatastore(TestCase):
             self.assertEqual(curs.fetchall(), [{"?column?": 1}])
 
 
-# Use maximally long identifier for table name.
-EVENTS_TABLE_NAME = "s" * 50 + "stored_events"
-
 MAX_IDENTIFIER_LEN = 63
 
 
@@ -285,6 +282,8 @@ def _check_identifier_is_max_len(identifier):
         raise ValueError(msg)
 
 
+# Use maximally long identifier for table name.
+EVENTS_TABLE_NAME = "s" * 50 + "stored_events"
 _check_identifier_is_max_len(EVENTS_TABLE_NAME)
 
 
