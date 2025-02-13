@@ -19,7 +19,7 @@ from eventsourcing.domain import Aggregate
 from eventsourcing.persistence import (
     InfrastructureFactory,
     IntegrityError,
-    Transcoder,
+    JSONTranscoder,
     Transcoding,
 )
 from eventsourcing.tests.domain import BankAccount, EmailAddress
@@ -195,7 +195,7 @@ class EmailAddressAsStr(Transcoding):
 class BankAccounts(Application):
     is_snapshotting_enabled = True
 
-    def register_transcodings(self, transcoder: Transcoder) -> None:
+    def register_transcodings(self, transcoder: JSONTranscoder) -> None:
         super().register_transcodings(transcoder)
         transcoder.register(EmailAddressAsStr())
 

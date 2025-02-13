@@ -2,7 +2,7 @@ from unittest.case import TestCase
 
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import AggregateEvent
-from eventsourcing.persistence import Transcoder
+from eventsourcing.persistence import JSONTranscoder
 from eventsourcing.system import (
     Follower,
     Leader,
@@ -71,7 +71,7 @@ class TestProcessApplication(TestCase):
 
 
 class EmailProcess(ProcessApplication):
-    def register_transcodings(self, transcoder: Transcoder) -> None:
+    def register_transcodings(self, transcoder: JSONTranscoder) -> None:
         super().register_transcodings(transcoder)
         transcoder.register(EmailAddressAsStr())
 

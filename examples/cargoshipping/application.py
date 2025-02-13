@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, cast
 
 from eventsourcing.application import Application
-from eventsourcing.persistence import Transcoder, Transcoding
+from eventsourcing.persistence import JSONTranscoder, Transcoding
 from examples.cargoshipping.domainmodel import (
     REGISTERED_ROUTES,
     Cargo,
@@ -67,7 +67,7 @@ class LegAsDict(Transcoding):
 
 
 class BookingApplication(Application):
-    def register_transcodings(self, transcoder: Transcoder) -> None:
+    def register_transcodings(self, transcoder: JSONTranscoder) -> None:
         super().register_transcodings(transcoder)
         transcoder.register(LocationAsName())
         transcoder.register(HandlingActivityAsName())

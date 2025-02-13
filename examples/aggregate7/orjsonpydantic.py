@@ -5,13 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, cast
 import orjson
 from pydantic import BaseModel
 
-from eventsourcing.persistence import (
-    Mapper,
-    ProgrammingError,
-    StoredEvent,
-    Transcoder,
-    Transcoding,
-)
+from eventsourcing.persistence import Mapper, StoredEvent, Transcoder
 from eventsourcing.utils import get_topic, resolve_topic
 
 if TYPE_CHECKING:  # pragma: nocover
@@ -51,7 +45,3 @@ class OrjsonTranscoder(Transcoder):
 
     def decode(self, data: bytes) -> Any:
         return orjson.loads(data)
-
-    def register(self, _: Transcoding) -> None:  # pragma: no cover
-        msg = "Please use Pydantic BaseModel"
-        raise ProgrammingError(msg)

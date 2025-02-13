@@ -8,7 +8,7 @@ from unittest import TestCase
 
 from eventsourcing.application import Application
 from eventsourcing.domain import Aggregate, Snapshot, event
-from eventsourcing.persistence import Transcoding
+from eventsourcing.persistence import JSONTranscoder, Transcoding
 
 if TYPE_CHECKING:  # pragma: nocover
     from datetime import datetime
@@ -112,6 +112,14 @@ class StatusAsStr(Transcoding):
         return getattr(Status, data)
 
 
+class InvoicingApplication(Application):
+    def register_transcodings(self, transcoder: JSONTranscoder) -> None:
+        super().register_transcodings(transcoder)
+        transcoder.register(PersonAsDict())
+        transcoder.register(SendMethodAsStr())
+        transcoder.register(StatusAsStr())
+
+
 class TestInvoice(TestCase):
     def test(self) -> None:
         invoice = Invoice(
@@ -146,10 +154,7 @@ class TestInvoice(TestCase):
         self.assertEqual(invoice.sent_via, SendMethod.EMAIL)
         self.assertEqual(invoice.status, Status.SENT)
 
-        app: Application = Application(env={"IS_SNAPSHOTTING_ENABLED": "y"})
-        app.mapper.transcoder.register(PersonAsDict())
-        app.mapper.transcoder.register(SendMethodAsStr())
-        app.mapper.transcoder.register(StatusAsStr())
+        app: Application = InvoicingApplication(env={"IS_SNAPSHOTTING_ENABLED": "y"})
 
         app.save(invoice)
 

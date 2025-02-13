@@ -522,22 +522,27 @@ will also be encrypted, but the mapper will decrypt the event notification.
     assert domain_event.trick == "play dead"
 
 
-Registering custom transcodings
-===============================
+Mappers, transcoders and transcodings
+=====================================
 
-The application serialises and deserialises domain events using a
-:ref:`transcoder <Transcoder>` object. By default, the application
-will use the library's default JSON transcoder. The library's application
-base class registers transcodings for :class:`~uuid.UUID`, :class:`~decimal.Decimal`,
-and :class:`~datetime.datetime` objects.
+The application's mapper serialises and deserialises the state of domain events using a
+:ref:`transcoder <Transcoder>`. By default, applications use the library's extensible JSON
+transcoder class, :class:`~eventsourcing.persistence.JSONTranscoder`. Its capabilities are
+extended by registering "transcodings".  By default, the application base class registers
+transcodings for :class:`~uuid.UUID`, :class:`~decimal.Decimal`, and :class:`~datetime.datetime`
+objects.
 
-If your domain model uses types of object that are not already supported by
-the transcoder, then custom :ref:`transcodings <Transcodings>` for these
-objects will need to be implemented and registered with the application's
-transcoder.
+If your application uses the library's JSON transcoder, and your domain model involves other
+types of object, then you will need to define and register custom :ref:`transcodings <Transcodings>`
+so that these types of objects can be serialised and deserialised.
+
+An alternative to defining transcodings for all your custom model value object and entity types is to
+use Pydantic with orjson. See :doc:`example 7  </topics/examples/aggregate7>` and
+:doc:`example 8  </topics/examples/aggregate8>` for details.
 
 The application method :func:`~eventsourcing.application.Application.register_transcodings`
-can be overridden or extended to register the transcodings required by your application.
+will be called if you are using :class:`~eventsourcing.persistence.JSONTranscoder`, and can
+be overridden or extended to register the transcodings required by your application.
 
 For example, to define and register a :class:`~eventsourcing.persistence.Transcoding`
 for the Python :class:`~datetime.date` class, define a class such as the
@@ -552,13 +557,7 @@ method once for each of your custom transcodings.
     from datetime import date
     from typing import Union
 
-    from eventsourcing.persistence import Transcoder, Transcoding
-
-
-    class MyApplication(Application):
-        def register_transcodings(self, transcoder: Transcoder):
-            super().register_transcodings(transcoder)
-            transcoder.register(DateAsISO())
+    from eventsourcing.persistence import JSONTranscoder, Transcoding
 
 
     class DateAsISO(Transcoding):
@@ -572,6 +571,42 @@ method once for each of your custom transcodings.
             assert isinstance(d, str)
             return date.fromisoformat(d)
 
+
+    class MyApplication(Application):
+        def register_transcodings(self, transcoder: JSONTranscoder):
+            super().register_transcodings(transcoder)
+            transcoder.register(DateAsISO())
+
+
+Then, models that involve date objects can be serialised and deserialised.
+
+.. code-block:: python
+
+    class DogWithDateOfBirth(Aggregate):
+        def __init__(self, date_of_birth: date):
+            self.date_of_birth = date_of_birth
+            self.tricks = []
+
+    fido = DogWithDateOfBirth(date_of_birth=date(2025, 2, 11))
+
+    application = MyApplication()
+    application.save(fido)
+
+    assert application.repository.get(fido.id).date_of_birth == date(2025, 2, 11)
+
+
+To use an alternative transcoder, you can either override the application method
+:func:`~eventsourcing.application.Application.construct_transcoder`, or set the
+environment variable ``TRANSCODER_TOPIC`` to the topic of an alternative
+transcoder class. This may be done in conjunction with your using an alternative mapper,
+by :func:`~eventsourcing.application.Application.construct_mapper` or setting the
+environment variable ``MAPPER_TOPIC``.
+
+For example, see how Pydantic and Orjson can be used together to support both
+an immutable aggregate model in :doc:`example 7  </topics/examples/aggregate7>` and
+an mutable aggregate model in :doc:`example 8  </topics/examples/aggregate8>`. Using
+Pydantic to define a domain model in these ways avoids the need to register custom
+transcodings for custom domain model object types.
 
 .. _Saving multiple aggregates:
 

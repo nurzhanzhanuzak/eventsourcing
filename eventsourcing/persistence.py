@@ -63,17 +63,6 @@ class Transcoder(ABC):
     Abstract base class for transcoders.
     """
 
-    def __init__(self) -> None:
-        self.types: Dict[type, Transcoding] = {}
-        self.names: Dict[str, Transcoding] = {}
-
-    def register(self, transcoding: Transcoding) -> None:
-        """
-        Registers given transcoding with the transcoder.
-        """
-        self.types[transcoding.type] = transcoding
-        self.names[transcoding.name] = transcoding
-
     @abstractmethod
     def encode(self, obj: Any) -> bytes:
         """Encodes obj as bytes."""
@@ -89,13 +78,21 @@ class JSONTranscoder(Transcoder):
     """
 
     def __init__(self) -> None:
-        super().__init__()
+        self.types: Dict[type, Transcoding] = {}
+        self.names: Dict[str, Transcoding] = {}
         self.encoder = json.JSONEncoder(
             default=self._encode_obj,
             separators=(",", ":"),
             ensure_ascii=False,
         )
         self.decoder = json.JSONDecoder(object_hook=self._decode_obj)
+
+    def register(self, transcoding: Transcoding) -> None:
+        """
+        Registers given transcoding with the transcoder.
+        """
+        self.types[transcoding.type] = transcoding
+        self.names[transcoding.name] = transcoding
 
     def encode(self, obj: Any) -> bytes:
         """
@@ -607,6 +604,7 @@ class InfrastructureFactory(ABC):
     """
 
     PERSISTENCE_MODULE = "PERSISTENCE_MODULE"
+    TRANSCODER_TOPIC = "TRANSCODER_TOPIC"
     MAPPER_TOPIC = "MAPPER_TOPIC"
     CIPHER_TOPIC = "CIPHER_TOPIC"
     COMPRESSOR_TOPIC = "COMPRESSOR_TOPIC"
@@ -687,18 +685,27 @@ class InfrastructureFactory(ABC):
         """
         Constructs a transcoder.
         """
-        # TODO: Implement support for TRANSCODER_TOPIC.
-        return JSONTranscoder()
+        transcoder_topic = self.env.get(self.TRANSCODER_TOPIC)
+        if transcoder_topic:
+            transcoder_class: Type[Transcoder] = resolve_topic(transcoder_topic)
+        else:
+            transcoder_class = JSONTranscoder
+        return transcoder_class()
 
     def mapper(
-        self, transcoder: Transcoder, mapper_class: Type[Mapper] = Mapper
+        self,
+        transcoder: Transcoder | None = None,
+        mapper_class: Type[Mapper] | None = None,
     ) -> Mapper:
         """
         Constructs a mapper.
         """
-        # TODO: Implement support for MAPPER_TOPIC.
+        if mapper_class is None:
+            mapper_topic = self.env.get(self.MAPPER_TOPIC)
+            mapper_class = resolve_topic(mapper_topic) if mapper_topic else Mapper
+
         return mapper_class(
-            transcoder=transcoder,
+            transcoder=transcoder or self.transcoder(),
             cipher=self.cipher(),
             compressor=self.compressor(),
         )
@@ -738,12 +745,18 @@ class InfrastructureFactory(ABC):
                 compressor = compressor_cls
         return compressor
 
-    @staticmethod
-    def event_store(**kwargs: Any) -> EventStore:
+    def event_store(
+        self,
+        mapper: Mapper | None = None,
+        recorder: AggregateRecorder | None = None,
+    ) -> EventStore:
         """
         Constructs an event store.
         """
-        return EventStore(**kwargs)
+        return EventStore(
+            mapper=mapper or self.mapper(),
+            recorder=recorder or self.application_recorder(),
+        )
 
     @abstractmethod
     def aggregate_recorder(self, purpose: str = "events") -> AggregateRecorder:
