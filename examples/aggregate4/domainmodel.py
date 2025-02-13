@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Iterable, List, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Iterable, List, Type, TypeVar, cast
 from uuid import UUID, uuid4
 
 from eventsourcing.dispatch import singledispatchmethod
-from eventsourcing.domain import Snapshot
+from eventsourcing.domain import Snapshot, datetime_now_with_tzinfo
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 @dataclass(frozen=True)
@@ -14,10 +16,6 @@ class DomainEvent:
     originator_version: int
     originator_id: UUID
     timestamp: datetime
-
-    @staticmethod
-    def create_timestamp() -> datetime:
-        return datetime.now(tz=timezone.utc)
 
 
 TAggregate = TypeVar("TAggregate", bound="Aggregate")
@@ -43,7 +41,7 @@ class Aggregate:
         kwargs.update(
             originator_id=self.id,
             originator_version=self.version + 1,
-            timestamp=event_class.create_timestamp(),
+            timestamp=datetime_now_with_tzinfo(),
         )
         new_event = event_class(**kwargs)
         self._apply(new_event)
@@ -84,7 +82,7 @@ class Dog(Aggregate):
         event = cls.Registered(
             originator_id=uuid4(),
             originator_version=1,
-            timestamp=DomainEvent.create_timestamp(),
+            timestamp=datetime_now_with_tzinfo(),
             name=name,
         )
         dog = cast(Dog, cls.projector(None, [event]))

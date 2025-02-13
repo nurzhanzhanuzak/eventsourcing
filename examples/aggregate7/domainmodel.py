@@ -1,66 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from functools import singledispatch
-from typing import Any, Callable, Dict, Iterable, Optional, Tuple, TypeVar
-from uuid import UUID, uuid4
+from typing import Tuple
+from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
-from eventsourcing.utils import get_topic
-
-
-class DomainEvent(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    originator_id: UUID
-    originator_version: int
-    timestamp: datetime
-
-
-def create_timestamp() -> datetime:
-    return datetime.now(tz=timezone.utc)
-
-
-class Aggregate(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    id: UUID
-    version: int
-    created_on: datetime
-    modified_on: datetime
-
-
-class Snapshot(DomainEvent):
-    topic: str
-    state: Dict[str, Any]
-
-    @classmethod
-    def take(cls, aggregate: Aggregate) -> Snapshot:
-        return Snapshot(
-            originator_id=aggregate.id,
-            originator_version=aggregate.version,
-            timestamp=create_timestamp(),
-            topic=get_topic(type(aggregate)),
-            state=aggregate.model_dump(),
-        )
-
-
-TAggregate = TypeVar("TAggregate", bound=Aggregate)
-MutatorFunction = Callable[..., Optional[TAggregate]]
-
-
-def aggregate_projector(
-    mutator: MutatorFunction[TAggregate],
-) -> Callable[[TAggregate | None, Iterable[DomainEvent]], TAggregate | None]:
-    def project_aggregate(
-        aggregate: TAggregate | None, events: Iterable[DomainEvent]
-    ) -> TAggregate | None:
-        for event in events:
-            aggregate = mutator(event, aggregate)
-        return aggregate
-
-    return project_aggregate
+from eventsourcing.domain import datetime_now_with_tzinfo
+from examples.aggregate7.immutablemodel import (
+    Aggregate,
+    DomainEvent,
+    Snapshot,
+    aggregate_projector,
+)
 
 
 class Trick(BaseModel):
@@ -84,7 +36,7 @@ def register_dog(name: str) -> DomainEvent:
     return DogRegistered(
         originator_id=uuid4(),
         originator_version=1,
-        timestamp=create_timestamp(),
+        timestamp=datetime_now_with_tzinfo(),
         name=name,
     )
 
@@ -93,7 +45,7 @@ def add_trick(dog: Dog, trick: Trick) -> DomainEvent:
     return TrickAdded(
         originator_id=dog.id,
         originator_version=dog.version + 1,
-        timestamp=create_timestamp(),
+        timestamp=datetime_now_with_tzinfo(),
         trick=trick,
     )
 

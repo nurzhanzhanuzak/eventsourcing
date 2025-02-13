@@ -78,3 +78,38 @@ class TestDomainEvent(TestCase):
         self.assertEqual(event4.full_name, "Bob")
         assert isinstance(event4.originator_id, UUID)
         self.assertEqual(event4.originator_version, 1)
+
+
+class TestDatetimeNowWithTzinfo(TestCase):
+    def test(self):
+        # Check datetime_now_with_tzinfo() returns a datetime with tzinfo.
+        timestamp = datetime_now_with_tzinfo()
+        self.assertIsInstance(timestamp, datetime)
+        self.assertEqual(timestamp.tzinfo, timezone.utc)
+
+        orig_tzinfo = eventsourcing.domain.TZINFO
+        alt_tzinfo = timezone(offset=timedelta(hours=1), name="AltTimeZone")
+        eventsourcing.domain.TZINFO = alt_tzinfo
+        try:
+            timestamp = datetime_now_with_tzinfo()
+            self.assertNotEqual(timestamp.tzinfo, timezone.utc)
+            self.assertEqual(timestamp.tzinfo, alt_tzinfo)
+        finally:
+            eventsourcing.domain.TZINFO = orig_tzinfo
+
+        # Verify deprecation warning for create_utc_datetime_now().
+        with warnings.catch_warnings(record=True) as w:
+            timestamp = create_utc_datetime_now()
+
+        self.assertIsInstance(timestamp, datetime)
+        self.assertEqual(timestamp.tzinfo, timezone.utc)
+
+        self.assertEqual(len(w), 1)
+        self.assertIs(w[-1].category, DeprecationWarning)
+        self.assertEqual(
+            (
+                "'create_utc_datetime_now()' is deprecated, "
+                "use 'datetime_now_with_tzinfo()' instead"
+            ),
+            w[-1].message.args[0],
+        )

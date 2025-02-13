@@ -39,7 +39,7 @@ from eventsourcing.domain import (
     SnapshotProtocol,
     TDomainEvent,
     TMutableOrImmutableAggregate,
-    create_utc_datetime_now,
+    datetime_now_with_tzinfo,
 )
 from eventsourcing.persistence import (
     ApplicationRecorder,
@@ -977,7 +977,7 @@ class EventSourcedLog(Generic[TDomainEvent]):
         return logged_cls(  # type: ignore
             originator_id=self.originator_id,
             originator_version=next_originator_version,
-            timestamp=create_utc_datetime_now(),
+            timestamp=datetime_now_with_tzinfo(),
             **kwargs,
         )
 

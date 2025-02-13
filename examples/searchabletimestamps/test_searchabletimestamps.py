@@ -7,7 +7,7 @@ from typing import ClassVar, Dict
 from unittest import TestCase
 
 from eventsourcing.application import AggregateNotFoundError
-from eventsourcing.domain import create_utc_datetime_now
+from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.tests.postgres_utils import drop_postgres_table
 from examples.cargoshipping.domainmodel import Location
@@ -20,21 +20,21 @@ class SearchableTimestampsTestCase(TestCase):
     def test(self) -> None:
         # Construct application.
         app = SearchableTimestampsApplication(env=self.env)
-        timestamp0 = create_utc_datetime_now()
+        timestamp0 = datetime_now_with_tzinfo()
         sleep(1e-5)
 
         # Book new cargo.
         tracking_id = app.book_new_cargo(
             origin=Location["NLRTM"],
             destination=Location["USDAL"],
-            arrival_deadline=create_utc_datetime_now() + timedelta(weeks=3),
+            arrival_deadline=datetime_now_with_tzinfo() + timedelta(weeks=3),
         )
-        timestamp1 = create_utc_datetime_now()
+        timestamp1 = datetime_now_with_tzinfo()
         sleep(1e-5)
 
         # Change destination.
         app.change_destination(tracking_id, destination=Location["AUMEL"])
-        timestamp2 = create_utc_datetime_now()
+        timestamp2 = datetime_now_with_tzinfo()
         sleep(1e-5)
 
         # View the state of the cargo tracking at particular times.

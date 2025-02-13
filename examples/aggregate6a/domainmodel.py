@@ -3,12 +3,23 @@ from __future__ import annotations
 import contextlib
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from functools import singledispatch
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+)
 from uuid import UUID, uuid4
 
-from eventsourcing.domain import Snapshot
+from eventsourcing.domain import Snapshot, datetime_now_with_tzinfo
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 @dataclass(frozen=True)
@@ -16,10 +27,6 @@ class DomainEvent:
     originator_id: UUID
     originator_version: int
     timestamp: datetime
-
-
-def create_timestamp() -> datetime:
-    return datetime.now(tz=timezone.utc)
 
 
 @dataclass(frozen=True)
@@ -83,7 +90,7 @@ def register_dog(name: str) -> Dog:
     event = DogRegistered(
         originator_id=uuid4(),
         originator_version=1,
-        timestamp=create_timestamp(),
+        timestamp=datetime_now_with_tzinfo(),
         name=name,
     )
     dog = mutate_dog(event, None)
@@ -96,7 +103,7 @@ def add_trick(dog: Dog, trick: str) -> Dog:
     event = TrickAdded(
         originator_id=dog.id,
         originator_version=dog.version + 1,
-        timestamp=create_timestamp(),
+        timestamp=datetime_now_with_tzinfo(),
         trick=trick,
     )
     dog_ = mutate_dog(event, dog)

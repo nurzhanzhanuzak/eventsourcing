@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import contextlib
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from functools import singledispatch
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict
 
+from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.utils import get_topic
 
 
@@ -18,10 +19,6 @@ class DomainEvent(BaseModel):
     originator_id: UUID
     originator_version: int
     timestamp: datetime
-
-
-def create_timestamp() -> datetime:
-    return datetime.now(tz=timezone.utc)
 
 
 class Aggregate(BaseModel):
@@ -55,7 +52,7 @@ class Snapshot(DomainEvent):
         return Snapshot(
             originator_id=aggregate.id,
             originator_version=aggregate.version,
-            timestamp=create_timestamp(),
+            timestamp=datetime_now_with_tzinfo(),
             topic=get_topic(type(aggregate)),
             state=aggregate.model_dump(),
         )
@@ -102,7 +99,7 @@ def register_dog(name: str) -> Dog:
     event = DogRegistered(
         originator_id=uuid4(),
         originator_version=1,
-        timestamp=create_timestamp(),
+        timestamp=datetime_now_with_tzinfo(),
         name=name,
     )
     dog = mutate_dog(event, None)
@@ -115,7 +112,7 @@ def add_trick(dog: Dog, trick: str) -> Dog:
     event = TrickAdded(
         originator_id=dog.id,
         originator_version=dog.version + 1,
-        timestamp=create_timestamp(),
+        timestamp=datetime_now_with_tzinfo(),
         trick=Trick(name=trick),
     )
     dog_ = mutate_dog(event, dog)

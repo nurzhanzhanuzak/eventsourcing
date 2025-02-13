@@ -25,10 +25,20 @@ from typing import (
     runtime_checkable,
 )
 from uuid import UUID, uuid4
+from warnings import warn
 
 from eventsourcing.utils import get_method_name, get_topic, resolve_topic
 
 TZINFO: tzinfo = resolve_topic(os.getenv("TZINFO_TOPIC", "datetime:timezone.utc"))
+"""
+A Python :py:obj:`tzinfo` object that defaults to UTC (:py:obj:`timezone.utc`). Used
+as the timezone argument in :func:`~eventsourcing.domain.datetime_now_with_tzinfo`.
+
+Set environment variable ``TZINFO_TOPIC`` to the topic of a different :py:obj:`tzinfo`
+object so that all your domain model event timestamps are located in that timezone
+(not recommended). It is generally recommended to locate all timestamps in the UTC
+domain and convert to local timezones when presenting values in user interfaces.
+"""
 
 
 @runtime_checkable
@@ -153,11 +163,25 @@ class CanMutateProtocol(DomainEventProtocol, Protocol[TMutableOrImmutableAggrega
         """
 
 
-def create_utc_datetime_now() -> datetime:
+def datetime_now_with_tzinfo() -> datetime:
     """
     Constructs a timezone-aware :class:`datetime` object for the current date and time.
+
+    Uses :py:obj:`TZINFO` as the timezone.
     """
     return datetime.now(tz=TZINFO)
+
+
+def create_utc_datetime_now() -> datetime:
+    """
+    Deprected in favour of :func:`~eventsourcing.domain.datetime_now_with_tzinfo`.
+    """
+    msg = (
+        "'create_utc_datetime_now()' is deprecated, "
+        "use 'datetime_now_with_tzinfo()' instead"
+    )
+    warn(msg, DeprecationWarning, stacklevel=2)
+    return datetime_now_with_tzinfo()
 
 
 class CanCreateTimestamp:
@@ -171,7 +195,7 @@ class CanCreateTimestamp:
         Constructs a timezone-aware :class:`datetime` object
         representing when an event occurred.
         """
-        return create_utc_datetime_now()
+        return datetime_now_with_tzinfo()
 
 
 TAggregate = TypeVar("TAggregate", bound="Aggregate")
