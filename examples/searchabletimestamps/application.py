@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, cast
 
+from eventsourcing.application import AggregateNotFoundError
 from examples.cargoshipping.application import BookingApplication
 from examples.cargoshipping.domainmodel import Cargo
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
@@ -12,6 +13,10 @@ if TYPE_CHECKING:  # pragma: nocover
 
     from eventsourcing.application import ProcessingEvent
     from eventsourcing.persistence import Recording
+
+
+class CargoNotFoundError(AggregateNotFoundError):
+    pass
 
 
 class SearchableTimestampsApplication(BookingApplication):
@@ -27,4 +32,6 @@ class SearchableTimestampsApplication(BookingApplication):
     def get_cargo_at_timestamp(self, tracking_id: UUID, timestamp: datetime) -> Cargo:
         recorder = cast(SearchableTimestampsRecorder, self.recorder)
         version = recorder.get_version_at_timestamp(tracking_id, timestamp)
+        if version is None:
+            raise CargoNotFoundError((tracking_id, timestamp))
         return cast(Cargo, self.repository.get(tracking_id, version=version))

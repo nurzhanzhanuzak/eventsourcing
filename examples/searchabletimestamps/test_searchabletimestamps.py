@@ -6,12 +6,14 @@ from time import sleep
 from typing import ClassVar, Dict
 from unittest import TestCase
 
-from eventsourcing.application import AggregateNotFoundError
 from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.tests.postgres_utils import drop_postgres_table
 from examples.cargoshipping.domainmodel import Location
-from examples.searchabletimestamps.application import SearchableTimestampsApplication
+from examples.searchabletimestamps.application import (
+    CargoNotFoundError,
+    SearchableTimestampsApplication,
+)
 
 
 class SearchableTimestampsTestCase(TestCase):
@@ -38,7 +40,7 @@ class SearchableTimestampsTestCase(TestCase):
         sleep(1e-5)
 
         # View the state of the cargo tracking at particular times.
-        with self.assertRaises(AggregateNotFoundError):
+        with self.assertRaises(CargoNotFoundError):
             app.get_cargo_at_timestamp(tracking_id, timestamp0)
 
         cargo_at_timestamp1 = app.get_cargo_at_timestamp(tracking_id, timestamp1)
