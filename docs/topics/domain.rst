@@ -2581,12 +2581,12 @@ Registering old topics
 The :func:`~eventsourcing.utils.register_topic` function
 can be used to register an old topic for an object that has
 been moved or renamed. When a class object is moved or renamed,
-unless the old topic is registered, it will not be possible to
-resolved an old topic. If an aggregate or event class is renamed,
-it won't be possible to reconstruct instances from previously stored
+unless the old topic is registered, it will not be possible to be
+resolved. That means if an aggregate or event class is renamed, it won't
+be possible to reconstruct instances from previously stored
 events, unless the old topic is registered for the renamed class.
 
-This also supports nested classes. For example, by registering an old
+This mechanism supports nested classes. For example, by registering an old
 topic for a renamed aggregate, topics for nested classes that were created
 using the old enclosing name will resolve to the same nested class on the
 renamed enclosing class.
