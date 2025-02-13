@@ -649,15 +649,15 @@ class InfrastructureFactory(ABC):
 
         if isinstance(obj, ModuleType):
             # Find the factory in the module.
-            factory_classes: List[Type[InfrastructureFactory]] = [
-                member
-                for member in obj.__dict__.values()
+            factory_classes: List[Type[InfrastructureFactory]] = []
+            for member in obj.__dict__.values():
                 if (
                     member is not InfrastructureFactory
-                    and isinstance(member, type)
-                    and issubclass(member, InfrastructureFactory)
-                )
-            ]
+                    and isinstance(member, type)  # Look for classes...
+                    and issubclass(member, InfrastructureFactory)  # Ignore base class.
+                    and member not in factory_classes  # Forgive aliases.
+                ):
+                    factory_classes.append(member)
             if len(factory_classes) == 1:
                 factory_cls = factory_classes[0]
             else:

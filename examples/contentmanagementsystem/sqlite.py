@@ -1,4 +1,4 @@
-from eventsourcing.sqlite import Factory, SQLiteProcessRecorder
+from eventsourcing.sqlite import SQLiteFactory, SQLiteProcessRecorder
 from examples.searchablecontent.sqlite import SQLiteSearchableContentRecorder
 
 
@@ -8,8 +8,8 @@ class SearchableContentProcessRecorder(
     pass
 
 
-class SearchableContentInfrastructureFactory(Factory):
+class SearchableContentInfrastructureFactory(SQLiteFactory):
     process_recorder_class = SearchableContentProcessRecorder
 
 
-del Factory
+del SQLiteFactory

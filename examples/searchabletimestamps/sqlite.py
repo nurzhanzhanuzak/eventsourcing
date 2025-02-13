@@ -6,10 +6,10 @@ from uuid import UUID
 
 from eventsourcing.domain import Aggregate
 from eventsourcing.sqlite import (
-    Factory,
     SQLiteApplicationRecorder,
     SQLiteCursor,
     SQLiteDatastore,
+    SQLiteFactory,
 )
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
@@ -87,11 +87,11 @@ class SearchableTimestampsApplicationRecorder(
             return version
 
 
-class SearchableTimestampsInfrastructureFactory(Factory):
+class SearchableTimestampsInfrastructureFactory(SQLiteFactory):
     def application_recorder(self) -> ApplicationRecorder:
         recorder = SearchableTimestampsApplicationRecorder(datastore=self.datastore)
         recorder.create_table()
         return recorder
 
 
-del Factory
+del SQLiteFactory

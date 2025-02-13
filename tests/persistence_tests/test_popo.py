@@ -7,6 +7,7 @@ from eventsourcing.popo import (
     Factory,
     POPOAggregateRecorder,
     POPOApplicationRecorder,
+    POPOFactory,
     POPOProcessRecorder,
     POPOTrackingRecorder,
 )
@@ -184,7 +185,7 @@ class TestPOPOInfrastructureFactory(InfrastructureFactoryTestCase):
         super().setUp()
 
     def expected_factory_class(self):
-        return Factory
+        return POPOFactory
 
     def expected_aggregate_recorder_class(self):
         return POPOAggregateRecorder

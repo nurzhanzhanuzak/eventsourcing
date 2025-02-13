@@ -298,7 +298,7 @@ class TestSQLiteProcessRecorderErrors(TestCase):
 
 class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
     def expected_factory_class(self):
-        return Factory
+        return SQLiteFactory
 
     def expected_aggregate_recorder_class(self):
         return SQLiteAggregateRecorder
@@ -311,19 +311,19 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
 
     def setUp(self) -> None:
         self.env = Environment("TestCase")
-        self.env[InfrastructureFactory.PERSISTENCE_MODULE] = Factory.__module__
-        self.env[Factory.SQLITE_DBNAME] = ":memory:"
+        self.env[InfrastructureFactory.PERSISTENCE_MODULE] = SQLiteFactory.__module__
+        self.env[SQLiteFactory.SQLITE_DBNAME] = ":memory:"
         super().setUp()
 
     def tearDown(self) -> None:
         super().tearDown()
-        if Factory.SQLITE_DBNAME in self.env:
-            del self.env[Factory.SQLITE_DBNAME]
-        if Factory.SQLITE_LOCK_TIMEOUT in self.env:
-            del self.env[Factory.SQLITE_LOCK_TIMEOUT]
+        if SQLiteFactory.SQLITE_DBNAME in self.env:
+            del self.env[SQLiteFactory.SQLITE_DBNAME]
+        if SQLiteFactory.SQLITE_LOCK_TIMEOUT in self.env:
+            del self.env[SQLiteFactory.SQLITE_LOCK_TIMEOUT]
 
     def test_construct_raises_environment_error_when_dbname_missing(self):
-        del self.env[Factory.SQLITE_DBNAME]
+        del self.env[SQLiteFactory.SQLITE_DBNAME]
         with self.assertRaises(EnvironmentError) as cm:
             InfrastructureFactory.construct(self.env)
         self.assertEqual(
@@ -333,9 +333,9 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_environment_error_raised_when_lock_timeout_not_an_int(self):
-        self.env[Factory.SQLITE_LOCK_TIMEOUT] = "abc"
+        self.env[SQLiteFactory.SQLITE_LOCK_TIMEOUT] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
-            Factory(self.env)
+            SQLiteFactory(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "SQLite environment value for key 'SQLITE_LOCK_TIMEOUT' "
@@ -343,15 +343,15 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_lock_timeout_value(self):
-        factory = Factory(self.env)
+        factory = SQLiteFactory(self.env)
         self.assertEqual(factory.datastore.pool.lock_timeout, None)
 
-        self.env[Factory.SQLITE_LOCK_TIMEOUT] = ""
-        factory = Factory(self.env)
+        self.env[SQLiteFactory.SQLITE_LOCK_TIMEOUT] = ""
+        factory = SQLiteFactory(self.env)
         self.assertEqual(factory.datastore.pool.lock_timeout, None)
 
-        self.env[Factory.SQLITE_LOCK_TIMEOUT] = "10"
-        factory = Factory(self.env)
+        self.env[SQLiteFactory.SQLITE_LOCK_TIMEOUT] = "10"
+        factory = SQLiteFactory(self.env)
         self.assertEqual(factory.datastore.pool.lock_timeout, 10)
 
 

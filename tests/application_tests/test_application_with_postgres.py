@@ -12,7 +12,7 @@ from eventsourcing.tests.postgres_utils import drop_postgres_table
 
 class WithPostgres(TestCase):
     timeit_number = 5 * TIMEIT_FACTOR
-    expected_factory_topic = "eventsourcing.postgres:Factory"
+    expected_factory_topic = "eventsourcing.postgres:PostgresFactory"
 
     def setUp(self) -> None:
         super().setUp()

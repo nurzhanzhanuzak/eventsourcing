@@ -554,7 +554,7 @@ class SQLiteProcessRecorder(
         return returning
 
 
-class Factory(InfrastructureFactory):
+class SQLiteFactory(InfrastructureFactory):
     SQLITE_DBNAME = "SQLITE_DBNAME"
     SQLITE_LOCK_TIMEOUT = "SQLITE_LOCK_TIMEOUT"
     CREATE_TABLE = "CREATE_TABLE"
@@ -621,3 +621,6 @@ class Factory(InfrastructureFactory):
 
     def close(self) -> None:
         self.datastore.close()
+
+
+Factory = SQLiteFactory

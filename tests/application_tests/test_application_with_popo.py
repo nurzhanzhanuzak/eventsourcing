@@ -15,7 +15,7 @@ class TestApplicationWithPOPO(ApplicationTestCase):
 
 class TestExampleApplicationWithPOPO(ExampleApplicationTestCase):
     timeit_number = 100 * TIMEIT_FACTOR
-    expected_factory_topic = "eventsourcing.popo:Factory"
+    expected_factory_topic = "eventsourcing.popo:POPOFactory"
 
 
 del ApplicationTestCase

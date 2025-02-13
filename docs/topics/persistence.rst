@@ -1380,8 +1380,8 @@ By default, it will construct the infrastructure factory from the library's
 
     factory = InfrastructureFactory.construct()
 
-    assert factory.__class__.__name__ == "Factory"
-    assert factory.__class__.__module__ == "eventsourcing.popo"
+    assert type(factory).__name__ == "POPOFactory"
+    assert type(factory).__module__ == "eventsourcing.popo"
 
 
 The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.aggregate_recorder`

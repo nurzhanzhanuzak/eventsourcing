@@ -16,7 +16,7 @@ class TestInfrastructureFactory(TestCase):
     def test_constructs_popo_factory_by_default(self):
         factory = InfrastructureFactory.construct()
         self.assertIsInstance(factory, InfrastructureFactory)
-        self.assertIsInstance(factory, eventsourcing.popo.Factory)
+        self.assertIsInstance(factory, eventsourcing.popo.POPOFactory)
 
     def test_construct_raises_exception_when_persistence_module_is_invalid(self):
         with self.assertRaises(EnvironmentError):

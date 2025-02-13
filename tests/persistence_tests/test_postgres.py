@@ -17,7 +17,6 @@ from psycopg_pool import ConnectionPool
 from eventsourcing.persistence import (
     DatabaseError,
     DataError,
-    InfrastructureFactory,
     IntegrityError,
     InterfaceError,
     InternalError,
@@ -29,10 +28,10 @@ from eventsourcing.persistence import (
     Tracking,
 )
 from eventsourcing.postgres import (
-    Factory,
     PostgresAggregateRecorder,
     PostgresApplicationRecorder,
     PostgresDatastore,
+    PostgresFactory,
     PostgresProcessRecorder,
     PostgresSubscription,
     PostgresTrackingRecorder,
@@ -913,7 +912,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         super().test_create_application_recorder()
 
     def expected_factory_class(self):
-        return Factory
+        return PostgresFactory
 
     def expected_aggregate_recorder_class(self):
         return PostgresAggregateRecorder
@@ -926,12 +925,12 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
 
     def setUp(self) -> None:
         self.env = Environment("TestCase")
-        self.env[InfrastructureFactory.PERSISTENCE_MODULE] = Factory.__module__
-        self.env[Factory.POSTGRES_DBNAME] = "eventsourcing"
-        self.env[Factory.POSTGRES_HOST] = "127.0.0.1"
-        self.env[Factory.POSTGRES_PORT] = "5432"
-        self.env[Factory.POSTGRES_USER] = "eventsourcing"
-        self.env[Factory.POSTGRES_PASSWORD] = "eventsourcing"
+        self.env[PostgresFactory.PERSISTENCE_MODULE] = PostgresFactory.__module__
+        self.env[PostgresFactory.POSTGRES_DBNAME] = "eventsourcing"
+        self.env[PostgresFactory.POSTGRES_HOST] = "127.0.0.1"
+        self.env[PostgresFactory.POSTGRES_PORT] = "5432"
+        self.env[PostgresFactory.POSTGRES_USER] = "eventsourcing"
+        self.env[PostgresFactory.POSTGRES_PASSWORD] = "eventsourcing"
         self.drop_tables()
         super().setUp()
 
@@ -951,7 +950,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             drop_postgres_table(datastore, "testcase_tracking")
 
     def test_close(self):
-        factory = Factory(self.env)
+        factory = PostgresFactory(self.env)
         conn: Connection
         with factory.datastore.get_connection() as conn:
             conn.execute("SELECT 1")
@@ -960,134 +959,136 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.assertTrue(factory.datastore.pool.closed)
 
     def test_conn_max_age_is_set_to_float(self):
-        self.env[Factory.POSTGRES_CONN_MAX_AGE] = ""
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_CONN_MAX_AGE] = ""
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_lifetime, 60 * 60.0)
 
     def test_conn_max_age_is_set_to_number(self):
-        self.env[Factory.POSTGRES_CONN_MAX_AGE] = "0"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_CONN_MAX_AGE] = "0"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_lifetime, 0)
 
     def test_pool_size_is_five_by_default(self):
-        self.assertTrue(Factory.POSTGRES_POOL_SIZE not in self.env)
-        self.factory = Factory(self.env)
+        self.assertTrue(PostgresFactory.POSTGRES_POOL_SIZE not in self.env)
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.min_size, 5)
 
-        self.env[Factory.POSTGRES_POOL_SIZE] = ""
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_POOL_SIZE] = ""
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.min_size, 5)
 
     def test_max_overflow_is_ten_by_default(self):
-        self.assertTrue(Factory.POSTGRES_MAX_OVERFLOW not in self.env)
-        self.factory = Factory(self.env)
+        self.assertTrue(PostgresFactory.POSTGRES_MAX_OVERFLOW not in self.env)
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_size, 15)
 
-        self.env[Factory.POSTGRES_MAX_OVERFLOW] = ""
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_MAX_OVERFLOW] = ""
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_size, 15)
 
     def test_max_overflow_is_set(self):
-        self.env[Factory.POSTGRES_MAX_OVERFLOW] = "7"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_MAX_OVERFLOW] = "7"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_size, 12)
 
     def test_pool_size_is_set(self):
-        self.env[Factory.POSTGRES_POOL_SIZE] = "6"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_POOL_SIZE] = "6"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.min_size, 6)
 
     def test_connect_timeout_is_thirty_by_default(self):
-        self.assertTrue(Factory.POSTGRES_CONNECT_TIMEOUT not in self.env)
-        self.factory = Factory(self.env)
+        self.assertTrue(PostgresFactory.POSTGRES_CONNECT_TIMEOUT not in self.env)
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.timeout, 30)
 
-        self.env[Factory.POSTGRES_CONNECT_TIMEOUT] = ""
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_CONNECT_TIMEOUT] = ""
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.timeout, 30)
 
     def test_connect_timeout_is_set(self):
-        self.env[Factory.POSTGRES_CONNECT_TIMEOUT] = "8"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_CONNECT_TIMEOUT] = "8"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.timeout, 8)
 
     def test_max_waiting_is_0_by_default(self):
-        self.assertTrue(Factory.POSTGRES_MAX_WAITING not in self.env)
-        self.factory = Factory(self.env)
+        self.assertTrue(PostgresFactory.POSTGRES_MAX_WAITING not in self.env)
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_waiting, 0)
 
-        self.env[Factory.POSTGRES_MAX_WAITING] = ""
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_MAX_WAITING] = ""
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_waiting, 0)
 
     def test_max_waiting_is_set(self):
-        self.env[Factory.POSTGRES_MAX_WAITING] = "8"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_MAX_WAITING] = "8"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pool.max_waiting, 8)
 
     def test_lock_timeout_is_zero_by_default(self):
-        self.assertTrue(Factory.POSTGRES_LOCK_TIMEOUT not in self.env)
-        self.factory = Factory(self.env)
+        self.assertTrue(PostgresFactory.POSTGRES_LOCK_TIMEOUT not in self.env)
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.lock_timeout, 0)
 
-        self.env[Factory.POSTGRES_LOCK_TIMEOUT] = ""
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_LOCK_TIMEOUT] = ""
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.lock_timeout, 0)
 
     def test_lock_timeout_is_set(self):
-        self.env[Factory.POSTGRES_LOCK_TIMEOUT] = "1"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_LOCK_TIMEOUT] = "1"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.lock_timeout, 1)
 
     def test_idle_in_transaction_session_timeout_is_5_by_default(self):
         self.assertTrue(
-            Factory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT not in self.env
+            PostgresFactory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT not in self.env
         )
-        self.factory = Factory(self.env)
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.idle_in_transaction_session_timeout, 5)
         self.factory.close()
 
-        self.env[Factory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT] = ""
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT] = ""
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.idle_in_transaction_session_timeout, 5)
 
     def test_idle_in_transaction_session_timeout_is_set(self):
-        self.env[Factory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT] = "10"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT] = "10"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.idle_in_transaction_session_timeout, 10)
 
     def test_pre_ping_off_by_default(self):
-        self.factory = Factory(self.env)
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pre_ping, False)
 
     def test_pre_ping_off(self):
-        self.env[Factory.POSTGRES_PRE_PING] = "off"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_PRE_PING] = "off"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pre_ping, False)
 
     def test_pre_ping_on(self):
-        self.env[Factory.POSTGRES_PRE_PING] = "on"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_PRE_PING] = "on"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.pre_ping, True)
 
     def test_get_password_topic_not_set(self):
-        self.factory = Factory(self.env)
+        self.factory = PostgresFactory(self.env)
         self.assertIsNone(self.factory.datastore.pool.get_password_func, None)
 
     def test_get_password_topic_set(self):
         def get_password_func():
             return "eventsourcing"
 
-        self.env[Factory.POSTGRES_GET_PASSWORD_TOPIC] = get_topic(get_password_func)
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_GET_PASSWORD_TOPIC] = get_topic(
+            get_password_func
+        )
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(
             self.factory.datastore.pool.get_password_func, get_password_func
         )
 
     def test_environment_error_raised_when_conn_max_age_not_a_float(self):
-        self.env[Factory.POSTGRES_CONN_MAX_AGE] = "abc"
+        self.env[PostgresFactory.POSTGRES_CONN_MAX_AGE] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
-            Factory(self.env)
+            PostgresFactory(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres environment value for key 'POSTGRES_CONN_MAX_AGE' "
@@ -1095,9 +1096,9 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_environment_error_raised_when_connect_timeout_not_an_integer(self):
-        self.env[Factory.POSTGRES_CONNECT_TIMEOUT] = "abc"
+        self.env[PostgresFactory.POSTGRES_CONNECT_TIMEOUT] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
-            Factory(self.env)
+            PostgresFactory(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres environment value for key 'POSTGRES_CONNECT_TIMEOUT' "
@@ -1105,9 +1106,9 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_environment_error_raised_when_max_waiting_not_an_integer(self):
-        self.env[Factory.POSTGRES_MAX_WAITING] = "abc"
+        self.env[PostgresFactory.POSTGRES_MAX_WAITING] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
-            Factory(self.env)
+            PostgresFactory(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres environment value for key 'POSTGRES_MAX_WAITING' "
@@ -1115,9 +1116,9 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_environment_error_raised_when_lock_timeout_not_an_integer(self):
-        self.env[Factory.POSTGRES_LOCK_TIMEOUT] = "abc"
+        self.env[PostgresFactory.POSTGRES_LOCK_TIMEOUT] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
-            Factory(self.env)
+            PostgresFactory(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres environment value for key 'POSTGRES_LOCK_TIMEOUT' "
@@ -1125,9 +1126,9 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_environment_error_raised_when_min_conn_not_an_integer(self):
-        self.env[Factory.POSTGRES_POOL_SIZE] = "abc"
+        self.env[PostgresFactory.POSTGRES_POOL_SIZE] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
-            Factory(self.env)
+            PostgresFactory(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres environment value for key 'POSTGRES_POOL_SIZE' "
@@ -1135,9 +1136,9 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_environment_error_raised_when_max_conn_not_an_integer(self):
-        self.env[Factory.POSTGRES_MAX_OVERFLOW] = "abc"
+        self.env[PostgresFactory.POSTGRES_MAX_OVERFLOW] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
-            Factory(self.env)
+            PostgresFactory(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres environment value for key 'POSTGRES_MAX_OVERFLOW' "
@@ -1147,9 +1148,9 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
     def test_environment_error_raised_when_idle_in_transaction_session_timeout_not_int(
         self,
     ):
-        self.env[Factory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT] = "abc"
+        self.env[PostgresFactory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
-            Factory(self.env)
+            PostgresFactory(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres environment value for key "
@@ -1158,9 +1159,9 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_environment_error_raised_when_dbname_missing(self):
-        del self.env[Factory.POSTGRES_DBNAME]
+        del self.env[PostgresFactory.POSTGRES_DBNAME]
         with self.assertRaises(EnvironmentError) as cm:
-            InfrastructureFactory.construct(self.env)
+            PostgresFactory.construct(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres database name not found in environment "
@@ -1168,44 +1169,44 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         )
 
     def test_environment_error_raised_when_dbhost_missing(self):
-        del self.env[Factory.POSTGRES_HOST]
+        del self.env[PostgresFactory.POSTGRES_HOST]
         with self.assertRaises(EnvironmentError) as cm:
-            InfrastructureFactory.construct(self.env)
+            PostgresFactory.construct(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres host not found in environment with key 'POSTGRES_HOST'",
         )
 
     def test_environment_error_raised_when_user_missing(self):
-        del self.env[Factory.POSTGRES_USER]
+        del self.env[PostgresFactory.POSTGRES_USER]
         with self.assertRaises(EnvironmentError) as cm:
-            InfrastructureFactory.construct(self.env)
+            PostgresFactory.construct(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres user not found in environment with key 'POSTGRES_USER'",
         )
 
     def test_environment_error_raised_when_password_missing(self):
-        del self.env[Factory.POSTGRES_PASSWORD]
+        del self.env[PostgresFactory.POSTGRES_PASSWORD]
         with self.assertRaises(EnvironmentError) as cm:
-            InfrastructureFactory.construct(self.env)
+            PostgresFactory.construct(self.env)
         self.assertEqual(
             cm.exception.args[0],
             "Postgres password not found in environment with key 'POSTGRES_PASSWORD'",
         )
 
     def test_schema_set_to_empty_string(self):
-        self.env[Factory.POSTGRES_SCHEMA] = ""
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_SCHEMA] = ""
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.schema, "")
 
     def test_schema_set_to_whitespace(self):
-        self.env[Factory.POSTGRES_SCHEMA] = " "
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_SCHEMA] = " "
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.schema, "")
 
     def test_scheme_adjusts_table_names_on_aggregate_recorder(self):
-        self.factory = Factory(self.env)
+        self.factory = PostgresFactory(self.env)
 
         # Check by default the table name is not qualified.
         recorder = self.factory.aggregate_recorder("events")
@@ -1218,8 +1219,8 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.assertEqual(recorder.events_table_name, "testcase_snapshots")
 
         # Set schema in environment.
-        self.env[Factory.POSTGRES_SCHEMA] = "public"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_SCHEMA] = "public"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.schema, "public")
 
         # Check by default the table name is qualified.
@@ -1233,7 +1234,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.assertEqual(recorder.events_table_name, "public.testcase_snapshots")
 
     def test_scheme_adjusts_table_name_on_application_recorder(self):
-        self.factory = Factory(self.env)
+        self.factory = PostgresFactory(self.env)
 
         # Check by default the table name is not qualified.
         recorder = self.factory.application_recorder()
@@ -1241,8 +1242,8 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.assertEqual(recorder.events_table_name, "testcase_events")
 
         # Set schema in environment.
-        self.env[Factory.POSTGRES_SCHEMA] = "public"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_SCHEMA] = "public"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.schema, "public")
 
         # Check by default the table name is qualified.
@@ -1251,7 +1252,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.assertEqual(recorder.events_table_name, "public.testcase_events")
 
     def test_scheme_adjusts_table_names_on_process_recorder(self):
-        self.factory = Factory(self.env)
+        self.factory = PostgresFactory(self.env)
 
         # Check by default the table name is not qualified.
         recorder = self.factory.process_recorder()
@@ -1260,8 +1261,8 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.assertEqual(recorder.tracking_table_name, "testcase_tracking")
 
         # Set schema in environment.
-        self.env[Factory.POSTGRES_SCHEMA] = "public"
-        self.factory = Factory(self.env)
+        self.env[PostgresFactory.POSTGRES_SCHEMA] = "public"
+        self.factory = PostgresFactory(self.env)
         self.assertEqual(self.factory.datastore.schema, "public")
 
         # Check by default the table name is qualified.

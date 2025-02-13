@@ -239,7 +239,7 @@ class POPOProcessRecorder(
         return notification_ids
 
 
-class Factory(InfrastructureFactory):
+class POPOFactory(InfrastructureFactory):
     def aggregate_recorder(self, purpose: str = "events") -> AggregateRecorder:
         return POPOAggregateRecorder()
 
@@ -248,3 +248,6 @@ class Factory(InfrastructureFactory):
 
     def process_recorder(self) -> ProcessRecorder:
         return POPOProcessRecorder()
+
+
+Factory = POPOFactory

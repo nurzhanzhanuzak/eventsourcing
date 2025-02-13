@@ -681,7 +681,7 @@ class PostgresProcessRecorder(
         super()._insert_events(c, stored_events, **kwargs)
 
 
-class Factory(InfrastructureFactory):
+class PostgresFactory(InfrastructureFactory):
     POSTGRES_DBNAME = "POSTGRES_DBNAME"
     POSTGRES_HOST = "POSTGRES_HOST"
     POSTGRES_PORT = "POSTGRES_PORT"
@@ -925,3 +925,6 @@ class Factory(InfrastructureFactory):
 
     def __del__(self) -> None:
         self.close()
+
+
+Factory = PostgresFactory
