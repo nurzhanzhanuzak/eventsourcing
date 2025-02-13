@@ -35,6 +35,8 @@ class WithPostgres(TestCase):
         )
         drop_postgres_table(db, "public.bankaccounts_events")
         drop_postgres_table(db, "public.bankaccounts_snapshots")
+        drop_postgres_table(db, "public.application_events")
+        # drop_postgres_table(db, "public.app_snapshots")
         db.close()
 
     def tearDown(self) -> None:

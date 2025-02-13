@@ -7,10 +7,12 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from threading import Condition, Event, Lock, Semaphore, Timer
+from queue import Queue
+from threading import Condition, Event, Lock, Semaphore, Thread, Timer
 from time import time
 from types import ModuleType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Dict,
     Generic,
@@ -34,6 +36,9 @@ from eventsourcing.utils import (
     resolve_topic,
     strtobool,
 )
+
+if TYPE_CHECKING:  # pragma: nocover
+    from typing_extensions import Self
 
 
 class Transcoding(ABC):
@@ -200,19 +205,16 @@ class StoredEvent:
     Frozen dataclass that represents :class:`~eventsourcing.domain.DomainEvent`
     objects, such as aggregate :class:`~eventsourcing.domain.Aggregate.Event`
     objects and :class:`~eventsourcing.domain.Snapshot` objects.
-
-    Constructor parameters:
-
-    :param UUID originator_id: ID of the originating aggregate
-    :param int originator_version: version of the originating aggregate
-    :param str topic: topic of the domain event object class
-    :param bytes state: serialised state of the domain event object
     """
 
     originator_id: uuid.UUID
+    """ID of the originating aggregate."""
     originator_version: int
+    """Position in an aggregate sequence."""
     topic: str
+    """Topic of a domain event object class."""
     state: bytes
+    """Serialised state of a domain event object."""
 
 
 class Compressor(ABC):
@@ -408,8 +410,7 @@ class NotSupportedError(DatabaseError):
 
 class AggregateRecorder(ABC):
     """
-    Abstract base class for recorders that record and
-    retrieve stored events for domain model aggregates.
+    Abstract base class for inserting and selecting stored events.
     """
 
     @abstractmethod
@@ -442,71 +443,94 @@ class Notification(StoredEvent):
     """
 
     id: int
+    """Position in an application sequence."""
 
 
 class ApplicationRecorder(AggregateRecorder):
     """
-    Abstract base class for recorders that record and
-    retrieve stored events for domain model aggregates.
-
-    Extends the behaviour of aggregate recorders by
-    recording aggregate events in a total order that
-    allows the stored events also to be retrieved
-    as event notifications.
+    Abstract base class for recording events in both aggregate
+    and application sequences.
     """
 
     @abstractmethod
     def select_notifications(
         self,
-        start: int,
+        start: int | None,
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
-        Returns a list of event notifications
-        from 'start', limited by 'limit' and
-        optionally by 'stop'.
+        Returns a list of Notification objects representing events from an
+        application sequence. If `inclusive_of_start` is True (the default),
+        the returned Notification objects will have IDs greater than or equal
+        to `start` and less than or equal to `stop`. If `inclusive_of_start`
+        is False, the Notification objects will have IDs greater than `start`
+        and less than or equal to `stop`.
         """
 
     @abstractmethod
-    def max_notification_id(self) -> int:
+    def max_notification_id(self) -> int | None:
         """
-        Returns the maximum notification ID.
+        Returns the largest notification ID in an application sequence,
+        or None if no stored events have been recorded.
         """
 
+    def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
+        """
+        Returns an iterator of Notification objects representing events from an
+        application sequence.
 
-class ProcessRecorder(ApplicationRecorder):
+        The iterator will block after the last recorded event has been yielded, but
+        will then continue yielding newly recorded events when they are recorded.
+
+        Notifications will have IDs greater than the optional `gt` argument.
+        """
+        msg = f"The {type(self).__qualname__} recorder does not support subscriptions"
+        raise NotImplementedError(msg)
+
+
+class TrackingRecorder(ABC):
     """
-    Abstract base class for recorders that record and
-    retrieve stored events for domain model aggregates.
-
-    Extends the behaviour of applications recorders by
-    recording aggregate events with tracking information
-    that records the position of a processed event
-    notification in a notification log.
+    Abstract base class for recorders that record tracking
+    objects atomically with other state.
     """
 
     @abstractmethod
-    def max_tracking_id(self, application_name: str) -> int:
+    def insert_tracking(self, tracking: Tracking) -> None:
         """
-        Returns the largest notification ID across all tracking records
-        for the named application. Returns zero if there are no tracking
-        records.
+        Records a tracking object.
+        """
+
+    @abstractmethod
+    def max_tracking_id(self, application_name: str) -> int | None:
+        """
+        Returns the largest notification ID across all recorded tracking objects
+        for the named application, or None if no tracking objects have been recorded.
         """
 
     @abstractmethod
     def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
         """
-        Returns true if a tracking record with the given application name
-        and notification ID exists, otherwise returns false.
+        Returns True if a tracking object with the given application name
+        and notification ID has been recorded, otherwise returns False.
         """
+
+
+class ProcessRecorder(TrackingRecorder, ApplicationRecorder, ABC):
+    pass
 
 
 @dataclass(frozen=True)
 class Recording:
+    """Represents the recording of a domain event."""
+
     domain_event: DomainEventProtocol
+    """The domain event that has been recorded."""
     notification: Notification
+    """A Notification that represents the domain event in the application sequence."""
 
 
 class EventStore:
@@ -590,7 +614,7 @@ class InfrastructureFactory(ABC):
 
     @classmethod
     def construct(
-        cls: Type[TInfrastructureFactory], env: Environment
+        cls: Type[TInfrastructureFactory], env: Environment | None = None
     ) -> TInfrastructureFactory:
         """
         Constructs concrete infrastructure factory for given
@@ -598,6 +622,8 @@ class InfrastructureFactory(ABC):
         topic from environment variable 'PERSISTENCE_MODULE'.
         """
         factory_cls: Type[InfrastructureFactory]
+        if env is None:
+            env = Environment()
         topic = (
             env.get(
                 cls.PERSISTENCE_MODULE,
@@ -747,7 +773,7 @@ class InfrastructureFactory(ABC):
 
     def close(self) -> None:
         """
-        Closes any database connections, or anything else that needs closing.
+        Closes any database connections, and anything else that needs closing.
         """
 
 
@@ -1197,3 +1223,126 @@ class ConnectionPool(ABC, Generic[TConnection]):
 
     def __del__(self) -> None:
         self.close()
+
+
+TApplicationRecorder_co = TypeVar(
+    "TApplicationRecorder_co", bound=ApplicationRecorder, covariant=True
+)
+
+
+class Subscription(Iterator[Notification], Generic[TApplicationRecorder_co]):
+    def __init__(
+        self, recorder: TApplicationRecorder_co, gt: int | None = None
+    ) -> None:
+        self._recorder = recorder
+        self._last_notification_id = gt
+        self._has_been_entered = False
+        self._has_been_stopped = False
+
+    def __enter__(self) -> Self:
+        if self._has_been_entered:
+            msg = "Already entered subscription context manager"
+            raise ProgrammingError(msg)
+        self._has_been_entered = True
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        if not self._has_been_entered:
+            msg = "Not already entered subscription context manager"
+            raise ProgrammingError(msg)
+        self.stop()
+
+    def stop(self) -> None:
+        """
+        Stops the subscription.
+        """
+        self._has_been_stopped = True
+
+    def __iter__(self) -> Self:
+        if not self._has_been_entered:
+            msg = "Subscription must be used as a context manager"
+            raise ProgrammingError(msg)
+        return self
+
+    @abstractmethod
+    def __next__(self) -> Notification:
+        """
+        Returns the next Notification object in the application sequence.
+        """
+
+
+class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
+    def __init__(
+        self, recorder: TApplicationRecorder_co, gt: int | None = None
+    ) -> None:
+        super().__init__(recorder=recorder, gt=gt)
+        self._select_limit = 500
+        self._notifications: List[Notification] = []
+        self._notifications_index: int = 0
+        self._notifications_queue: Queue[List[Notification]] = Queue()
+        self._has_been_notified = Event()
+        self._thread_error: BaseException | None = None
+
+    def __enter__(self) -> Self:
+        super().__enter__()
+        self._pull_thread = Thread(target=self._loop_on_pull)
+        self._pull_thread.start()
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        super().__exit__(*args, **kwargs)
+        self._pull_thread.join()
+
+    def stop(self) -> None:
+        """
+        Stops the subscription.
+        """
+        super().stop()
+        self._notifications_queue.put([])
+        self._has_been_notified.set()
+
+    def __next__(self) -> Notification:
+        # If necessary, get a new list of notifications from the recorder.
+        if (
+            self._notifications_index == len(self._notifications)
+            and not self._has_been_stopped
+        ):
+            self._notifications = self._notifications_queue.get()
+            self._notifications_index = 0
+
+        # Stop the iteration if necessary, maybe raise thread error.
+        if self._has_been_stopped or not self._notifications:
+            if self._thread_error is not None:
+                raise self._thread_error
+            raise StopIteration
+
+        # Return a notification from previously obtained list.
+        notification = self._notifications[self._notifications_index]
+        self._notifications_index += 1
+        return notification
+
+    def _loop_on_pull(self) -> None:
+        try:
+            self._pull()  # Already recorded events.
+            while not self._has_been_stopped:
+                self._has_been_notified.wait()
+                self._pull()  # Newly recorded events.
+        except BaseException as e:
+            if self._thread_error is None:
+                self._thread_error = e
+            self.stop()
+
+    def _pull(self) -> None:
+        while not self._has_been_stopped:
+            self._has_been_notified.clear()
+            notifications = self._recorder.select_notifications(
+                start=self._last_notification_id or 0,
+                limit=self._select_limit,
+                inclusive_of_start=False,
+            )
+            if len(notifications) > 0:
+                # print("Putting", len(notifications), "notifications into queue")
+                self._notifications_queue.put(notifications)
+                self._last_notification_id = notifications[-1].id
+            if len(notifications) < self._select_limit:
+                break

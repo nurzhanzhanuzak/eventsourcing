@@ -435,10 +435,12 @@ class NotificationLog(ABC):
     @abstractmethod
     def select(
         self,
-        start: int,
+        start: int | None,
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
         Returns a selection of
@@ -523,10 +525,12 @@ class LocalNotificationLog(NotificationLog):
 
     def select(
         self,
-        start: int,
+        start: int | None,
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
         Returns a selection of
@@ -539,7 +543,11 @@ class LocalNotificationLog(NotificationLog):
             )
             raise ValueError(msg)
         return self.recorder.select_notifications(
-            start=start, limit=limit, stop=stop, topics=topics
+            start=start,
+            limit=limit,
+            stop=stop,
+            topics=topics,
+            inclusive_of_start=inclusive_of_start,
         )
 
     @staticmethod

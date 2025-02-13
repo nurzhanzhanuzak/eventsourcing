@@ -25,7 +25,12 @@ class NotificationLogInterface(ABC):
 
     @abstractmethod
     def get_notifications(
-        self, start: int, limit: int, topics: Sequence[str] = ()
+        self,
+        start: int | None,
+        limit: int,
+        topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> str:
         """
         Returns a serialised list of :class:`~eventsourcing.persistence.Notification`
@@ -68,10 +73,18 @@ class NotificationLogJSONService(NotificationLogInterface, Generic[TApplication]
         )
 
     def get_notifications(
-        self, start: int, limit: int, topics: Sequence[str] = ()
+        self,
+        start: int | None,
+        limit: int,
+        topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> str:
         notifications = self.app.notification_log.select(
-            start=start, limit=limit, topics=topics
+            start=start,
+            limit=limit,
+            topics=topics,
+            inclusive_of_start=inclusive_of_start,
         )
         return json.dumps(
             [
@@ -123,10 +136,12 @@ class NotificationLogJSONClient(NotificationLog):
 
     def select(
         self,
-        start: int,
+        start: int | None,
         limit: int,
         _: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
         Returns a selection of
@@ -143,7 +158,10 @@ class NotificationLogJSONClient(NotificationLog):
             )
             for item in json.loads(
                 self.interface.get_notifications(
-                    start=start, limit=limit, topics=topics
+                    start=start,
+                    limit=limit,
+                    topics=topics,
+                    inclusive_of_start=inclusive_of_start,
                 )
             )
         ]

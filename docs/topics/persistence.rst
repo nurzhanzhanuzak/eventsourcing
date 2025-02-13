@@ -161,8 +161,8 @@ persistence module.
 Stored event
 ============
 
-A stored event object represents a domain event in a way that allows
-the domain event object to be reconstructed.
+Stored event objects represent any type of :ref:`domain event objects <Domain events>` in
+a way that allows the domain event objects to be reconstructed.
 
 The library's :class:`~eventsourcing.persistence.StoredEvent` class
 is a Python frozen data class.
@@ -171,14 +171,16 @@ is a Python frozen data class.
 
     from eventsourcing.persistence import StoredEvent
 
-A :class:`~eventsourcing.persistence.StoredEvent` has an ``originator_id``
+A :class:`~eventsourcing.persistence.StoredEvent` has an :class:`~eventsourcing.persistence.StoredEvent.originator_id`
 attribute which is a :data:`UUID` that identifies the aggregate sequence to
-which the domain event belongs. It has an ``originator_version`` attribute which
+which the domain event belongs. It has an :class:`~eventsourcing.persistence.StoredEvent.originator_version` attribute which
 is a Python :data:`int` that identifies the position of the domain event in that
-sequence. A stored event object also has a ``state`` attribute which is a Python
-:data:`bytes` object that is the serialized state of the :ref:`domain event
-<Domain events>` object. And it has a `topic` attribute which is a Python
-:data:`str` that identifies the class of the domain event (see :ref:`Topics <Topics>`).
+sequence.
+
+A stored event object also has a :class:`~eventsourcing.persistence.StoredEvent.state` attribute which is a Python
+:data:`bytes` object, that holds the serialized state of the domain event object. And it has a
+:class:`~eventsourcing.persistence.StoredEvent.topic` attribute which is a Python
+:data:`str` that identifies the class of the domain event object that is being stored (see :ref:`Topics <Topics>`).
 
 .. code-block:: python
 
@@ -190,254 +192,6 @@ sequence. A stored event object also has a ``state`` attribute which is a Python
         state="{}",
         topic="eventsourcing.model:DomainEvent",
     )
-
-
-.. _Notification objects:
-
-Notification
-============
-
-Event notifications are used to propagate the state of an event
-sourced application in a reliable way. A stored event can be
-positioned in a "total order" in an application sequence, by
-attributing to each stored event a notification ID that is higher
-than any that has been previously recorded. An event notification
-object joins together the attributes of the stored event and the
-notification ID.
-
-The library's :class:`~eventsourcing.persistence.Notification` class
-is a Python frozen data class. It is a subclass of :class:`~eventsourcing.persistence.StoredEvent`.
-
-.. code-block:: python
-
-    from eventsourcing.persistence import Notification
-
-    assert issubclass(Notification, StoredEvent)
-
-
-The :class:`~eventsourcing.persistence.Notification` class
-extends :class:`~eventsourcing.persistence.StoredEvent` with
-an ``id`` attribute which is a Python :data:`int` that represents
-the position of a stored event in an application sequence.
-
-.. code-block:: python
-
-    notification = Notification(
-        id=123,
-        originator_id=uuid4(),
-        originator_version=1,
-        state="{}",
-        topic="eventsourcing.model:DomainEvent",
-    )
-
-This class is used when returning the results of selecting event
-notifications from a :ref:`recorder<Recorder>`. Event notifications
-are presented in an application by a :ref:`notification log<Notification log>`.
-
-By recording aggregate events atomically with notification IDs,
-there will never be an aggregate event that is not available to be
-passed as an event notification message across a network, and there
-will never be an event notification message passed across a network
-that doesn't correspond to a recorded aggregate event. This solves
-the problem of "dual writing" in the production of event notifications
-that occurs when a domain model is updated and then separately a message
-is put on a message queue, a problem of reliability that may cause
-catastrophic inconsistencies in the state of a system.
-
-.. _Tracking objects:
-
-Tracking
-========
-
-A tracking object identifies the position of an event notification
-in an application sequence.
-
-The library's :class:`~eventsourcing.persistence.Tracking` class
-is a Python frozen data class.
-
-.. code-block:: python
-
-    from eventsourcing.persistence import Tracking
-
-The :class:`~eventsourcing.persistence.Tracking` class has a ``notification_id``
-attribute which in a Python :data:`int` that indicates the position in an application
-sequence of an event notification that has been processed. And it has an
-``application_name`` attribute which is a Python :data:`str` that identifies
-the name of that application.
-
-.. code-block:: python
-
-    tracking = Tracking(
-        notification_id=123,
-        application_name="bounded_context1",
-    )
-
-By recording atomically a tracking object along with new stored event objects
-that result from processing the event notification represented by the tracking
-object, and by ensuring the uniqueness of tracking records, we can ensure that
-a domain event notification is never processed twice. And by using the tracked
-position of the last event notification that has been processed, we can resume
-processing event notifications from an application at the correct next position.
-This constructs "exactly once" semantics when processing event notifications, by
-solving the problem of "dual writing" in the consumption of event notifications
-that occurs when an event notification is consumed from a message queue with
-updates made to materialized view and then separately an acknowledgement is
-sent back to the message queue, a problem of reliability that may cause
-catastrophic inconsistencies in the state of a system.
-
-.. _Recorder:
-
-Recorders
-=========
-
-A recorder object adapts a database management system for the purpose of
-recording stored events. This library defines three kinds of recorder.
-
-An **aggregate recorder** simply stores domain events in aggregate sequences,
-without also positioning the stored events in a total order. An aggregate
-recorder can be used for storing snapshots of aggregates in an application,
-and also for storing aggregate events in an application that will not provide
-event notifications.
-
-An **application recorder** extends an aggregate recorder
-by also positioning stored events in an application sequence.
-Application recorders can be used for storing aggregate events
-in applications that will provide event notifications.
-
-A **process recorder** extends an application recorder by
-supporting the atomic recording of stored events with a tracking
-object that indicates the position in an application sequence of
-an event notification. The stored events recorded with a tracking
-object will have been generated whilst processing that event notification.
-
-The library has an abstract base class for each kind of recorder.
-
-The :class:`~eventsourcing.persistence.AggregateRecorder` class
-is an abstract base class for recording events in aggregate sequences.
-The methods :func:`~eventsourcing.persistence.AggregateRecorder.insert_events`
-and :func:`~eventsourcing.persistence.AggregateRecorder.select_events` are
-used to insert and select aggregate events.
-
-.. literalinclude:: ../../eventsourcing/persistence.py
-   :pyobject: AggregateRecorder
-
-
-The :class:`~eventsourcing.persistence.ApplicationRecorder` class
-is an abstract base class recording events in both an aggregate and application
-sequences. It extends :class:`~eventsourcing.persistence.AggregateRecorder`.
-The method :func:`~eventsourcing.persistence.ApplicationRecorder.select_notifications`
-is used to select event notifications from an application sequence.
-The method :func:`~eventsourcing.persistence.ApplicationRecorder.max_notification_id`
-can be used to discover where is the end of the application sequence, for example
-for estimating progress or time to completion when processing the
-event notifications of an application.
-
-.. literalinclude:: ../../eventsourcing/persistence.py
-   :pyobject: ApplicationRecorder
-
-
-The :class:`~eventsourcing.persistence.ProcessRecorder` class
-is an abstract base class for recording events in both an aggregate and application
-sequences along with tracking records. It extends :class:`~eventsourcing.persistence.ApplicationRecorder`.
-Concrete process recorders will extend the :func:`~eventsourcing.persistence.AggregateRecorder.insert_events`
-method so that tracking records will be inserted within the same transaction
-as the events.
-The method :func:`~eventsourcing.persistence.ProcessRecorder.max_tracking_id`
-can be used to discover the position of the last event notification that
-was successfully processed, for example when resuming the processing of
-event notifications.
-
-.. literalinclude:: ../../eventsourcing/persistence.py
-   :pyobject: ProcessRecorder
-
-These abstract base classes are implemented in concrete persistence
-modules. The :ref:`"plain old Python objects" persistence module <popo-module>`
-simply holds events in memory and is very fast and useful for development,
-but it isn't suitable for production because events are not written to disk.
-The core library also includes a :ref:`persistence module for SQLite <sqlite-module>`
-and a :ref:`persistence module for PostgreSQL <postgres-module>`.
-:ref:`Other persistence modules <other-persistence-modules>` are available.
-
-
-.. _popo-module:
-
-POPO module
-===========
-
-The persistence module :mod:`eventsourcing.popo` has recorders
-that use "plain old Python objects" to keep stored events in a
-data structure in memory. These recorders provide the fastest
-way of running an application, and thereby support rapid development
-of event-sourced applications. Stored events can be recorded
-and retrieved in microseconds, allowing a test suite to run in milliseconds.
-
-The :class:`~eventsourcing.popo.POPOAggregateRecorder` class implements
-:class:`~eventsourcing.persistence.AggregateRecorder`.
-
-.. code-block:: python
-
-    from eventsourcing.popo import POPOAggregateRecorder
-
-    aggregate_recorder = POPOAggregateRecorder()
-
-    aggregate_recorder.insert_events([stored_event])
-
-    recorded_events = aggregate_recorder.select_events(stored_event.originator_id)
-    assert recorded_events[0] == stored_event
-
-
-The :class:`~eventsourcing.popo.POPOApplicationRecorder` class
-extends :class:`~eventsourcing.popo.POPOAggregateRecorder`
-and implements :class:`~eventsourcing.persistence.ApplicationRecorder`.
-
-.. code-block:: python
-
-    from eventsourcing.popo import POPOApplicationRecorder
-
-    application_recorder = POPOApplicationRecorder()
-
-    application_recorder.insert_events([stored_event])
-
-    recorded_events = application_recorder.select_events(stored_event.originator_id)
-    assert recorded_events[0] == stored_event
-
-    notifications = application_recorder.select_notifications(start=1, limit=10)
-    assert notifications[0].id == 1
-    assert notifications[0].originator_id == stored_event.originator_id
-    assert notifications[0].originator_version == stored_event.originator_version
-    assert notifications[0].state == stored_event.state
-    assert notifications[0].topic == stored_event.topic
-
-
-The :class:`~eventsourcing.popo.POPOProcessRecorder` class
-extends :class:`~eventsourcing.popo.POPOApplicationRecorder`
-and implements :class:`~eventsourcing.persistence.ProcessRecorder`.
-
-.. code-block:: python
-
-    from eventsourcing.popo import POPOProcessRecorder
-
-    process_recorder = POPOProcessRecorder()
-
-    tracking = Tracking(notification_id=21, application_name="upstream")
-
-    process_recorder.insert_events([stored_event], tracking=tracking)
-
-    recorded_events = process_recorder.select_events(stored_event.originator_id)
-    assert recorded_events[0] == stored_event
-
-    notifications = process_recorder.select_notifications(start=1, limit=10)
-    assert notifications[0].id == 1
-    assert notifications[0].originator_id == stored_event.originator_id
-    assert notifications[0].originator_version == stored_event.originator_version
-    assert notifications[0].state == stored_event.state
-    assert notifications[0].topic == stored_event.topic
-
-    assert process_recorder.max_tracking_id("upstream") == 21
-
-
-Recorder classes are conveniently constructed by using an
-:ref:`infrastructure factory <Factory>`.
 
 
 .. _Transcoder:
@@ -764,13 +518,13 @@ must be constructed with a :ref:`transcoder<Transcoder>` object.
 
     mapper = Mapper(transcoder=transcoder)
 
-The :func:`~eventsourcing.persistence.Mapper.to_stored_event` method of the
-``mapper`` object converts :class:`~eventsourcing.domain.DomainEvent` objects to
-:class:`~eventsourcing.persistence.StoredEvent` objects.
+The :class:`~eventsourcing.persistence.Mapper` class defines a :func:`~eventsourcing.persistence.Mapper.to_stored_event`
+method, which converts :class:`~eventsourcing.domain.DomainEvent` objects to :class:`~eventsourcing.persistence.StoredEvent`
+objects.
 
 .. code-block:: python
 
-    from eventsourcing.domain import DomainEvent, TZINFO
+    from eventsourcing.domain import DomainEvent
 
     class MyDomainEvent(DomainEvent):
         obj: ComplexCustomValue
@@ -786,9 +540,9 @@ The :func:`~eventsourcing.persistence.Mapper.to_stored_event` method of the
     assert isinstance(stored_event, StoredEvent)
 
 
-The :func:`~eventsourcing.persistence.Mapper.to_domain_event` method of the
-``mapper`` object converts :class:`~eventsourcing.persistence.StoredEvent` objects to
-:class:`~eventsourcing.domain.DomainEvent` objects.
+The :class:`~eventsourcing.persistence.Mapper` class defines a :func:`~eventsourcing.persistence.Mapper.to_domain_event`
+method, which converts :class:`~eventsourcing.persistence.StoredEvent` objects to :class:`~eventsourcing.domain.DomainEvent`
+objects.
 
 .. code-block:: python
 
@@ -800,10 +554,10 @@ The :func:`~eventsourcing.persistence.Mapper.to_domain_event` method of the
 Compression
 ===========
 
-A compressor can be used to reduce the size of stored events.
-
-The mapper's constructor argument ``compressor`` accepts
-:class:`~eventsourcing.compressor.Compressor` objects.
+The :class:`~eventsourcing.persistence.Mapper` class has an optional constructor argument, ``compressor``,
+which accepts :class:`~eventsourcing.compressor.Compressor` objects. A compressor will compress and decompress
+the state of stored events, and can be used to reduce the size of stored events, reducing the transport time
+between an application and its database, and reducing the size of the database files.
 
 The library's :class:`~eventsourcing.compressor.ZlibCompressor` class
 implements the abstract base class :class:`~eventsourcing.compressor.Compressor`.
@@ -840,10 +594,10 @@ If you want to use another compression strategy, then implement the
 Encryption
 ==========
 
-A cryptographic cipher will encrypt the state of stored events.
-
-The mapper's constructor argument ``cipher`` accepts
-:class:`~eventsourcing.cipher.Cipher` objects.
+The :class:`~eventsourcing.persistence.Mapper` class has an optional constructor argument, ``cipher``,
+which accepts :class:`~eventsourcing.cipher.Cipher` objects. A cipher will encrypt and decrypt the state
+of stored events within an event-sourced application, inhibiting disclosure of sensitive information in
+case of unauthorised access to an application's database files and backups, or network interception.
 
 The library's :class:`~eventsourcing.cipher.AESCipher` class
 implements the abstract base class :class:`~eventsourcing.cipher.Cipher`.
@@ -872,7 +626,7 @@ decrypt stored events as that which was used to encrypt stored events.
     from eventsourcing.cipher import AESCipher
     from eventsourcing.utils import Environment
 
-    key = AESCipher.create_key(num_bytes=32) # 16, 24, or 32
+    key = AESCipher.create_key(num_bytes=32)  # 16, 24, or 32
     environment = Environment()
     environment["CIPHER_KEY"] = key
     cipher = AESCipher(environment)
@@ -883,6 +637,7 @@ decrypt stored events as that which was used to encrypt stored events.
     )
 
     encrypted_stored_event = mapper.to_stored_event(domain_event)
+
     assert mapper.to_domain_event(encrypted_stored_event) == domain_event
 
 
@@ -894,7 +649,7 @@ than the state of a stored event that is not encrypted.
     assert len(encrypted_stored_event.state) > len(stored_event.state)
 
 If you want to use a different cipher strategy, then implement the base
-class class:`~eventsourcing.cipher.Cipher`.
+class :class:`~eventsourcing.cipher.Cipher`.
 
 
 Compression and encryption
@@ -922,8 +677,627 @@ larger than the state of a stored event that is compressed but not encrypted.
 .. code-block:: python
 
     assert len(compressed_and_encrypted.state) < len(stored_event.state)
+
     assert len(compressed_and_encrypted.state) > len(compressed_stored_event.state)
 
+.. _Notification objects:
+
+Notification
+============
+
+Event notifications are used to propagate the state of an event-sourced application in a reliable way.
+A stored event can be positioned in a "total order", by attributing to each stored event a notification
+ID that is higher than any that has been previously recorded. An event notification object brings together
+the attributes of a stored event with its notification ID.
+
+The library's :class:`~eventsourcing.persistence.Notification` class
+is a Python frozen data class. It is a subclass of :class:`~eventsourcing.persistence.StoredEvent`.
+
+.. code-block:: python
+
+    from eventsourcing.persistence import Notification
+
+    assert issubclass(Notification, StoredEvent)
+
+
+The :class:`~eventsourcing.persistence.Notification` class extends :class:`~eventsourcing.persistence.StoredEvent`
+with an :py:attr:`~eventsourcing.persistence.Notification.id` attribute which is a Python :data:`int` that represents
+the position of a stored event in an application sequence.
+
+.. code-block:: python
+
+    notification = Notification(
+        id=123,
+        originator_id=uuid4(),
+        originator_version=1,
+        state="{}",
+        topic="eventsourcing.model:DomainEvent",
+    )
+
+This class is used when selecting from and subscribing to an application sequence
+with a :ref:`recorder<Recorder>`. Event notifications from application sequences
+are presented in an :doc:`application </topics/application>` by a :ref:`notification log<Notification log>`.
+
+By recording aggregate events atomically with notification IDs,
+there will never be an aggregate event that is not available to be
+passed as an event notification message across a network, and there
+will never be an event notification message passed across a network
+that doesn't correspond to a recorded aggregate event. This solves
+the problem of "dual writing" in the production of event notifications
+that occurs when a domain model is updated and then separately a message
+is put on a message queue, a problem of reliability that may cause
+catastrophic inconsistencies in the state of a system.
+
+
+.. _Tracking objects:
+
+Tracking
+========
+
+A tracking object identifies the position of an event in an application sequence
+when the consequences of processing that event are to be stored by an event process
+component.
+
+The library's :class:`~eventsourcing.persistence.Tracking` class
+is a Python frozen data class.
+
+.. code-block:: python
+
+    from eventsourcing.persistence import Tracking
+
+The :class:`~eventsourcing.persistence.Tracking` class has a ``notification_id``
+attribute which in a Python :data:`int` that indicates the position in an application
+sequence of an event notification that has been processed. And it has an
+``application_name`` attribute which is a Python :data:`str` that identifies
+the name of that application.
+
+.. code-block:: python
+
+    tracking = Tracking(
+        notification_id=123,
+        application_name="bounded_context1",
+    )
+
+By recording, with uniqueness constraints, a tracking object that represents the position
+of an event notification in its application sequence atomically with new state that results
+from processing that event notification, we can ensure that domain events are processed "at most once".
+And, by resuming event processing from the position indicated by the last recorded tracking object, we
+can ensure that domain events are processed "at most once". This constructs "exactly once" semantics,
+and solves the problem of "dual writing" in the consumption of event notifications
+that occurs when an event notification is consumed from a message queue with
+updates made to materialized view and then separately an acknowledgement is
+sent back to the message queue, a problem of reliability that may cause
+catastrophic inconsistencies in the state of a system.
+
+
+
+.. _Recorder:
+
+Recorders
+=========
+
+A recorder object adapts a database management system for the purposes of event sourcing.
+
+This library defines four kinds of recorder.
+
+An **aggregate recorder** simply stores domain events in aggregate sequences,
+without also positioning the stored events in a total order. An aggregate
+recorder can be used for storing snapshots of aggregates in an application,
+and also for storing aggregate events in an application that will not provide
+event notifications.
+
+An **application recorder** extends an aggregate recorder
+by also positioning stored events in an application sequence.
+Application recorders can be used for storing aggregate events
+in applications that will provide event notifications.
+
+An **tracking recorder** supports the atomic recording of a tracking
+object along with new state. The tracking object indicates the position
+in an application sequence of an event notification that was being processed
+when the new state was generated.
+
+A **process recorder** combines the method of an application recorder and a
+tracking recorder so that stored events can be recorded atomically with a
+tracking object.
+
+The library has an abstract base class for each kind of recorder. These abstract base classes
+are implemented in concrete "persistence modules" that each encapsulate a particular database
+management system (DBMS) or object-relational mapper (ORM). This library includes a persistence
+module that keeps events in memory using :ref:`"plain old Python objects" <popo-module>`, which
+is very fast and useful for development but it isn't suitable for production because events are not
+written to disk. This library also includes a :ref:`persistence module for SQLite <sqlite-module>`
+and a :ref:`persistence module for PostgreSQL <postgres-module>`.
+:ref:`Other persistence modules <other-persistence-modules>` are available.
+
+Recorder classes are conveniently constructed by using an
+:ref:`infrastructure factory <Factory>`.
+
+
+.. _Aggregate recorder:
+
+Aggregate recorder
+------------------
+
+The library's :class:`~eventsourcing.persistence.AggregateRecorder` class
+is an abstract base class for recording events in aggregate sequences.
+The methods :func:`~eventsourcing.persistence.AggregateRecorder.insert_events`
+and :func:`~eventsourcing.persistence.AggregateRecorder.select_events` define method
+signatures for inserting and selecting :ref:`stored event objects <Stored event objects>`.
+
+.. literalinclude:: ../../eventsourcing/persistence.py
+   :pyobject: AggregateRecorder
+
+
+.. _Application recorder:
+
+Application recorder
+--------------------
+
+The library's :class:`~eventsourcing.persistence.ApplicationRecorder` class is an abstract base class
+for recording :ref:`stored event objects <Stored event objects>` in both aggregate and application sequences.
+:class:`~eventsourcing.persistence.ApplicationRecorder` is a subclass of
+the :ref:`aggregate recorder <Aggregate recorder>` class.
+
+The :func:`~eventsourcing.persistence.ApplicationRecorder.select_notifications` method
+defines a method signature for selecting :ref:`notification objects <Notification objects>`
+from an application sequence.
+
+The :func:`~eventsourcing.persistence.ApplicationRecorder.max_notification_id` method
+defines a method signature for discovering last notification ID of the application
+sequence, for example when estimating progress when processing the event notifications
+of an application.
+
+The :func:`~eventsourcing.persistence.ApplicationRecorder.subscribe` method
+defines a method signature for "subscribing" to the application sequence. This
+allows iterating over already recorded events, and then also events recorded
+after the subscription has begun.
+
+.. literalinclude:: ../../eventsourcing/persistence.py
+   :pyobject: ApplicationRecorder
+
+.. _Tracking recorder:
+
+Tracking recorder
+-----------------
+
+The library's :class:`~eventsourcing.persistence.TrackingRecorder` class is an abstract base class
+for recording :ref:`tracking objects <Tracking objects>` and querying successfully recorded tracking
+objects.
+
+The :func:`~eventsourcing.persistence.ProcessRecorder.insert_tracking` method defines a method signature for
+recording tracking objects.
+
+The :func:`~eventsourcing.persistence.ProcessRecorder.max_tracking_id` method defines a method signature for
+discovering the notification ID of the last successfully recorded tracking object. This is useful when resuming
+the processing of event notifications from an application sequence.
+
+The :func:`~eventsourcing.persistence.ProcessRecorder.has_tracking_id` method defines a method signature for
+discovering whether an event notification has been successfully processed, and can be used by user interfaces
+to wait for an eventually consistent materialised view of the state of an event-sourced application to be updated.
+
+.. literalinclude:: ../../eventsourcing/persistence.py
+   :pyobject: TrackingRecorder
+
+.. _Process recorder:
+
+Process recorder
+----------------
+
+The library's :class:`~eventsourcing.persistence.ProcessRecorder` class is an abstract base class
+for recording :ref:`stored event objects <Stored event objects>` in both an aggregate and application sequences,
+along with :ref:`tracking objects <Tracking objects>`. :class:`~eventsourcing.persistence.ProcessRecorder` is a
+subclass of the :ref:`application recorder <Application recorder>` and :ref:`tracking recorder <Tracking recorder>`
+classes.
+
+Concrete process recorders will extend the :func:`~eventsourcing.persistence.AggregateRecorder.insert_events`
+method so that a :ref:`tracking object <Tracking objects>` will be recorded within the same transaction
+as the events.
+
+.. literalinclude:: ../../eventsourcing/persistence.py
+   :pyobject: ProcessRecorder
+
+
+Persistence modules
+===================
+
+Persistence modules encapsulate a particular database management system (DBMS) or
+object-relational mapper (ORM), by implementing :ref:`recorder classes<Recorder>`.
+
+.. _popo-module:
+
+POPO module
+-----------
+
+The :mod:`eventsourcing.popo` persistence module has recorders
+that use "plain old Python objects" to keep stored events in a
+data structure in memory. These recorders provide the fastest
+way of running an application, and thereby support rapid development
+of event-sourced applications. Stored events can be recorded
+and retrieved in microseconds, allowing a test suite to run in milliseconds.
+
+The :class:`~eventsourcing.popo.POPOAggregateRecorder` class implements the
+:ref:`aggregate recorder <Aggregate recorder>` abstract base class.
+
+.. code-block:: python
+
+    from eventsourcing.popo import POPOAggregateRecorder
+
+    # Construct aggregate recorder.
+    aggregate_recorder = POPOAggregateRecorder()
+
+    # Insert stored events.
+    aggregate_recorder.insert_events([stored_event])
+
+    # Select stored events from an aggregate sequence.
+    recorded_events = aggregate_recorder.select_events(stored_event.originator_id)
+    assert recorded_events[0] == stored_event
+
+
+The :class:`~eventsourcing.popo.POPOApplicationRecorder` class
+implements the :ref:`application recorder <Application recorder>` abstract base class
+by extending :class:`~eventsourcing.popo.POPOAggregateRecorder`.
+
+.. code-block:: python
+
+    from eventsourcing.popo import POPOApplicationRecorder
+
+    # Construct application recorder.
+    application_recorder = POPOApplicationRecorder()
+
+    # Insert stored events.
+    application_recorder.insert_events([stored_event])
+
+    # Select stored events from an aggregate sequence.
+    recorded_events = application_recorder.select_events(stored_event.originator_id)
+    assert recorded_events[0] == stored_event
+
+    # Select notifications from the application sequence.
+    notifications = application_recorder.select_notifications(start=1, limit=10)
+    assert notifications[0].id == 1
+    assert notifications[0].originator_id == stored_event.originator_id
+    assert notifications[0].originator_version == stored_event.originator_version
+    assert notifications[0].state == stored_event.state
+    assert notifications[0].topic == stored_event.topic
+
+    # Subscribe to application sequence from a tracked position.
+    max_tracking_id = None
+    with application_recorder.subscribe(gt=max_tracking_id) as subscription:
+        for notification in subscription:
+            max_tracking_id = notification.id
+
+            assert notifications[0].id == 1
+            assert notifications[0].originator_id == stored_event.originator_id
+            assert notifications[0].originator_version == stored_event.originator_version
+            assert notifications[0].state == stored_event.state
+            assert notifications[0].topic == stored_event.topic
+            subscription.stop()
+
+
+The :class:`~eventsourcing.popo.POPOProcessRecorder` class
+implements the :ref:`process recorder <Process recorder>` abstract base class
+by extending :class:`~eventsourcing.popo.POPOApplicationRecorder`.
+
+.. code-block:: python
+
+    from eventsourcing.popo import POPOProcessRecorder
+
+    # Construct process recorder.
+    process_recorder = POPOProcessRecorder()
+
+    # Define a tracking object.
+    tracking = Tracking(notification_id=21, application_name="upstream")
+
+    # Insert stored events atomically with a tracking object.
+    process_recorder.insert_events([stored_event], tracking=tracking)
+
+    # Select stored events from an aggregate sequence.
+    recorded_events = process_recorder.select_events(stored_event.originator_id)
+    assert recorded_events[0] == stored_event
+
+    # Select notifications from the application sequence.
+    notifications = process_recorder.select_notifications(start=1, limit=10)
+    assert notifications[0].id == 1
+    assert notifications[0].originator_id == stored_event.originator_id
+    assert notifications[0].originator_version == stored_event.originator_version
+    assert notifications[0].state == stored_event.state
+    assert notifications[0].topic == stored_event.topic
+
+    # Get latest tracked position.
+    assert process_recorder.max_tracking_id("upstream") == 21
+
+
+.. _sqlite-module:
+
+SQLite module
+-------------
+
+The :mod:`eventsourcing.sqlite` persistence module supports recording events in
+`SQLite <https://www.sqlite.org/>`_. Recorder classes use the Python :mod:`sqlite3`
+module.
+
+The :class:`~eventsourcing.sqlite.SQLiteDatastore` class encapsulates a SQLite database
+and provides a connection pool.
+
+.. code-block:: python
+
+    from eventsourcing.sqlite import SQLiteDatastore
+
+    # Create an SQLite database.
+    datastore = SQLiteDatastore(db_name=":memory:")
+
+The :class:`~eventsourcing.sqlite.SQLiteAggregateRecorder` class implements
+the :ref:`aggregate recorder <Aggregate recorder>` abstract base class, and provides a method
+to create a database table for stored events.
+
+.. code-block:: python
+
+    from eventsourcing.sqlite import SQLiteAggregateRecorder
+
+    # Create an SQLite database.
+    datastore = SQLiteDatastore(db_name=":memory:")
+
+    # Construct aggregate recorder and create database table.
+    aggregate_recorder = SQLiteAggregateRecorder(datastore)
+    aggregate_recorder.create_table()
+
+    # Insert stored events.
+    aggregate_recorder.insert_events([stored_event])
+
+    # Select stored events from an aggregate sequence.
+    recorded_events = aggregate_recorder.select_events(stored_event.originator_id)
+    assert recorded_events[0] == stored_event
+
+
+The :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder` class
+implements the :ref:`application recorder <Application recorder>` abstract base class
+by extending :class:`~eventsourcing.popo.SQLiteAggregateRecorder`.
+
+.. code-block:: python
+
+    from eventsourcing.sqlite import SQLiteApplicationRecorder
+
+    # Create an SQLite database.
+    datastore = SQLiteDatastore(db_name=":memory:")
+
+    # Construct application recorder and create database table.
+    application_recorder = SQLiteApplicationRecorder(datastore)
+    application_recorder.create_table()
+
+    # Insert stored events.
+    application_recorder.insert_events([stored_event])
+
+    # Select stored events from an aggregate sequence.
+    recorded_events = application_recorder.select_events(stored_event.originator_id)
+    assert recorded_events[0] == stored_event
+
+    # Select notifications from the application sequence.
+    notifications = application_recorder.select_notifications(start=1, limit=10)
+    assert notifications[0].id == 1
+    assert notifications[0].originator_id == stored_event.originator_id
+    assert notifications[0].originator_version == stored_event.originator_version
+
+Please note, the :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder` class
+does not support subscribing to the application sequence.
+
+The :class:`~eventsourcing.sqlite.SQLiteProcessRecorder` class
+implements the :ref:`process recorder <Process recorder>` abstract base class
+by extending :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder`.
+
+.. code-block:: python
+
+    from eventsourcing.sqlite import SQLiteProcessRecorder
+
+    # Create an SQLite database.
+    datastore = SQLiteDatastore(db_name=":memory:")
+
+    # Construct process recorder and create database table.
+    process_recorder = SQLiteProcessRecorder(datastore)
+    process_recorder.create_table()
+
+    # Construct a tracking object.
+    tracking = Tracking(notification_id=21, application_name="upstream")
+
+    # Insert stored events atomically with a tracking object.
+    process_recorder.insert_events([stored_event], tracking=tracking)
+
+    # Select stored events from an aggregate sequence.
+    recorded_events = process_recorder.select_events(stored_event.originator_id)
+    assert recorded_events[0] == stored_event
+
+    # Select notifications from the application sequence.
+    notifications = process_recorder.select_notifications(start=1, limit=10)
+    assert notifications[0].id == 1
+    assert notifications[0].originator_id == stored_event.originator_id
+    assert notifications[0].originator_version == stored_event.originator_version
+
+    # Get latest tracked position.
+    assert process_recorder.max_tracking_id("upstream") == 21
+
+
+.. _postgres-module:
+
+PostgreSQL module
+-----------------
+
+The :mod:`eventsourcing.postgres` persistence module supports storing events in
+`PostgresSQL <https://www.postgresql.org/>`_ using the third party `Psycopg v3 <https://www.psycopg.org>`_
+package. This code is tested with PostgreSQL versions 12, 13, 14, 15, 16, and 17.
+
+The :class:`~eventsourcing.postgres.PostgresDatastore` class encapsulates a Postgres database
+and provides a connection pool.
+
+.. code-block:: python
+
+    from eventsourcing.postgres import PostgresDatastore
+
+    # Construct datastore object.
+    datastore = PostgresDatastore(
+        dbname = "eventsourcing",
+        host = "127.0.0.1",
+        port = "5432",
+        user = "eventsourcing",
+        password = "eventsourcing",
+    )
+
+The :class:`~eventsourcing.postgres.PostgresAggregateRecorder` class implements
+the :ref:`aggregate recorder <Aggregate recorder>` abstract base class, and provides
+a method to create a database table for stored events.
+
+..
+    #include-when-testing
+..
+    from eventsourcing.tests.postgres_utils import drop_postgres_table
+    drop_postgres_table(datastore, "stored_events")
+
+.. code-block:: python
+
+    from eventsourcing.postgres import PostgresAggregateRecorder
+
+    # Construct aggregate recorder and create table.
+    aggregate_recorder = PostgresAggregateRecorder(datastore)
+    aggregate_recorder.create_table()
+
+    # Insert stored events.
+    aggregate_recorder.insert_events([stored_event])
+
+    # Select stored events from an aggregate sequence.
+    recorded_events = aggregate_recorder.select_events(stored_event.originator_id)
+    assert recorded_events[0] == stored_event, (recorded_events[0], stored_event)
+
+
+The :class:`~eventsourcing.postgres.PostgresApplicationRecorder` class
+implements the :ref:`application recorder <Application recorder>`
+by extending :class:`~eventsourcing.popo.PostgresAggregateRecorder`.
+
+..
+    #include-when-testing
+..
+    from eventsourcing.tests.postgres_utils import drop_postgres_table
+    drop_postgres_table(datastore, "stored_events")
+
+
+.. code-block:: python
+
+    from eventsourcing.postgres import PostgresApplicationRecorder
+
+    # Construct application recorder and create table.
+    application_recorder = PostgresApplicationRecorder(datastore)
+    application_recorder.create_table()
+
+    # Insert stored events.
+    application_recorder.insert_events([stored_event])
+
+    # Select stored events from an aggregate sequence.
+    recorded_events = application_recorder.select_events(stored_event.originator_id)
+    assert recorded_events[0] == stored_event
+
+    # Select notifications from the application sequence.
+    notifications = application_recorder.select_notifications(start=1, limit=10)
+    assert notifications[0].id == 1
+    assert notifications[0].originator_id == stored_event.originator_id
+    assert notifications[0].originator_version == stored_event.originator_version
+
+    # Subscribe to application sequence from a tracked position.
+    max_tracking_id = None
+    with application_recorder.subscribe(gt=max_tracking_id) as subscription:
+        for notification in subscription:
+            max_tracking_id = notification.id
+
+            assert notifications[0].id == 1
+            assert notifications[0].originator_id == stored_event.originator_id
+            assert notifications[0].originator_version == stored_event.originator_version
+            subscription.stop()
+
+
+The :class:`~eventsourcing.postgres.PostgresTrackingRecorder` class implements the
+:ref:`tracking recorder <Tracking recorder>` abstract base class, and provides
+a method to create a database table for tracking records.
+
+..
+    #include-when-testing
+..
+    from eventsourcing.tests.postgres_utils import drop_postgres_table
+    drop_postgres_table(datastore, "notification_tracking")
+
+
+.. code-block:: python
+
+    from eventsourcing.postgres import PostgresTrackingRecorder
+
+    # Construct tracking recorder and create table.
+    tracking_recorder = PostgresTrackingRecorder(datastore)
+    tracking_recorder.create_table()
+
+    # Construct tracking object.
+    tracking = Tracking(notification_id=21, application_name="upstream")
+
+    # Insert tracking object.
+    tracking_recorder.insert_tracking(tracking=tracking)
+
+    # Get latest tracked position.
+    assert tracking_recorder.max_tracking_id("upstream") == 21
+
+    # Check if an event notification has been processed.
+    assert tracking_recorder.has_tracking_id("upstream", 21)
+    assert not tracking_recorder.has_tracking_id("upstream", 22)
+
+
+The :class:`~eventsourcing.postgres.PostgresProcessRecorder` class
+implements the :ref:`process recorder <Process recorder>` abstract base class
+by combining and extending :class:`~eventsourcing.postgres.PostgresApplicationRecorder` and
+:class:`~eventsourcing.postgres.PostgresTrackingRecorder`.
+
+..
+    #include-when-testing
+..
+    from eventsourcing.tests.postgres_utils import drop_postgres_table
+    drop_postgres_table(datastore, "stored_events")
+    drop_postgres_table(datastore, "notification_tracking")
+
+
+.. code-block:: python
+
+    from eventsourcing.postgres import PostgresProcessRecorder
+
+    # Construct process recorder and create table.
+    process_recorder = PostgresProcessRecorder(datastore)
+    process_recorder.create_table()
+
+    # Construct tracking object.
+    tracking = Tracking(notification_id=21, application_name="upstream")
+
+    # Insert stored events atomically with tracking object.
+    process_recorder.insert_events([stored_event], tracking=tracking)
+
+    # Select stored events from an aggregate sequence.
+    recorded_events = process_recorder.select_events(stored_event.originator_id)
+    assert recorded_events[0] == stored_event
+
+    # Select notifications from the application sequence.
+    notifications = process_recorder.select_notifications(start=1, limit=10)
+    assert notifications[0].id == 1
+    assert notifications[0].originator_id == stored_event.originator_id
+    assert notifications[0].originator_version == stored_event.originator_version
+
+    # Get latest tracked position.
+    assert process_recorder.max_tracking_id("upstream") == 21
+
+
+.. _other-persistence-modules:
+
+Other persistence modules
+-------------------------
+
+Other persistence modules are available or under development. There are
+`extension projects <https://github.com/pyeventsourcing>`_
+that support using popular ORMs for persistence such as
+`Django <https://github.com/pyeventsourcing/eventsourcing-django#readme>`_
+and `SQLAlchemy <https://github.com/pyeventsourcing/eventsourcing-sqlalchemy#readme>`_,
+specialist event stores such as
+`Axon Server <https://github.com/pyeventsourcing/eventsourcing-axonserver#readme>`_
+and `EventStoreDB <https://github.com/pyeventsourcing/eventsourcing-eventstoredb#readme>`_,
+and popular NoSQL databases such as
+`DynamoDB <https://github.com/pyeventsourcing/eventsourcing-dynamodb#readme>`_.
 
 
 .. _Store:
@@ -931,23 +1305,23 @@ larger than the state of a stored event that is compressed but not encrypted.
 Event store
 ===========
 
-An event store provides a common interface for storing and retrieving
-domain event objects. It combines a :ref:`mapper <Mapper>` and a
-:ref:`recorder <Recorder>`, so that domain event objects can be
-converted to stored event objects and then stored event objects
-can be recorded in a datastore.
+The library's :class:`~eventsourcing.persistence.EventStore` class provides methods for storing
+and retrieving :ref:`domain event <Domain events>` objects. It combines a :ref:`mapper <Mapper>`
+and a :ref:`recorder <Recorder>`, so that domain event objects will be converted to stored event
+objects before being recorded, and stored events will be converted to domain event objects after
+being selected.
 
-The library's :class:`~eventsourcing.persistence.EventStore` class must
-be constructed with a :ref:`mapper <Mapper>` and a :ref:`recorder <Recorder>`.
+The :class:`~eventsourcing.persistence.EventStore` class must be constructed with a :ref:`mapper <Mapper>`
+and a :ref:`recorder <Recorder>`.
 
-The :class:`~eventsourcing.persistence.EventStore` has an object method
+The :class:`~eventsourcing.persistence.EventStore` defines an object method
 :func:`~eventsourcing.persistence.EventStore.put` which can be used to
 store a list of new domain event objects. If any of these domain event
 objects conflict with any already existing domain event object (because
 they have the same aggregate ID and version number), an exception will
 be raised and none of the new events will be stored.
 
-The :class:`~eventsourcing.persistence.EventStore` has an object method
+The :class:`~eventsourcing.persistence.EventStore` class defines an object method
 :func:`~eventsourcing.persistence.EventStore.get` which can be used to
 get a list of domain event objects. Only the :data:`originator_id` argument
 is required, which is the ID of the aggregate for which existing events
@@ -962,6 +1336,8 @@ in the order in which they were created.
 .. code-block:: python
 
     from eventsourcing.persistence import EventStore
+
+    application_recorder = POPOApplicationRecorder()
 
     event_store = EventStore(
         mapper=mapper,
@@ -979,14 +1355,15 @@ in the order in which they were created.
 Infrastructure factory
 ======================
 
-An infrastructure factory helps with the construction of all the
-persistence infrastructure objects mentioned above.
+To help with the construction of the persistence infrastructure objects
+mentioned above, and to support configuring applications with environment
+variables, the library provides an "infrastructure factory".
 
 The library's :class:`~eventsourcing.persistence.InfrastructureFactory` class
-is an abstract base class for infrastructure factories. It provides a
-standard way for applications to select and construct persistence
-infrastructure classes from persistence modules. Each persistence
-module has a concrete infrastructure factory.
+is an abstract base class for infrastructure factories, which provides a
+standard way for applications to select, configure, and construct recorder
+classes from persistence modules. Each persistence module has a concrete
+infrastructure factory.
 
 .. code-block:: python
 
@@ -994,23 +1371,21 @@ module has a concrete infrastructure factory.
 
 
 The class method :func:`~eventsourcing.persistence.InfrastructureFactory.construct`
-will construct a concrete infrastructure factory from a persistence module. Set the
-environment variable ``PERSISTENCE_MODULE`` to the :ref:`topic <Topics>` of a
-persistence module to select which persistence module to use. By default, it will
-construct the infrastructure factory from the library's :ref:`"plain old Python
-objects" persistence module <popo-module>`.
+will construct a concrete infrastructure factory from a persistence module.
+
+By default, it will construct the infrastructure factory from the library's
+:ref:`"plain old Python objects" persistence module <popo-module>`.
 
 .. code-block:: python
 
-    environ = Environment()
-    environ["PERSISTENCE_MODULE"] = "eventsourcing.popo"
-    factory = InfrastructureFactory.construct(environ)
+    factory = InfrastructureFactory.construct()
 
+    assert factory.__class__.__name__ == "Factory"
     assert factory.__class__.__module__ == "eventsourcing.popo"
 
 
-The method :func:`~eventsourcing.persistence.InfrastructureFactory.aggregate_recorder`
-will construct an "aggregate recorder" from the selected persistence module.
+The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.aggregate_recorder`
+will construct an :ref:`aggregate recorder <Aggregate recorder>` from the selected persistence module.
 
 .. code-block:: python
 
@@ -1019,8 +1394,8 @@ will construct an "aggregate recorder" from the selected persistence module.
     assert isinstance(recorder, AggregateRecorder)
     assert recorder.__class__.__module__ == "eventsourcing.popo"
 
-The method :func:`~eventsourcing.persistence.InfrastructureFactory.application_recorder`
-will construct an "application recorder" from the selected persistence module.
+The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.application_recorder`
+will construct an :ref:`application recorder <Application recorder>` from the selected persistence module.
 
 .. code-block:: python
 
@@ -1029,8 +1404,8 @@ will construct an "application recorder" from the selected persistence module.
     assert isinstance(recorder, ApplicationRecorder)
     assert recorder.__class__.__module__ == "eventsourcing.popo"
 
-The method :func:`~eventsourcing.persistence.InfrastructureFactory.process_recorder`
-will construct a "process recorder" from the selected persistence module.
+The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.process_recorder`
+will construct a :ref:`process recorder <Process recorder>` from the selected persistence module.
 
 .. code-block:: python
 
@@ -1039,7 +1414,7 @@ will construct a "process recorder" from the selected persistence module.
     assert isinstance(recorder, ProcessRecorder)
     assert recorder.__class__.__module__ == "eventsourcing.popo"
 
-The method :func:`~eventsourcing.persistence.InfrastructureFactory.transcoder`
+The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.transcoder`
 will construct a transcoder object.
 
 .. code-block:: python
@@ -1051,15 +1426,15 @@ will construct a transcoder object.
     transcoder.register(ComplexCustomValueAsDict())
     transcoder.register(SimpleCustomValueAsDict())
 
-The method :func:`~eventsourcing.persistence.InfrastructureFactory.mapper`
-will construct a mapper object.
+The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.mapper`
+will construct a :ref:`mapper object <Mapper>`.
 
 .. code-block:: python
 
     mapper = factory.mapper(transcoder=transcoder)
 
-The method :func:`~eventsourcing.persistence.InfrastructureFactory.event_store`
-will construct an event store object.
+The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.event_store`
+will construct an :ref:`event store object <Store>`.
 
 .. code-block:: python
 
@@ -1069,82 +1444,52 @@ will construct an event store object.
         recorder=recorder,
     )
 
-The event store can be used to put and get domain events.
-
-.. code-block:: python
-
     event_store.put([domain_event])
     domain_events = list(event_store.get(id1))
 
     assert domain_events == [domain_event]
 
+.. _environment-variables:
+
+Environment variables
+---------------------
+
 Environment variables can be used to select and configure persistence infrastructure.
-In this way, an event-sourced application :ref:`can be easily configured <Persistence>`
-in different ways at different times. For example, the optional environment variables
-``COMPRESSOR_TOPIC``, ``CIPHER_TOPIC``, and ``CIPHER_KEY`` may be used to enable
-compression and encryption of stored events. Different persistence modules use their
-own particular set of environment variables, of which some are required and some are
-optional.
+In this way, an event-sourced application can be defined independently of any particular
+persistence infrastructure, and then :ref:`easily configured <Persistence>` in different
+ways at different times.
 
-.. _sqlite-module:
+You can set the environment variable ``PERSISTENCE_MODULE`` to the :ref:`topic <Topics>` of a
+persistence module before calling :func:`~eventsourcing.persistence.InfrastructureFactory.construct`.
+This will condition the :func:`~eventsourcing.persistence.InfrastructureFactory.construct` method to
+construct a factory from the specified persistence module.
 
-SQLite module
-=============
-
-The persistence module :mod:`eventsourcing.sqlite` supports recording events in
-`SQLite <https://www.sqlite.org/>`_. Recorder classes use the Python :mod:`sqlite3`
-module. The direct use of the library's SQLite recorders is shown below.
+For example, to explicitly select the :mod:`eventsourcing.popo` persistence module,
+use the module name string ``'eventsourcing.popo'`` as the value of ``PERSISTENCE_MODULE``.
 
 .. code-block:: python
 
-    # SQLiteAggregateRecorder
-    from eventsourcing.sqlite import SQLiteAggregateRecorder
-    from eventsourcing.sqlite import SQLiteDatastore
+    environ = Environment()
+    environ["PERSISTENCE_MODULE"] = "eventsourcing.popo"
+    factory = InfrastructureFactory.construct(environ)
 
-    datastore = SQLiteDatastore(db_name=":memory:")
-    aggregate_recorder = SQLiteAggregateRecorder(datastore, "stored_events")
-    aggregate_recorder.create_table()
-    aggregate_recorder.insert_events([stored_event])
-
-    recorded_events = aggregate_recorder.select_events(stored_event.originator_id)
-    assert recorded_events[0] == stored_event, (recorded_events[0], stored_event)
-
-    # SQLiteApplicationRecorder
-    from eventsourcing.sqlite import SQLiteApplicationRecorder
-    datastore = SQLiteDatastore(db_name=":memory:")
-    application_recorder = SQLiteApplicationRecorder(datastore)
-    application_recorder.create_table()
-    application_recorder.insert_events([stored_event])
-
-    recorded_events = application_recorder.select_events(stored_event.originator_id)
-    assert recorded_events[0] == stored_event
-
-    notifications = application_recorder.select_notifications(start=1, limit=10)
-    assert notifications[0].id == 1
-    assert notifications[0].originator_id == stored_event.originator_id
-    assert notifications[0].originator_version == stored_event.originator_version
-
-    # SQLiteProcessRecorder
-    from eventsourcing.sqlite import SQLiteProcessRecorder
-    datastore = SQLiteDatastore(db_name=":memory:")
-    process_recorder = SQLiteProcessRecorder(datastore)
-    process_recorder.create_table()
-    process_recorder.insert_events([stored_event], tracking=tracking)
-
-    recorded_events = process_recorder.select_events(stored_event.originator_id)
-    assert recorded_events[0] == stored_event
-
-    notifications = process_recorder.select_notifications(start=1, limit=10)
-    assert notifications[0].id == 1
-    assert notifications[0].originator_id == stored_event.originator_id
-    assert notifications[0].originator_version == stored_event.originator_version
-    assert process_recorder.max_tracking_id("upstream") == 21
+    assert factory.__class__.__module__ == "eventsourcing.popo"
 
 
-More commonly, the infrastructure factory is used to construct persistence
-infrastructure objects. The persistence module :mod:`eventsourcing.sqlite`
-supports the standard infrastructure factory interface. The SQLite persistence
-module can be selected and configured with environment variables.
+The environment variables ``COMPRESSOR_TOPIC``, ``CIPHER_TOPIC``, and ``CIPHER_KEY`` may be
+used to enable compression and encryption of stored events.
+
+Different persistence modules use their
+own particular set of environment variables, of which some are required and some are
+optional.
+
+
+.. _sqlite-environment:
+
+SQLite environment
+------------------
+
+Similarly, the :ref:`SQLite module<sqlite-module>` can be selected and configured with environment variables.
 
 .. code-block:: python
 
@@ -1179,9 +1524,7 @@ constructed and used in a standard way.
 
     factory = InfrastructureFactory.construct(environ)
     recorder = factory.application_recorder()
-
-    assert factory.__class__.__module__ == "eventsourcing.sqlite"
-    assert recorder.__class__.__module__ == "eventsourcing.sqlite"
+    assert isinstance(recorder, SQLiteApplicationRecorder)
 
     mapper = factory.mapper(transcoder=transcoder)
     event_store = factory.event_store(
@@ -1216,26 +1559,17 @@ and ``CIPHER_TOPIC`` may be used to enable compression and encryption of stored
 events recorded in SQLite.
 
 
-.. _postgres-module:
+.. _postgres-environment:
 
-PostgreSQL module
-=================
+PostgreSQL environment
+----------------------
 
-The persistence module :mod:`eventsourcing.postgres` supports storing events in
-`PostgresSQL <https://www.postgresql.org/>`_ using the third party `Psycopg v3 <https://www.psycopg.org>`_
-package. This code is tested with PostgreSQL versions 12, 13, 14, 15, 16, and 17.
+Similarly, the :ref:`PostgreSQL module<postgres-module>` can be selected and configured with environment variables.
 
 .. code-block:: python
 
     environ = Environment()
     environ["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
-
-The library's PostgreSQL :class:`~eventsourcing.postgres.Factory` also uses various
-environment variables to control the construction and configuration of its persistence
-infrastructure.
-
-.. code-block:: python
-
     environ["POSTGRES_DBNAME"] = "eventsourcing"
     environ["POSTGRES_HOST"] = "127.0.0.1"
     environ["POSTGRES_PORT"] = "5432"
@@ -1352,13 +1686,13 @@ constructed and used in a standard way.
     del factory
 
 
+
+
 .. code-block:: python
 
     factory = InfrastructureFactory.construct(environ)
     recorder = factory.application_recorder()
-
-    assert factory.__class__.__module__ == "eventsourcing.postgres"
-    assert recorder.__class__.__module__ == "eventsourcing.postgres"
+    assert isinstance(recorder, PostgresApplicationRecorder)
 
     mapper = factory.mapper(transcoder=transcoder)
     event_store = factory.event_store(
@@ -1375,25 +1709,9 @@ As above, the optional environment variables ``COMPRESSOR_TOPIC``, ``CIPHER_KEY`
 and ``CIPHER_TOPIC`` may be used to enable compression and encryption of stored
 events recorded in PostgreSQL.
 
-.. _other-persistence-modules:
 
-Other persistence modules
-=========================
-
-Other persistence modules are available or under development. There are
-`extension projects <https://github.com/pyeventsourcing>`_
-that support using popular ORMs for persistence such as
-`Django <https://github.com/pyeventsourcing/eventsourcing-django#readme>`_
-and `SQLAlchemy <https://github.com/pyeventsourcing/eventsourcing-sqlalchemy#readme>`_,
-specialist event stores such as
-`Axon Server <https://github.com/pyeventsourcing/eventsourcing-axonserver#readme>`_
-and `EventStoreDB <https://github.com/pyeventsourcing/eventsourcing-eventstoredb#readme>`_,
-and popular NoSQL databases such as
-`DynamoDB <https://github.com/pyeventsourcing/eventsourcing-dynamodb#readme>`_.
-
-
-Classes
-=======
+Code reference
+==============
 
 .. automodule:: eventsourcing.persistence
     :show-inheritance:

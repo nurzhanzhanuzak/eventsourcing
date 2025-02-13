@@ -93,6 +93,11 @@ class TestNotificationLogReader(TestCase):
         notifications = list(chain(*reader.select(start=1)))
         self.assertEqual(len(notifications), 5)
 
+        notifications = list(
+            chain(*reader.select(start=None, inclusive_of_start=False))
+        )
+        self.assertEqual(len(notifications), 5)
+
         # Write 4 events.
         originator_id = uuid4()
         for i in range(4):
@@ -123,4 +128,27 @@ class TestNotificationLogReader(TestCase):
         self.assertEqual(len(notifications), 1)
 
         notifications = list(chain(*reader.select(start=10)))
+        self.assertEqual(len(notifications), 0)
+
+        notifications = list(
+            chain(*reader.select(start=None, inclusive_of_start=False))
+        )
+        self.assertEqual(len(notifications), 9)
+
+        notifications = list(chain(*reader.select(start=1, inclusive_of_start=False)))
+        self.assertEqual(len(notifications), 8)
+
+        notifications = list(chain(*reader.select(start=2, inclusive_of_start=False)))
+        self.assertEqual(len(notifications), 7)
+
+        notifications = list(chain(*reader.select(start=3, inclusive_of_start=False)))
+        self.assertEqual(len(notifications), 6)
+
+        notifications = list(chain(*reader.select(start=7, inclusive_of_start=False)))
+        self.assertEqual(len(notifications), 2)
+
+        notifications = list(chain(*reader.select(start=8, inclusive_of_start=False)))
+        self.assertEqual(len(notifications), 1)
+
+        notifications = list(chain(*reader.select(start=9, inclusive_of_start=False)))
         self.assertEqual(len(notifications), 0)

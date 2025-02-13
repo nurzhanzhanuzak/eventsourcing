@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+from asyncio import CancelledError
 from contextlib import contextmanager
+from threading import Thread
 from typing import TYPE_CHECKING, Any, Callable, Iterator, List, Sequence
 
 import psycopg
 import psycopg.errors
 import psycopg_pool
-from psycopg import Connection, Cursor
+from psycopg import Connection, Cursor, Error
+from psycopg.generators import notifies
 from psycopg.rows import DictRow, dict_row
 
 from eventsourcing.persistence import (
@@ -19,6 +22,7 @@ from eventsourcing.persistence import (
     IntegrityError,
     InterfaceError,
     InternalError,
+    ListenNotifySubscription,
     Notification,
     NotSupportedError,
     OperationalError,
@@ -27,6 +31,7 @@ from eventsourcing.persistence import (
     ProgrammingError,
     StoredEvent,
     Tracking,
+    TrackingRecorder,
 )
 from eventsourcing.utils import Environment, resolve_topic, retry, strtobool
 
@@ -37,6 +42,14 @@ if TYPE_CHECKING:  # pragma: nocover
 
 logging.getLogger("psycopg.pool").setLevel(logging.CRITICAL)
 logging.getLogger("psycopg").setLevel(logging.CRITICAL)
+
+# Copy of "private" psycopg.errors._NO_TRACEBACK (in case it changes)
+# From psycopg: "Don't show a complete traceback upon raising these exception.
+# Usually the traceback starts from internal functions (for instance in the
+# server communication callbacks) but, for the end user, it's more important
+# to get the high level information about where the exception was raised, for
+# instance in a certain `Cursor.execute()`."
+NO_TRACEBACK = (Error, KeyboardInterrupt, CancelledError)
 
 
 class ConnectionPool(psycopg_pool.ConnectionPool[Any]):
@@ -164,33 +177,18 @@ class PostgresDatastore:
         self.close()
 
 
-class PostgresAggregateRecorder(AggregateRecorder):
+class PostgresRecorder:
+    """Base class for recorders that use PostgreSQL."""
+
     def __init__(
         self,
         datastore: PostgresDatastore,
-        events_table_name: str,
     ):
-        self.check_table_name_length(events_table_name, datastore.schema)
         self.datastore = datastore
-        self.events_table_name = events_table_name
-        # Index names can't be qualified names, but
-        # are created in the same schema as the table.
-        if "." in self.events_table_name:
-            unqualified_table_name = self.events_table_name.split(".")[-1]
-        else:
-            unqualified_table_name = self.events_table_name
-        self.notification_id_index_name = (
-            f"{unqualified_table_name}_notification_id_idx "
-        )
-
         self.create_table_statements = self.construct_create_table_statements()
-        self.insert_events_statement = (
-            f"INSERT INTO {self.events_table_name} VALUES (%s, %s, %s, %s)"
-        )
-        self.select_events_statement = (
-            f"SELECT * FROM {self.events_table_name} WHERE originator_id = %s"
-        )
-        self.lock_table_statements: List[str] = []
+
+    def construct_create_table_statements(self) -> List[str]:
+        return []
 
     @staticmethod
     def check_table_name_length(table_name: str, schema_name: str) -> None:
@@ -203,8 +201,42 @@ class PostgresAggregateRecorder(AggregateRecorder):
             msg = f"Table name too long: {unqualified_table_name}"
             raise ProgrammingError(msg)
 
+    def create_table(self) -> None:
+        with self.datastore.transaction(commit=True) as curs:
+            for statement in self.create_table_statements:
+                curs.execute(statement, prepare=False)
+
+
+class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
+    def __init__(
+        self,
+        datastore: PostgresDatastore,
+        *,
+        events_table_name: str = "stored_events",
+    ):
+        self.check_table_name_length(events_table_name, datastore.schema)
+        self.events_table_name = events_table_name
+        # Index names can't be qualified names, but
+        # are created in the same schema as the table.
+        if "." in self.events_table_name:
+            unqualified_table_name = self.events_table_name.split(".")[-1]
+        else:
+            unqualified_table_name = self.events_table_name
+        self.notification_id_index_name = (
+            f"{unqualified_table_name}_notification_id_idx "
+        )
+        super().__init__(datastore)
+        self.insert_events_statement = (
+            f"INSERT INTO {self.events_table_name} VALUES (%s, %s, %s, %s)"
+        )
+        self.select_events_statement = (
+            f"SELECT * FROM {self.events_table_name} WHERE originator_id = %s"
+        )
+        self.lock_table_statements: List[str] = []
+
     def construct_create_table_statements(self) -> List[str]:
-        statement = (
+        statements = super().construct_create_table_statements()
+        statements.append(
             "CREATE TABLE IF NOT EXISTS "
             f"{self.events_table_name} ("
             "originator_id uuid NOT NULL, "
@@ -215,12 +247,7 @@ class PostgresAggregateRecorder(AggregateRecorder):
             "(originator_id, originator_version)) "
             "WITH (autovacuum_enabled=false)"
         )
-        return [statement]
-
-    def create_table(self) -> None:
-        with self.datastore.transaction(commit=True) as curs:
-            for statement in self.create_table_statements:
-                curs.execute(statement, prepare=False)
+        return statements
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_events(
@@ -269,7 +296,10 @@ class PostgresAggregateRecorder(AggregateRecorder):
     ) -> None:
         # Only do something if there is something to do.
         if len(stored_events) > 0:
+            # print(f"Inserting {len(stored_events)} events")
             self._lock_table(c)
+
+            self._notify_channel(c)
 
             # Insert events.
             c.executemany(
@@ -287,6 +317,9 @@ class PostgresAggregateRecorder(AggregateRecorder):
             )
 
     def _lock_table(self, c: Cursor[DictRow]) -> None:
+        pass
+
+    def _notify_channel(self, c: Cursor[DictRow]) -> None:
         pass
 
     def _fetch_ids_after_insert_events(
@@ -341,9 +374,11 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
     def __init__(
         self,
         datastore: PostgresDatastore,
+        *,
         events_table_name: str = "stored_events",
     ):
-        super().__init__(datastore, events_table_name)
+        super().__init__(datastore, events_table_name=events_table_name)
+        self.channel_name = self.events_table_name.replace(".", "_")
         self.insert_events_statement += " RETURNING notification_id"
         self.max_notification_id_statement = (
             f"SELECT MAX(notification_id) FROM {self.events_table_name}"
@@ -377,26 +412,47 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def select_notifications(
         self,
-        start: int,
+        start: int | None,
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
         Returns a list of event notifications
         from 'start', limited by 'limit'.
         """
 
-        params: List[int | str | Sequence[str]] = [start]
-        statement = f"SELECT * FROM {self.events_table_name} WHERE notification_id>=%s"
+        params: List[int | str | Sequence[str]] = []
+        statement = f"SELECT * FROM {self.events_table_name}"
+        has_where = False
+        if start is not None:
+            statement += " WHERE"
+            has_where = True
+            params.append(start)
+            if inclusive_of_start:
+                statement += " notification_id>=%s"
+            else:
+                statement += " notification_id>%s"
 
         if stop is not None:
+            if not has_where:
+                has_where = True
+                statement += " WHERE"
+            else:
+                statement += " AND"
+
             params.append(stop)
-            statement += " AND notification_id <= %s"
+            statement += " notification_id <= %s"
 
         if topics:
+            if not has_where:
+                statement += " WHERE"
+            else:
+                statement += " AND"
             params.append(topics)
-            statement += " AND topic = ANY(%s)"
+            statement += " topic = ANY(%s)"
 
         params.append(limit)
         statement += " ORDER BY notification_id LIMIT %s"
@@ -416,7 +472,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
             ]
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
-    def max_notification_id(self) -> int:
+    def max_notification_id(self) -> int | None:
         """
         Returns the maximum notification ID.
         """
@@ -425,7 +481,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
             curs.execute(self.max_notification_id_statement)
             fetchone = curs.fetchone()
             assert fetchone is not None
-            return fetchone["max"] or 0
+            return fetchone["max"]
 
     def _lock_table(self, c: Cursor[DictRow]) -> None:
         # Acquire "EXCLUSIVE" table lock, to serialize transactions that insert
@@ -451,6 +507,9 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         for lock_statement in self.lock_table_statements:
             c.execute(lock_statement, prepare=True)
 
+    def _notify_channel(self, c: Cursor[DictRow]) -> None:
+        c.execute("NOTIFY " + self.channel_name)
+
     def _fetch_ids_after_insert_events(
         self,
         c: Cursor[DictRow],
@@ -460,31 +519,65 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         notification_ids: List[int] = []
         len_events = len(stored_events)
         if len_events:
-            if (
-                (c.statusmessage == "SET")
-                and c.nextset()
-                and (c.statusmessage == "LOCK TABLE")
-            ):
-                while c.nextset() and len(notification_ids) != len_events:
+            while c.nextset() and len(notification_ids) != len_events:
+                if c.statusmessage and c.statusmessage.startswith("INSERT"):
                     row = c.fetchone()
                     assert row is not None
                     notification_ids.append(row["notification_id"])
             if len(notification_ids) != len(stored_events):
-                msg = "Couldn't get all notification IDs"
+                msg = "Couldn't get all notification IDs "
+                msg += f"(got {len(notification_ids)}, expected {len(stored_events)}"
                 raise ProgrammingError(msg)
         return notification_ids
 
+    def subscribe(self, gt: int | None = None) -> PostgresSubscription:
+        return PostgresSubscription(self, gt)
 
-class PostgresProcessRecorder(PostgresApplicationRecorder, ProcessRecorder):
+
+class PostgresSubscription(ListenNotifySubscription[PostgresApplicationRecorder]):
+    def __enter__(self) -> Self:
+        super().__enter__()
+        self._listen_thread = Thread(target=self._listen)
+        self._listen_thread.start()
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        super().__exit__(*args, **kwargs)
+        self._listen_thread.join()
+
+    def _listen(self) -> None:
+        try:
+            with self._recorder.datastore.get_connection() as conn:
+                conn.execute("LISTEN " + self._recorder.channel_name)
+                while not self._has_been_stopped and not self._thread_error:
+                    # This block simplifies psycopg's conn.notifies(), because
+                    # we aren't interested in the actual notify messages, and
+                    # also we want to stop consuming notify messages when the
+                    # subscription has an error or is otherwise stopped.
+                    with conn.lock:
+                        try:
+                            if conn.wait(notifies(conn.pgconn), interval=0.1):
+                                self._has_been_notified.set()
+                        except NO_TRACEBACK as ex:  # pragma: no cover
+                            raise ex.with_traceback(None) from None
+
+        except BaseException as e:
+            if self._thread_error is None:
+                self._thread_error = e
+            self.stop()
+
+
+class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
     def __init__(
         self,
         datastore: PostgresDatastore,
-        events_table_name: str,
-        tracking_table_name: str,
+        *,
+        tracking_table_name: str = "notification_tracking",
+        **kwargs: Any,
     ):
         self.check_table_name_length(tracking_table_name, datastore.schema)
         self.tracking_table_name = tracking_table_name
-        super().__init__(datastore, events_table_name)
+        super().__init__(datastore, **kwargs)
         self.insert_tracking_statement = (
             f"INSERT INTO {self.tracking_table_name} VALUES (%s, %s)"
         )
@@ -512,7 +605,27 @@ class PostgresProcessRecorder(PostgresApplicationRecorder, ProcessRecorder):
         return statements
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
-    def max_tracking_id(self, application_name: str) -> int:
+    def insert_tracking(self, tracking: Tracking) -> None:
+        c: Connection[DictRow]
+        with self.datastore.get_connection() as c, c.transaction(), c.cursor() as curs:
+            self._insert_tracking(curs, tracking)
+
+    def _insert_tracking(
+        self,
+        c: Cursor[DictRow],
+        tracking: Tracking,
+    ) -> None:
+        c.execute(
+            query=self.insert_tracking_statement,
+            params=(
+                tracking.application_name,
+                tracking.notification_id,
+            ),
+            prepare=True,
+        )
+
+    @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
+    def max_tracking_id(self, application_name: str) -> int | None:
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             curs.execute(
                 query=self.max_tracking_id_statement,
@@ -521,7 +634,7 @@ class PostgresProcessRecorder(PostgresApplicationRecorder, ProcessRecorder):
             )
             fetchone = curs.fetchone()
             assert fetchone is not None
-            return fetchone["max"] or 0
+            return fetchone["max"]
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
@@ -536,6 +649,23 @@ class PostgresProcessRecorder(PostgresApplicationRecorder, ProcessRecorder):
             assert fetchone is not None
             return bool(fetchone["count"])
 
+
+class PostgresProcessRecorder(
+    PostgresTrackingRecorder, PostgresApplicationRecorder, ProcessRecorder
+):
+    def __init__(
+        self,
+        datastore: PostgresDatastore,
+        *,
+        events_table_name: str = "stored_events",
+        tracking_table_name: str = "notification_tracking",
+    ):
+        super().__init__(
+            datastore,
+            tracking_table_name=tracking_table_name,
+            events_table_name=events_table_name,
+        )
+
     def _insert_events(
         self,
         c: Cursor[DictRow],
@@ -544,14 +674,7 @@ class PostgresProcessRecorder(PostgresApplicationRecorder, ProcessRecorder):
     ) -> None:
         tracking: Tracking | None = kwargs.get("tracking", None)
         if tracking is not None:
-            c.execute(
-                query=self.insert_tracking_statement,
-                params=(
-                    tracking.application_name,
-                    tracking.notification_id,
-                ),
-                prepare=True,
-            )
+            self._insert_tracking(c, tracking=tracking)
         super()._insert_events(c, stored_events, **kwargs)
 
 

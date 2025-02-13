@@ -25,6 +25,7 @@ from eventsourcing.persistence import (
     ProgrammingError,
     StoredEvent,
     Tracking,
+    TrackingRecorder,
 )
 from eventsourcing.utils import Environment, strtobool
 
@@ -242,14 +243,25 @@ class SQLiteDatastore:
         self.close()
 
 
-class SQLiteAggregateRecorder(AggregateRecorder):
+class SQLiteRecorder:
+    def __init__(
+        self,
+        datastore: SQLiteDatastore,
+    ):
+        assert isinstance(datastore, SQLiteDatastore)
+        self.datastore = datastore
+
+    def construct_create_table_statements(self) -> List[str]:
+        return []
+
+
+class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
     def __init__(
         self,
         datastore: SQLiteDatastore,
         events_table_name: str = "stored_events",
     ):
-        assert isinstance(datastore, SQLiteDatastore)
-        self.datastore = datastore
+        super().__init__(datastore)
         self.events_table_name = events_table_name
         self.create_table_statements = self.construct_create_table_statements()
         self.insert_events_statement = (
@@ -260,7 +272,8 @@ class SQLiteAggregateRecorder(AggregateRecorder):
         )
 
     def construct_create_table_statements(self) -> List[str]:
-        statement = (
+        statements = super().construct_create_table_statements()
+        statements.append(
             "CREATE TABLE IF NOT EXISTS "
             f"{self.events_table_name} ("
             "originator_id TEXT, "
@@ -271,7 +284,7 @@ class SQLiteAggregateRecorder(AggregateRecorder):
             "(originator_id, originator_version)) "
             "WITHOUT ROWID"
         )
-        return [statement]
+        return statements
 
     def create_table(self) -> None:
         with self.datastore.transaction(commit=True) as c:
@@ -389,25 +402,45 @@ class SQLiteApplicationRecorder(
 
     def select_notifications(
         self,
-        start: int,
+        start: int | None,
         limit: int,
         stop: int | None = None,
         topics: Sequence[str] = (),
+        *,
+        inclusive_of_start: bool = True,
     ) -> List[Notification]:
         """
         Returns a list of event notifications
         from 'start', limited by 'limit'.
         """
-        params: List[int | str] = [start]
-        statement = f"SELECT rowid, * FROM {self.events_table_name} WHERE rowid>=? "
+        params: List[int | str] = []
+        statement = f"SELECT rowid, * FROM {self.events_table_name} "
+        has_where = False
+        if start is not None:
+            has_where = True
+            statement += "WHERE "
+            params.append(start)
+            if inclusive_of_start:
+                statement += "rowid>=? "
+            else:
+                statement += "rowid>? "
 
         if stop is not None:
+            if not has_where:
+                has_where = True
+                statement += "WHERE "
+            else:
+                statement += "AND "
             params.append(stop)
-            statement += "AND rowid<=? "
+            statement += "rowid<=? "
 
         if topics:
+            if not has_where:
+                statement += "WHERE "
+            else:
+                statement += "AND "
             params += list(topics)
-            statement += "AND topic IN (%s) " % ",".join("?" * len(topics))
+            statement += "topic IN (%s) " % ",".join("?" * len(topics))
 
         params.append(limit)
         statement += "ORDER BY rowid LIMIT ?"
@@ -434,19 +467,16 @@ class SQLiteApplicationRecorder(
 
     def _max_notification_id(self, c: SQLiteCursor) -> int:
         c.execute(self.select_max_notification_id_statement)
-        return c.fetchone()[0] or 0
+        return c.fetchone()[0]
 
 
-class SQLiteProcessRecorder(
-    SQLiteApplicationRecorder,
-    ProcessRecorder,
-):
+class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
     def __init__(
         self,
         datastore: SQLiteDatastore,
-        events_table_name: str = "stored_events",
+        **kwargs: Any,
     ):
-        super().__init__(datastore, events_table_name)
+        super().__init__(datastore, **kwargs)
         self.insert_tracking_statement = "INSERT INTO tracking VALUES (?,?)"
         self.select_max_tracking_id_statement = (
             "SELECT MAX(notification_id) FROM tracking WHERE application_name=?"
@@ -468,17 +498,48 @@ class SQLiteProcessRecorder(
         )
         return statements
 
-    def max_tracking_id(self, application_name: str) -> int:
+    def insert_tracking(self, tracking: Tracking) -> None:
+        with self.datastore.transaction(commit=True) as c:
+            self._insert_tracking(c, tracking)
+
+    def _insert_tracking(
+        self,
+        c: SQLiteCursor,
+        tracking: Tracking,
+    ) -> None:
+        c.execute(
+            self.insert_tracking_statement,
+            (
+                tracking.application_name,
+                tracking.notification_id,
+            ),
+        )
+
+    def max_tracking_id(self, application_name: str) -> int | None:
         params = [application_name]
         with self.datastore.transaction(commit=False) as c:
             c.execute(self.select_max_tracking_id_statement, params)
-            return c.fetchone()[0] or 0
+            return c.fetchone()[0]
 
     def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
         params = [application_name, notification_id]
         with self.datastore.transaction(commit=False) as c:
             c.execute(self.count_tracking_id_statement, params)
             return bool(c.fetchone()[0])
+
+
+class SQLiteProcessRecorder(
+    SQLiteTrackingRecorder,
+    SQLiteApplicationRecorder,
+    ProcessRecorder,
+):
+    def __init__(
+        self,
+        datastore: SQLiteDatastore,
+        *,
+        events_table_name: str = "stored_events",
+    ):
+        super().__init__(datastore, events_table_name=events_table_name)
 
     def _insert_events(
         self,
@@ -489,13 +550,7 @@ class SQLiteProcessRecorder(
         returning = super()._insert_events(c, stored_events, **kwargs)
         tracking: Tracking | None = kwargs.get("tracking", None)
         if tracking is not None:
-            c.execute(
-                self.insert_tracking_statement,
-                (
-                    tracking.application_name,
-                    tracking.notification_id,
-                ),
-            )
+            self._insert_tracking(c, tracking)
         return returning
 
 

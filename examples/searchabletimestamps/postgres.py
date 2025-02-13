@@ -30,7 +30,7 @@ class SearchableTimestampsApplicationRecorder(
     ):
         self.check_table_name_length(event_timestamps_table_name, datastore.schema)
         self.event_timestamps_table_name = event_timestamps_table_name
-        super().__init__(datastore, events_table_name)
+        super().__init__(datastore, events_table_name=events_table_name)
         self.insert_event_timestamp_statement = (
             f"INSERT INTO {self.event_timestamps_table_name} VALUES (%s, %s, %s)"
         )

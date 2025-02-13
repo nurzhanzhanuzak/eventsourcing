@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import inspect
+import threading
 import traceback
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from queue import Full, Queue
-from threading import Event, Lock, RLock, Thread
 from types import FrameType, ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -79,7 +79,7 @@ class Follower(Application):
         self.mappers: Dict[str, Mapper] = {}
         self.recorder: ProcessRecorder
         self.is_threading_enabled = False
-        self.processing_lock = RLock()
+        self.processing_lock = threading.Lock()
 
     def construct_recorder(self) -> ProcessRecorder:
         """
@@ -112,9 +112,9 @@ class Follower(Application):
         Pull and process new domain event notifications.
         """
         if start is None:
-            start = self.recorder.max_tracking_id(leader_name) + 1
+            start = self.recorder.max_tracking_id(leader_name)
         for notifications in self.pull_notifications(
-            leader_name, start=start, stop=stop
+            leader_name, start=start, stop=stop, inclusive_of_start=False
         ):
             notifications_iter = self.filter_received_notifications(notifications)
             for domain_event, tracking in self.convert_notifications(
@@ -123,14 +123,22 @@ class Follower(Application):
                 self.process_event(domain_event, tracking)
 
     def pull_notifications(
-        self, leader_name: str, start: int, stop: int | None = None
+        self,
+        leader_name: str,
+        start: int | None,
+        stop: int | None = None,
+        *,
+        inclusive_of_start: bool = True,
     ) -> Iterator[List[Notification]]:
         """
         Pulls batches of unseen :class:`~eventsourcing.persistence.Notification`
         objects from the notification log reader of the named application.
         """
         return self.readers[leader_name].select(
-            start=start, stop=stop, topics=self.follow_topics
+            start=start,
+            stop=stop,
+            topics=self.follow_topics,
+            inclusive_of_start=inclusive_of_start,
         )
 
     def filter_received_notifications(
@@ -465,9 +473,9 @@ class SingleThreadedRunner(Runner, RecordingEventReceiver):
         super().__init__(system=system, env=env)
         self.apps: Dict[str, Application] = {}
         self._recording_events_received: List[RecordingEvent] = []
-        self._prompted_names_lock = Lock()
+        self._prompted_names_lock = threading.Lock()
         self._prompted_names: set[str] = set()
-        self._processing_lock = Lock()
+        self._processing_lock = threading.Lock()
 
         # Construct followers.
         for name in self.system.followers:
@@ -573,8 +581,8 @@ class NewSingleThreadedRunner(Runner, RecordingEventReceiver):
         super().__init__(system=system, env=env)
         self.apps: Dict[str, Application] = {}
         self._recording_events_received: List[RecordingEvent] = []
-        self._recording_events_received_lock = Lock()
-        self._processing_lock = Lock()
+        self._recording_events_received_lock = threading.Lock()
+        self._processing_lock = threading.Lock()
         self._previous_max_notification_ids: Dict[str, int] = {}
 
         # Construct followers.
@@ -665,9 +673,7 @@ class NewSingleThreadedRunner(Runner, RecordingEventReceiver):
                             for follower_name in self.system.leads[leader_name]:
                                 follower = self.apps[follower_name]
                                 assert isinstance(follower, Follower)
-                                start = (
-                                    follower.recorder.max_tracking_id(leader_name) + 1
-                                )
+                                start = follower.recorder.max_tracking_id(leader_name)
                                 stop = recording_event.recordings[0].notification.id - 1
                                 follower.pull_and_process(
                                     leader_name=leader_name,
@@ -723,7 +729,7 @@ class MultiThreadedRunner(Runner):
         super().__init__(system=system, env=env)
         self.apps: Dict[str, Application] = {}
         self.threads: Dict[str, MultiThreadedRunnerThread] = {}
-        self.has_errored = Event()
+        self.has_errored = threading.Event()
 
         # Construct followers.
         for follower_name in self.system.followers:
@@ -807,7 +813,7 @@ class MultiThreadedRunner(Runner):
         return app
 
 
-class MultiThreadedRunnerThread(RecordingEventReceiver, Thread):
+class MultiThreadedRunnerThread(RecordingEventReceiver, threading.Thread):
     """
     Runs one :class:`~eventsourcing.system.Follower` application in
     a :class:`~eventsourcing.system.MultiThreadedRunner`.
@@ -816,18 +822,18 @@ class MultiThreadedRunnerThread(RecordingEventReceiver, Thread):
     def __init__(
         self,
         follower: Follower,
-        has_errored: Event,
+        has_errored: threading.Event,
     ):
         super().__init__(daemon=True)
         self.follower = follower
         self.has_errored = has_errored
         self.error: Exception | None = None
-        self.is_stopping = Event()
-        self.has_started = Event()
-        self.is_prompted = Event()
+        self.is_stopping = threading.Event()
+        self.has_started = threading.Event()
+        self.is_prompted = threading.Event()
         self.prompted_names: List[str] = []
-        self.prompted_names_lock = Lock()
-        self.is_running = Event()
+        self.prompted_names_lock = threading.Lock()
+        self.is_running = threading.Event()
 
     def run(self) -> None:
         """
@@ -889,7 +895,7 @@ class NewMultiThreadedRunner(Runner, RecordingEventReceiver):
         self.pulling_threads: Dict[str, List[PullingThread]] = {}
         self.processing_queues: Dict[str, Queue[List[ProcessingJob] | None]] = {}
         self.all_threads: List[PullingThread | ConvertingThread | ProcessingThread] = []
-        self.has_errored = Event()
+        self.has_errored = threading.Event()
 
         # Construct followers.
         for follower_name in self.system.followers:
@@ -1014,7 +1020,7 @@ class NewMultiThreadedRunner(Runner, RecordingEventReceiver):
             pulling_thread.receive_recording_event(recording_event)
 
 
-class PullingThread(Thread):
+class PullingThread(threading.Thread):
     """
     Receives or pulls notifications from the given leader, and
     puts them on a queue for conversion into processing jobs.
@@ -1025,19 +1031,19 @@ class PullingThread(Thread):
         converting_queue: Queue[ConvertingJob],
         follower: Follower,
         leader_name: str,
-        has_errored: Event,
+        has_errored: threading.Event,
     ):
         super().__init__(daemon=True)
-        self.overflow_event = Event()
+        self.overflow_event = threading.Event()
         self.recording_event_queue: Queue[RecordingEvent | None] = Queue(maxsize=100)
         self.converting_queue = converting_queue
-        self.receive_lock = Lock()
+        self.receive_lock = threading.Lock()
         self.follower = follower
         self.leader_name = leader_name
         self.error: Exception | None = None
         self.has_errored = has_errored
-        self.is_stopping = Event()
-        self.has_started = Event()
+        self.is_stopping = threading.Event()
+        self.has_started = threading.Event()
         self.mapper = self.follower.mappers[self.leader_name]
         self.previous_max_notification_id = self.follower.recorder.max_tracking_id(
             application_name=self.leader_name
@@ -1054,6 +1060,7 @@ class PullingThread(Thread):
                 # Ignore recording event if already seen a subsequent.
                 if (
                     recording_event.previous_max_notification_id is not None
+                    and self.previous_max_notification_id is not None
                     and recording_event.previous_max_notification_id
                     < self.previous_max_notification_id
                 ):
@@ -1062,13 +1069,17 @@ class PullingThread(Thread):
                 # Catch up if there is a gap in sequence of recording events.
                 if (
                     recording_event.previous_max_notification_id is None
+                    or self.previous_max_notification_id is None
                     or recording_event.previous_max_notification_id
                     > self.previous_max_notification_id
                 ):
-                    start = self.previous_max_notification_id + 1
+                    start = self.previous_max_notification_id
                     stop = recording_event.recordings[0].notification.id - 1
                     for notifications in self.follower.pull_notifications(
-                        self.leader_name, start=start, stop=stop
+                        self.leader_name,
+                        start=start,
+                        stop=stop,
+                        inclusive_of_start=False,
                     ):
                         self.converting_queue.put(notifications)
                         self.previous_max_notification_id = notifications[-1].id
@@ -1092,7 +1103,7 @@ class PullingThread(Thread):
         self.recording_event_queue.put(None)
 
 
-class ConvertingThread(Thread):
+class ConvertingThread(threading.Thread):
     """
     Converts notifications into processing jobs.
     """
@@ -1103,7 +1114,7 @@ class ConvertingThread(Thread):
         processing_queue: Queue[List[ProcessingJob] | None],
         follower: Follower,
         leader_name: str,
-        has_errored: Event,
+        has_errored: threading.Event,
     ):
         super().__init__(daemon=True)
         self.converting_queue = converting_queue
@@ -1112,8 +1123,8 @@ class ConvertingThread(Thread):
         self.leader_name = leader_name
         self.error: Exception | None = None
         self.has_errored = has_errored
-        self.is_stopping = Event()
-        self.has_started = Event()
+        self.is_stopping = threading.Event()
+        self.has_started = threading.Event()
         self.mapper = self.follower.mappers[self.leader_name]
 
     def run(self) -> None:
@@ -1162,7 +1173,7 @@ class ConvertingThread(Thread):
         self.converting_queue.put(None)
 
 
-class ProcessingThread(Thread):
+class ProcessingThread(threading.Thread):
     """
     A processing thread gets events from a processing queue, and
     calls the application's process_event() method.
@@ -1172,15 +1183,15 @@ class ProcessingThread(Thread):
         self,
         processing_queue: Queue[List[ProcessingJob] | None],
         follower: Follower,
-        has_errored: Event,
+        has_errored: threading.Event,
     ):
         super().__init__(daemon=True)
         self.processing_queue = processing_queue
         self.follower = follower
         self.error: Exception | None = None
         self.has_errored = has_errored
-        self.is_stopping = Event()
-        self.has_started = Event()
+        self.is_stopping = threading.Event()
+        self.has_started = threading.Event()
 
     def run(self) -> None:
         self.has_started.set()
@@ -1247,7 +1258,12 @@ class NotificationLogReader:
                 section_id = section.next_id
 
     def select(
-        self, *, start: int, stop: int | None = None, topics: Sequence[str] = ()
+        self,
+        *,
+        start: int | None,
+        stop: int | None = None,
+        topics: Sequence[str] = (),
+        inclusive_of_start: bool = True,
     ) -> Iterator[List[Notification]]:
         """
         Returns a generator that yields lists of event notifications
@@ -1263,12 +1279,18 @@ class NotificationLogReader:
         """
         while True:
             notifications = self.notification_log.select(
-                start=start, stop=stop, limit=self.section_size, topics=topics
+                start=start,
+                stop=stop,
+                limit=self.section_size,
+                topics=topics,
+                inclusive_of_start=inclusive_of_start,
             )
             # Stop if zero notifications.
             if len(notifications) == 0:
                 break
 
             # Otherwise, yield and continue.
+            start = notifications[-1].id
+            if inclusive_of_start:
+                start += 1
             yield notifications
-            start = notifications[-1].id + 1

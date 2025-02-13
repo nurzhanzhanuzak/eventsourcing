@@ -36,7 +36,6 @@ class ExampleApplicationTestCase(TestCase):
 
     def test_example_application(self):
         app = BankAccounts(env={"IS_SNAPSHOTTING_ENABLED": "y"})
-        max_notification_id = app.recorder.max_notification_id()
 
         self.assertEqual(get_topic(type(app.factory)), self.expected_factory_topic)
 
@@ -75,9 +74,7 @@ class ExampleApplicationTestCase(TestCase):
         )
 
         sleep(1)  # Added to make eventsourcing-axon tests work, perhaps not necessary.
-        section = app.notification_log[
-            f"{max_notification_id + 1},{max_notification_id + 10}"
-        ]
+        section = app.notification_log["1,10"]
         self.assertEqual(len(section.items), 4)
 
         # Take snapshot (specify version).
@@ -291,20 +288,18 @@ class ApplicationTestCase(TestCase):
         recordings = app.save(None)
         self.assertEqual(recordings, [])
 
-        max_id = app.recorder.max_notification_id()
+        recordings = app.save(Aggregate())
+        self.assertEqual(len(recordings), 1)
+        self.assertEqual(recordings[0].notification.id, 1)
 
         recordings = app.save(Aggregate())
         self.assertEqual(len(recordings), 1)
-        self.assertEqual(recordings[0].notification.id, 1 + max_id)
-
-        recordings = app.save(Aggregate())
-        self.assertEqual(len(recordings), 1)
-        self.assertEqual(recordings[0].notification.id, 2 + max_id)
+        self.assertEqual(recordings[0].notification.id, 2)
 
         recordings = app.save(Aggregate(), Aggregate())
         self.assertEqual(len(recordings), 2)
-        self.assertEqual(recordings[0].notification.id, 3 + max_id)
-        self.assertEqual(recordings[1].notification.id, 4 + max_id)
+        self.assertEqual(recordings[0].notification.id, 3)
+        self.assertEqual(recordings[1].notification.id, 4)
 
     def test_take_snapshot_raises_assertion_error_if_snapshotting_not_enabled(self):
         app = Application()

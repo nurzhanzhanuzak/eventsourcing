@@ -190,8 +190,8 @@ Multi-threaded runner
     runner.stop()
 
 
-Classes
-=======
+Code reference
+==============
 
 .. automodule:: eventsourcing.system
     :show-inheritance:

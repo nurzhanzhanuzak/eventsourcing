@@ -87,14 +87,14 @@ environment to enable encryption.
     $ pip install "eventsourcing[crypto]"
 
 
-If you want to :ref:`store events with PostgreSQL <postgres-module>`, then install with
+If you want to :ref:`store events with PostgreSQL <postgres-environment>`, then install with
 the ``postgres`` option. This installs `Psycopg v3 <https://pypi.org/project/psycopg/>`_
 with its C optimization and connection pool packages, so feel free to make your project depend
 directly on ``psycopg[c,pool]`` instead. The C optimization is recommended by the
 `Psycopg <https://www.psycopg.org>`_  developers for production usage. The pre-built binary
 option ``psycopg[binary]`` is a convenient alternative for development and testing, and for those
 unable to meet the prerequisites needed for building ``psycopg[c]``. See the
-:ref:`PostgreSQL persistence module documentation <postgres-module>` for more information
+:ref:`PostgreSQL persistence module documentation <postgres-environment>` for more information
 about storing events in PostgreSQL.
 
 ::
