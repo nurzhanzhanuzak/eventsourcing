@@ -18,7 +18,9 @@ PageDetailsType = Dict[str, Union[str, Any]]
 
 
 class ContentManagementApplication(Application):
-    env: ClassVar[Dict[str, str]] = {"COMPRESSOR_TOPIC": "gzip"}
+    env: ClassVar[Dict[str, str]] = {
+        "COMPRESSOR_TOPIC": "gzip"
+    }
     snapshotting_intervals: ClassVar[Dict[Type[MutableOrImmutableAggregate], int]] = {
         Page: 5
     }

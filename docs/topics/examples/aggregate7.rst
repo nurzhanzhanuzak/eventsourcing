@@ -27,6 +27,17 @@ aggregate state, and which is reconstructed from serialised string
 values, representing only the name of the trick, from both recorded
 aggregate events and from recorded snapshots.
 
+Pydantic mapper and orjson transcoder
+-------------------------------------
+
+.. literalinclude:: ../../../examples/aggregate7/orjsonpydantic.py
+
+
+Pydantic model for immutable aggregate
+--------------------------------------
+
+.. literalinclude:: ../../../examples/aggregate7/immutablemodel.py
+
 
 Domain model
 ------------
@@ -37,19 +48,10 @@ Domain model
 Application
 -----------
 
-
 .. literalinclude:: ../../../examples/aggregate7/application.py
-
-
-Persistence
------------
-
-
-.. literalinclude:: ../../../examples/aggregate7/persistence.py
 
 
 Test case
 ---------
-
 
 .. literalinclude:: ../../../examples/aggregate7/test_application.py

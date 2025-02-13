@@ -1,26 +1,24 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, ClassVar, Dict
 
 from eventsourcing.application import Application
-from examples.aggregate7.domainmodel import (
-    Snapshot,
-    Trick,
-    add_trick,
-    project_dog,
-    register_dog,
-)
-from examples.aggregate7.persistence import OrjsonTranscoder, PydanticMapper
+from eventsourcing.utils import get_topic
+from examples.aggregate7.domainmodel import Trick, add_trick, project_dog, register_dog
+from examples.aggregate7.immutablemodel import Snapshot
+from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
 
 if TYPE_CHECKING:  # pragma: nocover
     from uuid import UUID
-
-    from eventsourcing.persistence import Mapper, Transcoder
 
 
 class DogSchool(Application):
     is_snapshotting_enabled = True
     snapshot_class = Snapshot
+    env: ClassVar[Dict[str, str]] = {
+        "TRANSCODER_TOPIC": get_topic(OrjsonTranscoder),
+        "MAPPER_TOPIC": get_topic(PydanticMapper),
+    }
 
     def register_dog(self, name: str) -> UUID:
         event = register_dog(name)
@@ -39,12 +37,3 @@ class DogSchool(Application):
             "created_on": dog.created_on,
             "modified_on": dog.modified_on,
         }
-
-    def construct_mapper(self) -> Mapper:
-        return self.factory.mapper(
-            transcoder=self.construct_transcoder(),
-            mapper_class=PydanticMapper,
-        )
-
-    def construct_transcoder(self) -> Transcoder:
-        return OrjsonTranscoder()
