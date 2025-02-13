@@ -44,11 +44,11 @@ class Aggregate:
             timestamp=datetime_now_with_tzinfo(),
         )
         new_event = event_class(**kwargs)
-        self._apply(new_event)
+        self.apply(new_event)
         self._pending_events.append(new_event)
 
     @singledispatchmethod
-    def _apply(self, event: DomainEvent) -> None:
+    def apply(self, event: DomainEvent) -> None:
         """Applies event to aggregate."""
 
     def collect_events(self) -> List[DomainEvent]:
@@ -64,7 +64,7 @@ class Aggregate:
         aggregate: TAggregate = object.__new__(cls)
         aggregate._pending_events = []
         for event in events:
-            aggregate._apply(event)
+            aggregate.apply(event)
         return aggregate
 
 
@@ -93,20 +93,20 @@ class Dog(Aggregate):
         self.trigger_event(self.TrickAdded, trick=trick)
 
     @singledispatchmethod
-    def _apply(self, event: DomainEvent) -> None:
+    def apply(self, event: DomainEvent) -> None:
         """Applies event to aggregate."""
 
-    @_apply.register(Registered)
+    @apply.register(Registered)
     def _(self, event: Registered) -> None:
         super().__init__(event)
         self.name = event.name
         self.tricks: List[str] = []
 
-    @_apply.register(TrickAdded)
+    @apply.register(TrickAdded)
     def _(self, event: TrickAdded) -> None:
         self.tricks.append(event.trick)
         self.version = event.originator_version
 
-    @_apply.register(Snapshot)
+    @apply.register(Snapshot)
     def _(self, event: Snapshot) -> None:
         self.__dict__.update(event.state)
