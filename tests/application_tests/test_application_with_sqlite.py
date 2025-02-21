@@ -37,7 +37,6 @@ def memory_uris():
     db_number = 1
     while True:
         uri = f"file:db{db_number}?mode=memory&cache=shared"
-        print(uri)
         yield uri
         db_number += 1
 
