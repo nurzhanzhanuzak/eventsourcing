@@ -7,7 +7,6 @@ POETRY ?= poetry
 POETRY_VERSION=1.8.3
 POETRY_INSTALLER_URL ?= https://install.python-poetry.org
 PYTHONUNBUFFERED=1
-SAMPLES_LINE_LENGTH=70
 
 .PHONY: install-poetry
 install-poetry:
