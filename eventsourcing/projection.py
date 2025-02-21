@@ -4,7 +4,9 @@ import os
 import weakref
 from abc import ABC, abstractmethod
 from threading import Event, Thread
+from traceback import format_exc
 from typing import TYPE_CHECKING, Any, Dict, Generic, Type, TypeVar
+from warnings import warn
 
 from eventsourcing.application import Application
 from eventsourcing.dispatch import singledispatchmethod
@@ -120,7 +122,14 @@ class ProjectionRunner(Generic[TApplication, TProjection, TTrackingRecorder]):
             if _runner is not None:
                 _runner.thread_error = e
             else:
-                pass  # pragma: no cover
+                msg = "ProjectionRunner was deleted before error could be assigned:\n"
+                msg += format_exc()
+                warn(
+                    msg,
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+
             has_error.set()
             application_sequence.subscription.stop()
 
