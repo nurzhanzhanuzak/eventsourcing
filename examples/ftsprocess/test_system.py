@@ -7,10 +7,13 @@ from uuid import uuid4
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.system import SingleThreadedRunner
 from eventsourcing.tests.postgres_utils import drop_postgres_table
-from examples.contentmanagement.application import ContentManagementApplication
+from eventsourcing.utils import get_topic
+from examples.contentmanagement.application import ContentManagement
 from examples.contentmanagement.domainmodel import user_id_cvar
-from examples.contentmanagementsystem.application import SearchIndexApplication
-from examples.contentmanagementsystem.system import ContentManagementSystem
+from examples.ftsprocess.application import FtsProcess
+from examples.ftsprocess.postgres import PostgresFtsProcessRecorder
+from examples.ftsprocess.sqlite import SQLiteFtsProcessRecorder
+from examples.ftsprocess.system import ContentManagementSystem
 
 
 class ContentManagementSystemTestCase(TestCase):
@@ -21,8 +24,8 @@ class ContentManagementSystemTestCase(TestCase):
             system=ContentManagementSystem(), env=self.env
         ) as runner:
 
-            content_management_app = runner.get(ContentManagementApplication)
-            search_index_app = runner.get(SearchIndexApplication)
+            content_management_app = runner.get(ContentManagement)
+            search_index_app = runner.get(FtsProcess)
 
             # Set user_id context variable.
             user_id = uuid4()
@@ -134,14 +137,16 @@ class ContentManagementSystemTestCase(TestCase):
 
 class TestWithSQLite(ContentManagementSystemTestCase):
     env: ClassVar[Dict[str, str]] = {
-        "PERSISTENCE_MODULE": "examples.contentmanagementsystem.sqlite",
+        "PERSISTENCE_MODULE": "eventsourcing.sqlite",
+        "PROCESS_RECORDER_TOPIC": get_topic(SQLiteFtsProcessRecorder),
         "SQLITE_DBNAME": ":memory:",
     }
 
 
 class TestWithPostgres(ContentManagementSystemTestCase):
     env: ClassVar[Dict[str, str]] = {
-        "PERSISTENCE_MODULE": "examples.contentmanagementsystem.postgres",
+        "PERSISTENCE_MODULE": "eventsourcing.postgres",
+        "PROCESS_RECORDER_TOPIC": get_topic(PostgresFtsProcessRecorder),
         "POSTGRES_DBNAME": "eventsourcing",
         "POSTGRES_HOST": "127.0.0.1",
         "POSTGRES_PORT": "5432",
@@ -165,10 +170,13 @@ class TestWithPostgres(ContentManagementSystemTestCase):
             self.env["POSTGRES_USER"],
             self.env["POSTGRES_PASSWORD"],
         ) as datastore:
-            drop_postgres_table(datastore, "public.contentmanagementapplication_events")
-            drop_postgres_table(datastore, "public.pages_projection_example")
-            drop_postgres_table(datastore, "public.searchindexapplication_events")
-            drop_postgres_table(datastore, "public.searchindexapplication_tracking")
+            drop_postgres_table(datastore, "public.contentmanagement_events")
+            drop_postgres_table(datastore, "public.ftsprojection")
+            # drop_postgres_table(datastore, "public.ftsprocess_events")
+            drop_postgres_table(datastore, "public.ftsprocess_tracking")
+
+    def test_system(self) -> None:
+        super().test_system()
 
 
 del ContentManagementSystemTestCase

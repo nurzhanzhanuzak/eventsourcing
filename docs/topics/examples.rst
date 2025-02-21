@@ -42,7 +42,17 @@ Example applications
    examples/cargo-shipping
    examples/content-management
    examples/searchable-timestamps
-   examples/searchable-content
+   examples/fts-content-management
+
+.. _Example projections:
+
+Example projections
+===================
+
+.. toctree::
+   :maxdepth: 2
+
+   examples/fts-projection
 
 .. _Example systems:
 
@@ -52,4 +62,4 @@ Example systems
 .. toctree::
    :maxdepth: 2
 
-   examples/content-management-system
+   examples/fts-process

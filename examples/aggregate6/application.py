@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict
 from eventsourcing.application import Application
 from examples.aggregate6.domainmodel import add_trick, project_dog, register_dog
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from uuid import UUID
 
 

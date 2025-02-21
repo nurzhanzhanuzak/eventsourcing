@@ -11,5 +11,6 @@ This library contains several modules that can help with event sourcing in Pytho
    domain
    application
    persistence
+   projection
    system
    interface

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from eventsourcing.persistence import ApplicationRecorder
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from datetime import datetime
     from uuid import UUID
 

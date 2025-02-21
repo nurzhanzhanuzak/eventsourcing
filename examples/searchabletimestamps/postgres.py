@@ -4,15 +4,14 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, List, Tuple, cast
 from uuid import UUID
 
-from eventsourcing.domain import Aggregate
 from eventsourcing.postgres import (
-    Factory,
     PostgresApplicationRecorder,
     PostgresDatastore,
+    PostgresFactory,
 )
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from psycopg import Cursor
     from psycopg.rows import DictRow
 
@@ -31,6 +30,15 @@ class SearchableTimestampsApplicationRecorder(
         self.check_table_name_length(event_timestamps_table_name, datastore.schema)
         self.event_timestamps_table_name = event_timestamps_table_name
         super().__init__(datastore, events_table_name=events_table_name)
+        self.create_table_statements.append(
+            "CREATE TABLE IF NOT EXISTS "
+            f"{self.event_timestamps_table_name} ("
+            "originator_id uuid NOT NULL, "
+            "timestamp timestamp with time zone, "
+            "originator_version bigint NOT NULL, "
+            "PRIMARY KEY "
+            "(originator_id, timestamp))"
+        )
         self.insert_event_timestamp_statement = (
             f"INSERT INTO {self.event_timestamps_table_name} VALUES (%s, %s, %s)"
         )
@@ -41,19 +49,6 @@ class SearchableTimestampsApplicationRecorder(
             "ORDER BY originator_version DESC "
             "LIMIT 1"
         )
-
-    def construct_create_table_statements(self) -> List[str]:
-        statements = super().construct_create_table_statements()
-        statements.append(
-            "CREATE TABLE IF NOT EXISTS "
-            f"{self.event_timestamps_table_name} ("
-            "originator_id uuid NOT NULL, "
-            "timestamp timestamp with time zone, "
-            "originator_version bigint NOT NULL, "
-            "PRIMARY KEY "
-            "(originator_id, timestamp))"
-        )
-        return statements
 
     def _insert_events(
         self,
@@ -76,21 +71,18 @@ class SearchableTimestampsApplicationRecorder(
     def get_version_at_timestamp(
         self, originator_id: UUID, timestamp: datetime
     ) -> int | None:
-        with self.datastore.transaction(commit=False) as curs:
+        with self.datastore.get_connection() as conn, conn.cursor() as curs:
             curs.execute(
                 query=self.select_event_timestamp_statement,
                 params=(originator_id, timestamp),
                 prepare=True,
             )
             for row in curs.fetchall():
-                version = row["originator_version"]
-                break
-            else:
-                version = Aggregate.INITIAL_VERSION - 1
-            return version
+                return row["originator_version"]
+            return None
 
 
-class SearchableTimestampsInfrastructureFactory(Factory):
+class SearchableTimestampsInfrastructureFactory(PostgresFactory):
     def application_recorder(self) -> ApplicationRecorder:
         prefix = (self.datastore.schema + ".") if self.datastore.schema else ""
         prefix += self.env.name.lower() or "stored"
@@ -105,4 +97,4 @@ class SearchableTimestampsInfrastructureFactory(Factory):
         return recorder
 
 
-del Factory
+del PostgresFactory

@@ -7,7 +7,7 @@ from eventsourcing.utils import get_topic
 from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
 from examples.aggregate8.domainmodel import Dog, Trick
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from uuid import UUID
 
 

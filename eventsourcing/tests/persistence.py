@@ -30,8 +30,10 @@ from eventsourcing.persistence import (
     ProcessRecorder,
     StoredEvent,
     Tracking,
+    TrackingRecorder,
     Transcoding,
     UUIDAsHex,
+    WaitInterruptedError,
 )
 from eventsourcing.utils import Environment, get_topic
 
@@ -466,7 +468,7 @@ class ApplicationRecorderTestCase(TestCase, ABC):
             try:
                 recorder.insert_events(stored_events)
 
-            except Exception as e:  # pragma: nocover
+            except Exception as e:  # pragma: no cover
                 if errors:
                     return
                 ended = datetime.now()
@@ -487,7 +489,7 @@ class ApplicationRecorderTestCase(TestCase, ABC):
             while not stop_reading.is_set():
                 try:
                     recorder.select_notifications(0, 10)
-                except Exception as e:  # pragma: nocover
+                except Exception as e:  # pragma: no cover
                     errors.append(e)
                     return
                 # else:
@@ -502,22 +504,22 @@ class ApplicationRecorderTestCase(TestCase, ABC):
         with ThreadPoolExecutor(max_workers=num_writers) as executor:
             futures = []
             for _ in range(num_writes_per_writer):
-                if errors:  # pragma: nocover
+                if errors:  # pragma: no cover
                     break
                 future = executor.submit(insert_events)
                 futures.append(future)
             for future in futures:
-                if errors:  # pragma: nocover
+                if errors:  # pragma: no cover
                     break
                 try:
                     future.result()
-                except Exception as e:  # pragma: nocover
+                except Exception as e:  # pragma: no cover
                     errors.append(e)
                     break
 
         stop_reading.set()
 
-        if errors:  # pragma: nocover
+        if errors:  # pragma: no cover
             raise errors[0]
 
         for thread_id, thread_num in threads.items():
@@ -565,7 +567,7 @@ class ApplicationRecorderTestCase(TestCase, ABC):
             try:
                 recorder.insert_events(stored_events)
 
-            except Exception:  # pragma: nocover
+            except Exception:  # pragma: no cover
                 errors_happened.set()
                 tb = traceback.format_exc()
                 print(tb)
@@ -745,6 +747,18 @@ class TrackingRecorderTestCase(TestCase, ABC):
         assert tracking_recorder.has_tracking_id("upstream1", 22)
         assert tracking_recorder.has_tracking_id("upstream2", 21)
         assert not tracking_recorder.has_tracking_id("upstream2", 22)
+
+    def test_wait(self):
+        tracking_recorder = self.create_recorder()
+        tracking1 = Tracking(notification_id=21, application_name="upstream1")
+        tracking_recorder.insert_tracking(tracking=tracking1)
+        tracking_recorder.wait("upstream1", 21)
+        with self.assertRaises(TimeoutError):
+            tracking_recorder.wait("upstream1", 22, timeout=0.1)
+        with self.assertRaises(WaitInterruptedError):
+            interrupt = Event()
+            interrupt.set()
+            tracking_recorder.wait("upstream1", 22, interrupt=interrupt)
 
 
 class ProcessRecorderTestCase(TestCase, ABC):
@@ -1015,6 +1029,14 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         pass
 
     @abstractmethod
+    def expected_tracking_recorder_class(self):
+        pass
+
+    @abstractmethod
+    def tracking_recorder_subclass(self):
+        pass
+
+    @abstractmethod
     def expected_process_recorder_class(self):
         pass
 
@@ -1164,6 +1186,26 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         self.env["CREATE_TABLE"] = "f"
         recorder = self.factory.application_recorder()
         self.assertEqual(type(recorder), self.expected_application_recorder_class())
+
+    def test_create_tracking_recorder(self):
+        recorder = self.factory.tracking_recorder()
+        self.assertEqual(type(recorder), self.expected_tracking_recorder_class())
+        self.assertIsInstance(recorder, TrackingRecorder)
+
+        # Exercise code path where table is not created.
+        self.env["CREATE_TABLE"] = "f"
+        recorder = self.factory.tracking_recorder()
+        self.assertEqual(type(recorder), self.expected_tracking_recorder_class())
+
+        # Exercise code path where tracking recorder class is specified as arg.
+        subclass = self.tracking_recorder_subclass()
+        recorder = self.factory.tracking_recorder(subclass)
+        self.assertEqual(type(recorder), subclass)
+
+        # Exercise code path where tracking recorder class is specified as topic.
+        self.factory.env[self.factory.TRACKING_RECORDER_TOPIC] = get_topic(subclass)
+        recorder = self.factory.tracking_recorder()
+        self.assertEqual(type(recorder), subclass)
 
     def test_create_process_recorder(self):
         recorder = self.factory.process_recorder()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Iterator, Type, Union, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Iterator, Type, Union
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from eventsourcing.application import (
@@ -8,17 +8,17 @@ from eventsourcing.application import (
     Application,
     EventSourcedLog,
 )
-from examples.contentmanagement.domainmodel import Index, Page, PageLogged
+from examples.contentmanagement.domainmodel import Page, PageLogged, Slug
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from eventsourcing.domain import MutableOrImmutableAggregate
     from eventsourcing.utils import EnvType
 
 PageDetailsType = Dict[str, Union[str, Any]]
 
 
-class ContentManagementApplication(Application):
-    env: ClassVar[Dict[str, str]] = {"COMPRESSOR_TOPIC": "gzip"}
+class ContentManagement(Application):
+    env: ClassVar[Dict[str, str]] = {"CONTENTMANAGEMENT_COMPRESSOR_TOPIC": "gzip"}
     snapshotting_intervals: ClassVar[Dict[Type[MutableOrImmutableAggregate], int]] = {
         Page: 5
     }
@@ -29,11 +29,12 @@ class ContentManagementApplication(Application):
             self.events, uuid5(NAMESPACE_URL, "/page_log"), PageLogged
         )
 
-    def create_page(self, title: str, slug: str) -> None:
-        page = Page(title=title, slug=slug)
+    def create_page(self, title: str, slug: str) -> int:
+        page = Page(title=title, slug=slug, body="")
         page_logged = self.page_log.trigger_event(page_id=page.id)
-        index_entry = Index(slug, ref=page.id)
-        self.save(page, page_logged, index_entry)
+        index_entry = Slug(slug, page_id=page.id)
+        recordings = self.save(page, page_logged, index_entry)
+        return recordings[-1].notification.id
 
     def get_page_by_slug(self, slug: str) -> PageDetailsType:
         page = self._get_page_by_slug(slug)
@@ -51,47 +52,50 @@ class ContentManagementApplication(Application):
             "modified_by": page.modified_by,
         }
 
-    def update_title(self, slug: str, title: str) -> None:
+    def update_title(self, slug: str, title: str) -> int:
         page = self._get_page_by_slug(slug)
         page.update_title(title=title)
-        self.save(page)
+        recordings = self.save(page)
+        return recordings[-1].notification.id
 
-    def update_slug(self, old_slug: str, new_slug: str) -> None:
+    def update_slug(self, old_slug: str, new_slug: str) -> int:
         page = self._get_page_by_slug(old_slug)
         page.update_slug(new_slug)
-        old_index = self._get_index(old_slug)
-        old_index.update_ref(None)
+        old_slug_aggregate = self._get_slug(old_slug)
+        old_slug_aggregate.update_page(None)
         try:
-            new_index = self._get_index(new_slug)
+            new_slug_aggregate = self._get_slug(new_slug)
         except AggregateNotFoundError:
-            new_index = Index(new_slug, page.id)
+            new_slug_aggregate = Slug(new_slug, page.id)
         else:
-            if new_index.ref is None:
-                new_index.update_ref(page.id)
+            if new_slug_aggregate.page_id is None:
+                new_slug_aggregate.update_page(page.id)
             else:
                 raise SlugConflictError
-        self.save(page, old_index, new_index)
+        recordings = self.save(page, old_slug_aggregate, new_slug_aggregate)
+        return recordings[-1].notification.id
 
-    def update_body(self, slug: str, body: str) -> None:
+    def update_body(self, slug: str, body: str) -> int:
         page = self._get_page_by_slug(slug)
         page.update_body(body)
-        self.save(page)
+        recordings = self.save(page)
+        return recordings[-1].notification.id
 
     def _get_page_by_slug(self, slug: str) -> Page:
         try:
-            index = self._get_index(slug)
+            index = self._get_slug(slug)
         except AggregateNotFoundError:
             raise PageNotFoundError(slug) from None
-        if index.ref is None:
+        if index.page_id is None:
             raise PageNotFoundError(slug)
-        page_id = index.ref
+        page_id = index.page_id
         return self._get_page_by_id(page_id)
 
     def _get_page_by_id(self, page_id: UUID) -> Page:
-        return cast(Page, self.repository.get(page_id))
+        return self.repository.get(page_id)
 
-    def _get_index(self, slug: str) -> Index:
-        return cast(Index, self.repository.get(Index.create_id(slug)))
+    def _get_slug(self, slug: str) -> Slug:
+        return self.repository.get(Slug.create_id(slug))
 
     def get_pages(
         self,

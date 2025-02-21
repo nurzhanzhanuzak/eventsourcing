@@ -35,3 +35,26 @@ Test case
 
 
 .. literalinclude:: ../../../examples/aggregate6/test_application.py
+
+
+Code reference
+--------------
+
+.. automodule:: examples.aggregate6.domainmodel
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.aggregate6.application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.aggregate6.test_application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+

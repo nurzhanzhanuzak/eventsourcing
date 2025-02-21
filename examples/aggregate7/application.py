@@ -8,7 +8,7 @@ from examples.aggregate7.domainmodel import Trick, add_trick, project_dog, regis
 from examples.aggregate7.immutablemodel import Snapshot
 from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from uuid import UUID
 
 

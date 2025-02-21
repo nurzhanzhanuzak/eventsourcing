@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict
 from eventsourcing.application import Application
 from examples.aggregate4.domainmodel import Dog
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from uuid import UUID
 
 
@@ -24,4 +24,9 @@ class DogSchool(Application):
 
     def get_dog(self, dog_id: UUID) -> Dict[str, Any]:
         dog = self.repository.get(dog_id, projector_func=Dog.projector)
-        return {"name": dog.name, "tricks": tuple(dog.tricks)}
+        return {
+            "name": dog.name,
+            "tricks": tuple(dog.tricks),
+            "created_on": dog.created_on,
+            "modified_on": dog.modified_on,
+        }

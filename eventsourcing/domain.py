@@ -410,7 +410,7 @@ def _spec_filter_kwargs_for_method_params(method: Callable[..., Any]) -> set[str
     return set(method_signature.parameters)
 
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     EventSpecType = Union[str, Type[CanMutateAggregate]]
 
 CommandMethod = Callable[..., None]
@@ -692,6 +692,8 @@ class UnboundCommandMethodDecorator:
         self.__qualname__ = event_decorator.decorated_method.__qualname__
         self.__annotations__ = event_decorator.decorated_method.__annotations__
         self.__doc__ = event_decorator.decorated_method.__doc__
+        # self.__wrapped__ = event_decorator.decorated_method
+        # functools.update_wrapper(self, event_decorator.decorated_method)
 
     def __call__(self, *args: Any, **kwargs: Any) -> None:
         # Expect first argument is an aggregate instance.

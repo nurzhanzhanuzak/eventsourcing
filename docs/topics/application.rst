@@ -58,6 +58,7 @@ The main features of an application are:
 * the :func:`~eventsourcing.application.Application.save` method, used for collecting
   and recording new aggregate events;
 * the ``repository`` attribute, with which aggregates are reconstructed;
+* the :func:`~eventsourcing.application.Application.get_application_sequence()` method;
 * the ``notification_log`` attribute, from which the state of the application can be propagated;
 * the :func:`~eventsourcing.application.Application.take_snapshot` method;
 * the application environment, used to configure an application;
@@ -78,10 +79,17 @@ object attribute ``repository`` which holds an :ref:`event-sourced repository <R
 The repository's :func:`~eventsourcing.application.Repository.get` method can be used by
 your application's command and query methods to obtain already existing aggregates.
 
+The :class:`~eventsourcing.application.Application` class defines a
+method :func:`~eventsourcing.application.Application.get_application_sequence` which can
+be used to subscribe to the domain events in an application sequence. This uses the
+:class:`TrackingRecorder.subscribe() <eventsourcing.persistence.TrackingRecorder.subscribe>`
+method to listen to the application's database, selecting notification objects and converting
+them into domain events using the application's mapper, and can be used by event processing
+components to project the state of the application into materialised views.
+
 The :class:`~eventsourcing.application.Application` class defines an
 object attribute ``notification_log`` which holds a :ref:`local notification log <Notification log>`.
-The notification log can be used to propagate the state of an application as a sequence of
-domain event notifications.
+The notification log can be used to select notification objects from the application sequence.
 
 The :class:`~eventsourcing.application.Application` class defines an object method
 :func:`~eventsourcing.application.Application.take_snapshot` which can

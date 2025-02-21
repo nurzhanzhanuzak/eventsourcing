@@ -4,7 +4,7 @@ import logging
 from asyncio import CancelledError
 from contextlib import contextmanager
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Callable, Iterator, List, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterator, List, Sequence, Type
 
 import psycopg
 import psycopg.errors
@@ -35,7 +35,7 @@ from eventsourcing.persistence import (
 )
 from eventsourcing.utils import Environment, resolve_topic, retry, strtobool
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from uuid import UUID
 
     from typing_extensions import Self
@@ -73,7 +73,7 @@ class PostgresDatastore:
         self,
         dbname: str,
         host: str,
-        port: str,
+        port: str | int,
         user: str,
         password: str,
         *,
@@ -117,14 +117,16 @@ class PostgresDatastore:
         self.lock_timeout = lock_timeout
         self.schema = schema.strip()
 
-    def after_connect_func(self) -> None:
+    def after_connect_func(self) -> Callable[[Connection[Any]], None]:
         statement = (
             "SET idle_in_transaction_session_timeout = "
             f"'{self.idle_in_transaction_session_timeout}s'"
         )
+
         def after_connect(conn: Connection[DictRow]) -> None:
             conn.autocommit = True
             conn.cursor().execute(statement)
+
         return after_connect
 
     @contextmanager
@@ -170,9 +172,6 @@ class PostgresDatastore:
     def close(self) -> None:
         self.pool.close()
 
-    def __del__(self) -> None:
-        self.close()
-
     def __enter__(self) -> Self:
         return self
 
@@ -217,6 +216,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         *,
         events_table_name: str = "stored_events",
     ):
+        super().__init__(datastore)
         self.check_table_name_length(events_table_name, datastore.schema)
         self.events_table_name = events_table_name
         # Index names can't be qualified names, but
@@ -228,18 +228,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         self.notification_id_index_name = (
             f"{unqualified_table_name}_notification_id_idx "
         )
-        super().__init__(datastore)
-        self.insert_events_statement = (
-            f"INSERT INTO {self.events_table_name} VALUES (%s, %s, %s, %s)"
-        )
-        self.select_events_statement = (
-            f"SELECT * FROM {self.events_table_name} WHERE originator_id = %s"
-        )
-        self.lock_table_statements: List[str] = []
-
-    def construct_create_table_statements(self) -> List[str]:
-        statements = super().construct_create_table_statements()
-        statements.append(
+        self.create_table_statements.append(
             "CREATE TABLE IF NOT EXISTS "
             f"{self.events_table_name} ("
             "originator_id uuid NOT NULL, "
@@ -250,7 +239,14 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
             "(originator_id, originator_version)) "
             "WITH (autovacuum_enabled=false)"
         )
-        return statements
+
+        self.insert_events_statement = (
+            f"INSERT INTO {self.events_table_name} VALUES (%s, %s, %s, %s)"
+        )
+        self.select_events_statement = (
+            f"SELECT * FROM {self.events_table_name} WHERE originator_id = %s"
+        )
+        self.lock_table_statements: List[str] = []
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_events(
@@ -287,7 +283,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         self,
         c: Cursor[DictRow],
         stored_events: List[StoredEvent],
-        **kwargs: Any,
+        **_: Any,
     ) -> None:
         pass
 
@@ -299,7 +295,6 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
     ) -> None:
         # Only do something if there is something to do.
         if len(stored_events) > 0:
-            # print(f"Inserting {len(stored_events)} events")
             self._lock_table(c)
 
             self._notify_channel(c)
@@ -381,6 +376,23 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         events_table_name: str = "stored_events",
     ):
         super().__init__(datastore, events_table_name=events_table_name)
+        self.create_table_statements[-1] = (
+            "CREATE TABLE IF NOT EXISTS "
+            f"{self.events_table_name} ("
+            "originator_id uuid NOT NULL, "
+            "originator_version bigint NOT NULL, "
+            "topic text, "
+            "state bytea, "
+            "notification_id bigserial, "
+            "PRIMARY KEY "
+            "(originator_id, originator_version)) "
+            "WITH (autovacuum_enabled=false)"
+        )
+        self.create_table_statements.append(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            f"{self.notification_id_index_name}"
+            f"ON {self.events_table_name} (notification_id ASC);"
+        )
         self.channel_name = self.events_table_name.replace(".", "_")
         self.insert_events_statement += " RETURNING notification_id"
         self.max_notification_id_statement = (
@@ -389,27 +401,6 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         self.lock_table_statements = [
             f"SET LOCAL lock_timeout = '{self.datastore.lock_timeout}s'",
             f"LOCK TABLE {self.events_table_name} IN EXCLUSIVE MODE",
-        ]
-
-    def construct_create_table_statements(self) -> List[str]:
-        return [
-            (
-                "CREATE TABLE IF NOT EXISTS "
-                f"{self.events_table_name} ("
-                "originator_id uuid NOT NULL, "
-                "originator_version bigint NOT NULL, "
-                "topic text, "
-                "state bytea, "
-                "notification_id bigserial, "
-                "PRIMARY KEY "
-                "(originator_id, originator_version)) "
-                "WITH (autovacuum_enabled=false)"
-            ),
-            (
-                "CREATE UNIQUE INDEX IF NOT EXISTS "
-                f"{self.notification_id_index_name}"
-                f"ON {self.events_table_name} (notification_id ASC);"
-            ),
         ]
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
@@ -538,11 +529,13 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
 
 
 class PostgresSubscription(ListenNotifySubscription[PostgresApplicationRecorder]):
-    def __enter__(self) -> Self:
-        super().__enter__()
+    def __init__(
+        self, recorder: PostgresApplicationRecorder, gt: int | None = None
+    ) -> None:
+        assert isinstance(recorder, PostgresApplicationRecorder)
+        super().__init__(recorder=recorder, gt=gt)
         self._listen_thread = Thread(target=self._listen)
         self._listen_thread.start()
-        return self
 
     def __exit__(self, *args: object, **kwargs: Any) -> None:
         super().__exit__(*args, **kwargs)
@@ -578,9 +571,17 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
         tracking_table_name: str = "notification_tracking",
         **kwargs: Any,
     ):
+        super().__init__(datastore, **kwargs)
         self.check_table_name_length(tracking_table_name, datastore.schema)
         self.tracking_table_name = tracking_table_name
-        super().__init__(datastore, **kwargs)
+        self.create_table_statements.append(
+            "CREATE TABLE IF NOT EXISTS "
+            f"{self.tracking_table_name} ("
+            "application_name text, "
+            "notification_id bigint, "
+            "PRIMARY KEY "
+            "(application_name, notification_id))"
+        )
         self.insert_tracking_statement = (
             f"INSERT INTO {self.tracking_table_name} VALUES (%s, %s)"
         )
@@ -594,18 +595,6 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
             f"FROM {self.tracking_table_name} "
             "WHERE application_name=%s AND notification_id=%s"
         )
-
-    def construct_create_table_statements(self) -> List[str]:
-        statements = super().construct_create_table_statements()
-        statements.append(
-            "CREATE TABLE IF NOT EXISTS "
-            f"{self.tracking_table_name} ("
-            "application_name text, "
-            "notification_id bigint, "
-            "PRIMARY KEY "
-            "(application_name, notification_id))"
-        )
-        return statements
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_tracking(self, tracking: Tracking) -> None:
@@ -681,7 +670,7 @@ class PostgresProcessRecorder(
         super()._insert_events(c, stored_events, **kwargs)
 
 
-class PostgresFactory(InfrastructureFactory):
+class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
     POSTGRES_DBNAME = "POSTGRES_DBNAME"
     POSTGRES_HOST = "POSTGRES_HOST"
     POSTGRES_PORT = "POSTGRES_PORT"
@@ -703,6 +692,7 @@ class PostgresFactory(InfrastructureFactory):
 
     aggregate_recorder_class = PostgresAggregateRecorder
     application_recorder_class = PostgresApplicationRecorder
+    tracking_recorder_class = PostgresTrackingRecorder
     process_recorder_class = PostgresProcessRecorder
 
     def __init__(self, env: Environment):
@@ -894,9 +884,42 @@ class PostgresFactory(InfrastructureFactory):
         events_table_name = prefix + "_events"
         if self.datastore.schema:
             events_table_name = f"{self.datastore.schema}.{events_table_name}"
-        recorder = type(self).application_recorder_class(
+
+        application_recorder_topic = self.env.get(self.APPLICATION_RECORDER_TOPIC)
+        if application_recorder_topic:
+            application_recorder_class: Type[PostgresApplicationRecorder] = (
+                resolve_topic(application_recorder_topic)
+            )
+            assert issubclass(application_recorder_class, PostgresApplicationRecorder)
+        else:
+            application_recorder_class = type(self).application_recorder_class
+
+        recorder = application_recorder_class(
             datastore=self.datastore,
             events_table_name=events_table_name,
+        )
+        if self.env_create_table():
+            recorder.create_table()
+        return recorder
+
+    def tracking_recorder(
+        self, tracking_recorder_class: Type[PostgresTrackingRecorder] | None = None
+    ) -> PostgresTrackingRecorder:
+        prefix = self.env.name.lower() or "notification"
+        tracking_table_name = prefix + "_tracking"
+        if self.datastore.schema:
+            tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
+        if tracking_recorder_class is None:
+            tracking_recorder_topic = self.env.get(self.TRACKING_RECORDER_TOPIC)
+            if tracking_recorder_topic:
+                tracking_recorder_class = resolve_topic(tracking_recorder_topic)
+            else:
+                tracking_recorder_class = type(self).tracking_recorder_class
+        assert tracking_recorder_class is not None
+        assert issubclass(tracking_recorder_class, PostgresTrackingRecorder)
+        recorder = tracking_recorder_class(
+            datastore=self.datastore,
+            tracking_table_name=tracking_table_name,
         )
         if self.env_create_table():
             recorder.create_table()
@@ -910,7 +933,17 @@ class PostgresFactory(InfrastructureFactory):
         if self.datastore.schema:
             events_table_name = f"{self.datastore.schema}.{events_table_name}"
             tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
-        recorder = type(self).process_recorder_class(
+
+        process_recorder_topic = self.env.get(self.PROCESS_RECORDER_TOPIC)
+        if process_recorder_topic:
+            process_recorder_class: Type[PostgresTrackingRecorder] = resolve_topic(
+                process_recorder_topic
+            )
+            assert issubclass(process_recorder_class, PostgresProcessRecorder)
+        else:
+            process_recorder_class = type(self).process_recorder_class
+
+        recorder = process_recorder_class(
             datastore=self.datastore,
             events_table_name=events_table_name,
             tracking_table_name=tracking_table_name,

@@ -13,6 +13,13 @@ class TestDogSchool(TestCase):
 
         # Evolve application state.
         dog_id = school.register_dog("Fido")
+
+        # Query application state.
+        dog = school.get_dog(dog_id)
+        assert dog["name"] == "Fido"
+        assert dog["tricks"] == ()
+        assert dog["created_on"] == dog["modified_on"]
+
         school.add_trick(dog_id, "roll over")
         school.add_trick(dog_id, "play dead")
 
@@ -20,6 +27,7 @@ class TestDogSchool(TestCase):
         dog = school.get_dog(dog_id)
         assert dog["name"] == "Fido"
         assert dog["tricks"] == ("roll over", "play dead")
+        assert dog["created_on"] < dog["modified_on"]
 
         # Select notifications.
         notifications = school.notification_log.select(start=1, limit=10)
@@ -30,9 +38,11 @@ class TestDogSchool(TestCase):
         dog = school.get_dog(dog_id)
         assert dog["name"] == "Fido"
         assert dog["tricks"] == ("roll over", "play dead")
+        assert dog["created_on"] < dog["modified_on"]
 
         # Continue with snapshotted aggregate.
         school.add_trick(dog_id, "fetch ball")
         dog = school.get_dog(dog_id)
         assert dog["name"] == "Fido"
         assert dog["tricks"] == ("roll over", "play dead", "fetch ball")
+        assert dog["created_on"] < dog["modified_on"]

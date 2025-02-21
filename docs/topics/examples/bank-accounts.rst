@@ -41,3 +41,26 @@ exercises all the methods of the application in one
 test method.
 
 .. literalinclude:: ../../../examples/bankaccounts/test.py
+
+
+Code reference
+--------------
+
+.. automodule:: examples.bankaccounts.domainmodel
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.bankaccounts.application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.bankaccounts.test
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+

@@ -20,7 +20,7 @@ sys.path.append(str(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # -- Project information -----------------------------------------------------
 
 project = 'eventsourcing'
-copyright = '2023, John Bywater'
+copyright = '2025, John Bywater'
 author = 'John Bywater'
 
 # The full version, including alpha/beta/rc tags
@@ -28,6 +28,11 @@ author = 'John Bywater'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
+
+# Avoid sphinx - pydnatic mixup: "Field "model_fields" conflicts with member ... of protected namespace "model_"."
+# See https://github.com/pydantic/pydantic/discussions/7763 for workaround.
+import examples.aggregate7.domainmodel
+import examples.aggregate8.domainmodel
 
 from importlib.metadata import version
 

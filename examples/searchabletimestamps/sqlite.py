@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, List, Sequence, Tuple, cast
 from uuid import UUID
 
-from eventsourcing.domain import Aggregate
 from eventsourcing.sqlite import (
     SQLiteApplicationRecorder,
     SQLiteCursor,
@@ -13,7 +12,7 @@ from eventsourcing.sqlite import (
 )
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from eventsourcing.persistence import ApplicationRecorder, StoredEvent
 
 
@@ -80,11 +79,8 @@ class SearchableTimestampsApplicationRecorder(
                 self.select_event_timestamp_statement, (originator_id.hex, timestamp)
             )
             for row in c.fetchall():
-                version = row["originator_version"]
-                break
-            else:
-                version = Aggregate.INITIAL_VERSION - 1
-            return version
+                return row["originator_version"]
+            return None
 
 
 class SearchableTimestampsInfrastructureFactory(SQLiteFactory):

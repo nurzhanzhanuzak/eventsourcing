@@ -22,7 +22,7 @@ from typing import (
     overload,
 )
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from types import FunctionType, WrapperDescriptorType
 
 

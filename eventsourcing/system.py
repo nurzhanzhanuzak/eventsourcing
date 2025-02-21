@@ -23,7 +23,7 @@ from typing import (
     cast,
 )
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from typing_extensions import Self
 
 from eventsourcing.application import (

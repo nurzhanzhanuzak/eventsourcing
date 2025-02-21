@@ -456,14 +456,13 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
 
 
 class TestPostgresSubscription(TestCase):
-    def test(self):
-        # Check it's okay to call stop() without having a listen_conn.
+    def test_listen_catches_error(self):
         mock_recorder = Mock(spec=PostgresApplicationRecorder)
-        subscription = PostgresSubscription(mock_recorder, 0)
-        subscription.stop()
 
-        # Check _listen_for_notifications() catches error.
         subscription = PostgresSubscription(mock_recorder, 0)
+
+        subscription._thread_error = None
+
         subscription._listen()
         self.assertIsInstance(subscription._thread_error, AttributeError)
 
@@ -472,46 +471,6 @@ class TestPostgresSubscription(TestCase):
         subscription._thread_error = ValueError()
         subscription._listen()
         self.assertIsInstance(subscription._thread_error, ValueError)
-
-        # Check _loop_on_selecting_notifications() catches error.
-        mock_datastore = Mock(spec=PostgresDatastore)
-        mock_recorder.datastore = mock_datastore
-        subscription = PostgresSubscription(mock_recorder, 0)
-        subscription._loop_on_pull()
-        self.assertIsInstance(subscription._thread_error, TypeError)
-
-        # Check _loop_on_selecting_notifications() preserves first error.
-        mock_datastore = Mock(spec=PostgresDatastore)
-        mock_recorder.datastore = mock_datastore
-        subscription = PostgresSubscription(mock_recorder, 0)
-        subscription._thread_error = ValueError()
-        subscription._loop_on_pull()
-        self.assertIsInstance(subscription._thread_error, ValueError)
-
-        # Check __next__() raises thread error.
-        subscription = PostgresSubscription(mock_recorder, 0)
-        subscription.stop()
-        with self.assertRaises(StopIteration):
-            next(subscription)
-        subscription._thread_error = ValueError()
-        with self.assertRaises(ValueError):
-            next(subscription)
-
-        # Check __iter__() raises if not called __enter__().
-        subscription = PostgresSubscription(mock_recorder, 0)
-        with self.assertRaises(ProgrammingError):
-            iter(subscription)
-
-        # Check __exit__() raises if not called __enter__().
-        subscription = PostgresSubscription(mock_recorder, 0)
-        with self.assertRaises(ProgrammingError):
-            subscription.__exit__()
-
-        # Check __enter__() raises if not already called __enter__().
-        subscription = PostgresSubscription(mock_recorder, 0)
-        subscription.__enter__()
-        with self.assertRaises(ProgrammingError):
-            subscription.__enter__()
 
 
 class TestPostgresApplicationRecorder(
@@ -919,6 +878,21 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
     def expected_application_recorder_class(self):
         return PostgresApplicationRecorder
 
+    def expected_tracking_recorder_class(self):
+        return PostgresTrackingRecorder
+
+    class PostgresTrackingRecorderSubclass(PostgresTrackingRecorder):
+        pass
+
+    def tracking_recorder_subclass(self):
+        return self.PostgresTrackingRecorderSubclass
+
+    def test_create_tracking_recorder(self):
+        super().test_create_tracking_recorder()
+        self.factory.datastore.schema = "myschema"
+        recorder = self.factory.tracking_recorder()
+        self.assertTrue(recorder.tracking_table_name.startswith("myschema."))
+
     def expected_process_recorder_class(self):
         return PostgresProcessRecorder
 
@@ -1276,6 +1250,6 @@ del ApplicationRecorderTestCase
 del TrackingRecorderTestCase
 del ProcessRecorderTestCase
 del InfrastructureFactoryTestCase
-del SetupPostgresDatastore
+# del SetupPostgresDatastore
 del WithSchema
 del TestConnectionPool

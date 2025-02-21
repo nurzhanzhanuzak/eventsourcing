@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from eventsourcing.application import AggregateNotFoundError, Application
 from examples.bankaccounts.domainmodel import BankAccount
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from decimal import Decimal
     from uuid import UUID
 

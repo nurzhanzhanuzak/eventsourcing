@@ -7,7 +7,7 @@ from examples.cargoshipping.application import BookingApplication
 from examples.cargoshipping.domainmodel import Cargo
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from datetime import datetime
     from uuid import UUID
 

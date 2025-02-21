@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 from collections import defaultdict
 from threading import Event, Lock
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Sequence, Set
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Sequence, Set, Type
 
 from eventsourcing.persistence import (
     AggregateRecorder,
@@ -18,12 +18,10 @@ from eventsourcing.persistence import (
     Tracking,
     TrackingRecorder,
 )
-from eventsourcing.utils import reversed_keys
+from eventsourcing.utils import resolve_topic, reversed_keys
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from uuid import UUID
-
-    from typing_extensions import Self
 
 
 class POPORecorder:
@@ -174,10 +172,12 @@ class POPOApplicationRecorder(POPOAggregateRecorder, ApplicationRecorder):
 
 
 class POPOSubscription(ListenNotifySubscription[POPOApplicationRecorder]):
-    def __enter__(self) -> Self:
-        super().__enter__()
+    def __init__(
+        self, recorder: POPOApplicationRecorder, gt: int | None = None
+    ) -> None:
+        assert isinstance(recorder, POPOApplicationRecorder)
+        super().__init__(recorder=recorder, gt=gt)
         self._recorder.listen(self._has_been_notified)
-        return self
 
     def stop(self) -> None:
         super().stop()
@@ -239,12 +239,25 @@ class POPOProcessRecorder(
         return notification_ids
 
 
-class POPOFactory(InfrastructureFactory):
+class POPOFactory(InfrastructureFactory[POPOTrackingRecorder]):
     def aggregate_recorder(self, purpose: str = "events") -> AggregateRecorder:
         return POPOAggregateRecorder()
 
     def application_recorder(self) -> ApplicationRecorder:
         return POPOApplicationRecorder()
+
+    def tracking_recorder(
+        self, tracking_recorder_class: Type[POPOTrackingRecorder] | None = None
+    ) -> POPOTrackingRecorder:
+        if tracking_recorder_class is None:
+            tracking_recorder_topic = self.env.get(self.TRACKING_RECORDER_TOPIC)
+            if tracking_recorder_topic:
+                tracking_recorder_class = resolve_topic(tracking_recorder_topic)
+            else:
+                tracking_recorder_class = POPOTrackingRecorder
+        assert tracking_recorder_class is not None
+        assert issubclass(tracking_recorder_class, POPOTrackingRecorder)
+        return tracking_recorder_class()
 
     def process_recorder(self) -> ProcessRecorder:
         return POPOProcessRecorder()

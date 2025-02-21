@@ -8,8 +8,9 @@ for storing and retrieving :ref:`domain events <Domain events>`.
 This module, along with the :ref:`concrete persistence modules <Persistence>` that
 adapt particular database management systems, are the most important parts of this
 library. The other modules (:doc:`domain </topics/domain>`, :doc:`application </topics/application>`,
-:doc:`system </topics/system>`) serve *primarily* as guiding examples of how to use the
-persistence modules to build event-sourced applications and event-driven systems.
+:doc:`projection </topics/projection>`, and :doc:`system </topics/system>`) serve *primarily* as
+guiding examples of how to use the persistence modules to build event-sourced applications and
+event-driven systems.
 
 Requirements
 ============
@@ -180,7 +181,7 @@ sequence.
 A stored event object also has a :class:`~eventsourcing.persistence.StoredEvent.state` attribute which is a Python
 :data:`bytes` object, that holds the serialized state of the domain event object. And it has a
 :class:`~eventsourcing.persistence.StoredEvent.topic` attribute which is a Python
-:data:`str` that identifies the class of the domain event object that is being stored (see :ref:`Topics <Topics>`).
+:class:`str` that identifies the class of the domain event object that is being stored (see :ref:`Topics <Topics>`).
 
 .. code-block:: python
 
@@ -748,7 +749,7 @@ is a Python frozen data class.
 The :class:`~eventsourcing.persistence.Tracking` class has a ``notification_id``
 attribute which in a Python :data:`int` that indicates the position in an application
 sequence of an event notification that has been processed. And it has an
-``application_name`` attribute which is a Python :data:`str` that identifies
+``application_name`` attribute which is a Python :class:`str` that identifies
 the name of that application.
 
 .. code-block:: python
@@ -864,16 +865,22 @@ The library's :class:`~eventsourcing.persistence.TrackingRecorder` class is an a
 for recording :ref:`tracking objects <Tracking objects>` and querying successfully recorded tracking
 objects.
 
-The :func:`~eventsourcing.persistence.ProcessRecorder.insert_tracking` method defines a method signature for
+The :func:`~eventsourcing.persistence.TrackingRecorder.insert_tracking` method defines a method signature for
 recording tracking objects.
 
-The :func:`~eventsourcing.persistence.ProcessRecorder.max_tracking_id` method defines a method signature for
+The :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method defines a method signature for
 discovering the notification ID of the last successfully recorded tracking object. This is useful when resuming
 the processing of event notifications from an application sequence.
 
-The :func:`~eventsourcing.persistence.ProcessRecorder.has_tracking_id` method defines a method signature for
+The :func:`~eventsourcing.persistence.TrackingRecorder.has_tracking_id` method defines a method signature for
 discovering whether an event notification has been successfully processed, and can be used by user interfaces
-to wait for an eventually consistent materialised view of the state of an event-sourced application to be updated.
+to poll for an eventually consistent materialised view of the state of an event-sourced application to be updated.
+
+The :func:`~eventsourcing.persistence.TrackingRecorder.wait` method defines a method for waiting until a tracking
+object has been recorded, and can be used by user interfaces to wait for an eventually consistent materialised
+view of the state of an event-sourced application to be updated. It calls
+:func:`~eventsourcing.persistence.TrackingRecorder.has_tracking_id` with exponential backoff until
+the given timeout (seconds), optionally interrupted by the setting of a given event.
 
 .. literalinclude:: ../../eventsourcing/persistence.py
    :pyobject: TrackingRecorder
@@ -1052,6 +1059,11 @@ The :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder` class
 implements the :ref:`application recorder <Application recorder>` abstract base class
 by extending :class:`~eventsourcing.popo.SQLiteAggregateRecorder`.
 
+Please note, the :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder` class
+does not implement the `:func:`~eventsourcing.persistence.ApplicationRecorder.subscribe`
+method, and so does not support subscribing to application sequences.
+
+
 .. code-block:: python
 
     from eventsourcing.sqlite import SQLiteApplicationRecorder
@@ -1076,8 +1088,30 @@ by extending :class:`~eventsourcing.popo.SQLiteAggregateRecorder`.
     assert notifications[0].originator_id == stored_event.originator_id
     assert notifications[0].originator_version == stored_event.originator_version
 
-Please note, the :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder` class
-does not support subscribing to the application sequence.
+The :class:`~eventsourcing.postgres.SQLiteTrackingRecorder` class implements the
+:ref:`tracking recorder <Tracking recorder>` abstract base class, and provides
+a method to create a database table for tracking records.
+
+.. code-block:: python
+
+    from eventsourcing.sqlite import SQLiteTrackingRecorder
+
+    # Construct tracking recorder and create table.
+    tracking_recorder = SQLiteTrackingRecorder(datastore)
+    tracking_recorder.create_table()
+
+    # Construct tracking object.
+    tracking = Tracking(notification_id=21, application_name="upstream")
+
+    # Insert tracking object.
+    tracking_recorder.insert_tracking(tracking=tracking)
+
+    # Get latest tracked position.
+    assert tracking_recorder.max_tracking_id("upstream") == 21
+
+    # Check if an event notification has been processed.
+    assert tracking_recorder.has_tracking_id("upstream", 21)
+    assert not tracking_recorder.has_tracking_id("upstream", 22)
 
 The :class:`~eventsourcing.sqlite.SQLiteProcessRecorder` class
 implements the :ref:`process recorder <Process recorder>` abstract base class
@@ -1392,7 +1426,8 @@ will construct an :ref:`aggregate recorder <Aggregate recorder>` from the select
     recorder = factory.aggregate_recorder()
 
     assert isinstance(recorder, AggregateRecorder)
-    assert recorder.__class__.__module__ == "eventsourcing.popo"
+    assert type(recorder).__name__ == "POPOAggregateRecorder"
+    assert type(recorder).__module__ == "eventsourcing.popo"
 
 The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.application_recorder`
 will construct an :ref:`application recorder <Application recorder>` from the selected persistence module.
@@ -1402,7 +1437,19 @@ will construct an :ref:`application recorder <Application recorder>` from the se
     recorder = factory.application_recorder()
 
     assert isinstance(recorder, ApplicationRecorder)
-    assert recorder.__class__.__module__ == "eventsourcing.popo"
+    assert type(recorder).__name__ == "POPOApplicationRecorder"
+    assert type(recorder).__module__ == "eventsourcing.popo"
+
+The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.tracking_recorder`
+will construct a :ref:`tracking recorder <Tracking recorder>` from the selected persistence module.
+
+.. code-block:: python
+
+    recorder = factory.tracking_recorder()
+
+    assert isinstance(recorder, TrackingRecorder)
+    assert type(recorder).__name__ == "POPOTrackingRecorder"
+    assert type(recorder).__module__ == "eventsourcing.popo"
 
 The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.process_recorder`
 will construct a :ref:`process recorder <Process recorder>` from the selected persistence module.
@@ -1412,7 +1459,8 @@ will construct a :ref:`process recorder <Process recorder>` from the selected pe
     recorder = factory.process_recorder()
 
     assert isinstance(recorder, ProcessRecorder)
-    assert recorder.__class__.__module__ == "eventsourcing.popo"
+    assert type(recorder).__name__ == "POPOProcessRecorder"
+    assert type(recorder).__module__ == "eventsourcing.popo"
 
 The factory method :func:`~eventsourcing.persistence.InfrastructureFactory.transcoder`
 will construct a transcoder object.
@@ -1473,18 +1521,66 @@ use the module name string ``'eventsourcing.popo'`` as the value of ``PERSISTENC
     environ["PERSISTENCE_MODULE"] = "eventsourcing.popo"
     factory = InfrastructureFactory.construct(environ)
 
-    assert factory.__class__.__module__ == "eventsourcing.popo"
+    assert type(factory).__module__ == "eventsourcing.popo"
 
 
 The environment variables ``COMPRESSOR_TOPIC``, ``CIPHER_TOPIC``, and ``CIPHER_KEY`` may be
 used to enable compression and encryption of stored events.
 
-Different persistence modules use their
-own particular set of environment variables, of which some are required and some are
-optional.
+The environment variables ``MAPPER_TOPIC`` and ``TRANSCODER_TOPIC`` can be used to
+select alternative mappers and transcoders.
 
+Persistence modules use their own particular set of environment variables, of which
+some are required and some are optional.
+
+
+Environment object
+------------------
+
+The :class:`~eventsourcing.utils.Environment` class is used to encapsulate a set of environment
+variables. It can be constructed with an optional ``name`` argument and a mapping of key-value pairs,
+for example :data:`os.environ`.
+
+.. code-block:: python
+
+    environ = Environment(
+        name="MyApp",
+        env={
+           "PERSISTENCE_MODULE": "eventsourcing.popo",
+        }
+    )
 
 .. _sqlite-environment:
+
+The :class:`~eventsourcing.utils.Environment` class has a :func:`~eventsourcing.utils.Environment.get` method
+which can be used to get a value for a key.
+
+.. code-block:: python
+
+    value = environ.get("PERSISTENCE_MODULE")
+
+    assert value == "eventsourcing.popo"
+
+
+The :func:`~eventsourcing.utils.Environment.get` method first searches for environment variables prefixed
+with the uppercase name, which can be used to distinguish between environment variables defined for different
+applications. It falls back onto the standard names, and returns ``None`` if no value is found.
+
+.. code-block:: python
+
+    import os
+
+    os.environ["MYAPPLICATION_PERSISTENCE_MODULE"] = "eventsourcing.postgres"
+    os.environ["MYPROJECTION_PERSISTENCE_MODULE"] = "eventsourcing.sqlite"
+
+    environ = Environment(name="MyApplication", env=os.environ)
+    value = environ.get("PERSISTENCE_MODULE")
+    assert value == "eventsourcing.postgres"
+
+    environ = Environment(name="MyProjection", env=os.environ)
+    value = environ.get("PERSISTENCE_MODULE")
+    assert value == "eventsourcing.sqlite"
+
 
 SQLite environment
 ------------------
@@ -1599,7 +1695,7 @@ Access Management (IAM), sometimes referred to as token-based authentication, fo
 the password is a token that is changed perhaps every 15 minutes. If ``POSTGRES_GET_PASSWORD_TOPIC``
 is set, the ``POSTGRES_PASSWORD`` variable is not required and will be ignored. The value
 of this variable should be resolvable using :func:`~eventsourcing.utils.resolve_topic` to
-a Python function that expects no arguments and returns a Python ``str``.
+a Python function that expects no arguments and returns a Python :class:`str`.
 
 The optional environment variable ``POSTGRES_CONNECT_TIMEOUT`` may be used to set
 the maximum time in seconds that a client can wait to receive a connection from the pool.
@@ -1683,7 +1779,6 @@ constructed and used in a standard way.
     from eventsourcing.tests.postgres_utils import drop_postgres_table
     factory = InfrastructureFactory.construct(environ)
     drop_postgres_table(factory.datastore, "stored_events")
-    del factory
 
 
 
@@ -1738,5 +1833,7 @@ Code reference
     :show-inheritance:
     :member-order: bysource
     :members:
-    :special-members:
-    :exclude-members: __weakref__, __dict__
+    :undoc-members:
+    :special-members: __init__
+    :private-members: _insert_tracking
+

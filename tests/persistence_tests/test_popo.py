@@ -1,13 +1,16 @@
 from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
+from unittest import TestCase
+from unittest.mock import Mock
 from uuid import uuid4
 
-from eventsourcing.persistence import StoredEvent, Tracking
+from eventsourcing.persistence import ProgrammingError, StoredEvent, Tracking
 from eventsourcing.popo import (
     POPOAggregateRecorder,
     POPOApplicationRecorder,
     POPOFactory,
     POPOProcessRecorder,
+    POPOSubscription,
     POPOTrackingRecorder,
 )
 from eventsourcing.tests.persistence import (
@@ -132,6 +135,9 @@ class TestPOPOTrackingRecorder(TrackingRecorderTestCase):
     def create_recorder(self):
         return POPOTrackingRecorder()
 
+    def test_wait(self):
+        super().test_wait()
+
 
 class TestPOPOProcessRecorder(ProcessRecorderTestCase):
     def create_recorder(self):
@@ -192,8 +198,75 @@ class TestPOPOInfrastructureFactory(InfrastructureFactoryTestCase):
     def expected_application_recorder_class(self):
         return POPOApplicationRecorder
 
+    def expected_tracking_recorder_class(self):
+        return POPOTrackingRecorder
+
+    class POPOTrackingRecorderSubclass(POPOTrackingRecorder):
+        pass
+
+    def tracking_recorder_subclass(self):
+        return self.POPOTrackingRecorderSubclass
+
     def expected_process_recorder_class(self):
         return POPOProcessRecorder
+
+
+class TestPOPOSubscription(TestCase):
+    def test_listen_catches_error(self):
+
+        mock_recorder = Mock(spec=POPOApplicationRecorder)
+
+        subscription = POPOSubscription(mock_recorder, 0)
+
+        # self.assertIsInstance(subscription._thread_error, TypeError)
+
+        with self.assertRaises(TypeError):
+            next(subscription)
+
+        with self.assertRaises(TypeError):
+            next(subscription)
+
+        subscription._thread_error = None
+
+        with self.assertRaises(StopIteration):
+            next(subscription)
+
+        subscription._notifications = [1, 2, 3]
+        subscription._notifications_index = 0
+
+        subscription._has_been_stopped = False
+        self.assertEqual(1, next(subscription))
+        self.assertEqual(2, next(subscription))
+        self.assertEqual(3, next(subscription))
+
+        subscription._notifications_queue.put([])
+
+        with self.assertRaises(StopIteration):
+            next(subscription)
+
+        subscription._notifications = [1, 2, 3]
+        subscription._notifications_index = 0
+        subscription._thread_error = ValueError()
+        subscription._has_been_stopped = True
+
+        with self.assertRaises(ValueError):
+            next(subscription)
+
+        with self.assertRaises(ProgrammingError):
+            subscription.__exit__(None, None, None)
+
+        subscription.__enter__()
+        with self.assertRaises(ProgrammingError):
+            subscription.__enter__()
+
+        subscription._has_been_stopped = False
+        subscription._thread_error = None
+        subscription._loop_on_pull()
+        self.assertIsInstance(subscription._thread_error, TypeError)
+        subscription._has_been_stopped = False
+        subscription._thread_error = ValueError()
+        subscription._loop_on_pull()
+        self.assertIsInstance(subscription._thread_error, ValueError)
 
 
 del AggregateRecorderTestCase

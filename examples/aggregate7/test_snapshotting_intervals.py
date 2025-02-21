@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar, Dict, Type, cast
 from unittest import TestCase
 
-from eventsourcing.domain import MutableOrImmutableAggregate, ProgrammingError
+from eventsourcing.application import ProgrammingError
 from examples.aggregate7.application import DogSchool
 from examples.aggregate7.domainmodel import (
     Dog,
@@ -13,8 +13,10 @@ from examples.aggregate7.domainmodel import (
     register_dog,
 )
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from uuid import UUID
+
+    from eventsourcing.domain import MutableOrImmutableAggregate
 
 
 class SubDogSchool(DogSchool):

@@ -63,13 +63,14 @@ class WithPostgres(TestCase):
         super().tearDown()
 
 
-class TestApplicationWithPostgres(ApplicationTestCase, WithPostgres):
+class TestApplicationWithPostgres(WithPostgres, ApplicationTestCase):
+
+    def test_catchup_subscription(self):
+        super().test_catchup_subscription()
+
+
+class TestExampleApplicationWithPostgres(WithPostgres, ExampleApplicationTestCase):
     pass
-
-
-class TestExampleApplicationWithPostgres(ExampleApplicationTestCase, WithPostgres):
-    timeit_number = 5 * TIMEIT_FACTOR
-    expected_factory_topic = "eventsourcing.postgres:Factory"
 
 
 del ApplicationTestCase

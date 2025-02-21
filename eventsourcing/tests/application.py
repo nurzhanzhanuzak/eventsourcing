@@ -20,6 +20,7 @@ from eventsourcing.persistence import (
     InfrastructureFactory,
     IntegrityError,
     JSONTranscoder,
+    Tracking,
     Transcoding,
 )
 from eventsourcing.tests.domain import BankAccount, EmailAddress
@@ -489,3 +490,43 @@ class ApplicationTestCase(TestCase):
         self.assertEqual(
             "'log' is deprecated, use 'notifications' instead", w[-1].message.args[0]
         )
+
+    def test_catchup_subscription(self):
+        app = Application()
+
+        max_notification_id = app.recorder.max_notification_id()
+
+        aggregate = Aggregate()
+        aggregate.trigger_event(Aggregate.Event)
+        aggregate.trigger_event(Aggregate.Event)
+        aggregate.trigger_event(Aggregate.Event)
+        app.save(aggregate)
+
+        subscription = app.get_application_sequence(gt=max_notification_id)
+
+        # Catch up.
+        for domain_event, tracking in subscription:
+            self.assertIsInstance(domain_event, Aggregate.Event)
+            self.assertIsInstance(tracking, Tracking)
+            self.assertEqual(tracking.application_name, app.name)
+            if max_notification_id is not None:
+                self.assertGreater(tracking.notification_id, max_notification_id)
+            if tracking.notification_id == app.recorder.max_notification_id():
+                break
+
+        max_notification_id = app.recorder.max_notification_id()
+
+        aggregate.trigger_event(Aggregate.Event)
+        aggregate.trigger_event(Aggregate.Event)
+        aggregate.trigger_event(Aggregate.Event)
+        app.save(aggregate)
+
+        # Continue.
+        for domain_event, tracking in subscription:
+            self.assertIsInstance(domain_event, Aggregate.Event)
+            self.assertIsInstance(tracking, Tracking)
+            self.assertEqual(tracking.application_name, app.name)
+            if max_notification_id is not None:
+                self.assertGreater(tracking.notification_id, max_notification_id)
+            if tracking.notification_id == app.recorder.max_notification_id():
+                break

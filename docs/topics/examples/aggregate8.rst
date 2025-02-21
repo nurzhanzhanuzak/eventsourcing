@@ -51,3 +51,32 @@ Test case
 
 
 .. literalinclude:: ../../../examples/aggregate8/test_application.py
+
+
+Code reference
+--------------
+
+.. automodule:: examples.aggregate8.mutablemodel
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.aggregate8.domainmodel
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.aggregate8.application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.aggregate8.test_application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+

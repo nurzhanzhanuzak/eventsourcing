@@ -17,21 +17,21 @@ class TestDogSchool(TestCase):
 
         # Query application state.
         dog = school.get_dog(dog_id)
-        assert dog["name"] == "Fido"
-        assert dog["tricks"] == ("roll over", "play dead")
+        self.assertEqual("Fido", dog["name"])
+        self.assertEqual(("roll over", "play dead"), dog["tricks"])
 
         # Select notifications.
         notifications = school.notification_log.select(start=1, limit=10)
-        assert len(notifications) == 3
+        self.assertEqual(3, len(notifications))
 
         # Take snapshot.
         school.take_snapshot(dog_id, version=3)
         dog = school.get_dog(dog_id)
-        assert dog["name"] == "Fido"
-        assert dog["tricks"] == ("roll over", "play dead")
+        self.assertEqual("Fido", dog["name"])
+        self.assertEqual(("roll over", "play dead"), dog["tricks"])
 
         # Continue with snapshotted aggregate.
         school.add_trick(dog_id, "fetch ball")
         dog = school.get_dog(dog_id)
-        assert dog["name"] == "Fido"
-        assert dog["tricks"] == ("roll over", "play dead", "fetch ball")
+        self.assertEqual("Fido", dog["name"])
+        self.assertEqual(("roll over", "play dead", "fetch ball"), dog["tricks"])

@@ -643,6 +643,7 @@ but is set ``True`` in the "discarded" event's ``mutate()`` method, and then tes
 of this attribute in aggregate command methods and raise an exception if the aggregate
 has been discarded.
 
+.. _Aggregate base class:
 
 Aggregate base class
 --------------------
@@ -828,6 +829,8 @@ identical, and equal to the timestamp of the "created" event.
 
     assert aggregate.created_on == aggregate.modified_on
 
+
+.. _Triggering subsequent events:
 
 Triggering subsequent events
 ----------------------------
@@ -1281,6 +1284,9 @@ This technique of using names to discover aggregates is demonstrated further
 in the discussion about :ref:`saving multiple aggregates <Saving multiple aggregates>`
 in the application module documentation.
 
+
+.. _Alternative styles for implementing aggregate projector:
+
 Alternative styles for implementing aggregate projector
 -------------------------------------------------------
 
@@ -1292,35 +1298,30 @@ defines the event class.
 However, there are two important disadvantages that come with using
 :func:`~eventsourcing.domain.CanMutateAggregate.apply`
 methods on the aggregate event classes to define the aggregate projector function.
-Firstly, the aggregate that is to be mutated is an argument to the event's
-method. There is a "reverse intuition" that comes with mutating method arguments.
-It is more natural to set values on ``self`` using the values given by method
-arguments, than to set values on the method argument using values taken from
-``self``. Secondly, it is perhaps illegitimate for the event to use "private"
-attributes of the aggregate, but then if we code for mutating the state of the
-aggregate with "public" methods we extend the "public interface" of the aggregate
-beyond the event-triggering command methods which genuine clients of the aggregate
-should be using.
 
-An alternative to defining :func:`~eventsourcing.domain.CanMutateAggregate.apply` methods
+Firstly, the aggregate is an argument to the event's method. There is a "reverse intuition"
+that comes with mutating a method argument. It is more natural to set values on ``self`` using
+the values given by method arguments, than it is to set values on the method argument using
+values taken from ``self``.
+
+Secondly, it is perhaps illegitimate for the event to use "private" attributes of the
+aggregate, but if we support mutating the state of the aggregate with "public" attributes and
+methods, then we extend the "public interface" of the aggregate beyond that which genuine
+clients of the aggregate need.
+
+Therefore, an alternative to defining :func:`~eventsourcing.domain.CanMutateAggregate.apply` methods
 on all the aggregate event classes is to define the aggregate mutator function on
-on the aggregate class.
+on the aggregate class itself.
 
-For example, a base ``Event`` class can be defined to have an :func:`~eventsourcing.domain.CanMutateAggregate.apply`
-method which calls a ``when()`` method on the aggregate object, passing the aggregate
-event object as an argument. The aggregate's ``when()`` method can be decorated with the
-``@singledispatchmethod`` decorator, allowing event-specific parts to be registered.
-Event-specific parts of the projection can then be defined that will apply a particular
-type of event to the aggregate in a particular way. Defining the aggregate projector
-with methods on the aggregate class has the advantage of setting values on ``self``,
-which avoids the reverse of intuition that occurs when writing :func:`~eventsourcing.domain.CanMutateAggregate.apply` methods
-on the events, and makes it legitimate to set values on "private" attributes of the
-aggregate. These event-specific functions can be coded directly underneath the event
-that is triggered, keeping the command-event-mutator codes close together. See the
-``Cargo`` aggregate in the domain model section of the
-:ref:`Cargo shipping example <Cargo shipping example>`
-for an example of this style of implementing aggregate projector functions.
+A base ``Event`` class can be defined to have an :func:`~eventsourcing.domain.CanMutateAggregate.apply`
+method which calls an ``apply()`` method on the aggregate object, passing the aggregate
+event object as an argument. The aggregate's ``apply()`` method can then implement the aggregate
+projector function.
 
+Instead of coding a large if-else block, the ``apply()`` method can be decorated with the
+:class:`@singledispatchmethod <eventsourcing.dispatch.singledispatchmethod>` decorator, allowing event-specific parts
+to be registered. Event-specific parts of the projection can then be defined that will apply a
+particular type of event to the aggregate in a particular way.
 
 ..
     #include-when-testing
@@ -1328,36 +1329,64 @@ for an example of this style of implementing aggregate projector functions.
     from eventsourcing.dispatch import singledispatchmethod
     from examples.cargoshipping.domainmodel import Location
 
+
 .. code-block:: python
 
-    class Cargo(Aggregate):
+    class Dog(Aggregate):
+        def __init__(self):
+            self.tricks = []
 
-        ...
+        @classmethod
+        def create(cls):
+            return cls._create(cls.Created, id=uuid4())
 
         class Event(Aggregate.Event):
             def apply(self, aggregate) -> None:
-                aggregate.when(self)
+                aggregate.apply(self)
+
+        class Created(Aggregate.Created, Event):
+            pass
+
+        class TrickAdded(Event):
+            trick: str
+
+        def add_trick(self, trick):
+            self.trigger_event(self.TrickAdded, trick=trick)
 
         @singledispatchmethod
-        def when(self, event) -> None:
-            """
-            Default method to apply an aggregate event to the aggregate object.
-            """
+        def apply(self, event) -> None:
+            ...
 
-        def change_destination(self, destination: Location) -> None:
-            self.trigger_event(
-                self.DestinationChanged,
-                destination=destination,
-            )
-
-        class DestinationChanged(Event):
-            destination: Location
-
-        @when.register
-        def destination_changed(self, event: DestinationChanged) -> None:
-            self._destination = event.destination
+        @apply.register
+        def trick_added(self, event: TrickAdded) -> None:
+            self.tricks.append(event.trick)
 
 
+An aggregate defined in this way can be used in the same way as in the :ref:`simple example <Aggregate simple example>` above.
+
+..
+    #include-when-testing
+..
+    from eventsourcing.utils import clear_topic_cache
+    clear_topic_cache()
+
+.. code-block:: python
+
+
+    dog = Dog.create()
+    dog.add_trick("roll over")
+    assert dog.tricks == ["roll over"]
+
+
+
+Defining the aggregate projector with methods on the aggregate class has the advantage of setting
+values on ``self``, where it is legitimate to set values on "private" attributes of the
+aggregate. These event-specific functions can be coded directly underneath the event
+that is triggered, keeping the command-event-mutator codes close together. Or they
+can be grouped together perhaps towards the end of the aggregate class definition.
+
+For more examples, see :doc:`/topics/examples/aggregate3` and the :class:`~examples.cargoshipping.domainmodel.Cargo`
+aggregate in the domain model of the :ref:`Cargo shipping example <Cargo shipping example>`.
 
 A further, perhaps more "purist", alternative is to use a mutator function defined at
 the module level. But then the event-specific parts of the aggregate projector will
@@ -1375,20 +1404,24 @@ of that method, and then it will be called successively with each aggregate even
 in the sequence of recorded events, so that the aggregate events can be projected
 into the aggregate state in whichever way is desired.
 
-But there is another issue that all of the approaches above suffer from. That is repetition
-in the specification and use of the event attributes. They appear in the command method as
-either command method arguments or as local variables. They appear in the triggering of the
-event object. They appear in the definition of the event. And they appear when mutating
-the state of the aggregate. This style makes everything very explicit, which is good. But it
-also makes the expression of these concerns rather verbose, relative to what is actually
-possible.
+Avoiding repetition
+-------------------
 
-The library offers a more concise style for expressing these concerns. The :ref:`declarative syntax <Declarative syntax>`,
-especially the :func:`@event<eventsourcing.domain.event>` decorator, which you may have seen on the project's README page and the
-`Introduction <introduction.html>`_ and the :doc:`Tutorial </topics/tutorial>`, is explained in detail below.
-This offers a more concise style which avoids all of the actually unnecessary repetition, keeps the
-specification of the event even closer to the code that mutates the aggregate, and allows the aggregate
-to be mutated in a natural way using "private" attributes.
+But there is another issue that all of the approaches above suffer from. That is, repetition
+of the names mentioned in the specification and use of the event attributes. They appear in
+the command method as either command method arguments or as local variables. They appear in
+the triggering of the event object. They appear in the definition of the event. And they
+appear when mutating the state of the aggregate. This style makes everything very explicit,
+which is good. But it also makes the expression of these concerns rather verbose, relative
+to what is actually possible.
+
+For this reason, the library offers a more concise :ref:`declarative syntax <Declarative syntax>` for expressing these concerns.
+You may have seen the :ref:`event decorator <Event decorator>` (:func:`@event <eventsourcing.domain.event>`)
+used in code snippets in the `Introduction <introduction.html>`_ and the :doc:`Tutorial </topics/tutorial>`. The
+declarative syntax offers a more concise style which avoids all
+the unnecessary repetition. It keeps the specification of the event even closer to the code that
+mutates the aggregate, and allows the aggregate to be mutated in a natural way using "private" attributes.
+It is described in the next section.
 
 Of course, the possibilities for coding mutator functions are endless. And you should
 choose whichever style you prefer.
@@ -1771,9 +1804,10 @@ property on the base aggregate class.
     assert agg.id == agg_id
 
 
+.. _Event decorator:
 
 The event decorator
---------------------
+-------------------
 
 A more concise way of expressing the concerns around defining, triggering and
 applying subsequent aggregate events can be achieved by using the library's
@@ -1788,7 +1822,7 @@ used to mutate the state of the aggregate. The body of the decorated method
 will be used as the :func:`~eventsourcing.domain.CanMutateAggregate.apply`
 method of the event, both after the event has been triggered and when the
 aggregate is reconstructed from stored events. The name of the event class
-can be passed to the decorator as a Python ``str``.
+can be passed to the decorator as a Python :class:`str`.
 
 ..
     #include-when-testing
@@ -1968,6 +2002,8 @@ it might be desirable to skip on having an event triggered.
     pending_events = agg.collect_events()
     assert len(pending_events) == 2, len(pending_events)
 
+
+.. _Using an explicitly defined event class:
 
 Using an explicitly defined event class
 ---------------------------------------
@@ -3042,6 +3078,11 @@ Code reference
     :special-members: __base_init__
 
 .. automodule:: eventsourcing.utils
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+
+.. automodule:: eventsourcing.dispatch
     :show-inheritance:
     :member-order: bysource
     :members:

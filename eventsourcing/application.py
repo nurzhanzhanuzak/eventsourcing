@@ -25,7 +25,7 @@ from typing import (
 )
 from warnings import warn
 
-from typing_extensions import deprecated
+from typing_extensions import Self, deprecated
 
 from eventsourcing.domain import (
     Aggregate,
@@ -34,7 +34,6 @@ from eventsourcing.domain import (
     DomainEventProtocol,
     EventSourcingError,
     MutableOrImmutableAggregate,
-    ProgrammingError,
     Snapshot,
     SnapshotProtocol,
     TDomainEvent,
@@ -52,12 +51,13 @@ from eventsourcing.persistence import (
     Notification,
     Recording,
     Tracking,
+    TrackingRecorder,
     Transcoder,
     UUIDAsHex,
 )
 from eventsourcing.utils import Environment, EnvType, strtobool
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from uuid import UUID
 
 ProjectorFunction = Callable[
@@ -69,6 +69,10 @@ MutatorFunction = Callable[
     [TDomainEvent, Optional[TMutableOrImmutableAggregate]],
     Optional[TMutableOrImmutableAggregate],
 ]
+
+
+class ProgrammingError(Exception):
+    pass
 
 
 def project_aggregate(
@@ -694,7 +698,9 @@ class Application:
             _env.update(env)
         return Environment(name, _env)
 
-    def construct_factory(self, env: Environment) -> InfrastructureFactory:
+    def construct_factory(
+        self, env: Environment
+    ) -> InfrastructureFactory[TrackingRecorder]:
         """
         Constructs an :class:`~eventsourcing.persistence.InfrastructureFactory`
         for use by the application.
@@ -897,6 +903,21 @@ class Application:
         need to take action when new domain events have been saved.
         """
 
+    def get_application_sequence(self, gt: int | None = None) -> ApplicationSequence:
+        """
+        Returns an iterator that yields all domain events recorded in an application
+        sequence that have notification IDs greater than a given value. The iterator
+        will block when all recorded domain events have been yielded, and then
+        continue when new events are recorded. Domain events are returned along
+        with tracking objects that identify the position in the application sequence.
+        """
+        return ApplicationSequence(
+            name=self.name,
+            recorder=self.recorder,
+            mapper=self.mapper,
+            gt=gt,
+        )
+
     def close(self) -> None:
         self.closing.set()
         self.factory.close()
@@ -1021,3 +1042,36 @@ class EventSourcedLog(Generic[TDomainEvent]):
                 limit=limit,
             ),
         )
+
+
+class ApplicationSequence:
+    def __init__(
+        self,
+        name: str,
+        recorder: ApplicationRecorder,
+        mapper: Mapper,
+        gt: int | None = None,
+    ):
+        self.name = name
+        self.recorder = recorder
+        self.mapper = mapper
+        self.subscription = self.recorder.subscribe(gt=gt)
+
+    def __enter__(self) -> Self:
+        self.subscription.__enter__()
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        self.subscription.__exit__(*args, **kwargs)
+
+    def __iter__(self) -> Self:
+        return self
+
+    def __next__(self) -> Tuple[DomainEventProtocol, Tracking]:
+        notification = next(self.subscription)
+        tracking = Tracking(self.name, notification.id)
+        domain_event = self.mapper.to_domain_event(notification)
+        return domain_event, tracking
+
+    def __del__(self) -> None:
+        self.subscription.stop()

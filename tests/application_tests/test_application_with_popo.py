@@ -12,6 +12,9 @@ class TestApplicationWithPOPO(ApplicationTestCase):
     def test_application_fastforward_blocking_during_contention(self):
         self.skipTest("POPO is too fast for this test to make sense")
 
+    def test_catchup_subscription(self):
+        super().test_catchup_subscription()
+
 
 class TestExampleApplicationWithPOPO(ExampleApplicationTestCase):
     timeit_number = 100 * TIMEIT_FACTOR

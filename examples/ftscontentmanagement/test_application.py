@@ -7,15 +7,18 @@ from uuid import uuid4
 
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.utils import get_topic
 from examples.contentmanagement.domainmodel import user_id_cvar
-from examples.searchablecontent.application import SearchableContentApplication
+from examples.ftscontentmanagement.application import FtsContentManagement
+from examples.ftscontentmanagement.postgres import PostgresFtsApplicationRecorder
+from examples.ftscontentmanagement.sqlite import SQLiteFtsApplicationRecorder
 
 
 class SearchableContentApplicationTestCase(TestCase):
     env: ClassVar[Dict[str, str]] = {}
 
     def test_app(self) -> None:
-        app = SearchableContentApplication(env=self.env)
+        app = FtsContentManagement(env=self.env)
 
         # Set user_id context variable.
         user_id = uuid4()
@@ -70,14 +73,16 @@ class SearchableContentApplicationTestCase(TestCase):
 
 class TestWithSQLite(SearchableContentApplicationTestCase):
     env: ClassVar[Dict[str, str]] = {
-        "PERSISTENCE_MODULE": "examples.searchablecontent.sqlite",
+        "PERSISTENCE_MODULE": "eventsourcing.sqlite",
+        "APPLICATION_RECORDER_TOPIC": get_topic(SQLiteFtsApplicationRecorder),
         "SQLITE_DBNAME": ":memory:",
     }
 
 
 class TestWithPostgres(SearchableContentApplicationTestCase):
     env: ClassVar[Dict[str, str]] = {
-        "PERSISTENCE_MODULE": "examples.searchablecontent.postgres"
+        "PERSISTENCE_MODULE": "eventsourcing.postgres",
+        "APPLICATION_RECORDER_TOPIC": get_topic(PostgresFtsApplicationRecorder),
     }
 
     def setUp(self) -> None:
@@ -101,8 +106,8 @@ class TestWithPostgres(SearchableContentApplicationTestCase):
             os.environ["POSTGRES_USER"],
             os.environ["POSTGRES_PASSWORD"],
         ) as datastore:
-            drop_postgres_table(datastore, "public.searchablecontentapplication_events")
-            drop_postgres_table(datastore, "public.pages_projection_example")
+            drop_postgres_table(datastore, "public.ftscontentmanagement_events")
+            drop_postgres_table(datastore, "public.ftsprojection")
 
 
 del SearchableContentApplicationTestCase

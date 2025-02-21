@@ -23,13 +23,14 @@ from eventsourcing.persistence import (
     PersistenceError,
     ProcessRecorder,
     ProgrammingError,
+    Recorder,
     StoredEvent,
     Tracking,
     TrackingRecorder,
 )
-from eventsourcing.utils import Environment, strtobool
+from eventsourcing.utils import Environment, resolve_topic, strtobool
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from types import TracebackType
 
 SQLITE3_DEFAULT_LOCK_TIMEOUT = 5
@@ -243,16 +244,22 @@ class SQLiteDatastore:
         self.close()
 
 
-class SQLiteRecorder:
+class SQLiteRecorder(Recorder):
     def __init__(
         self,
         datastore: SQLiteDatastore,
     ):
         assert isinstance(datastore, SQLiteDatastore)
         self.datastore = datastore
+        self.create_table_statements = self.construct_create_table_statements()
 
     def construct_create_table_statements(self) -> List[str]:
         return []
+
+    def create_table(self) -> None:
+        with self.datastore.transaction(commit=True) as c:
+            for statement in self.create_table_statements:
+                c.execute(statement)
 
 
 class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
@@ -261,9 +268,8 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
         datastore: SQLiteDatastore,
         events_table_name: str = "stored_events",
     ):
-        super().__init__(datastore)
         self.events_table_name = events_table_name
-        self.create_table_statements = self.construct_create_table_statements()
+        super().__init__(datastore)
         self.insert_events_statement = (
             f"INSERT INTO {self.events_table_name} VALUES (?,?,?,?)"
         )
@@ -285,11 +291,6 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
             "WITHOUT ROWID"
         )
         return statements
-
-    def create_table(self) -> None:
-        with self.datastore.transaction(commit=True) as c:
-            for statement in self.create_table_statements:
-                c.execute(statement)
 
     def insert_events(
         self, stored_events: List[StoredEvent], **kwargs: Any
@@ -554,13 +555,14 @@ class SQLiteProcessRecorder(
         return returning
 
 
-class SQLiteFactory(InfrastructureFactory):
+class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
     SQLITE_DBNAME = "SQLITE_DBNAME"
     SQLITE_LOCK_TIMEOUT = "SQLITE_LOCK_TIMEOUT"
     CREATE_TABLE = "CREATE_TABLE"
 
     aggregate_recorder_class = SQLiteAggregateRecorder
     application_recorder_class = SQLiteApplicationRecorder
+    tracking_recorder_class = SQLiteTrackingRecorder
     process_recorder_class = SQLiteProcessRecorder
 
     def __init__(self, env: Environment):
@@ -604,13 +606,55 @@ class SQLiteFactory(InfrastructureFactory):
         return recorder
 
     def application_recorder(self) -> ApplicationRecorder:
-        recorder = self.application_recorder_class(datastore=self.datastore)
+        application_recorder_topic = self.env.get(self.APPLICATION_RECORDER_TOPIC)
+
+        if application_recorder_topic:
+            application_recorder_class: Type[SQLiteApplicationRecorder] = resolve_topic(
+                application_recorder_topic
+            )
+            assert issubclass(application_recorder_class, SQLiteApplicationRecorder)
+        else:
+            application_recorder_class = self.application_recorder_class
+
+        recorder = application_recorder_class(datastore=self.datastore)
+
+        if self.env_create_table():
+            recorder.create_table()
+        return recorder
+
+    def tracking_recorder(
+        self, tracking_recorder_class: Type[SQLiteTrackingRecorder] | None = None
+    ) -> SQLiteTrackingRecorder:
+        if tracking_recorder_class is None:
+            tracking_recorder_topic = self.env.get(self.TRACKING_RECORDER_TOPIC)
+
+            if tracking_recorder_topic:
+                tracking_recorder_class = resolve_topic(tracking_recorder_topic)
+            else:
+                tracking_recorder_class = self.tracking_recorder_class
+
+        assert tracking_recorder_class is not None
+        assert issubclass(tracking_recorder_class, SQLiteTrackingRecorder)
+
+        recorder = tracking_recorder_class(datastore=self.datastore)
+
         if self.env_create_table():
             recorder.create_table()
         return recorder
 
     def process_recorder(self) -> ProcessRecorder:
-        recorder = self.process_recorder_class(datastore=self.datastore)
+        process_recorder_topic = self.env.get(self.PROCESS_RECORDER_TOPIC)
+
+        if process_recorder_topic:
+            process_recorder_class: Type[SQLiteProcessRecorder] = resolve_topic(
+                process_recorder_topic
+            )
+            assert issubclass(process_recorder_class, SQLiteProcessRecorder)
+        else:
+            process_recorder_class = self.process_recorder_class
+
+        recorder = process_recorder_class(datastore=self.datastore)
+
         if self.env_create_table():
             recorder.create_table()
         return recorder

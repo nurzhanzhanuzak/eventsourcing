@@ -24,6 +24,7 @@ from eventsourcing.sqlite import (
     SQLiteDatastore,
     SQLiteFactory,
     SQLiteProcessRecorder,
+    SQLiteTrackingRecorder,
     SQLiteTransaction,
 )
 from eventsourcing.tests.persistence import (
@@ -305,6 +306,15 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
 
     def expected_application_recorder_class(self):
         return SQLiteApplicationRecorder
+
+    def expected_tracking_recorder_class(self):
+        return SQLiteTrackingRecorder
+
+    class SQLiteTrackingRecorderSubclass(SQLiteTrackingRecorder):
+        pass
+
+    def tracking_recorder_subclass(self):
+        return self.SQLiteTrackingRecorderSubclass
 
     def expected_process_recorder_class(self):
         return SQLiteProcessRecorder

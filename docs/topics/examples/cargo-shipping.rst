@@ -81,3 +81,32 @@ assigning a new route after the cargo was unloaded in the wrong place,
 until finally the cargo is claimed at its correct destination.
 
 .. literalinclude:: ../../../examples/cargoshipping/test.py
+
+
+Code reference
+--------------
+
+.. automodule:: examples.cargoshipping.domainmodel
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.cargoshipping.application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.cargoshipping.interface
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.cargoshipping.test
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+

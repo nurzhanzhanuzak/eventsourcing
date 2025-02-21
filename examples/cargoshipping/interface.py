@@ -12,7 +12,7 @@ from examples.cargoshipping.domainmodel import (
     Location,
 )
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from examples.cargoshipping.application import BookingApplication
 
 NextExpectedActivityDetails = Optional[Tuple[str, ...]]

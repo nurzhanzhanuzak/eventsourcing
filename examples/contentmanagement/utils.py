@@ -8,7 +8,7 @@ def create_diff(old: str, new: str) -> str:
     return run("diff %s %s > %s", old, new)
 
 
-def apply_patch(old: str, diff: str) -> str:
+def apply_diff(old: str, diff: str) -> str:
     return run("patch -s %s %s -o %s", old, diff)
 
 

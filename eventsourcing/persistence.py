@@ -9,7 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 from queue import Queue
 from threading import Condition, Event, Lock, Semaphore, Thread, Timer
-from time import time
+from time import monotonic, sleep, time
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -37,7 +37,7 @@ from eventsourcing.utils import (
     strtobool,
 )
 
-if TYPE_CHECKING:  # pragma: nocover
+if TYPE_CHECKING:  # pragma: no cover
     from typing_extensions import Self
 
 
@@ -405,6 +405,16 @@ class NotSupportedError(DatabaseError):
     """
 
 
+class WaitInterruptedError(PersistenceError):
+    """
+    Raised when waiting for a tracking record is interrupted.
+    """
+
+
+class Recorder:
+    pass
+
+
 class AggregateRecorder(ABC):
     """
     Abstract base class for inserting and selecting stored events.
@@ -489,7 +499,7 @@ class ApplicationRecorder(AggregateRecorder):
         raise NotImplementedError(msg)
 
 
-class TrackingRecorder(ABC):
+class TrackingRecorder(Recorder, ABC):
     """
     Abstract base class for recorders that record tracking
     objects atomically with other state.
@@ -514,6 +524,48 @@ class TrackingRecorder(ABC):
         Returns True if a tracking object with the given application name
         and notification ID has been recorded, otherwise returns False.
         """
+
+    def wait(
+        self,
+        application_name: str,
+        notification_id: int,
+        timeout: float = 1.0,
+        interrupt: Event | None = None,
+    ) -> None:
+        """
+        Block until a tracking object with the given application name and
+        notification ID has been recorded.
+
+        Polls has_tracking_id() with exponential backoff until the timeout
+        is reached, or until the optional interrupt event is set.
+
+        The timeout argument should be a floating point number specifying a
+        timeout for the operation in seconds (or fractions thereof). The default
+        is 1.0 seconds.
+
+        Raises TimeoutError if the timeout is reached.
+
+        Raises WaitInterruptError if the `interrupt` is set before `timeout` is reached.
+        """
+        deadline = monotonic() + timeout
+        delay_ms = 1.0
+        while True:
+            if self.has_tracking_id(application_name, notification_id):
+                break
+            if interrupt:
+                if interrupt.wait(timeout=delay_ms / 1000):
+                    raise WaitInterruptedError
+            else:
+                sleep(delay_ms / 1000)
+            delay_ms *= 2
+            remaining = deadline - monotonic()
+            if remaining < 0:
+                msg = (
+                    f"Timed out waiting for notification {notification_id} "
+                    f"from application '{application_name}' to be processed"
+                )
+                raise TimeoutError(msg)
+            delay_ms = min(delay_ms, remaining * 1000)
 
 
 class ProcessRecorder(TrackingRecorder, ApplicationRecorder, ABC):
@@ -594,11 +646,13 @@ class EventStore:
 
 
 TInfrastructureFactory = TypeVar(
-    "TInfrastructureFactory", bound="InfrastructureFactory"
+    "TInfrastructureFactory", bound="InfrastructureFactory[Any]"
 )
 
+TTrackingRecorder = TypeVar("TTrackingRecorder", bound=TrackingRecorder)
 
-class InfrastructureFactory(ABC):
+
+class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
     """
     Abstract base class for infrastructure factories.
     """
@@ -609,6 +663,9 @@ class InfrastructureFactory(ABC):
     CIPHER_TOPIC = "CIPHER_TOPIC"
     COMPRESSOR_TOPIC = "COMPRESSOR_TOPIC"
     IS_SNAPSHOTTING_ENABLED = "IS_SNAPSHOTTING_ENABLED"
+    APPLICATION_RECORDER_TOPIC = "APPLICATION_RECORDER_TOPIC"
+    TRACKING_RECORDER_TOPIC = "TRACKING_RECORDER_TOPIC"
+    PROCESS_RECORDER_TOPIC = "PROCESS_RECORDER_TOPIC"
 
     @classmethod
     def construct(
@@ -619,7 +676,7 @@ class InfrastructureFactory(ABC):
         named application. Reads and resolves persistence
         topic from environment variable 'PERSISTENCE_MODULE'.
         """
-        factory_cls: Type[InfrastructureFactory]
+        factory_cls: Type[InfrastructureFactory[TrackingRecorder]]
         if env is None:
             env = Environment()
         topic = (
@@ -638,7 +695,9 @@ class InfrastructureFactory(ABC):
             or "eventsourcing.popo"
         )
         try:
-            obj: Type[InfrastructureFactory] | ModuleType = resolve_topic(topic)
+            obj: Type[InfrastructureFactory[TrackingRecorder]] | ModuleType = (
+                resolve_topic(topic)
+            )
         except TopicError as e:
             msg = (
                 "Failed to resolve persistence module topic: "
@@ -649,7 +708,7 @@ class InfrastructureFactory(ABC):
 
         if isinstance(obj, ModuleType):
             # Find the factory in the module.
-            factory_classes: List[Type[InfrastructureFactory]] = []
+            factory_classes: List[Type[InfrastructureFactory[TrackingRecorder]]] = []
             for member in obj.__dict__.values():
                 if (
                     member is not InfrastructureFactory
@@ -768,6 +827,14 @@ class InfrastructureFactory(ABC):
     def application_recorder(self) -> ApplicationRecorder:
         """
         Constructs an application recorder.
+        """
+
+    @abstractmethod
+    def tracking_recorder(
+        self, tracking_recorder_class: Type[TTrackingRecorder] | None = None
+    ) -> TTrackingRecorder:
+        """
+        Constructs a tracking recorder.
         """
 
     @abstractmethod
@@ -1272,9 +1339,6 @@ class Subscription(Iterator[Notification], Generic[TApplicationRecorder_co]):
         self._has_been_stopped = True
 
     def __iter__(self) -> Self:
-        if not self._has_been_entered:
-            msg = "Subscription must be used as a context manager"
-            raise ProgrammingError(msg)
         return self
 
     @abstractmethod
@@ -1292,15 +1356,11 @@ class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
         self._select_limit = 500
         self._notifications: List[Notification] = []
         self._notifications_index: int = 0
-        self._notifications_queue: Queue[List[Notification]] = Queue()
+        self._notifications_queue: Queue[List[Notification]] = Queue(maxsize=10)
         self._has_been_notified = Event()
         self._thread_error: BaseException | None = None
-
-    def __enter__(self) -> Self:
-        super().__enter__()
         self._pull_thread = Thread(target=self._loop_on_pull)
         self._pull_thread.start()
-        return self
 
     def __exit__(self, *args: object, **kwargs: Any) -> None:
         super().__exit__(*args, **kwargs)

@@ -1,42 +1,38 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Tuple, cast
+from typing import TYPE_CHECKING, Any, List, cast
 
-from examples.contentmanagement.application import (
-    ContentManagementApplication,
-    PageDetailsType,
-)
+from examples.contentmanagement.application import ContentManagement, PageDetailsType
 from examples.contentmanagement.domainmodel import Page
-from examples.searchablecontent.persistence import SearchableContentRecorder
+from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 
-if TYPE_CHECKING:  # pragma: nocover
-    from uuid import UUID
+if TYPE_CHECKING:  # pragma: no cover
 
     from eventsourcing.domain import DomainEventProtocol, MutableOrImmutableAggregate
     from eventsourcing.persistence import Recording
 
 
-class SearchableContentApplication(ContentManagementApplication):
+class FtsContentManagement(ContentManagement):
     def save(
         self,
         *objs: MutableOrImmutableAggregate | DomainEventProtocol | None,
         **kwargs: Any,
     ) -> List[Recording]:
-        insert_pages: List[Tuple[UUID, str, str, str]] = []
-        update_pages: List[Tuple[UUID, str, str, str]] = []
+        insert_pages: List[PageInfo] = []
+        update_pages: List[PageInfo] = []
         for obj in objs:
             if isinstance(obj, Page):
                 if obj.version == len(obj.pending_events):
-                    insert_pages.append((obj.id, obj.slug, obj.title, obj.body))
+                    insert_pages.append(PageInfo(obj.id, obj.slug, obj.title, obj.body))
                 else:
-                    update_pages.append((obj.id, obj.slug, obj.title, obj.body))
+                    update_pages.append(PageInfo(obj.id, obj.slug, obj.title, obj.body))
         kwargs["insert_pages"] = insert_pages
         kwargs["update_pages"] = update_pages
         return super().save(*objs, **kwargs)
 
     def search(self, query: str) -> List[PageDetailsType]:
         pages = []
-        recorder = cast(SearchableContentRecorder, self.recorder)
+        recorder = cast(FtsRecorder, self.recorder)
         for page_id in recorder.search_pages(query):
             page = self.get_page_by_id(page_id)
             pages.append(page)

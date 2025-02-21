@@ -55,3 +55,38 @@ Test case
 ---------
 
 .. literalinclude:: ../../../examples/aggregate7/test_application.py
+
+
+Code reference
+--------------
+
+.. automodule:: examples.aggregate7.immutablemodel
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.aggregate7.orjsonpydantic
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.aggregate7.domainmodel
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.aggregate7.application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
+.. automodule:: examples.aggregate7.test_application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+
