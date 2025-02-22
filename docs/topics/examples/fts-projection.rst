@@ -6,10 +6,12 @@ that processes events from example :doc:`/topics/examples/content-management`. T
 are processed into an eventually-consistent full text search index, a searchable
 "materialized view" of the content of the application.
 
-This is an example of CQRS. By separating the search engine "read model" from the content management
-"write model", the search engine can be redesigned and rebuilt by reprocessing those events. The
-projected searchable content can be deleted and rebuilt, perhaps also to include page titles, or
-timestamps, or other information contained in the domain events such as the authors.
+This is an example of CQRS. In this example, only the :data:`~examples.contentmanagement.domainmodel.Page.body`
+values of the :class:`~examples.contentmanagement.domainmodel.Page` aggregates are indexed in the search engine.
+By separating the search engine "read model" from the content management "write model", the search engine can
+be redesigned and rebuilt by reprocessing those events. The projected searchable content can be deleted and
+rebuilt, perhaps also to include page titles, or timestamps, or other information contained in the domain events
+such as the authors.
 
 This is the main advantage of "CQRS" over the "inline" technique used in :doc:`/topics/examples/fts-content-management`
 where the search index is simply updated whenever new events are recorded.
