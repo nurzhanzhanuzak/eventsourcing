@@ -7,7 +7,6 @@ from uuid import uuid4
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.projection import ProjectionRunner
 from eventsourcing.tests.postgres_utils import drop_postgres_table
-from eventsourcing.utils import get_topic
 from examples.contentmanagement.application import ContentManagement
 from examples.contentmanagement.domainmodel import user_id_cvar
 from examples.ftsprojection.projection import FtsProjection, PostgresFtsTrackingRecorder
@@ -27,7 +26,6 @@ class TestFtsProjection(unittest.TestCase):
         "FTSPROJECTION_POSTGRES_PORT": "5432",
         "FTSPROJECTION_POSTGRES_USER": "eventsourcing",
         "FTSPROJECTION_POSTGRES_PASSWORD": "eventsourcing",
-        "FTSPROJECTION_TRACKING_RECORDER_TOPIC": get_topic(PostgresFtsTrackingRecorder),
     }
 
     def test(self) -> None:
@@ -61,8 +59,6 @@ class TestFtsProjection(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             read_model.wait(write_model.name, notification_id)
 
-        return
-
         # Search in the read model, expect no results.
         self.assertEqual(0, len(read_model.search("dog")))
         self.assertEqual(0, len(read_model.search("rose")))
@@ -72,6 +68,7 @@ class TestFtsProjection(unittest.TestCase):
         _ = ProjectionRunner(
             application_class=ContentManagement,
             projection_class=FtsProjection,
+            tracking_recorder_class=PostgresFtsTrackingRecorder,
             env=self.env,
         )
 

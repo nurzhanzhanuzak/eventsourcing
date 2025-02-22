@@ -22,7 +22,7 @@ from eventsourcing.utils import Environment, EnvType
 if TYPE_CHECKING:  # pragma: no cover
     from typing_extensions import Self
 
-    from eventsourcing.application import ApplicationSequence
+    from eventsourcing.application import ApplicationSubscription
     from eventsourcing.domain import DomainEventProtocol
 
 
@@ -49,12 +49,12 @@ TProjection = TypeVar("TProjection", bound=Projection[Any])
 TApplication = TypeVar("TApplication", bound=Application)
 
 
-class ProjectionRunner(Generic[TApplication, TProjection, TTrackingRecorder]):
+class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
     def __init__(
         self,
         *,
         application_class: Type[TApplication],
-        projection_class: Type[TProjection],
+        projection_class: Type[Projection[TTrackingRecorder]],
         tracking_recorder_class: Type[TTrackingRecorder] | None = None,
         env: EnvType | None = None,
     ):
@@ -70,10 +70,10 @@ class ProjectionRunner(Generic[TApplication, TProjection, TTrackingRecorder]):
             self.projection_factory.tracking_recorder(tracking_recorder_class)
         )
 
-        self.application_sequence = self.app.get_application_sequence(
+        self.subscription = self.app.subscribe(
             gt=self.tracking_recorder.max_tracking_id(self.app.name)
         )
-        self.projection: TProjection = projection_class(
+        self.projection = projection_class(
             tracking_recorder=self.tracking_recorder,
         )
         self._has_error = Event()
@@ -81,7 +81,7 @@ class ProjectionRunner(Generic[TApplication, TProjection, TTrackingRecorder]):
         self.processing_thread = Thread(
             target=self._process_events_loop,
             kwargs={
-                "application_sequence": self.application_sequence,
+                "subscription": self.subscription,
                 "projection": self.projection,
                 "has_error": self._has_error,
                 "runner": weakref.ref(self),
@@ -100,22 +100,18 @@ class ProjectionRunner(Generic[TApplication, TProjection, TTrackingRecorder]):
         return Environment(name, _env)
 
     def stop(self) -> None:
-        self.application_sequence.subscription.stop()
+        self.subscription.subscription.stop()
 
     @staticmethod
     def _process_events_loop(
-        application_sequence: ApplicationSequence,
+        subscription: ApplicationSubscription,
         projection: Projection[TrackingRecorder],
         has_error: Event,
-        runner: weakref.ReferenceType[
-            ProjectionRunner[
-                Application, Projection[TrackingRecorder], TrackingRecorder
-            ]
-        ],
+        runner: weakref.ReferenceType[ProjectionRunner[Application, TrackingRecorder]],
     ) -> None:
         try:
-            with application_sequence:
-                for domain_event, tracking in application_sequence:
+            with subscription:
+                for domain_event, tracking in subscription:
                     projection.process_event(domain_event, tracking)
         except BaseException as e:
             _runner = runner()  # get reference from weakref
@@ -131,7 +127,7 @@ class ProjectionRunner(Generic[TApplication, TProjection, TTrackingRecorder]):
                 )
 
             has_error.set()
-            application_sequence.subscription.stop()
+            subscription.subscription.stop()
 
     def run_forever(self, timeout: float | None = None) -> None:
         if self._has_error.wait(timeout=timeout):
@@ -141,7 +137,7 @@ class ProjectionRunner(Generic[TApplication, TProjection, TTrackingRecorder]):
     def wait(self, notification_id: int, timeout: float = 1.0) -> None:
         try:
             self.projection.tracking_recorder.wait(
-                application_name=self.application_sequence.name,
+                application_name=self.subscription.name,
                 notification_id=notification_id,
                 timeout=timeout,
                 interrupt=self._has_error,

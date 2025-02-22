@@ -903,7 +903,7 @@ class Application:
         need to take action when new domain events have been saved.
         """
 
-    def get_application_sequence(self, gt: int | None = None) -> ApplicationSequence:
+    def subscribe(self, gt: int | None = None) -> ApplicationSubscription:
         """
         Returns an iterator that yields all domain events recorded in an application
         sequence that have notification IDs greater than a given value. The iterator
@@ -911,7 +911,7 @@ class Application:
         continue when new events are recorded. Domain events are returned along
         with tracking objects that identify the position in the application sequence.
         """
-        return ApplicationSequence(
+        return ApplicationSubscription(
             name=self.name,
             recorder=self.recorder,
             mapper=self.mapper,
@@ -1044,7 +1044,7 @@ class EventSourcedLog(Generic[TDomainEvent]):
         )
 
 
-class ApplicationSequence:
+class ApplicationSubscription:
     def __init__(
         self,
         name: str,

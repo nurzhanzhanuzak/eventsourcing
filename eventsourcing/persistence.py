@@ -485,6 +485,7 @@ class ApplicationRecorder(AggregateRecorder):
         or None if no stored events have been recorded.
         """
 
+    @abstractmethod
     def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
         """
         Returns an iterator of Notification objects representing events from an
@@ -495,8 +496,6 @@ class ApplicationRecorder(AggregateRecorder):
 
         Notifications will have IDs greater than the optional `gt` argument.
         """
-        msg = f"The {type(self).__qualname__} recorder does not support subscriptions"
-        raise NotImplementedError(msg)
 
 
 class TrackingRecorder(Recorder, ABC):

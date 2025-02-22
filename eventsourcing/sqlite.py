@@ -25,6 +25,7 @@ from eventsourcing.persistence import (
     ProgrammingError,
     Recorder,
     StoredEvent,
+    Subscription,
     Tracking,
     TrackingRecorder,
 )
@@ -469,6 +470,10 @@ class SQLiteApplicationRecorder(
     def _max_notification_id(self, c: SQLiteCursor) -> int:
         c.execute(self.select_max_notification_id_statement)
         return c.fetchone()[0]
+
+    def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
+        msg = f"The {type(self).__qualname__} recorder does not support subscriptions"
+        raise NotImplementedError(msg)
 
 
 class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):

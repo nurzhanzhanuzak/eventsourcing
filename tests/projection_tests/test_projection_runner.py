@@ -145,7 +145,7 @@ class TestProjectionRunner(TestCase):
         runner.app.save(Aggregate())
 
         # Get another application sequence
-        application_sequence = runner.app.get_application_sequence()
+        subscription = runner.app.subscribe()
 
         # Get a reference to the projection.
         projection = runner.projection
@@ -165,7 +165,7 @@ class TestProjectionRunner(TestCase):
         # Call _process_events_loop and catch warning.
         with warnings.catch_warnings(record=True) as w:
             ProjectionRunner._process_events_loop(
-                application_sequence,
+                subscription,
                 projection,
                 has_error,
                 ref,

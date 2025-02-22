@@ -717,7 +717,7 @@ the position of a stored event in an application sequence.
 
 This class is used when selecting from and subscribing to an application sequence
 with a :ref:`recorder<Recorder>`. Event notifications from application sequences
-are presented in an :doc:`application </topics/application>` by a :ref:`notification log<Notification log>`.
+are also presented by an :doc:`application </topics/application>` in its :ref:`notification log<Notification log>`.
 
 By recording aggregate events atomically with notification IDs,
 there will never be an aggregate event that is not available to be

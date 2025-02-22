@@ -1,43 +1,53 @@
 Projections 1 - Full text search
 ================================
 
-In this example, event notifications from example :doc:`/topics/examples/content-management`
-are processed and projected into an eventually-consistent full text search index, a searchable "materialized view" of
-the pages' body.
+In this example, a :ref:`projection <Projection>` is defined, using the :doc:`projection module </topics/projection>`,
+that processes events from example :doc:`/topics/examples/content-management`. The events
+are processed into an eventually-consistent full text search index, a searchable
+"materialized view" of the content of the application.
 
 This is an example of CQRS. By separating the search engine "read model" from the content management
-"write model", the commands that update pages will perform faster. But, more importantly, the search
-engine can be redesigned and rebuilt by reprocessing those events. The projected searchable content
-can be deleted and rebuilt, perhaps also to include page titles, or timestamps, or other information
-contained in the domain events such as the authors, because it is updated by processing events.
+"write model", the search engine can be redesigned and rebuilt by reprocessing those events. The
+projected searchable content can be deleted and rebuilt, perhaps also to include page titles, or
+timestamps, or other information contained in the domain events such as the authors.
+
 This is the main advantage of "CQRS" over the "inline" technique used in :doc:`/topics/examples/fts-content-management`
-where the search index is simply updated whenever new events are recorded. Please note, it is possible
-to migrate from the "inline" technique to CQRS, by adding the downstream processing and then removing
-the inline updating, since the domain model is already event sourced. Similarly, other projections
-can be added to work alongside and concurrently with the updating of the search engine.
+where the search index is simply updated whenever new events are recorded.
+
+.. Please note, it is possible
+  to migrate from the "inline" technique to CQRS, by adding the downstream processing and then removing
+  the inline updating, since the domain model is already event sourced. Similarly, other projections
+  can be added to work alongside and concurrently with the updating of the search engine.
 
 Persistence
 -----------
 
+Firstly, let's consider the "read model".
+
 The :class:`~examples.ftsprojection.projection.FtsTrackingRecorder` defines an abstract interface for
-inserting and updating pages in a full text search index with tracking information. This is so that
-a projection can be defined independently of a particular implementation.
+searching, inserting, and updating pages in a full text search index with tracking information. Abstract
+methods are defined so that a projection can be defined independently of a particular database.
+
+It defines abstract method signatures :func:`~examples.ftsprojection.projection.FtsTrackingRecorder.insert_pages_with_tracking`
+and :func:`~examples.ftsprojection.projection.FtsTrackingRecorder.update_pages_with_tracking` so that
+pages may be inserted and updated atomically in a full text search index along with tracking information.
+
+.. literalinclude:: ../../../examples/ftsprojection/projection.py
+    :pyobject: FtsTrackingRecorder
+
 
 It extends both the abstract :class:`~examples.ftscontentmanagement.persistence.FtsRecorder` class
 from example :doc:`/topics/examples/fts-content-management` and the library's abstract
 :class:`~eventsourcing.persistence.TrackingRecorder` class, so that subclasses will implement
 both the interface for full text search and for recording tracking information.
 
-It defines method signatures :func:`~examples.ftsprojection.projection.FtsTrackingRecorder.insert_pages_with_tracking`
-and :func:`~examples.ftsprojection.projection.FtsTrackingRecorder.update_pages_with_tracking` so that
-pages may be inserted and updated in a full text search index atomically with tracking information.
-
-.. literalinclude:: ../../../examples/ftsprojection/projection.py
-    :pyobject: FtsTrackingRecorder
+Abstract search method signatures are inherited from the :class:`~examples.ftscontentmanagement.persistence.FtsRecorder` class.
 
 
 PostgreSQL
 ----------
+
+Now let's consider how we might implement this "read model" interface to work with a PostgreSQL database.
 
 The :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder` implements the
 abstract :class:`~examples.ftsprojection.projection.FtsTrackingRecorder` by inheriting
@@ -60,19 +70,19 @@ so that existing pages will be updated in the full text search index atomically 
 .. literalinclude:: ../../../examples/ftsprojection/projection.py
     :pyobject: PostgresFtsTrackingRecorder
 
+Search method implementations are inherited from the :class:`~examples.ftscontentmanagement.postgres.PostgresFtsRecorder`  class.
+
 
 Projection
 ----------
 
-The :class:`~examples.ftsprojection.projection.FtsProjection` class defined below
-implements the library's :class:`~eventsourcing.projection.Projection` class, the abstract base class
-for projections of event-sourced applications.
+Having defined a read model, let's consider how the domain events of the content management application
+can be processed. This section uses the :ref:`projection class <Projection>` from the :doc:`projection module </topics/projection>`.
 
-The generic class :class:`~eventsourcing.projection.Projection` has one type variable which is expected
-to be a :class:`~eventsourcing.persistence.TrackingRecorder`, and which in this case is specified to be
-:class:`~examples.ftsprojection.projection.FtsTrackingRecorder`, which means the projection should
-be constructed with a subclass of :class:`~examples.ftsprojection.projection.FtsTrackingRecorder`,
-for example :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder`.
+The :class:`~examples.ftsprojection.projection.FtsProjection` class implements the library's
+:class:`~eventsourcing.projection.Projection` class, the abstract base class for projections
+of event-sourced applications. It can be run as an event-processing component using
+the library's :ref:`projection runner <Projection runner>`.
 
 Its :func:`~examples.ftsprojection.projection.FtsProjection.process_event` function is coded to
 process the :class:`Page.Created <examples.contentmanagement.domainmodel.Page.Created>` and
@@ -90,36 +100,47 @@ of an :class:`~examples.ftsprojection.projection.FtsTrackingRecorder` object is 
 .. literalinclude:: ../../../examples/ftsprojection/projection.py
     :pyobject: FtsProjection
 
+The :class:`~eventsourcing.projection.Projection` class is a generic class that requires one type variable, which
+is expected to be a subclass of :class:`~eventsourcing.persistence.TrackingRecorder`. In this case, the type variable
+is specified to be :class:`~examples.ftsprojection.projection.FtsTrackingRecorder`, which means the projection
+should be constructed with a subclass of :class:`~examples.ftsprojection.projection.FtsTrackingRecorder`,
+for example :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder`.
 
 Test case
 ---------
 
 The test case :class:`~examples.ftsprojection.test_projection.TestFtsProjection` shows how the
-library's :class:`~eventsourcing.projection.ProjectionRunner` class can be used to run a projection.
+library's :ref:`projection runner <Projection runner>` class can be used to run the full text search
+projection of the content application.
 
-First, a :class:`~eventsourcing.projection.ProjectionRunner` object is constructed with the
-application class :class:`~examples.contentmanagement.application.ContentManagement`
-and the projection class :class:`~examples.ftsprojection.projection.FtsProjection`.
+The test demonstrates that the projection firstly catches up with existing content, and then continues
+automatically to process new content.
 
-An environment is specified that defines persistence infrastructure for the application and the projection,
-in particular :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder` is specifed as
-the projection's tracking recorder.
+The test creates two pages, for 'animals' and for 'plants'. Content is added to the pages.
+The projection is then started. The tracking recorder method :func:`~eventsourcing.persistence.TrackingRecorder.wait`
+is called so that the search index will have been be updated with the results of processing new events before the
+projection is queried. After waiting for the projection to process the application's events,
+the search index is queried, and the search results are checked. A third
+page for 'minerals' is then created.
+
+A :class:`~eventsourcing.projection.ProjectionRunner` object is constructed with the
+application class :class:`~examples.contentmanagement.application.ContentManagement`,
+the projection class :class:`~examples.ftsprojection.projection.FtsProjection`, and the
+tracking recorder class :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder`.
+
+An environment is specified that defines persistence infrastructure for the application and the tracking
+recorder.
 
 Because the projection uses a subscription, the projection will follow events from every instance
 of the :class:`~examples.contentmanagement.application.ContentManagement` application "write model"
 that is configured to use the same database. And because the projection is recorded in the database,
 it can be queried from any instance of the :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder`
-recorder "read model" that is configured to use the same database. The application and the projection can use
-different databases, but in this example they use different tables in the same PostgreSQL database.
+recorder "read model" that is configured to use the same database. To demonstrate this, separate instances
+of the application and the recorder are used as the "write model" and "read model" interfaces. The projection
+runs independently.
 
-The test creates three pages, for 'animals', 'plants' and 'minerals'. Content is added to the pages.
-After waiting for the projection to have been updated, the content is searched with various queries
-and the search results are checked. The tracking recorder method :func:`~eventsourcing.persistence.TrackingRecorder.wait`
-is called so that the search index will have been be updated with the results of processing new events before the
-projection is queried.
-
-The test demonstrates that the projection firstly catches up with existing content, and then continues
-automatically to process new content.
+The application and the recorder could use different databases, but in this example they use different
+tables in the same PostgreSQL database.
 
 .. literalinclude:: ../../../examples/ftsprojection/test_projection.py
     :pyobject: TestFtsProjection

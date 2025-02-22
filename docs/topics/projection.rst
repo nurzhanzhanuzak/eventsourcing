@@ -25,12 +25,14 @@ view will be a "reliable" deterministic function of the state of the application
 Tracking recorders
 ==================
 
-First, let's consider the "read model". The library's :ref:`tracking recorder <Tracking recorder>`
-classes (:class:`~eventsourcing.popo.POPOTrackingRecorder`, :class:`~eventsourcing.sqlite.SQLiteTrackingRecorder`,
+The library's :ref:`tracking recorder <Tracking recorder>` classes
+(:class:`~eventsourcing.popo.POPOTrackingRecorder`, :class:`~eventsourcing.sqlite.SQLiteTrackingRecorder`,
 and :class:`~eventsourcing.postgres.PostgresTrackingRecorder`) can be extended arbitrarily to define command
-and query methods that update and present a materialised view of the application state.
+and query methods that update and present a materialised view of the state of an event-sourced application
+atomically with tracking information. The tracking information indicates the position in an application
+sequence of an event that was processed when the materialised view was updated.
 
-For example, the :class:`CountRecorder` class shown here extends the abstract base class
+For example, the :class:`CountRecorder` class, included below, extends the library's abstract base class
 :class:`~eventsourcing.persistence.TrackingRecorder` by defining abstract methods
 :func:`incr_created_events_counter`, :func:`incr_subsequent_events_counter`, :func:`get_created_events_counter`,
 :func:`get_subsequent_events_counter`, and :func:`get_all_events_counter`. These methods
@@ -40,48 +42,50 @@ that counts aggregate events from an event-sourced application.
 .. literalinclude:: ../../tests/projection_tests/test_projection.py
     :pyobject: CountRecorder
 
-The :class:`POPOCountRecorder` class shown below implements this interface using plain old Python objects.
+The :class:`POPOCountRecorder` class, included below, implements this interface using plain old Python objects.
 
 .. literalinclude:: ../../tests/projection_tests/test_projection.py
     :pyobject: POPOCountRecorder
 
+.. _Projection:
 
 Projection
 ==========
 
-After defining a tracking recorder for the materialised view, we need to define how domain events will
-be processed.
-
 The library's abstract base class :class:`~eventsourcing.projection.Projection` can be used to define how
-domain events will be processed. It defines an abstract method :func:`~eventsourcing.projection.Projection.process_event`
-that can be implemented. It is expected to be constructed with a tracking recorder.
+domain events will be processed. Subclasses are expected to use a particular kind of tracking recorder. It
+defines an abstract method :func:`~eventsourcing.projection.Projection.process_event` that must be implemented by subclasses.
 
-For example, the :class:`CountProjection` class shown here calls :func:`incr_created_event_count`
-for each :class:`Aggregate.Created <eventsourcing.domain.Aggregate.Created>` event, and calls :func:`incr_subsequent_event_count`
-for each subsequent :class:`Aggregate.Event <eventsourcing.domain.Aggregate.Event>`.
+For example, the :class:`CountProjection` class, included below, inherits :class:`~eventsourcing.projection.Projection`,
+specifies that instances will use a :class:`CountRecorder`, and implements :func:`~eventsourcing.projection.Projection.process_event`
+by calling :func:`incr_created_event_count` for each :class:`Aggregate.Created <eventsourcing.domain.Aggregate.Created>` event,
+and by calling :func:`incr_subsequent_event_count` for each subsequent :class:`Aggregate.Event <eventsourcing.domain.Aggregate.Event>`.
 
 .. literalinclude:: ../../tests/projection_tests/test_projection.py
     :pyobject: CountProjection
 
+.. _Projection runner:
+
 Projection Runner
 =================
 
-Having defined a tracking recorder and a projection, we can start an event-processing component
-that subscribes to an application sequence, from the position indicated by the tracking recorder's
-:func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method, and that calls
-the :func:`~eventsourcing.projection.Projection.process_event` method of a projection for each event
+The library's :class:`~eventsourcing.projection.ProjectionRunner` class is provided for the purpose
+or running projections.
+
+A projection runner object can be constructed with an application class, a projection class, a tracking
+recorder class, and an environment that specifies the persistence modules to be used by the application
+and the tracking recorder.
+
+The projection runner will construct an instance of the given application class, and an instance of
+the given projection class, and an instance of the given tracking recorder class. It will subscribe to
+its application, from the position indicated by its tracking recorder's
+:func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method. And then it will call
+the :func:`~eventsourcing.projection.Projection.process_event` method of the projection for each event
 in the application sequence.
 
-The library's :class:`~eventsourcing.projection.ProjectionRunner` class is provided for this purpose.
-It can be constructed with an application class, a projection class, a tracking recorder class, and an environment.
-
-The :class:`~eventsourcing.projection.ProjectionRunner` object will construct an instance of the given application
-class and an instance of the given projection class that uses an instance of the given tracking recorder class.
-It starts a subscription to the application sequence, and iterates over the application sequence calling
-the projection's :func:`~eventsourcing.projection.Projection.process_event` method for each domain event
-yielded from the application sequence. Because it starts a subscription, it will first catch up by processing
-already recorded events that have not yet been processed. And then it will continue to process events that
-are recorded after the subscription has been started.
+Because it starts a subscription to the application, it will first catch up by processing already
+recorded events that have not yet been processed. And then it will continue indefinitely to process
+events that are recorded after the runner has been started.
 
 The :class:`~eventsourcing.projection.ProjectionRunner` class has a :func:`~eventsourcing.projection.ProjectionRunner.run_forever`
 method, which blocks indefinitely, or until an optional timeout, or until an exception is raised by the projection or
@@ -111,23 +115,23 @@ With PostgreSQL
 ===============
 
 We can also implement the tracking recorder to work with PostgreSQL. The :func:`_incr_counter` method
-of :class:`PostgresCountRecorder` atomically updates the materialised view and records a tracking object.
+of :class:`PostgresCountRecorder`, included below, updates the materialised view and records
+a tracking object atomically in the same database transaction.
 
 .. literalinclude:: ../../tests/projection_tests/test_projection.py
     :pyobject: PostgresCountRecorder
 
-By configuring the application and the projection to use the library's :ref:`PostgreSQL module <postgres-module>`,
-we use a PostgreSQL database to persist the "write model" and the "read model". The application and the
-projection could use separate databases, but in this example they simply use different tables
-in the same database.
-
 Because this example uses a durable database, separate instances of the application and the recorder
 can be used as interfaces to the "write model" and the "read model".
+
+The application and the projection could use separate databases, but in this example they simply
+use different tables in the same database.
+
 
 .. literalinclude:: ../../tests/projection_tests/test_projection.py
     :pyobject: TestCountProjectionWithPostgres
 
-
+See example :doc:`/topics/examples/fts-projection` for a more substantial example.
 
 Code reference
 ==============

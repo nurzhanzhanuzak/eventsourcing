@@ -14,7 +14,6 @@ from eventsourcing.persistence import (
     Notification,
     ProcessRecorder,
     StoredEvent,
-    Subscription,
     Tracking,
     TrackingRecorder,
 )
@@ -156,7 +155,7 @@ class POPOApplicationRecorder(POPOAggregateRecorder, ApplicationRecorder):
         with self._database_lock:
             return len(self._stored_events) or None
 
-    def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
+    def subscribe(self, gt: int | None = None) -> POPOSubscription:
         return POPOSubscription(self, gt)
 
     def listen(self, event: Event) -> None:

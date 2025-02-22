@@ -502,7 +502,7 @@ class ApplicationTestCase(TestCase):
         aggregate.trigger_event(Aggregate.Event)
         app.save(aggregate)
 
-        subscription = app.get_application_sequence(gt=max_notification_id)
+        subscription = app.subscribe(gt=max_notification_id)
 
         # Catch up.
         for domain_event, tracking in subscription:
