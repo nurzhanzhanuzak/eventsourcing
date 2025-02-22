@@ -77,19 +77,19 @@ recorder class, and an environment that specifies the persistence modules to be 
 and the tracking recorder.
 
 The projection runner will construct an instance of the given application class, and an instance of
-the given projection class, and an instance of the given tracking recorder class. It will subscribe to
-its application, from the position indicated by its tracking recorder's
+the given projection class, and an instance of the given tracking recorder class. It will
+:ref:`subscribe to its application <Subscriptions>`, from the position indicated by its tracking recorder's
 :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method. And then it will call
 the :func:`~eventsourcing.projection.Projection.process_event` method of the projection for each event
 in the application sequence.
 
-Because it starts a subscription to the application, it will first catch up by processing already
-recorded events that have not yet been processed. And then it will continue indefinitely to process
-events that are recorded after the runner has been started.
+Because it starts a :ref:`subscription <Subscriptions>` to the application, it will first catch up by
+processing already recorded events that have not yet been processed. And then it will continue indefinitely
+to process events that are recorded after the runner has been started.
 
 The :class:`~eventsourcing.projection.ProjectionRunner` class has a :func:`~eventsourcing.projection.ProjectionRunner.run_forever`
 method, which blocks indefinitely, or until an optional timeout, or until an exception is raised by the projection or
-by the application sequence. This allows an event processing component to be started and run independently as a
+by the subscription. This allows an event processing component to be started and run independently as a
 separate operating system process, and then to terminate when there is an error. Operators of the system can
 examine the error and resume processing by reconstructing the runner. Some errors may be transient operational
 issues, such as database connectivity, in which case the processing could be resumed automatically. Some errors
