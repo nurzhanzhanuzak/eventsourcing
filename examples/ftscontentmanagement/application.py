@@ -6,7 +6,7 @@ from examples.contentmanagement.application import ContentManagement, PageDetail
 from examples.contentmanagement.domainmodel import Page
 from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
 
     from eventsourcing.domain import DomainEventProtocol, MutableOrImmutableAggregate
     from eventsourcing.persistence import Recording

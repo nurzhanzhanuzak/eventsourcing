@@ -10,7 +10,7 @@ from eventsourcing.postgres import (
 from examples.contentmanagement.application import PageNotFoundError
 from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from uuid import UUID
 
     from psycopg import Cursor

@@ -12,7 +12,7 @@ from eventsourcing.sqlite import (
 from examples.contentmanagement.application import PageNotFoundError
 from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from eventsourcing.persistence import StoredEvent
 
 

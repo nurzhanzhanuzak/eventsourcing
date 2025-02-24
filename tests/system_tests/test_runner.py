@@ -47,7 +47,7 @@ from eventsourcing.tests.postgres_utils import drop_postgres_table
 from eventsourcing.utils import clear_topic_cache, get_topic
 from tests.application_tests.test_processapplication import EmailProcess
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from uuid import UUID
 
     from eventsourcing.application import ProcessingEvent

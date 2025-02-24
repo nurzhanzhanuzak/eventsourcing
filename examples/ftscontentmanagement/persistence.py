@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, List, Sequence
 
 from eventsourcing.persistence import Recorder
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from uuid import UUID
 
 

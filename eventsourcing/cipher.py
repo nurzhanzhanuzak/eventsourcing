@@ -10,7 +10,7 @@ from Crypto.Cipher.AES import key_size
 
 from eventsourcing.persistence import Cipher
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from eventsourcing.utils import Environment
 
 

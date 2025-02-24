@@ -11,7 +11,7 @@ from eventsourcing.postgres import (
 )
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from psycopg import Cursor
     from psycopg.rows import DictRow
 

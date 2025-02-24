@@ -7,7 +7,7 @@ from examples.contentmanagement.domainmodel import Page
 from examples.contentmanagement.utils import apply_diff
 from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from uuid import UUID
 
     from eventsourcing.application import ProcessingEvent

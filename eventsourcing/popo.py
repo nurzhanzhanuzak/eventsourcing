@@ -19,7 +19,7 @@ from eventsourcing.persistence import (
 )
 from eventsourcing.utils import resolve_topic, reversed_keys
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from uuid import UUID
 
 

@@ -19,7 +19,7 @@ from eventsourcing.persistence import (
 )
 from eventsourcing.utils import Environment, EnvType
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from typing_extensions import Self
 
     from eventsourcing.application import ApplicationSubscription

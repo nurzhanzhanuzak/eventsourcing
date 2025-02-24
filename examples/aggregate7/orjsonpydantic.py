@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from eventsourcing.persistence import Mapper, StoredEvent, Transcoder
 from eventsourcing.utils import get_topic, resolve_topic
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from eventsourcing.domain import DomainEventProtocol
 
 

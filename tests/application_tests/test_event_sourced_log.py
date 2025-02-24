@@ -16,7 +16,7 @@ from eventsourcing.persistence import (
 )
 from eventsourcing.popo import POPOAggregateRecorder
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from eventsourcing.utils import EnvType
 
 

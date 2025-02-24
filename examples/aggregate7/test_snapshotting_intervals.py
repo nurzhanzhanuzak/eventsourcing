@@ -13,7 +13,7 @@ from examples.aggregate7.domainmodel import (
     register_dog,
 )
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from uuid import UUID
 
     from eventsourcing.domain import MutableOrImmutableAggregate

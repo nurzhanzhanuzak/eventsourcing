@@ -13,7 +13,7 @@ from examples.cargoshipping.domainmodel import (
     Location,
 )
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from datetime import datetime
     from uuid import UUID
 

@@ -31,7 +31,7 @@ from eventsourcing.persistence import (
 )
 from eventsourcing.utils import Environment, resolve_topic, strtobool
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from types import TracebackType
 
 SQLITE3_DEFAULT_LOCK_TIMEOUT = 5

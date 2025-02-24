@@ -6,7 +6,7 @@ from unittest import TestCase
 from examples.aggregate8.application import DogSchool
 from examples.aggregate8.domainmodel import Dog
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from eventsourcing.domain import MutableOrImmutableAggregate
 
 

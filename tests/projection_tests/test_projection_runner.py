@@ -16,7 +16,7 @@ from tests.projection_tests.test_projection import (
     SpannerThrownError,
 )
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from eventsourcing.domain import DomainEventProtocol
     from eventsourcing.persistence import Tracking
 

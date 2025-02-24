@@ -410,7 +410,7 @@ def _spec_filter_kwargs_for_method_params(method: Callable[..., Any]) -> set[str
     return set(method_signature.parameters)
 
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     EventSpecType = Union[str, Type[CanMutateAggregate]]
 
 CommandMethod = Callable[..., None]

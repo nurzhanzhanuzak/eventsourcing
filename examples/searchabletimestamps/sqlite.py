@@ -12,7 +12,7 @@ from eventsourcing.sqlite import (
 )
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from eventsourcing.persistence import ApplicationRecorder, StoredEvent
 
 

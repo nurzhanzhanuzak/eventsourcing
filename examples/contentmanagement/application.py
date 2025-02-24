@@ -10,7 +10,7 @@ from eventsourcing.application import (
 )
 from examples.contentmanagement.domainmodel import Page, PageLogged, Slug
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from eventsourcing.domain import MutableOrImmutableAggregate
     from eventsourcing.utils import EnvType
 

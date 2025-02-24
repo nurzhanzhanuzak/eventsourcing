@@ -10,7 +10,7 @@ from eventsourcing.application import Application
 from eventsourcing.domain import Aggregate, Snapshot, event
 from eventsourcing.persistence import JSONTranscoder, Transcoding
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from datetime import datetime
 
 
