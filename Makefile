@@ -173,6 +173,14 @@ docker-logs:
 docs:
 	cd docs && make html
 
+.PHONY: docs-epub
+docs-epub:
+	cd docs && make epub
+
+.PHONY: docs-pdf
+docs-pdf:
+	cd docs && make latexpdf
+
 #
 # .PHONY: brew-services-start
 # brew-services-start:

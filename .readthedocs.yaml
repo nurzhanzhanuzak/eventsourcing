@@ -22,13 +22,44 @@ build:
 #      # See https://github.com/readthedocs/readthedocs.org/pull/11152/
 #      - POETRY=/home/docs/.local/bin/poetry VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH make install-packages
 ##      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install --extras "crypto" --with docs
-  commands:
+
+#  commands:
+#      - POETRY=/home/docs/.local/bin/poetry make install-poetry
+#      - POETRY=/home/docs/.local/bin/poetry make install
+#      - POETRY=/home/docs/.local/bin/poetry make docs
+#      - ls -l ./docs/_build/html/*
+#      - mkdir --parents $READTHEDOCS_OUTPUT/html/
+#      - cp --recursive ./docs/_build/html/* $READTHEDOCS_OUTPUT/html/
+
+  jobs:
+    install:
       - POETRY=/home/docs/.local/bin/poetry make install-poetry
       - POETRY=/home/docs/.local/bin/poetry make install
-      - POETRY=/home/docs/.local/bin/poetry make docs
-      - ls -l ./docs/_build/html/*
-      - mkdir --parents $READTHEDOCS_OUTPUT/html/
-      - cp --recursive ./docs/_build/html/* $READTHEDOCS_OUTPUT/html/
+    build:
+      html:
+        - echo "Override default build command for html format"
+        - POETRY=/home/docs/.local/bin/poetry make docs
+        - ls -l ./docs/_build/html/*
+        - mkdir --parents $READTHEDOCS_OUTPUT/html/
+        - cp --recursive ./docs/_build/html/* $READTHEDOCS_OUTPUT/html/
+      epub:
+        - echo "Override default build command for epub format"
+        - POETRY=/home/docs/.local/bin/poetry make docs-epub
+        - ls -l ./docs/_build/epub/*
+        - mkdir -p $READTHEDOCS_OUTPUT/epub/
+        - cp ./docs/_build/epub/eventsourcing.epub $READTHEDOCS_OUTPUT/epub/
+      pdf:
+        - echo "Override default build command for pdf format"
+        - POETRY=/home/docs/.local/bin/poetry make docs-pdf
+        - ls -l ./docs/_build/latex/*
+        - mkdir -p $READTHEDOCS_OUTPUT/pdf/
+        - cp ./docs/_build/latex/eventsourcing.pdf $READTHEDOCS_OUTPUT/pdf/
+#      htmlzip:
+#        - echo "Override default build command for htmlzip format"
+#        - mkdir -p $READTHEDOCS_OUTPUT/htmlzip/
+
+
+
 #  jobs:
 #    pre_create_environment:
 #      # Select Python version (keep in sync with other versions):
@@ -56,7 +87,7 @@ sphinx:
   # fail_on_warning: true
 
 # Optionally build your docs in additional formats such as PDF and ePub
-# formats:
+formats:
     - pdf
     - epub
 
