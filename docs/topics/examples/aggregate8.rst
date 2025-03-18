@@ -30,7 +30,7 @@ aggregate events and from recorded snapshots.
 Pydantic model for mutable aggregate
 ------------------------------------
 
-.. literalinclude:: ../../../examples/aggregate8/domainmodel.py
+.. literalinclude:: ../../../examples/aggregate8/mutablemodel.py
 
 
 Domain model

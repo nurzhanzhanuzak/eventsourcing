@@ -1201,7 +1201,7 @@ a method to create a database table for stored events.
 
 The :class:`~eventsourcing.postgres.PostgresApplicationRecorder` class
 implements the :ref:`application recorder <Application recorder>`
-by extending :class:`~eventsourcing.popo.PostgresAggregateRecorder`.
+by extending :class:`~eventsourcing.postgres.PostgresAggregateRecorder`.
 
 ..
     #include-when-testing
