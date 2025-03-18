@@ -196,16 +196,14 @@ class TestPostgresDatastore(TestCase):
         ) as datastore:
 
             # Error on commit is raised.
-            with self.assertRaises(
-                OperationalError
-            ), datastore.get_connection() as curs:
+            with self.assertRaises(InternalError), datastore.get_connection() as curs:
                 curs.execute("BEGIN")
                 curs.execute("SELECT 1")
                 self.assertFalse(curs.closed)
                 sleep(2)
 
             # Error on commit is raised.
-            with self.assertRaises(OperationalError), datastore.transaction(
+            with self.assertRaises(InternalError), datastore.transaction(
                 commit=True
             ) as curs:
                 # curs.execute("BEGIN")

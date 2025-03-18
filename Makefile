@@ -15,15 +15,16 @@ install-poetry:
 
 .PHONY: install
 install:
-	$(POETRY) install --sync --extras "crypto" --with "docs" -vv $(opts)
+	$(POETRY) install --sync --extras "crypto cryptography" --with "docs" -vv $(opts)
 
 .PHONY: install-packages
 install-packages:
-	$(POETRY) install --sync --no-root --extras "crypto" --with "docs" -vv $(opts)
+	$(POETRY) install --sync --no-root --extras "crypto cryptography" --with "docs" -vv $(opts)
 
 .PHONY: update-lockfile
 update-lockfile:
-	$(POETRY) lock --no-update
+	$(POETRY) lock
+# 	$(POETRY) lock --no-update
 
 .PHONY: update-packages
 update-packages: update-lockfile install-packages
@@ -172,6 +173,14 @@ docker-logs:
 .PHONY: docs
 docs:
 	cd docs && make html
+
+.PHONY: docs-epub
+docs-epub:
+	cd docs && make epub
+
+.PHONY: docs-pdf
+docs-pdf:
+	cd docs && make latexpdf
 
 #
 # .PHONY: brew-services-start

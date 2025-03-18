@@ -1,7 +1,7 @@
 from base64 import b64encode
 from unittest.case import TestCase
 
-from eventsourcing.cipher import AESCipher
+from eventsourcing.cryptography import AESCipher
 from eventsourcing.utils import Environment
 
 
@@ -58,6 +58,9 @@ class TestAESCipher(TestCase):
         environment["CIPHER_KEY"] = key
         with self.assertRaises(ValueError):
             AESCipher(environment)
+
+        with self.assertRaises(OSError):
+            AESCipher(Environment())
 
     def test_encrypt_and_decrypt(self):
         environment = Environment()
