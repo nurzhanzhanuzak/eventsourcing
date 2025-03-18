@@ -30,3 +30,7 @@ postgres=> ALTER DATABASE eventsourcing OWNER TO eventsourcing;
 - use psql with the eventsourcing user to create schema in eventsourcing database
 $ psql -U eventsourcing
 eventsourcing=> CREATE SCHEMA myschema AUTHORIZATION eventsourcing;
+
+
+To build PDF docs (make docs-pdf), download and install MacTeX from https://www.tug.org/mactex/mactex-download.html
+and then make sure latexmk is on your PATH (export PATH="$PATH:/Library/TeX/texbin").
