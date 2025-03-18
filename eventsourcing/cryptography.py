@@ -4,9 +4,8 @@ import os
 from base64 import b64decode, b64encode
 from typing import TYPE_CHECKING
 
-from Crypto.Cipher import AES
-from Crypto.Cipher._mode_gcm import GcmMode
-from Crypto.Cipher.AES import key_size
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from eventsourcing.persistence import Cipher
 
@@ -17,11 +16,11 @@ if TYPE_CHECKING:
 class AESCipher(Cipher):
     """
     Cipher strategy that uses AES cipher (in GCM mode)
-    from the Python pycryptodome package.
+    from the Python cryptography package.
     """
 
     CIPHER_KEY = "CIPHER_KEY"
-    KEY_SIZES = key_size
+    KEY_SIZES = (16, 24, 32)
 
     @staticmethod
     def create_key(num_bytes: int) -> str:
@@ -32,7 +31,8 @@ class AESCipher(Cipher):
 
         """
         AESCipher.check_key_size(num_bytes)
-        return b64encode(AESCipher.random_bytes(num_bytes)).decode("utf8")
+        key = AESGCM.generate_key(num_bytes * 8)
+        return b64encode(key).decode("utf8")
 
     @staticmethod
     def check_key_size(num_bytes: int) -> None:
@@ -62,26 +62,13 @@ class AESCipher(Cipher):
         """Return ciphertext for given plaintext."""
 
         # Construct AES-GCM cipher, with 96-bit nonce.
+        aesgcm = AESGCM(self.key)
         nonce = AESCipher.random_bytes(12)
-        cipher = self.construct_cipher(nonce)
-
-        # Encrypt and digest.
-        result = cipher.encrypt_and_digest(plaintext)
-        encrypted = result[0]
-        tag = result[1]
-
-        # Return ciphertext.
+        res = aesgcm.encrypt(nonce, plaintext, None)
+        # Put tag at the front for compatibility with eventsourcing.crypto.AESCipher.
+        tag = res[-16:]
+        encrypted = res[:-16]
         return nonce + tag + encrypted
-        # return nonce + tag + encrypted
-
-    def construct_cipher(self, nonce: bytes) -> GcmMode:
-        cipher = AES.new(
-            self.key,
-            AES.MODE_GCM,
-            nonce,
-        )
-        assert isinstance(cipher, GcmMode)
-        return cipher
 
     def decrypt(self, ciphertext: bytes) -> bytes:
         """Return plaintext for given ciphertext."""
@@ -92,19 +79,18 @@ class AESCipher(Cipher):
             msg = "Damaged cipher text: invalid nonce length"
             raise ValueError(msg)
 
+        # Expect tag at the front.
         tag = ciphertext[12:28]
         if len(tag) != 16:
             msg = "Damaged cipher text: invalid tag length"
             raise ValueError(msg)
         encrypted = ciphertext[28:]
 
-        # Construct AES cipher, with old nonce.
-        cipher = self.construct_cipher(nonce)
-
-        # Decrypt and verify.
+        aesgcm = AESGCM(self.key)
         try:
-            plaintext = cipher.decrypt_and_verify(encrypted, tag)
-        except ValueError as e:
-            msg = f"Cipher text is damaged: {e}"
-            raise ValueError(msg) from None
+            plaintext = aesgcm.decrypt(nonce, encrypted + tag, None)
+        except InvalidTag as e:
+            msg = "Invalid cipher tag"
+            raise ValueError(msg) from e
+        # Decrypt and verify.
         return plaintext

@@ -15,11 +15,11 @@ install-poetry:
 
 .PHONY: install
 install:
-	$(POETRY) install --sync --extras "crypto" --with "docs" -vv $(opts)
+	$(POETRY) install --sync --extras "crypto cryptography" --with "docs" -vv $(opts)
 
 .PHONY: install-packages
 install-packages:
-	$(POETRY) install --sync --no-root --extras "crypto" --with "docs" -vv $(opts)
+	$(POETRY) install --sync --no-root --extras "crypto cryptography" --with "docs" -vv $(opts)
 
 .PHONY: update-lockfile
 update-lockfile:
