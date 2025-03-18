@@ -44,7 +44,7 @@ keywords=[
 python = ">=3.8,<4.0"
 typing_extensions = "*"
 "backports.zoneinfo" = { version = "*", python =  "<3.9" }
-pycryptodome = { version = "~3.21", optional = true }
+pycryptodome = { version = "~3.22", optional = true }
 psycopg = { version = "<=3.2.99999", optional = true, extras=["c,pool"]}
 
 [tool.poetry.extras]

@@ -23,7 +23,8 @@ install-packages:
 
 .PHONY: update-lockfile
 update-lockfile:
-	$(POETRY) lock --no-update
+	$(POETRY) lock
+# 	$(POETRY) lock --no-update
 
 .PHONY: update-packages
 update-packages: update-lockfile install-packages
