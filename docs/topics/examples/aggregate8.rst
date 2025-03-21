@@ -3,32 +3,21 @@
 Aggregate 8 - Pydantic with declarative syntax
 ==============================================
 
-This example shows another variation of the ``Dog`` aggregate class used
-in the tutorial and module docs.
+This example shows how to use Pydantic with the library's declarative syntax.
 
-Similar to :doc:`example 1  </topics/examples/aggregate1>`, the aggregate is expressed
-using the library's declarative syntax. And similar to :doc:`example 7  </topics/examples/aggregate7>`,
-the model events are defined using Pydantic.
+Similar to :doc:`example 1  </topics/examples/aggregate1>`, aggregates are expressed
+using the library's declarative syntax. This is the most concise way of defining an
+event-sourced aggregate.
 
-The application class in this example uses the persistence classes ``PydanticMapper``
-and ``OrjsonTranscoder`` from :doc:`example 7  </topics/examples/aggregate7>`. Pydantic
-is responsible for converting domain model objects to object types that orjson can serialise,
-and for reconstructing model objects from JSON objects that have been deserialised by orjson.
-The application class also uses the custom ``Snapshot`` class, which also is defined as a
-Pydantic model.
-
-One advantage of using Pydantic here is that any custom value objects
-will be automatically reconstructed without needing to define the
-transcoding classes that would be needed when using the library's
-default ``JSONTranscoder``. This is demonstrated in the example below
-with the ``Trick`` class, which is used in both aggregate events and
-aggregate state, and which is reconstructed from serialised string
-values, representing only the name of the trick, from both recorded
-aggregate events and from recorded snapshots.
-
+Similar to :doc:`example 7  </topics/examples/aggregate7>`, domain event and custom value objects
+are defined using Pydantic. The main advantage of using Pydantic here is that any custom value objects
+used in the domain model will be automatically serialised and deserialised, without needing also to
+define custom :ref:`transcoding<Transcodings>` classes.
 
 Pydantic model for mutable aggregate
 ------------------------------------
+
+The code below shows how to define base classes for mutable aggregates that use Pydantic.
 
 .. literalinclude:: ../../../examples/aggregate8/mutablemodel.py
 
@@ -36,12 +25,19 @@ Pydantic model for mutable aggregate
 Domain model
 ------------
 
+The code below shows how to define an aggregate using the Pydantic and the library's declarative syntax.
+
 .. literalinclude:: ../../../examples/aggregate8/domainmodel.py
 
 
 Application
 -----------
 
+The :class:`~examples.aggregate8.application.DogSchool` application in this example uses the library's
+:class:`~eventsourcing.application.Application` class. It also uses the
+:class:`~examples.aggregate7.orjsonpydantic.PydanticMapper` and
+:class:`~examples.aggregate7.orjsonpydantic.OrjsonTranscoder` classes
+from :doc:`example 7  </topics/examples/aggregate7>`.
 
 .. literalinclude:: ../../../examples/aggregate8/application.py
 
@@ -49,6 +45,8 @@ Application
 Test case
 ---------
 
+The :class:`~examples.aggregate7.test_application.TestDogSchool` test case shows how the
+:class:`~examples.aggregate7.application.DogSchool` application can be used.
 
 .. literalinclude:: ../../../examples/aggregate8/test_application.py
 

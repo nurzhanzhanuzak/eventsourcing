@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Iterable, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Optional, TypeVar
+
+from eventsourcing.domain import datetime_now_with_tzinfo
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -21,6 +23,20 @@ class Aggregate:
     version: int
     created_on: datetime
     modified_on: datetime
+
+
+@dataclass(frozen=True)
+class Snapshot(DomainEvent):
+    state: Dict[str, Any]
+
+    @classmethod
+    def take(cls, aggregate: Aggregate) -> Snapshot:
+        return Snapshot(
+            originator_id=aggregate.id,
+            originator_version=aggregate.version,
+            timestamp=datetime_now_with_tzinfo(),
+            state=aggregate.__dict__,
+        )
 
 
 TAggregate = TypeVar("TAggregate", bound=Aggregate)

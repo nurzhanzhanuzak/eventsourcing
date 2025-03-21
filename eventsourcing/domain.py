@@ -1553,12 +1553,6 @@ class VersionError(OriginatorVersionError):
 
 class SnapshotProtocol(DomainEventProtocol, Protocol):
     @property
-    def topic(self) -> str:
-        """
-        Snapshots have a read-only 'topic'.
-        """
-
-    @property
     def state(self) -> Dict[str, Any]:
         """
         Snapshots have a read-only 'state'.

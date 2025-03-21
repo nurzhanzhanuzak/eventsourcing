@@ -20,6 +20,12 @@ The :class:`~examples.aggregate6.baseclasses.Aggregate` base class in this examp
 .. literalinclude:: ../../../examples/aggregate6/baseclasses.py
     :pyobject: Aggregate
 
+The :class:`~examples.aggregate6.baseclasses.Snapshot` class in this example is also defined as a "frozen" Python
+:class:`dataclass` that extends :class:`~examples.aggregate6.baseclasses.DomainEvent`.
+
+.. literalinclude:: ../../../examples/aggregate6/baseclasses.py
+    :pyobject: Snapshot
+
 A generic :class:`~examples.aggregate6.baseclasses.aggregate_projector` function is also defined, which takes
 a mutator function and returns a function that can reconstruct an aggregate of a particular type from an iterable
 of domain events.

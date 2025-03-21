@@ -5,8 +5,13 @@ from functools import singledispatch
 from typing import Tuple
 from uuid import uuid4
 
-from eventsourcing.domain import Snapshot, datetime_now_with_tzinfo
-from examples.aggregate6.baseclasses import Aggregate, DomainEvent, aggregate_projector
+from eventsourcing.domain import datetime_now_with_tzinfo
+from examples.aggregate6.baseclasses import (
+    Aggregate,
+    DomainEvent,
+    Snapshot,
+    aggregate_projector,
+)
 
 
 @dataclass(frozen=True)
@@ -44,7 +49,7 @@ def add_trick(dog: Dog, trick: str) -> DomainEvent:
 
 
 @singledispatch
-def mutate_dog(_: DomainEvent | Snapshot, __: Dog | None) -> Dog | None:
+def mutate_dog(_: DomainEvent, __: Dog | None) -> Dog | None:
     """Mutates aggregate with event."""
 
 

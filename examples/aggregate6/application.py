@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict
 
 from eventsourcing.application import Application
+from examples.aggregate6.baseclasses import Snapshot
 from examples.aggregate6.domainmodel import add_trick, project_dog, register_dog
 
 if TYPE_CHECKING:
@@ -11,6 +12,7 @@ if TYPE_CHECKING:
 
 class DogSchool(Application):
     is_snapshotting_enabled = True
+    snapshot_class = Snapshot
 
     def register_dog(self, name: str) -> UUID:
         event = register_dog(name)
