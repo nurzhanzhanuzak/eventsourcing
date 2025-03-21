@@ -41,12 +41,14 @@ construct a snapshot object from an aggregate object.
 Domain model
 ------------
 
-The :class:`~examples.aggregate5.domainmodel.Dog` aggregate is defined as immutable frozen data class that extends
-the aggregate base class. Event classes are explicitly defined and explicitly triggered in command methods.
+The :class:`~examples.aggregate5.domainmodel.Dog` aggregate class is defined as immutable frozen data class
+that extends the aggregate base class. The aggregate event classes, :class:`~examples.aggregate5.domainmodel.Dog.Registered` and
+:class:`~examples.aggregate5.domainmodel.Dog.TrickAdded`, are explicitly defined.
 
-It defines a :func:`~examples.aggregate5.domainmodel.Dog.mutate` method, which
-evolves aggregate state by constructing a new instance of the aggregate class each time it is called,
-according to the type of event it is called with.
+The :class:`~examples.aggregate5.domainmodel.Dog` aggregate class defines a
+:func:`~examples.aggregate5.domainmodel.Dog.mutate` method, which evolves aggregate state by constructing a new
+instance of the aggregate class each time it is called, according to the type of event it is called with. Support
+for reconstructing an aggregate object from an aggregate snapshot object is included in this method.
 
 .. literalinclude:: ../../../examples/aggregate5/domainmodel.py
     :pyobject: Dog
