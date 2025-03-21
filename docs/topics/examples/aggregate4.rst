@@ -3,7 +3,7 @@
 Aggregate 4 - Custom base classes
 =================================
 
-This example shows how to define and use your own aggregate base class.
+This example shows how to define and use your own mutable aggregate base class.
 
 
 Base classes

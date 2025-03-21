@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+from abc import abstractmethod
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Dict, Iterable, Type, TypeVar
+
+from eventsourcing.dispatch import singledispatchmethod
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+
+@dataclass(frozen=True)
+class DomainEvent:
+    originator_id: UUID
+    originator_version: int
+    timestamp: datetime
+
+    @staticmethod
+    def create_timestamp() -> datetime:
+        return datetime.now(tz=timezone.utc)
+
+
+TAggregate = TypeVar("TAggregate", bound="Aggregate")
+
+
+@dataclass(frozen=True)
+class Aggregate:
+    id: UUID
+    version: int
+    created_on: datetime
+    modified_on: datetime
+
+    def trigger_event(
+        self,
+        event_class: Type[DomainEvent],
+        **kwargs: Any,
+    ) -> DomainEvent:
+        kwargs = kwargs.copy()
+        kwargs.update(
+            originator_id=self.id,
+            originator_version=self.version + 1,
+            timestamp=event_class.create_timestamp(),
+        )
+        return event_class(**kwargs)
+
+    @classmethod
+    def projector(
+        cls: Type[TAggregate],
+        aggregate: TAggregate | None,
+        events: Iterable[DomainEvent],
+    ) -> TAggregate | None:
+        for event in events:
+            aggregate = cls.mutate(event, aggregate)
+        return aggregate
+
+    @singledispatchmethod
+    @staticmethod
+    @abstractmethod
+    def mutate(event: DomainEvent, aggregate: TAggregate | None) -> TAggregate | None:
+        """Mutates aggregate with event."""
+
+    @dataclass(frozen=True)
+    class Snapshot(DomainEvent):
+        state: Dict[str, Any]
+
+        @classmethod
+        def take(cls, aggregate: Aggregate) -> Aggregate.Snapshot:
+            return Aggregate.Snapshot(
+                originator_id=aggregate.id,
+                originator_version=aggregate.version,
+                timestamp=DomainEvent.create_timestamp(),
+                state=aggregate.__dict__,
+            )

@@ -1,62 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Iterable, Tuple, Type, TypeVar
-from uuid import UUID, uuid4
+from typing import Tuple
+from uuid import uuid4
 
 from eventsourcing.dispatch import singledispatchmethod
-from eventsourcing.domain import Snapshot  # noqa: TCH001
-
-
-@dataclass(frozen=True)
-class DomainEvent:
-    originator_id: UUID
-    originator_version: int
-    timestamp: datetime
-
-    @staticmethod
-    def create_timestamp() -> datetime:
-        return datetime.now(tz=timezone.utc)
-
-
-TAggregate = TypeVar("TAggregate", bound="Aggregate")
-
-
-@dataclass(frozen=True)
-class Aggregate:
-    id: UUID
-    version: int
-    created_on: datetime
-    modified_on: datetime
-
-    def trigger_event(
-        self,
-        event_class: Type[DomainEvent],
-        **kwargs: Any,
-    ) -> DomainEvent:
-        kwargs = kwargs.copy()
-        kwargs.update(
-            originator_id=self.id,
-            originator_version=self.version + 1,
-            timestamp=event_class.create_timestamp(),
-        )
-        return event_class(**kwargs)
-
-    @classmethod
-    def projector(
-        cls: Type[TAggregate],
-        aggregate: TAggregate | None,
-        events: Iterable[DomainEvent],
-    ) -> TAggregate | None:
-        for event in events:
-            aggregate = cls.mutate(event, aggregate)
-        return aggregate
-
-    @singledispatchmethod
-    @staticmethod
-    def mutate(event: DomainEvent, aggregate: Any) -> Any:
-        """Mutates aggregate with event."""
+from examples.aggregate5.baseclasses import Aggregate, DomainEvent
 
 
 @dataclass(frozen=True)
@@ -89,13 +38,13 @@ class Dog(Aggregate):
         return dog, event
 
     @singledispatchmethod
-    @classmethod
-    def mutate(cls, event: DomainEvent, aggregate: Dog | None) -> Dog | None:
+    @staticmethod
+    def mutate(event: DomainEvent, aggregate: Dog | None) -> Dog | None:
         """Mutates aggregate with event."""
 
     @mutate.register
-    @classmethod
-    def _(cls, event: Dog.Registered, _: Dog | None) -> Dog:
+    @staticmethod
+    def _(event: Dog.Registered, _: Dog | None) -> Dog:
         return Dog(
             id=event.originator_id,
             version=event.originator_version,
@@ -106,8 +55,8 @@ class Dog(Aggregate):
         )
 
     @mutate.register
-    @classmethod
-    def _(cls, event: Dog.TrickAdded, aggregate: Dog | None) -> Dog:
+    @staticmethod
+    def _(event: Dog.TrickAdded, aggregate: Dog | None) -> Dog:
         assert aggregate is not None
         return Dog(
             id=aggregate.id,
@@ -119,8 +68,8 @@ class Dog(Aggregate):
         )
 
     @mutate.register
-    @classmethod
-    def _(cls, event: Snapshot, _: Dog | None) -> Dog:
+    @staticmethod
+    def _(event: Dog.Snapshot, _: Dog | None) -> Dog:
         return Dog(
             id=event.state["id"],
             version=event.state["version"],

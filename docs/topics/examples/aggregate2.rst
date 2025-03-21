@@ -3,19 +3,21 @@
 Aggregate 2 - Explicit event classes
 ====================================
 
-This example shows the :class:`~examples.aggregate2.domainmodel.Dog` class that was described in detail
-when describing the library's :ref:`explicit syntax  <Using an explicitly defined event class>` for defining
-aggregate events in the :doc:`tutorial </topics/tutorial>` and :doc:`module docs </topics/modules>`.
+This example shows an aggregate that uses the library's :ref:`explicit syntax  <Using an explicitly defined event class>`
+for defining aggregate events, as described in the :doc:`tutorial </topics/tutorial>` and :doc:`module docs </topics/modules>`. The
+difference between this example and :doc:`example 1  </topics/examples/aggregate1>` is that the aggregate
+event classes are defined explicitly.
 
 
 Domain model
 ------------
 
 The :class:`~examples.aggregate2.domainmodel.Dog` class in this example uses the library's
-:ref:`aggregate base class <Aggregate base class>` and the :ref:`event decorator <Event decorator>`,
-but explicitly defines event classes to match command method signatures. Events are triggered when
-the command methods are called, and the bodies of the command methods are used by the events to mutate
-the state of the aggregate.
+:ref:`aggregate base class <Aggregate base class>` and the :ref:`event decorator <Event decorator>`.
+Event classes that match command method signatures are defined explicitly. Events are triggered by the decorator
+when the command methods are called, and the bodies of the command methods are used by the events to mutate
+the state of the aggregate, both after command methods are called and when reconstructing the state of an
+aggregate from stored events.
 
 .. literalinclude:: ../../../examples/aggregate2/domainmodel.py
     :pyobject: Dog

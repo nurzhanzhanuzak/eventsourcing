@@ -3,13 +3,11 @@
 Aggregate 1 - Declarative syntax
 ================================
 
-This example shows the :class:`~examples.aggregate1.domainmodel.Dog` class that was described in detail
-when describing the library's declarative syntax for aggregates in the
-:doc:`tutorial </topics/tutorial>` and :doc:`module docs </topics/modules>`.
+This example shows an aggregate that uses the library's declarative syntax for aggregates, as described
+in the :doc:`tutorial </topics/tutorial>` and :doc:`module docs </topics/modules>`.
 
 Domain model
 ------------
-
 
 The :class:`~examples.aggregate1.domainmodel.Dog` class in this example uses the library's
 :ref:`aggregate base class <Aggregate base class>` and the :ref:`event decorator <Event decorator>`
