@@ -37,7 +37,7 @@ The :class:`~examples.aggregate8.application.DogSchool` application in this exam
 :class:`~eventsourcing.application.Application` class. It also uses the
 :class:`~examples.aggregate7.orjsonpydantic.PydanticMapper` and
 :class:`~examples.aggregate7.orjsonpydantic.OrjsonTranscoder` classes
-from :doc:`example 7  </topics/examples/aggregate7>`.
+from :doc:`example 7 </topics/examples/aggregate7>`.
 
 .. literalinclude:: ../../../examples/aggregate8/application.py
 
@@ -45,8 +45,8 @@ from :doc:`example 7  </topics/examples/aggregate7>`.
 Test case
 ---------
 
-The :class:`~examples.aggregate7.test_application.TestDogSchool` test case shows how the
-:class:`~examples.aggregate7.application.DogSchool` application can be used.
+The :class:`~examples.aggregate8.test_application.TestDogSchool` test case shows how the
+:class:`~examples.aggregate8.application.DogSchool` application can be used.
 
 .. literalinclude:: ../../../examples/aggregate8/test_application.py
 
