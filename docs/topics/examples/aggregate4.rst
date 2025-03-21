@@ -12,13 +12,13 @@ Base classes
 In this example, the base classes :class:`~examples.aggregate4.baseclasses.DomainEvent`
 and :class:`~examples.aggregate4.baseclasses.Aggregate` are defined independently of the library.
 
-The :class:`~examples.aggregate4.baseclasses.DomainEvent` class in this example is defined as a
-frozen Python :class:`dataclass`.
+The :class:`~examples.aggregate4.baseclasses.DomainEvent` class is defined as a
+"frozen" Python :class:`dataclass`.
 
 .. literalinclude:: ../../../examples/aggregate4/baseclasses.py
     :pyobject: DomainEvent
 
-The :class:`~examples.aggregate4.baseclasses.Aggregate` class in this example is coded to
+The :class:`~examples.aggregate4.baseclasses.Aggregate` base class in this example is coded to
 have the common aspects of mutable aggregate objects. It is coded to conform with the library's
 protocol classes :class:`~eventsourcing.domain.CollectEventsProtocol` and :class:`~eventsourcing.domain.MutableAggregateProtocol`
 so that it can be used with the library's :class:`~eventsourcing.application.Application` class.

@@ -8,18 +8,20 @@ This example shows how to define and use your own immutable aggregate base class
 Base classes
 ------------
 
-Like in the previous example, this example also does *not* use the library's
-:ref:`aggregate base class <Aggregate base class>`.
+In this example, the base classes :class:`~examples.aggregate5.baseclasses.DomainEvent`
+and :class:`~examples.aggregate5.baseclasses.Aggregate` are defined independently of the library.
 
-The base class for aggregate events, :class:`~examples.aggregate5.baseclasses.DomainEvent`, is defined as
-a "frozen" Python :class:`dataclass`.
+The :class:`~examples.aggregate5.baseclasses.DomainEvent` class is defined as a "frozen" Python :class:`dataclass`.
 
 .. literalinclude:: ../../../examples/aggregate5/baseclasses.py
     :pyobject: DomainEvent
 
-The aggregate base class, :class:`~examples.aggregate5.baseclasses.Aggregate`, is also defined as a "frozen" Python
+The :class:`~examples.aggregate5.baseclasses.Aggregate` base class in this example is also defined as a "frozen" Python
 :class:`dataclass`. This has implications for the aggregate command methods, which must
 return the events that they trigger.
+
+.. literalinclude:: ../../../examples/aggregate5/baseclasses.py
+    :pyobject: Aggregate
 
 It defines a :func:`~examples.aggregate5.baseclasses.Aggregate.trigger_event` method, which can be called by
 aggregate command methods, and which does the common work of constructing an event object with an incremented
@@ -34,9 +36,6 @@ It also defines a :class:`~examples.aggregate5.baseclasses.Aggregate.Snapshot` c
 and which has a :func:`~examples.aggregate5.baseclasses.Aggregate.Snapshot.take` method that can
 construct a snapshot object from an aggregate object.
 
-.. literalinclude:: ../../../examples/aggregate5/baseclasses.py
-    :pyobject: Aggregate
-
 
 Domain model
 ------------
@@ -48,7 +47,7 @@ that extends the aggregate base class. The aggregate event classes, :class:`~exa
 The :class:`~examples.aggregate5.domainmodel.Dog` aggregate class defines a
 :func:`~examples.aggregate5.domainmodel.Dog.mutate` method, which evolves aggregate state by constructing a new
 instance of the aggregate class each time it is called, according to the type of event it is called with. Support
-for reconstructing an aggregate object from an aggregate snapshot object is included in this method.
+for reconstructing an aggregate object from a snapshot object is included in this method.
 
 .. literalinclude:: ../../../examples/aggregate5/domainmodel.py
     :pyobject: Dog
