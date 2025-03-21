@@ -42,7 +42,7 @@ Domain model
 
 The :class:`~examples.aggregate5.domainmodel.Dog` aggregate class is defined as immutable frozen data class
 that extends the aggregate base class. The aggregate event classes, :class:`~examples.aggregate5.domainmodel.Dog.Registered` and
-:class:`~examples.aggregate5.domainmodel.Dog.TrickAdded`, are explicitly defined.
+:class:`~examples.aggregate5.domainmodel.Dog.TrickAdded`, are explicitly defined as nested subclasses.
 
 The :class:`~examples.aggregate5.domainmodel.Dog` aggregate class defines a
 :func:`~examples.aggregate5.domainmodel.Dog.mutate` method, which evolves aggregate state by constructing a new

@@ -88,9 +88,7 @@ class TestDocs(TestCase):
         # self.check_code_snippets_in_file(path)
 
     def test_docs(self):
-        skipped = [
-            # 'deployment.rst'
-        ]
+        skipped = ["aggregate6.rst"]  # has :start-from: complications...
 
         self._out = ""
         docs_path = os.path.join(base_dir, "docs")
@@ -210,8 +208,10 @@ class TestDocs(TestCase):
                     num_code_lines_in_block = 0
                 elif line.startswith(".. literalinclude::"):
                     is_literalinclude = True
-                    module = line.strip().split(" ")[-1]  # get the file path
-                    module = module[:-3]  # remove the '.py' from the end
+                    literal_include_path = line.strip().split(" ")[
+                        -1
+                    ]  # get the file path
+                    module = literal_include_path[:-3]  # remove the '.py' from the end
                     module = module.lstrip("./")  # remove all the ../../..
                     module = module.replace("/", ".")  # swap dots for slashes
                     line = ""
