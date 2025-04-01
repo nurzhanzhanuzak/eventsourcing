@@ -85,7 +85,7 @@ for those unable to meet the prerequisites needed for building ``psycopg[c]``.
 This package now follows the recommendation that library's should depend only on the pure Python package, giving
 users the choice of either compiling the C optimization or using the pre-built binary or using the pure
 Python package. If you don't install either ``psycopg[c]`` or ``psycopg[binary]`` then you need to make sure
-the `libpq` is installed. The `libpq` is the client library used by psql, the PostgreSQL command line client. See
+the libpq is installed. The libpq is the client library used by psql, the PostgreSQL command line client. See
 the `Psycopg docs <https://www.psycopg.org/psycopg3/docs/basic/install.html#pure-python-installation>`_ for more
 information.
 

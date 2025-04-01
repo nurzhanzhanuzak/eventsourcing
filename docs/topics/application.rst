@@ -1082,12 +1082,12 @@ of the application "on the wire" and "at rest".
 To enable application-level encryption, set the environment variable
 ``CIPHER_TOPIC`` to be the :ref:`topic <Topics>` of a cipher class.
 
-The library's :class:`~eventsourcing.cipher.AESCipher` class can
-be used to encrypt stored domain events.
+The library's older :class:`eventsourcing.cipher.AESCipher` class can
+be used to encrypt stored domain events. This class uses `Pycryptodome <https://pypi.org/project/pycryptodome/>`_.
 When using the library's :class:`~eventsourcing.cipher.AESCipher`
 class, set environment variable ``CIPHER_KEY`` to be a valid encryption
 key. You can use the static method :func:`~eventsourcing.cipher.AESCipher.create_key`
-on the :class:`~eventsourcing.cipher.AESCipher` class to generate a valid encryption key.
+on the :class:`eventsourcing.cipher.AESCipher` class to generate a valid encryption key.
 
 .. code-block:: python
 
@@ -1102,6 +1102,31 @@ on the :class:`~eventsourcing.cipher.AESCipher` class to generate a valid encryp
     # Configure cipher key.
     os.environ["CIPHER_KEY"] = cipher_key
 
+
+Alternatively, the library's new :class:`eventsourcing.cryptography.AESCipher` class can
+be used to encrypt stored domain events. This class uses the newer "standard" Python
+`cryptography <https://pypi.org/project/cryptography/>`_ package. When using this
+:class:`~eventsourcing.cryptography.AESCipher` class, set environment variable ``CIPHER_KEY``
+to be a valid encryption key. You can use the static method :func:`~eventsourcing.cryptography.AESCipher.create_key`
+on the :class:`eventsourcing.cryptography.AESCipher` class to generate a valid encryption key.
+
+.. code-block:: python
+
+    from eventsourcing.cryptography import AESCipher
+
+    # Generate a cipher key (keep this safe).
+    cipher_key = AESCipher.create_key(num_bytes=32)
+
+    # Configure cipher topic.
+    os.environ["CIPHER_TOPIC"] = "eventsourcing.cryptography:AESCipher"
+
+    # Configure cipher key.
+    os.environ["CIPHER_KEY"] = cipher_key
+
+
+The classes :class:`eventsourcing.cipher.AESCipher` and :class:`eventsourcing.cryptography.AESCipher` are tested
+as being interoperable. You should be able to decrypt events with one that have been encrypted with the other, using
+the same cipher key.
 
 .. _Snapshotting:
 
@@ -1248,6 +1273,13 @@ Code reference
 ==============
 
 .. automodule:: eventsourcing.application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :special-members:
+    :exclude-members: __weakref__, __dict__
+
+.. automodule:: eventsourcing.cryptography
     :show-inheritance:
     :member-order: bysource
     :members:

@@ -362,7 +362,7 @@ we will also configure the system to compress and encrypt the domain events.
 
     import os
 
-    from eventsourcing.cipher import AESCipher
+    from eventsourcing.cryptography import AESCipher
 
     # Generate a cipher key (keep this safe).
     cipher_key = AESCipher.create_key(num_bytes=32)
@@ -370,7 +370,7 @@ we will also configure the system to compress and encrypt the domain events.
     # Cipher key.
     os.environ['CIPHER_KEY'] = cipher_key
     # Cipher topic.
-    os.environ['CIPHER_TOPIC'] = 'eventsourcing.cipher:AESCipher'
+    os.environ['CIPHER_TOPIC'] = 'eventsourcing.cryptography:AESCipher'
     # Compressor topic.
     os.environ['COMPRESSOR_TOPIC'] = 'eventsourcing.compressor:ZlibCompressor'
 

@@ -596,12 +596,12 @@ Encryption
 ==========
 
 The :class:`~eventsourcing.persistence.Mapper` class has an optional constructor argument, ``cipher``,
-which accepts :class:`~eventsourcing.cipher.Cipher` objects. A cipher will encrypt and decrypt the state
+which accepts :class:`~eventsourcing.persistence.Cipher` objects. A cipher will encrypt and decrypt the state
 of stored events within an event-sourced application, inhibiting disclosure of sensitive information in
 case of unauthorised access to an application's database files and backups, or network interception.
 
-The library's :class:`~eventsourcing.cipher.AESCipher` class
-implements the abstract base class :class:`~eventsourcing.cipher.Cipher`.
+The library's :class:`eventsourcing.cipher.AESCipher` class
+implements the abstract base class :class:`~eventsourcing.persistence.Cipher`.
 It can be used to cryptographically encode and decode the state of stored
 events using the `AES cipher <https://pycryptodome.readthedocs.io/en/stable/src/cipher/aes.html>`_
 from the `PyCryptodome library <https://pycryptodome.readthedocs.io/en/stable/index.html>`_
@@ -611,7 +611,12 @@ standard for symmetric encryption. Galois/Counter Mode (GCM) is a mode of
 operation for symmetric block ciphers that is designed to provide both data
 authenticity and confidentiality, and is widely adopted for its performance.
 
-A :class:`~eventsourcing.cipher.Cipher` is constructed with an
+Alternatively, the library's :class:`eventsourcing.cryptography.AESCipher` class
+also implements the abstract base class :class:`~eventsourcing.persistence.Cipher` and
+is functionally equivalent, but uses the `Python cryptography library <https://cryptography.io>`_,
+and should work as a drop-in replacement for :class:`eventsourcing.cipher.AESCipher`.
+
+A :class:`~eventsourcing.persistence.Cipher` is constructed with an
 :class:`~eventsourcing.utils.Environment` object so that that
 encryption can be configured using environment variables.
 
@@ -650,7 +655,7 @@ than the state of a stored event that is not encrypted.
     assert len(encrypted_stored_event.state) > len(stored_event.state)
 
 If you want to use a different cipher strategy, then implement the base
-class :class:`~eventsourcing.cipher.Cipher`.
+class :class:`~eventsourcing.persistence.Cipher`.
 
 
 Compression and encryption
