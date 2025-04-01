@@ -39,7 +39,7 @@ command, in a ``requirements.txt`` file, or in a ``setup.py`` file.
 
 ::
 
-    $ pip install "eventsourcing<=9.3.99999"
+    $ pip install "eventsourcing<=9.4.99999"
 
 If you are specifying the dependencies of your project in a ``pyproject.toml``
 file, and for example using the Poetry build tool, you can specify the
@@ -49,7 +49,7 @@ dependency on this library in the following way.
 
     [tool.poetry.dependencies]
     python = "^3.8"
-    eventsourcing = { version = "~9.3" }
+    eventsourcing = { version = "~9.4" }
 
 
 Specifying the major and minor version number in this way will avoid any
@@ -73,12 +73,44 @@ Running the install command with different options will install
 the extra dependencies associated with that option. If you installed
 without any options, you can easily install optional dependencies
 later by running the install command again with the options you want.
-You can also make your project depend directly on the extra dependencies.
 
-For example, if you want to store cryptographically encrypted events,
-then install with the ``crypto`` option. This simply installs
-`PyCryptodome <https://pypi.org/project/pycryptodome/>`_
-so feel free to make your project depend directly on `pycryptodome`.
+If you want to :ref:`store events with PostgreSQL <postgres-environment>`, then install with
+the ``postgres`` option. This installs `Psycopg v3 <https://pypi.org/project/psycopg/>`_
+and its connection pool package.
+
+The C optimization is recommended by the `Psycopg <https://www.psycopg.org>`_  developers for production usage.
+The pre-built binary option ``psycopg[binary]`` is a convenient alternative for development and testing, and
+for those unable to meet the prerequisites needed for building ``psycopg[c]``.
+
+This package now follows the recommendation that library's should depend only on the pure Python package, giving
+users the choice of either compiling the C optimization or using the pre-built binary or using the pure
+Python package. If you don't install either ``psycopg[c]`` or ``psycopg[binary]`` then you need to make sure
+the `libpq` is installed. The `libpq` is the client library used by psql, the PostgreSQL command line client. See
+the `Psycopg docs <https://www.psycopg.org/psycopg3/docs/basic/install.html#pure-python-installation>`_ for more
+information.
+
+See the :ref:`PostgreSQL persistence module documentation <postgres-environment>` for more information about storing
+events in PostgreSQL.
+
+::
+
+    $ pip install "eventsourcing[postgres]"
+
+
+If you want to store cryptographically encrypted events,
+then install with the ``cryptography`` option. This simply installs
+the Python `cryptography <https://pypi.org/project/cryptography/>`_.
+Please note, you will need to :ref:`configure your application <Application configuration>`
+environment to enable encryption.
+
+::
+
+    $ pip install "eventsourcing[cryptography]"
+
+
+Alternatively, if you want to store cryptographically encrypted events,
+then you can install with the ``crypto`` option. This simply installs
+`PyCryptodome <https://pypi.org/project/pycryptodome/>`_.
 Please note, you will need to :ref:`configure your application <Application configuration>`
 environment to enable encryption.
 
@@ -87,27 +119,12 @@ environment to enable encryption.
     $ pip install "eventsourcing[crypto]"
 
 
-If you want to :ref:`store events with PostgreSQL <postgres-environment>`, then install with
-the ``postgres`` option. This installs `Psycopg v3 <https://pypi.org/project/psycopg/>`_
-with its C optimization and connection pool packages, so feel free to make your project depend
-directly on ``psycopg[c,pool]`` instead. The C optimization is recommended by the
-`Psycopg <https://www.psycopg.org>`_  developers for production usage. The pre-built binary
-option ``psycopg[binary]`` is a convenient alternative for development and testing, and for those
-unable to meet the prerequisites needed for building ``psycopg[c]``. See the
-:ref:`PostgreSQL persistence module documentation <postgres-environment>` for more information
-about storing events in PostgreSQL.
-
-::
-
-    $ pip install "eventsourcing[postgres]"
-
-
 Options can be combined, so that if you want to store encrypted events in PostgreSQL,
-then install with both the ``crypto`` and the ``postgres`` options.
+then install with both the ``postgres`` and the ``cryptography`` options.
 
 ::
 
-    $ pip install "eventsourcing[crypto,postgres]"
+    $ pip install "eventsourcing[postgres,cryptography]"
 
 
 .. _Template:
