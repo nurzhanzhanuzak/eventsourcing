@@ -17,3 +17,4 @@ documentation.
    tutorial/part2
    tutorial/part3
    tutorial/part4
+   tutorial/part5

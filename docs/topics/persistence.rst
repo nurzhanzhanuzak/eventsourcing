@@ -735,9 +735,10 @@ catastrophic inconsistencies in the state of a system.
 Tracking
 ========
 
-A tracking object identifies the position of an event in an application sequence
-when the consequences of processing that event are to be stored by an event process
-component.
+A tracking object identifies the position of an event in an application sequence.
+This is useful when the results of processing an event are to be stored by
+an event processing component, so that we can ensure each event is processed
+only once, and so that we can resume processing events from the correct position.
 
 The library's :class:`~eventsourcing.persistence.Tracking` class
 is a Python frozen data class.

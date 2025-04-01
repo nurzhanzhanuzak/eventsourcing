@@ -2,6 +2,8 @@
 Tutorial - Part 2 - Aggregates
 ==============================
 
+This part of the tutorial shows in more detail how to define event-sourced aggregates.
+
 In :doc:`Part 1 </topics/tutorial/part1>` we learned
 how to write event-sourced aggregates and applications
 in Python.

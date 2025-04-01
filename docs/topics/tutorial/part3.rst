@@ -2,6 +2,7 @@
 Tutorial - Part 3 - Applications
 ================================
 
+This part of the tutorial shows in more detail how to define event-sourced applications.
 
 As we saw in :doc:`Part 1 </topics/tutorial/part1>`, we can
 use the library's :class:`~eventsourcing.application.Application` class to define event-sourced

@@ -2,7 +2,7 @@
 Tutorial - Part 1 - Getting started
 ===================================
 
-Part 1 of this :doc:`tutorial </topics/tutorial>` introduces the library's
+This part the :doc:`tutorial </topics/tutorial>` introduces the library's
 :class:`~eventsourcing.domain.Aggregate` and :class:`~eventsourcing.application.Application`
 classes, showing and explaining how they can be used together to
 write an event-sourced application in Python.

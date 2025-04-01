@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from psycopg.rows import DictRow
 
 
-class CountRecorder(TrackingRecorder):
+class CountRecorderInterface(TrackingRecorder):
     @abstractmethod
     def incr_created_events_counter(self, tracking: Tracking) -> None:
         pass
@@ -40,7 +40,7 @@ class CountRecorder(TrackingRecorder):
         pass
 
 
-class POPOCountRecorder(POPOTrackingRecorder, CountRecorder):
+class POPOCountRecorder(POPOTrackingRecorder, CountRecorderInterface):
     def __init__(self):
         super().__init__()
         self._created_events_counter = 0
@@ -66,7 +66,7 @@ class POPOCountRecorder(POPOTrackingRecorder, CountRecorder):
         return self._created_events_counter + self._subsequent_events_counter
 
 
-class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorder):
+class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorderInterface):
     def __init__(
         self,
         datastore: PostgresDatastore,
@@ -144,21 +144,27 @@ class SpannerThrownError(Exception):
     pass
 
 
-class CountProjection(Projection[CountRecorder]):
+class CountProjection(Projection[CountRecorderInterface]):
     def __init__(
         self,
-        tracking_recorder: CountRecorder,
+        tracking_recorder: CountRecorderInterface,
     ):
-        assert isinstance(tracking_recorder, CountRecorder), type(tracking_recorder)
+        assert isinstance(tracking_recorder, CountRecorderInterface), type(
+            tracking_recorder
+        )
         super().__init__(tracking_recorder)
 
     @singledispatchmethod
     def process_event(self, _: DomainEventProtocol, tracking: Tracking) -> None:
-        self.tracking_recorder.incr_subsequent_events_counter(tracking)
+        pass
 
     @process_event.register
     def aggregate_created(self, _: Aggregate.Created, tracking: Tracking) -> None:
         self.tracking_recorder.incr_created_events_counter(tracking)
+
+    @process_event.register
+    def aggregate_event(self, _: Aggregate.Event, tracking: Tracking) -> None:
+        self.tracking_recorder.incr_subsequent_events_counter(tracking)
 
     @process_event.register
     def spanner_thrown(self, _: SpannerThrown, __: Tracking) -> None:
@@ -332,6 +338,9 @@ class TestCountProjectionWithPostgres(TestCountProjection):
             read_model.wait(
                 write_model.name, write_model.recorder.max_notification_id()
             )
+
+    def test_run_forever_raises_projection_error(self):
+        super().test_run_forever_raises_projection_error()
 
     def setUp(self) -> None:
         super().setUp()
