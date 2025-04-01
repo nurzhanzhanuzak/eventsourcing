@@ -64,9 +64,7 @@ class WithPostgres(TestCase):
 
 
 class TestApplicationWithPostgres(WithPostgres, ApplicationTestCase):
-
-    def test_catchup_subscription(self):
-        super().test_catchup_subscription()
+    pass
 
 
 class TestExampleApplicationWithPostgres(WithPostgres, ExampleApplicationTestCase):

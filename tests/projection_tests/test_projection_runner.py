@@ -8,7 +8,11 @@ from unittest import TestCase
 
 from eventsourcing.application import Application
 from eventsourcing.domain import Aggregate
-from eventsourcing.projection import Projection, ProjectionRunner
+from eventsourcing.projection import (
+    ApplicationSubscription,
+    Projection,
+    ProjectionRunner,
+)
 from tests.projection_tests.test_projection import (
     CountProjection,
     POPOCountRecorder,
@@ -145,7 +149,7 @@ class TestProjectionRunner(TestCase):
         runner.app.save(Aggregate())
 
         # Get another application sequence
-        subscription = runner.app.subscribe()
+        subscription = ApplicationSubscription(runner.app)
 
         # Get a reference to the projection.
         projection = runner.projection

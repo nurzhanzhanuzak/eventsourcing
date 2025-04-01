@@ -58,7 +58,6 @@ The main features of an application are:
 * the :func:`~eventsourcing.application.Application.save` method, used for collecting
   and recording new aggregate events;
 * the ``repository`` attribute, with which aggregates are reconstructed;
-* the :func:`~eventsourcing.application.Application.subscribe()` method;
 * the ``notification_log`` attribute, from which the state of the application can be propagated;
 * the :func:`~eventsourcing.application.Application.take_snapshot` method;
 * the application environment, used to configure an application;
@@ -78,14 +77,6 @@ The :class:`~eventsourcing.application.Application` class defines an
 object attribute ``repository`` which holds an :ref:`event-sourced repository <Repository>`.
 The repository's :func:`~eventsourcing.application.Repository.get` method can be used by
 your application's command and query methods to obtain already existing aggregates.
-
-The :class:`~eventsourcing.application.Application` class defines a
-method :func:`~eventsourcing.application.Application.subscribe` which can
-be used to subscribe to the domain events in an application sequence. This uses the
-:class:`ApplicationRecorder.subscribe() <eventsourcing.persistence.ApplicationRecorder.subscribe>`
-method to listen to the application's database, selecting notification objects and converting
-them into domain events using the application's mapper, and can be used by event processing
-components to project the state of the application into materialised views.
 
 The :class:`~eventsourcing.application.Application` class defines an
 object attribute ``notification_log`` which holds a :ref:`local notification log <Notification log>`.
@@ -298,31 +289,6 @@ methods of domain event objects to reconstruct the state of the requested aggreg
 
 It is possible to enable caching of aggregates in the application repository.
 See :ref:`Configuring aggregate caching <Aggregate caching>` for more information.
-
-.. _Subscriptions:
-
-Subscriptions
-=============
-
-To support event processing components, an application object has
-a :func:`~eventsourcing.application.Application.subscribe` method, which can
-be used to subscribe to the domain events in an application sequence. This uses
-the :func:`~eventsourcing.persistence.ApplicationRecorder.subscribe` method of an
-:ref:`application recorder <Application recorder>` to listen to the application's database,
-selecting notification objects and converting them into domain events using the application's
-mapper. It can be used by event processing components to project the state of the application
-into materialised views.
-
-.. code-block:: python
-
-    with application.subscribe() as subscription:
-        for domain_event, tracking in subscription:
-            # process the event and record new state with tracking information
-            ...
-            break
-
-See the :doc:`projection module </topics/projection>` for more information about projecting
-the state of an event-sourced application into a materialised view.
 
 .. _Notification Log:
 

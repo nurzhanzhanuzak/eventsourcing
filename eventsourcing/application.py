@@ -25,7 +25,7 @@ from typing import (
 )
 from warnings import warn
 
-from typing_extensions import Self, deprecated
+from typing_extensions import deprecated
 
 from eventsourcing.domain import (
     Aggregate,
@@ -903,21 +903,6 @@ class Application:
         need to take action when new domain events have been saved.
         """
 
-    def subscribe(self, gt: int | None = None) -> ApplicationSubscription:
-        """
-        Returns an iterator that yields all domain events recorded in an application
-        sequence that have notification IDs greater than a given value. The iterator
-        will block when all recorded domain events have been yielded, and then
-        continue when new events are recorded. Domain events are returned along
-        with tracking objects that identify the position in the application sequence.
-        """
-        return ApplicationSubscription(
-            name=self.name,
-            recorder=self.recorder,
-            mapper=self.mapper,
-            gt=gt,
-        )
-
     def close(self) -> None:
         self.closing.set()
         self.factory.close()
@@ -1042,36 +1027,3 @@ class EventSourcedLog(Generic[TDomainEvent]):
                 limit=limit,
             ),
         )
-
-
-class ApplicationSubscription:
-    def __init__(
-        self,
-        name: str,
-        recorder: ApplicationRecorder,
-        mapper: Mapper,
-        gt: int | None = None,
-    ):
-        self.name = name
-        self.recorder = recorder
-        self.mapper = mapper
-        self.subscription = self.recorder.subscribe(gt=gt)
-
-    def __enter__(self) -> Self:
-        self.subscription.__enter__()
-        return self
-
-    def __exit__(self, *args: object, **kwargs: Any) -> None:
-        self.subscription.__exit__(*args, **kwargs)
-
-    def __iter__(self) -> Self:
-        return self
-
-    def __next__(self) -> Tuple[DomainEventProtocol, Tracking]:
-        notification = next(self.subscription)
-        tracking = Tracking(self.name, notification.id)
-        domain_event = self.mapper.to_domain_event(notification)
-        return domain_event, tracking
-
-    def __del__(self) -> None:
-        self.subscription.stop()

@@ -5,11 +5,12 @@ import weakref
 from abc import ABC, abstractmethod
 from threading import Event, Thread
 from traceback import format_exc
-from typing import TYPE_CHECKING, Any, Dict, Generic, Type, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, Tuple, Type, TypeVar
 from warnings import warn
 
 from eventsourcing.application import Application
 from eventsourcing.dispatch import singledispatchmethod
+from eventsourcing.domain import DomainEventProtocol
 from eventsourcing.persistence import (
     InfrastructureFactory,
     Tracking,
@@ -22,8 +23,47 @@ from eventsourcing.utils import Environment, EnvType
 if TYPE_CHECKING:
     from typing_extensions import Self
 
-    from eventsourcing.application import ApplicationSubscription
-    from eventsourcing.domain import DomainEventProtocol
+
+class ApplicationSubscription(Iterator[Tuple[DomainEventProtocol, Tracking]]):
+    """
+    An iterator that yields all domain events recorded in an application
+    sequence that have notification IDs greater than a given value. The iterator
+    will block when all recorded domain events have been yielded, and then
+    continue when new events are recorded. Domain events are returned along
+    with tracking objects that identify the position in the application sequence.
+    """
+
+    def __init__(
+        self,
+        app: Application,
+        gt: int | None = None,
+    ):
+        self.name = app.name
+        self.recorder = app.recorder
+        self.mapper = app.mapper
+        self.subscription = self.recorder.subscribe(gt=gt)
+
+    def __enter__(self) -> Self:
+        self.subscription.__enter__()
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        self.subscription.__exit__(*args, **kwargs)
+
+    def __iter__(self) -> Self:
+        return self
+
+    def __next__(self) -> Tuple[DomainEventProtocol, Tracking]:
+        notification = next(self.subscription)
+        tracking = Tracking(self.name, notification.id)
+        domain_event = self.mapper.to_domain_event(notification)
+        return domain_event, tracking
+
+    def __del__(self) -> None:
+        self.stop()
+
+    def stop(self) -> None:
+        self.subscription.stop()
 
 
 class Projection(ABC, Generic[TTrackingRecorder]):
@@ -46,6 +86,8 @@ class Projection(ABC, Generic[TTrackingRecorder]):
 
 
 TProjection = TypeVar("TProjection", bound=Projection[Any])
+
+
 TApplication = TypeVar("TApplication", bound=Application)
 
 
@@ -70,8 +112,9 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             self.projection_factory.tracking_recorder(tracking_recorder_class)
         )
 
-        self.subscription = self.app.subscribe(
-            gt=self.tracking_recorder.max_tracking_id(self.app.name)
+        self.subscription = ApplicationSubscription(
+            app=self.app,
+            gt=self.tracking_recorder.max_tracking_id(self.app.name),
         )
         self.projection = projection_class(
             tracking_recorder=self.tracking_recorder,
@@ -100,7 +143,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         return Environment(name, _env)
 
     def stop(self) -> None:
-        self.subscription.subscription.stop()
+        self.subscription.stop()
 
     @staticmethod
     def _process_events_loop(
