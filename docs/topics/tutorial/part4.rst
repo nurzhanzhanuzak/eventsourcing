@@ -81,10 +81,8 @@ which is expected to be a tracking recorder object of the type specified by the 
 will be assigned to the projection object's :data:`tracking_recorder` attribute.
 
 The :class:`~eventsourcing.projection.Projection` class is an abstract class because it defines an abstract method
-:func:`~eventsourcing.projection.Projection.process_event` that must be implemented by subclasses. Events will be
-processed by calling command methods on a tracking recorder object. Implementations of the
-:func:`~eventsourcing.projection.Projection.process_event` method can access the tracking recorder object given when
-the projection object is constructed via the projection object's :data:`tracking_recorder` attribute.
+:func:`~eventsourcing.projection.Projection.process_event` that must be implemented by subclasses. Events will typically
+be processed by calling command methods on the projection's tracking recorder.
 
 For example, see the :class:`CountProjection` class below. It inherits the :class:`~eventsourcing.projection.Projection`
 class. By stating the type argument of :class:`~eventsourcing.projection.Projection` is :class:`CountRecorder`, we
