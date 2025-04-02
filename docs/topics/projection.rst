@@ -97,6 +97,14 @@ The intention of this class is that it will be subclassed, and that domain event
 calling an implementation of the :func:`~eventsourcing.projection.Projection.process_event`, which will call command
 methods on a tracking recorder object given as the constructor argument when the subclass is constructed.
 
+Subclasses of the :class:`~eventsourcing.projection.Projection` class can specify a
+:py:attr:`~eventsourcing.projection.Projection.name` attribute, so that environment variables
+used to construct the tracking recorder can be prefixed.
+
+Subclasses of the :class:`~eventsourcing.projection.Projection` class can specify a
+:py:attr:`~eventsourcing.projection.Projection.topics` attribute, so that events can be
+filtered in the application's database by the application subscription.
+
 .. code-block:: python
 
     from abc import ABC, abstractmethod

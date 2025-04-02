@@ -486,7 +486,9 @@ class ApplicationRecorder(AggregateRecorder):
         """
 
     @abstractmethod
-    def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
+    def subscribe(
+        self, gt: int | None = None, topics: Sequence[str] = ()
+    ) -> Subscription[ApplicationRecorder]:
         """
         Returns an iterator of Notification objects representing events from an
         application sequence.
@@ -1311,10 +1313,14 @@ TApplicationRecorder_co = TypeVar(
 
 class Subscription(Iterator[Notification], Generic[TApplicationRecorder_co]):
     def __init__(
-        self, recorder: TApplicationRecorder_co, gt: int | None = None
+        self,
+        recorder: TApplicationRecorder_co,
+        gt: int | None = None,
+        topics: Sequence[str] = (),
     ) -> None:
         self._recorder = recorder
         self._last_notification_id = gt
+        self._topics = topics
         self._has_been_entered = False
         self._has_been_stopped = False
 
@@ -1349,9 +1355,12 @@ class Subscription(Iterator[Notification], Generic[TApplicationRecorder_co]):
 
 class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
     def __init__(
-        self, recorder: TApplicationRecorder_co, gt: int | None = None
+        self,
+        recorder: TApplicationRecorder_co,
+        gt: int | None = None,
+        topics: Sequence[str] = (),
     ) -> None:
-        super().__init__(recorder=recorder, gt=gt)
+        super().__init__(recorder=recorder, gt=gt, topics=topics)
         self._select_limit = 500
         self._notifications: List[Notification] = []
         self._notifications_index: int = 0
@@ -1410,6 +1419,7 @@ class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
             notifications = self._recorder.select_notifications(
                 start=self._last_notification_id or 0,
                 limit=self._select_limit,
+                topics=self._topics,
                 inclusive_of_start=False,
             )
             if len(notifications) > 0:

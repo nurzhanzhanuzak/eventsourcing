@@ -471,7 +471,9 @@ class SQLiteApplicationRecorder(
         c.execute(self.select_max_notification_id_statement)
         return c.fetchone()[0]
 
-    def subscribe(self, gt: int | None = None) -> Subscription[ApplicationRecorder]:
+    def subscribe(
+        self, gt: int | None = None, topics: Sequence[str] = ()
+    ) -> Subscription[ApplicationRecorder]:
         msg = f"The {type(self).__qualname__} recorder does not support subscriptions"
         raise NotImplementedError(msg)
 

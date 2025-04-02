@@ -30,6 +30,7 @@ from eventsourcing.persistence import (
     ProcessRecorder,
     ProgrammingError,
     StoredEvent,
+    Subscription,
     Tracking,
     TrackingRecorder,
 )
@@ -524,16 +525,21 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
                 raise ProgrammingError(msg)
         return notification_ids
 
-    def subscribe(self, gt: int | None = None) -> PostgresSubscription:
-        return PostgresSubscription(self, gt)
+    def subscribe(
+        self, gt: int | None = None, topics: Sequence[str] = ()
+    ) -> Subscription[ApplicationRecorder]:
+        return PostgresSubscription(recorder=self, gt=gt, topics=topics)
 
 
 class PostgresSubscription(ListenNotifySubscription[PostgresApplicationRecorder]):
     def __init__(
-        self, recorder: PostgresApplicationRecorder, gt: int | None = None
+        self,
+        recorder: PostgresApplicationRecorder,
+        gt: int | None = None,
+        topics: Sequence[str] = (),
     ) -> None:
         assert isinstance(recorder, PostgresApplicationRecorder)
-        super().__init__(recorder=recorder, gt=gt)
+        super().__init__(recorder=recorder, gt=gt, topics=topics)
         self._listen_thread = Thread(target=self._listen)
         self._listen_thread.start()
 

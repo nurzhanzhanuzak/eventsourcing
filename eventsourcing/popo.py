@@ -14,6 +14,7 @@ from eventsourcing.persistence import (
     Notification,
     ProcessRecorder,
     StoredEvent,
+    Subscription,
     Tracking,
     TrackingRecorder,
 )
@@ -155,8 +156,10 @@ class POPOApplicationRecorder(POPOAggregateRecorder, ApplicationRecorder):
         with self._database_lock:
             return len(self._stored_events) or None
 
-    def subscribe(self, gt: int | None = None) -> POPOSubscription:
-        return POPOSubscription(self, gt)
+    def subscribe(
+        self, gt: int | None = None, topics: Sequence[str] = ()
+    ) -> Subscription[ApplicationRecorder]:
+        return POPOSubscription(recorder=self, gt=gt, topics=topics)
 
     def listen(self, event: Event) -> None:
         self._listeners.add(event)
@@ -172,10 +175,13 @@ class POPOApplicationRecorder(POPOAggregateRecorder, ApplicationRecorder):
 
 class POPOSubscription(ListenNotifySubscription[POPOApplicationRecorder]):
     def __init__(
-        self, recorder: POPOApplicationRecorder, gt: int | None = None
+        self,
+        recorder: POPOApplicationRecorder,
+        gt: int | None = None,
+        topics: Sequence[str] = (),
     ) -> None:
         assert isinstance(recorder, POPOApplicationRecorder)
-        super().__init__(recorder=recorder, gt=gt)
+        super().__init__(recorder=recorder, gt=gt, topics=topics)
         self._recorder.listen(self._has_been_notified)
 
     def stop(self) -> None:

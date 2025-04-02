@@ -734,6 +734,18 @@ class ApplicationRecorderTestCase(TestCase, ABC):
                 # Shouldn't get here...
                 self.fail("Got here")
 
+        # Start a subscription with topics.
+        subscription = recorder.subscribe(gt=None, topics=["topic3"])
+        with subscription:
+            for notification in subscription:
+                self.assertEqual(notification.topic, "topic3")
+                if (
+                    notification.originator_id == stored_event3.originator_id
+                    and notification.originator_version
+                    == stored_event3.originator_version
+                ):
+                    break
+
     def close_db_connection(self, *args: Any) -> None:
         """"""
 

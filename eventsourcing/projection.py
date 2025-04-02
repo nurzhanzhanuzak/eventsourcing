@@ -5,7 +5,17 @@ import weakref
 from abc import ABC, abstractmethod
 from threading import Event, Thread
 from traceback import format_exc
-from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, Tuple, Type, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generic,
+    Iterator,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+)
 from warnings import warn
 
 from eventsourcing.application import Application
@@ -37,11 +47,12 @@ class ApplicationSubscription(Iterator[Tuple[DomainEventProtocol, Tracking]]):
         self,
         app: Application,
         gt: int | None = None,
+        topics: Sequence[str] = (),
     ):
         self.name = app.name
         self.recorder = app.recorder
         self.mapper = app.mapper
-        self.subscription = self.recorder.subscribe(gt=gt)
+        self.subscription = self.recorder.subscribe(gt=gt, topics=topics)
 
     def __enter__(self) -> Self:
         self.subscription.__enter__()
@@ -68,6 +79,9 @@ class ApplicationSubscription(Iterator[Tuple[DomainEventProtocol, Tracking]]):
 
 class Projection(ABC, Generic[TTrackingRecorder]):
     name: str = ""
+    """Name of projection, used to pick prefixed environment variables."""
+    topics: Sequence[str] = ()
+    """Event topics, used to filter events in database."""
 
     def __init__(
         self,
@@ -112,12 +126,13 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             self.projection_factory.tracking_recorder(tracking_recorder_class)
         )
 
+        self.projection = projection_class(
+            tracking_recorder=self.tracking_recorder,
+        )
         self.subscription = ApplicationSubscription(
             app=self.app,
             gt=self.tracking_recorder.max_tracking_id(self.app.name),
-        )
-        self.projection = projection_class(
-            tracking_recorder=self.tracking_recorder,
+            topics=self.projection.topics,
         )
         self._has_error = Event()
         self.thread_error: BaseException | None = None

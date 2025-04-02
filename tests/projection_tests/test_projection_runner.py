@@ -13,6 +13,7 @@ from eventsourcing.projection import (
     Projection,
     ProjectionRunner,
 )
+from eventsourcing.utils import get_topic
 from tests.projection_tests.test_projection import (
     CountProjection,
     POPOCountRecorder,
@@ -79,6 +80,32 @@ class TestProjectionRunner(TestCase):
 
         with runner, self.assertRaises(SpannerThrownError):
             runner.run_forever()
+
+    def test_runner_with_topics(self):
+        class CountProjectionWithTopics(CountProjection):
+            topics = (get_topic(Aggregate.Event),)
+
+        runner = ProjectionRunner(
+            application_class=Application,
+            projection_class=CountProjectionWithTopics,
+            tracking_recorder_class=POPOCountRecorder,
+        )
+
+        app = runner.app
+        aggregate = Aggregate()
+        aggregate.trigger_event(event_class=Aggregate.Event)
+        aggregate.trigger_event(event_class=Aggregate.Event)
+        recordings = app.save(aggregate)
+
+        runner.wait(recordings[-1].notification.id)
+        # Should be zero because we didn't include Aggregate.Created topic.
+        self.assertEqual(
+            runner.projection.tracking_recorder.get_created_events_counter(), 0
+        )
+        # Should be two because we did include Aggregate.Event topic.
+        self.assertEqual(
+            runner.projection.tracking_recorder.get_subsequent_events_counter(), 2
+        )
 
     def test_runner_as_context_manager(self):
         with ProjectionRunner(
