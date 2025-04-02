@@ -707,6 +707,33 @@ class ApplicationRecorderTestCase(TestCase, ABC):
                 stored_event3.originator_id, notifications[0].originator_id
             )
 
+        # Start a subscription, call stop() during iteration.
+        with recorder.subscribe(gt=None) as subscription:
+
+            # Receive events from the subscription.
+            for i, _ in enumerate(subscription):
+                subscription.stop()
+                # Shouldn't get here twice...
+                self.assertLess(i, 1, "Got here twice")
+
+        # Start a subscription, call stop() before iteration.
+        subscription = recorder.subscribe(gt=None)
+        with subscription:
+            subscription.stop()
+            # Receive events from the subscription.
+            for _ in subscription:
+                # Shouldn't get here...
+                self.fail("Got here")
+
+        # Start a subscription, call stop() before entering context manager.
+        subscription = recorder.subscribe(gt=None)
+        subscription.stop()
+        with subscription:
+            # Receive events from the subscription.
+            for _ in subscription:
+                # Shouldn't get here...
+                self.fail("Got here")
+
     def close_db_connection(self, *args: Any) -> None:
         """"""
 
