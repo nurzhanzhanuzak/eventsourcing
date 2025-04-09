@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Iterator, Type, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Union
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from eventsourcing.application import (
@@ -11,15 +11,17 @@ from eventsourcing.application import (
 from examples.contentmanagement.domainmodel import Page, PageLogged, Slug
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from eventsourcing.domain import MutableOrImmutableAggregate
     from eventsourcing.utils import EnvType
 
-PageDetailsType = Dict[str, Union[str, Any]]
+PageDetailsType = dict[str, Union[str, Any]]
 
 
 class ContentManagement(Application):
-    env: ClassVar[Dict[str, str]] = {"CONTENTMANAGEMENT_COMPRESSOR_TOPIC": "gzip"}
-    snapshotting_intervals: ClassVar[Dict[Type[MutableOrImmutableAggregate], int]] = {
+    env: ClassVar[dict[str, str]] = {"CONTENTMANAGEMENT_COMPRESSOR_TOPIC": "gzip"}
+    snapshotting_intervals: ClassVar[dict[type[MutableOrImmutableAggregate], int]] = {
         Page: 5
     }
 

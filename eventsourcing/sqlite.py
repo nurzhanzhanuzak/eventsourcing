@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Iterator, List, Sequence, Type
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from eventsourcing.persistence import (
@@ -32,6 +32,7 @@ from eventsourcing.persistence import (
 from eventsourcing.utils import Environment, resolve_topic, strtobool
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
     from types import TracebackType
 
 SQLITE3_DEFAULT_LOCK_TIMEOUT = 5
@@ -103,7 +104,7 @@ class SQLiteTransaction:
 
     def __exit__(
         self,
-        exc_type: Type[BaseException] | None,
+        exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
@@ -254,7 +255,7 @@ class SQLiteRecorder(Recorder):
         self.datastore = datastore
         self.create_table_statements = self.construct_create_table_statements()
 
-    def construct_create_table_statements(self) -> List[str]:
+    def construct_create_table_statements(self) -> list[str]:
         return []
 
     def create_table(self) -> None:
@@ -278,7 +279,7 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
             f"SELECT * FROM {self.events_table_name} WHERE originator_id=? "
         )
 
-    def construct_create_table_statements(self) -> List[str]:
+    def construct_create_table_statements(self) -> list[str]:
         statements = super().construct_create_table_statements()
         statements.append(
             "CREATE TABLE IF NOT EXISTS "
@@ -294,7 +295,7 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
         return statements
 
     def insert_events(
-        self, stored_events: List[StoredEvent], **kwargs: Any
+        self, stored_events: list[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
         with self.datastore.transaction(commit=True) as c:
             return self._insert_events(c, stored_events, **kwargs)
@@ -302,7 +303,7 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **_: Any,
     ) -> Sequence[int] | None:
         params = [
@@ -325,9 +326,9 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
         lte: int | None = None,
         desc: bool = False,
         limit: int | None = None,
-    ) -> List[StoredEvent]:
+    ) -> list[StoredEvent]:
         statement = self.select_events_statement
-        params: List[Any] = [originator_id.hex]
+        params: list[Any] = [originator_id.hex]
         if gt is not None:
             statement += "AND originator_version>? "
             params.append(gt)
@@ -369,7 +370,7 @@ class SQLiteApplicationRecorder(
             f"SELECT MAX(rowid) FROM {self.events_table_name}"
         )
 
-    def construct_create_table_statements(self) -> List[str]:
+    def construct_create_table_statements(self) -> list[str]:
         statement = (
             "CREATE TABLE IF NOT EXISTS "
             f"{self.events_table_name} ("
@@ -385,7 +386,7 @@ class SQLiteApplicationRecorder(
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **_: Any,
     ) -> Sequence[int] | None:
         returning = []
@@ -410,12 +411,12 @@ class SQLiteApplicationRecorder(
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,
-    ) -> List[Notification]:
+    ) -> list[Notification]:
         """
         Returns a list of event notifications
         from 'start', limited by 'limit'.
         """
-        params: List[int | str] = []
+        params: list[int | str] = []
         statement = f"SELECT rowid, * FROM {self.events_table_name} "
         has_where = False
         if start is not None:
@@ -494,7 +495,7 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
             "application_name=? AND notification_id=?"
         )
 
-    def construct_create_table_statements(self) -> List[str]:
+    def construct_create_table_statements(self) -> list[str]:
         statements = super().construct_create_table_statements()
         statements.append(
             "CREATE TABLE IF NOT EXISTS tracking ("
@@ -552,7 +553,7 @@ class SQLiteProcessRecorder(
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
         returning = super()._insert_events(c, stored_events, **kwargs)
@@ -616,7 +617,7 @@ class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
         application_recorder_topic = self.env.get(self.APPLICATION_RECORDER_TOPIC)
 
         if application_recorder_topic:
-            application_recorder_class: Type[SQLiteApplicationRecorder] = resolve_topic(
+            application_recorder_class: type[SQLiteApplicationRecorder] = resolve_topic(
                 application_recorder_topic
             )
             assert issubclass(application_recorder_class, SQLiteApplicationRecorder)
@@ -630,7 +631,7 @@ class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
         return recorder
 
     def tracking_recorder(
-        self, tracking_recorder_class: Type[SQLiteTrackingRecorder] | None = None
+        self, tracking_recorder_class: type[SQLiteTrackingRecorder] | None = None
     ) -> SQLiteTrackingRecorder:
         if tracking_recorder_class is None:
             tracking_recorder_topic = self.env.get(self.TRACKING_RECORDER_TOPIC)
@@ -653,7 +654,7 @@ class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
         process_recorder_topic = self.env.get(self.PROCESS_RECORDER_TOPIC)
 
         if process_recorder_topic:
-            process_recorder_class: Type[SQLiteProcessRecorder] = resolve_topic(
+            process_recorder_class: type[SQLiteProcessRecorder] = resolve_topic(
                 process_recorder_topic
             )
             assert issubclass(process_recorder_class, SQLiteProcessRecorder)

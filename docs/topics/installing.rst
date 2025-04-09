@@ -2,7 +2,7 @@
 Installation
 ============
 
-This version of the library is compatible with Python versions 3.8, 3.9,
+This version of the library is compatible with Python versions 3.9,
 3.10, 3.11, 3.12, and 3.13.
 
 This package depends only on modules from the Python Standard Library,
@@ -48,7 +48,7 @@ dependency on this library in the following way.
 ::
 
     [tool.poetry.dependencies]
-    python = "^3.8"
+    python = "^3.9"
     eventsourcing = { version = "~9.4" }
 
 

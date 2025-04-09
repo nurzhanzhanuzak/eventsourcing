@@ -2,25 +2,13 @@ from __future__ import annotations
 
 import importlib
 import sys
+from collections.abc import Iterator, Mapping, Sequence
 from functools import wraps
 from inspect import isfunction
 from random import random
 from threading import Lock
 from time import sleep
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    Iterator,
-    List,
-    Mapping,
-    Sequence,
-    Type,
-    TypeVar,
-    no_type_check,
-    overload,
-)
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, no_type_check, overload
 
 if TYPE_CHECKING:
     from types import FunctionType, WrapperDescriptorType
@@ -32,8 +20,8 @@ class TopicError(Exception):
     """
 
 
-_type_cache: Dict[type, str] = {}
-_topic_cache: Dict[str, Any] = {}
+_type_cache: dict[type, str] = {}
+_topic_cache: dict[str, Any] = {}
 _topic_cache_lock = Lock()
 
 
@@ -138,7 +126,7 @@ def clear_topic_cache() -> None:
 
 
 def retry(
-    exc: Type[Exception] | Sequence[Type[Exception]] = Exception,
+    exc: type[Exception] | Sequence[type[Exception]] = Exception,
     max_attempts: int = 1,
     wait: float = 0,
     stall: float = 0,
@@ -223,7 +211,7 @@ def strtobool(val: str) -> bool:
     raise ValueError(msg)
 
 
-def reversed_keys(d: Dict[Any, Any]) -> Iterator[Any]:
+def reversed_keys(d: dict[Any, Any]) -> Iterator[Any]:
     return reversed(d.keys())
 
 
@@ -237,7 +225,7 @@ EnvType = Mapping[str, str]
 T = TypeVar("T")
 
 
-class Environment(Dict[str, str]):
+class Environment(dict[str, str]):
     def __init__(self, name: str = "", env: EnvType | None = None):
         super().__init__(env or {})
         self.name = name
@@ -255,7 +243,7 @@ class Environment(Dict[str, str]):
                 return value
         return default
 
-    def create_keys(self, key: str) -> List[str]:
+    def create_keys(self, key: str) -> list[str]:
         keys = []
         if self.name:
             keys.append(self.name.upper() + "_" + key)

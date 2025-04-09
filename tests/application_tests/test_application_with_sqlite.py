@@ -1,6 +1,6 @@
 import os
 from abc import ABC
-from typing import Sequence
+from collections.abc import Sequence
 from unittest import TestCase
 
 from eventsourcing.tests.application import (

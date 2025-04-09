@@ -10,7 +10,7 @@ from tempfile import NamedTemporaryFile
 from threading import Event, Thread, get_ident
 from time import sleep
 from timeit import timeit
-from typing import Any, Dict, List
+from typing import Any
 from unittest import TestCase
 from uuid import UUID, uuid4
 
@@ -429,11 +429,11 @@ class ApplicationRecorderTestCase(TestCase, ABC):
         recorder = self.create_recorder()
 
         errors_happened = Event()
-        errors: List[Exception] = []
+        errors: list[Exception] = []
 
         counts = {}
-        threads: Dict[int, int] = {}
-        durations: Dict[int, float] = {}
+        threads: dict[int, int] = {}
+        durations: dict[int, float] = {}
 
         num_writers = 10
         num_writes_per_writer = 100
@@ -536,8 +536,8 @@ class ApplicationRecorderTestCase(TestCase, ABC):
         errors_happened = Event()
 
         counts = {}
-        threads: Dict[int, int] = {}
-        durations: Dict[int, float] = {}
+        threads: dict[int, int] = {}
+        durations: dict[int, float] = {}
 
         # Match this to the batch page size in postgres insert for max throughput.
         num_events = 500
@@ -642,7 +642,7 @@ class ApplicationRecorderTestCase(TestCase, ABC):
         with recorder.subscribe(gt=max_notification_id1) as subscription:
 
             # Receive events from the subscription.
-            notifications: List[Notification] = []
+            notifications: list[Notification] = []
             for notification in subscription:
                 notifications.append(notification)
                 if len(notifications) == 2:
@@ -696,7 +696,7 @@ class ApplicationRecorderTestCase(TestCase, ABC):
         with recorder.subscribe(gt=max_notification_id2) as subscription:
 
             # Receive events from the subscription.
-            notifications: List[Notification] = []
+            notifications: list[Notification] = []
             for notification in subscription:
                 notifications.append(notification)
                 if len(notifications) == 1:
@@ -1285,7 +1285,7 @@ class CustomType2:
         return type(self) is type(other) and self.__dict__ == other.__dict__
 
 
-class MyDict(dict):
+class Mydict(dict):
     def __repr__(self):
         return f"{type(self).__name__}({super().__repr__()})"
 
@@ -1391,13 +1391,13 @@ class TranscoderTestCase(TestCase):
         self.assertEqual(data, b"{}")
         self.assertEqual(obj, self.transcoder.decode(data))
 
-        # Dict with single key.
+        # dict with single key.
         obj = {"a": 1}
         data = self.transcoder.encode(obj)
         self.assertEqual(data, b'{"a":1}')
         self.assertEqual(obj, self.transcoder.decode(data))
 
-        # Dict with many keys.
+        # dict with many keys.
         obj = {"a": 1, "b": 2}
         data = self.transcoder.encode(obj)
         self.assertEqual(data, b'{"a":1,"b":2}')
@@ -1444,7 +1444,7 @@ class TranscoderTestCase(TestCase):
         self.assertEqual(obj, self.transcoder.decode(data))
 
     def test_dict_subclass(self):
-        my_dict = MyDict({"a": 1})
+        my_dict = Mydict({"a": 1})
         data = self.transcoder.encode(my_dict)
         self.assertEqual(b'{"_type_":"mydict","_data_":{"a":1}}', data)
         copy = self.transcoder.decode(data)

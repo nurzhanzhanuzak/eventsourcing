@@ -4,27 +4,15 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from collections import deque
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from queue import Queue
 from threading import Condition, Event, Lock, Semaphore, Thread, Timer
 from time import monotonic, sleep, time
-from types import ModuleType
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Generic,
-    Iterator,
-    List,
-    Mapping,
-    Sequence,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
+from types import GenericAlias, ModuleType
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, Union, cast
 from uuid import UUID
 from warnings import warn
 
@@ -78,8 +66,8 @@ class JSONTranscoder(Transcoder):
     """
 
     def __init__(self) -> None:
-        self.types: Dict[type, Transcoding] = {}
-        self.names: Dict[str, Transcoding] = {}
+        self.types: dict[type, Transcoding] = {}
+        self.names: dict[str, Transcoding] = {}
         self.encoder = json.JSONEncoder(
             default=self._encode_obj,
             separators=(",", ":"),
@@ -106,7 +94,7 @@ class JSONTranscoder(Transcoder):
         """
         return self.decoder.decode(data.decode("utf8"))
 
-    def _encode_obj(self, o: Any) -> Dict[str, Any]:
+    def _encode_obj(self, o: Any) -> dict[str, Any]:
         try:
             transcoding = self.types[type(o)]
         except KeyError:
@@ -122,7 +110,7 @@ class JSONTranscoder(Transcoder):
                 "_data_": transcoding.encode(o),
             }
 
-    def _decode_obj(self, d: Dict[str, Any]) -> Any:
+    def _decode_obj(self, d: dict[str, Any]) -> Any:
         if len(d) == 2:
             try:
                 _type_ = d["_type_"]
@@ -314,7 +302,7 @@ class Mapper:
             stored_state = self.cipher.decrypt(stored_state)
         if self.compressor:
             stored_state = self.compressor.decompress(stored_state)
-        event_state: Dict[str, Any] = self.transcoder.decode(stored_state)
+        event_state: dict[str, Any] = self.transcoder.decode(stored_state)
         event_state["originator_id"] = stored_event.originator_id
         event_state["originator_version"] = stored_event.originator_version
         cls = resolve_topic(stored_event.topic)
@@ -422,7 +410,7 @@ class AggregateRecorder(ABC):
 
     @abstractmethod
     def insert_events(
-        self, stored_events: List[StoredEvent], **kwargs: Any
+        self, stored_events: list[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
         """
         Writes stored events into database.
@@ -437,7 +425,7 @@ class AggregateRecorder(ABC):
         lte: int | None = None,
         desc: bool = False,
         limit: int | None = None,
-    ) -> List[StoredEvent]:
+    ) -> list[StoredEvent]:
         """
         Reads stored events from database.
         """
@@ -468,7 +456,7 @@ class ApplicationRecorder(AggregateRecorder):
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,
-    ) -> List[Notification]:
+    ) -> list[Notification]:
         """
         Returns a list of Notification objects representing events from an
         application sequence. If `inclusive_of_start` is True (the default),
@@ -598,7 +586,7 @@ class EventStore:
 
     def put(
         self, domain_events: Sequence[DomainEventProtocol], **kwargs: Any
-    ) -> List[Recording]:
+    ) -> list[Recording]:
         """
         Stores domain events in aggregate sequence.
         """
@@ -670,14 +658,14 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
     @classmethod
     def construct(
-        cls: Type[TInfrastructureFactory], env: Environment | None = None
+        cls: type[TInfrastructureFactory], env: Environment | None = None
     ) -> TInfrastructureFactory:
         """
         Constructs concrete infrastructure factory for given
         named application. Reads and resolves persistence
         topic from environment variable 'PERSISTENCE_MODULE'.
         """
-        factory_cls: Type[InfrastructureFactory[TrackingRecorder]]
+        factory_cls: type[InfrastructureFactory[TrackingRecorder]]
         if env is None:
             env = Environment()
         topic = (
@@ -696,7 +684,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
             or "eventsourcing.popo"
         )
         try:
-            obj: Type[InfrastructureFactory[TrackingRecorder]] | ModuleType = (
+            obj: type[InfrastructureFactory[TrackingRecorder]] | ModuleType = (
                 resolve_topic(topic)
             )
         except TopicError as e:
@@ -709,15 +697,20 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
         if isinstance(obj, ModuleType):
             # Find the factory in the module.
-            factory_classes: List[Type[InfrastructureFactory[TrackingRecorder]]] = []
+            factory_classes: list[type[InfrastructureFactory[TrackingRecorder]]] = []
             for member in obj.__dict__.values():
                 if (
                     member is not InfrastructureFactory
                     and isinstance(member, type)  # Look for classes...
+                    and isinstance(member, type)  # Look for classes...
+                    and not isinstance(
+                        member, GenericAlias
+                    )  # Issue with Python 3.9 and 3.10.
                     and issubclass(member, InfrastructureFactory)  # Ignore base class.
                     and member not in factory_classes  # Forgive aliases.
                 ):
                     factory_classes.append(member)
+
             if len(factory_classes) == 1:
                 factory_cls = factory_classes[0]
             else:
@@ -747,7 +740,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
         """
         transcoder_topic = self.env.get(self.TRANSCODER_TOPIC)
         if transcoder_topic:
-            transcoder_class: Type[Transcoder] = resolve_topic(transcoder_topic)
+            transcoder_class: type[Transcoder] = resolve_topic(transcoder_topic)
         else:
             transcoder_class = JSONTranscoder
         return transcoder_class()
@@ -755,7 +748,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
     def mapper(
         self,
         transcoder: Transcoder | None = None,
-        mapper_class: Type[Mapper] | None = None,
+        mapper_class: type[Mapper] | None = None,
     ) -> Mapper:
         """
         Constructs a mapper.
@@ -783,7 +776,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
             cipher_topic = default_cipher_topic
 
         if cipher_topic:
-            cipher_cls: Type[Cipher] = resolve_topic(cipher_topic)
+            cipher_cls: type[Cipher] = resolve_topic(cipher_topic)
             cipher = cipher_cls(self.env)
 
         return cipher
@@ -796,7 +789,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
         compressor: Compressor | None = None
         compressor_topic = self.env.get(self.COMPRESSOR_TOPIC)
         if compressor_topic:
-            compressor_cls: Type[Compressor] | Compressor = resolve_topic(
+            compressor_cls: type[Compressor] | Compressor = resolve_topic(
                 compressor_topic
             )
             if isinstance(compressor_cls, type):
@@ -832,7 +825,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
     @abstractmethod
     def tracking_recorder(
-        self, tracking_recorder_class: Type[TTrackingRecorder] | None = None
+        self, tracking_recorder_class: type[TTrackingRecorder] | None = None
     ) -> TTrackingRecorder:
         """
         Constructs a tracking recorder.
@@ -1013,7 +1006,7 @@ class ConnectionPool(ABC, Generic[TConnection]):
         self.max_age = max_age
         self.pre_ping = pre_ping
         self._pool: deque[TConnection] = deque()
-        self._in_use: Dict[int, TConnection] = {}
+        self._in_use: dict[int, TConnection] = {}
         self._get_semaphore = Semaphore()
         self._put_condition = Condition()
         self._no_readers = Condition()
@@ -1362,9 +1355,9 @@ class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
     ) -> None:
         super().__init__(recorder=recorder, gt=gt, topics=topics)
         self._select_limit = 500
-        self._notifications: List[Notification] = []
+        self._notifications: list[Notification] = []
         self._notifications_index: int = 0
-        self._notifications_queue: Queue[List[Notification]] = Queue(maxsize=10)
+        self._notifications_queue: Queue[list[Notification]] = Queue(maxsize=10)
         self._has_been_notified = Event()
         self._thread_error: BaseException | None = None
         self._pull_thread = Thread(target=self._loop_on_pull)

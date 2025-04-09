@@ -21,7 +21,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -41,9 +40,8 @@ keywords=[
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<4.0,!=3.9.0,!=3.9.1"
+python = ">=3.9,<4.0,!=3.9.0,!=3.9.1"
 typing_extensions = "*"
-"backports.zoneinfo" = { version = "*", python = "<3.9" }
 pycryptodome = { version = "~3.22", optional = true }
 cryptography = { version = "~44.0", optional = true }
 psycopg = { version = "<=3.2.99999", optional = true, extras=["pool"]}
@@ -60,11 +58,7 @@ isort = "*"
 mypy = "*"
 ruff = "^0.1.14"
 psycopg = { version = "<=3.2.99999", extras = ["pool"] }
-psycopg-c = {version="*", python = "<3.9", markers="sys_platform == 'darwin' and platform_machine == 'arm64'"}
-psycopg-binary = [
-    {version="*", python = "<3.9", markers="sys_platform != 'darwin' or platform_machine != 'arm64'"},
-    {version="*", python = ">=3.9"},
-]
+psycopg-binary = "*"
 
 [tool.poetry.group.docs.dependencies]
 Sphinx = { version = "*"}
@@ -162,8 +156,8 @@ sections = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
 line-length = 88
 #indent-width = 4
 
-# Assume Python 3.8
-target-version = "py38"
+# Assume Python 3.9
+target-version = "py39"
 
 [tool.ruff.lint]
 # Todo: "D"
@@ -173,7 +167,7 @@ select = [
 #    "RUF012",
 ]
 ignore = [
-    "UP006",  # [*] Use `type` instead of `Type` for type annotation / Use `tuple` instead of `Tuple` for type annotation / etc  <- ignore while supporting Python3.8
+#    "UP006",  # [*] Use `type` instead of `Type` for type annotation / Use `tuple` instead of `tuple` for type annotation / etc  <- ignore while supporting Python3.8
     "A003",  # "Class attribute `id/type` is shadowing a Python builtin
     "ANN",
     "D",

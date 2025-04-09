@@ -6,18 +6,7 @@ import subprocess
 from queue import Queue
 from threading import Event
 from time import sleep
-from typing import (
-    TYPE_CHECKING,
-    ClassVar,
-    Generic,
-    Iterable,
-    Iterator,
-    List,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-)
+from typing import TYPE_CHECKING, ClassVar, Generic, TypeVar
 from unittest.case import TestCase
 from unittest.mock import MagicMock
 
@@ -48,6 +37,7 @@ from eventsourcing.utils import clear_topic_cache, get_topic
 from tests.application_tests.test_processapplication import EmailProcess
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator, Sequence
     from uuid import UUID
 
     from eventsourcing.application import ProcessingEvent
@@ -61,7 +51,7 @@ TRunner = TypeVar("TRunner", bound=Runner)
 
 
 class RunnerTestCase(TestCase, Generic[TRunner]):
-    runner_class: Type[TRunner]
+    runner_class: type[TRunner]
     runner: TRunner | None
 
     def setUp(self) -> None:
@@ -212,7 +202,7 @@ class RunnerTestCase(TestCase, Generic[TRunner]):
                     )
                     processing_event.collect_events(command)
 
-            def get_result(self, command_id: UUID) -> Tuple[str, str]:
+            def get_result(self, command_id: UUID) -> tuple[str, str]:
                 command = self.repository.get(command_id)
                 return command.output, command.error
 
@@ -790,14 +780,14 @@ class TestNewMultiThreadedRunner(TestMultiThreadedRunner):
             stop: int | None = None,
             *,
             inclusive_of_start: bool = True,
-        ) -> Iterator[List[Notification]]:
+        ) -> Iterator[list[Notification]]:
             msg = "Just testing error handling when pulling is broken"
             raise ProgrammingError(msg)
 
     class BrokenConverting(EmailProcess):
         def convert_notifications(
             self, leader_name: str, notifications: Iterable[Notification]
-        ) -> List[ProcessingJob]:
+        ) -> list[ProcessingJob]:
             msg = "Just testing error handling when converting is broken"
             raise ProgrammingError(msg)
 

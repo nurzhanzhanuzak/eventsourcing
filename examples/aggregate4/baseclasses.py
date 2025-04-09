@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Type, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.utils import get_topic
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from datetime import datetime
     from uuid import UUID
 
@@ -27,12 +28,12 @@ class Aggregate:
     version: int
     created_on: datetime
     modified_on: datetime
-    _pending_events: List[DomainEvent]
+    _pending_events: list[DomainEvent]
 
     @dataclass(frozen=True)
     class Snapshot(DomainEvent):
         topic: str
-        state: Dict[str, Any]
+        state: dict[str, Any]
 
         @classmethod
         def take(
@@ -51,7 +52,7 @@ class Aggregate:
 
     def trigger_event(
         self,
-        event_class: Type[DomainEvent],
+        event_class: type[DomainEvent],
         **kwargs: Any,
     ) -> None:
         kwargs = kwargs.copy()
@@ -64,7 +65,7 @@ class Aggregate:
         self.apply(new_event)
         self._pending_events.append(new_event)
 
-    def collect_events(self) -> List[DomainEvent]:
+    def collect_events(self) -> list[DomainEvent]:
         events, self._pending_events = self._pending_events, []
         return events
 
@@ -79,7 +80,7 @@ class Aggregate:
 
     @classmethod
     def projector(
-        cls: Type[TAggregate],
+        cls: type[TAggregate],
         _: TAggregate | None,
         events: Iterable[DomainEvent],
     ) -> TAggregate | None:

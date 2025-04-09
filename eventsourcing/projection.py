@@ -3,19 +3,10 @@ from __future__ import annotations
 import os
 import weakref
 from abc import ABC, abstractmethod
+from collections.abc import Iterator, Sequence
 from threading import Event, Thread
 from traceback import format_exc
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Generic,
-    Iterator,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-)
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 from warnings import warn
 
 from eventsourcing.application import Application
@@ -34,7 +25,7 @@ if TYPE_CHECKING:
     from typing_extensions import Self
 
 
-class ApplicationSubscription(Iterator[Tuple[DomainEventProtocol, Tracking]]):
+class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
     """
     An iterator that yields all domain events recorded in an application
     sequence that have notification IDs greater than a given value. The iterator
@@ -64,7 +55,7 @@ class ApplicationSubscription(Iterator[Tuple[DomainEventProtocol, Tracking]]):
     def __iter__(self) -> Self:
         return self
 
-    def __next__(self) -> Tuple[DomainEventProtocol, Tracking]:
+    def __next__(self) -> tuple[DomainEventProtocol, Tracking]:
         notification = next(self.subscription)
         tracking = Tracking(self.name, notification.id)
         domain_event = self.mapper.to_domain_event(notification)
@@ -109,9 +100,9 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
     def __init__(
         self,
         *,
-        application_class: Type[TApplication],
-        projection_class: Type[Projection[TTrackingRecorder]],
-        tracking_recorder_class: Type[TTrackingRecorder] | None = None,
+        application_class: type[TApplication],
+        projection_class: type[Projection[TTrackingRecorder]],
+        tracking_recorder_class: type[TTrackingRecorder] | None = None,
         env: EnvType | None = None,
     ):
         self.app: TApplication = application_class(env)
@@ -151,7 +142,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         """
         Constructs environment from which projection will be configured.
         """
-        _env: Dict[str, str] = {}
+        _env: dict[str, str] = {}
         _env.update(os.environ)
         if env is not None:
             _env.update(env)

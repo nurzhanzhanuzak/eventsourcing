@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Sequence
+from typing import TYPE_CHECKING
 
 from eventsourcing.persistence import Recorder
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from uuid import UUID
 
 
@@ -32,7 +33,7 @@ class FtsRecorder(Recorder, ABC):
         """
 
     @abstractmethod
-    def search_pages(self, query: str) -> List[UUID]:
+    def search_pages(self, query: str) -> list[UUID]:
         """
         Returns IDs for pages that match query.
         """

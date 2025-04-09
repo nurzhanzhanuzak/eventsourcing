@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
 
 from eventsourcing.domain import datetime_now_with_tzinfo
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from datetime import datetime
     from uuid import UUID
 
@@ -27,7 +28,7 @@ class Aggregate:
 
 @dataclass(frozen=True)
 class Snapshot(DomainEvent):
-    state: Dict[str, Any]
+    state: dict[str, Any]
 
     @classmethod
     def take(cls, aggregate: Aggregate) -> Snapshot:

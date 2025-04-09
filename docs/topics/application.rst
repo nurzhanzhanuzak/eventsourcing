@@ -137,7 +137,6 @@ as the :ref:`simple example <Aggregate simple example>` in the domain module doc
 
 .. code-block:: python
 
-    from typing import List
     from uuid import UUID
 
     from eventsourcing.application import Application
@@ -154,7 +153,7 @@ as the :ref:`simple example <Aggregate simple example>` in the domain module doc
             dog.add_trick(trick)
             self.save(dog)
 
-        def get_tricks(self, dog_id: UUID) -> List[str]:
+        def get_tricks(self, dog_id: UUID) -> list[str]:
             dog = self.repository.get(dog_id)
             return list(dog.tricks)
 

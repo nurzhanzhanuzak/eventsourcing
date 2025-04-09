@@ -3,11 +3,12 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, Iterable, Type, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from eventsourcing.dispatch import singledispatchmethod
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from uuid import UUID
 
 
@@ -34,7 +35,7 @@ class Aggregate:
 
     def trigger_event(
         self,
-        event_class: Type[DomainEvent],
+        event_class: type[DomainEvent],
         **kwargs: Any,
     ) -> DomainEvent:
         kwargs = kwargs.copy()
@@ -47,7 +48,7 @@ class Aggregate:
 
     @classmethod
     def projector(
-        cls: Type[TAggregate],
+        cls: type[TAggregate],
         aggregate: TAggregate | None,
         events: Iterable[DomainEvent],
     ) -> TAggregate | None:
@@ -63,7 +64,7 @@ class Aggregate:
 
     @dataclass(frozen=True)
     class Snapshot(DomainEvent):
-        state: Dict[str, Any]
+        state: dict[str, Any]
 
         @classmethod
         def take(cls, aggregate: Aggregate) -> Aggregate.Snapshot:

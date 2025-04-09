@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, List, Tuple, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
 from eventsourcing.postgres import (
@@ -53,12 +53,12 @@ class SearchableTimestampsApplicationRecorder(
     def _insert_events(
         self,
         c: Cursor[DictRow],
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> None:
         # Insert event timestamps.
         event_timestamps_data = cast(
-            List[Tuple[UUID, datetime, int]], kwargs.get("event_timestamps_data")
+            list[tuple[UUID, datetime, int]], kwargs.get("event_timestamps_data")
         )
         for event_timestamp_data in event_timestamps_data:
             c.execute(

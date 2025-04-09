@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar, Sequence
+from typing import TYPE_CHECKING, ClassVar
 from unittest.case import TestCase
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
@@ -19,6 +19,9 @@ from eventsourcing.tests.application import BankAccounts
 from eventsourcing.tests.domain import BankAccount
 from eventsourcing.utils import get_topic, resolve_topic
 from tests.application_tests.test_processapplication import EmailProcess
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 system_defined_as_global = System(
     pipes=[

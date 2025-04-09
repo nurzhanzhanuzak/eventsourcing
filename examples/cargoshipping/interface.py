@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Union
 from uuid import UUID
 
 from examples.cargoshipping.domainmodel import (
@@ -15,8 +15,8 @@ from examples.cargoshipping.domainmodel import (
 if TYPE_CHECKING:
     from examples.cargoshipping.application import BookingApplication
 
-NextExpectedActivityDetails = Optional[Tuple[str, ...]]
-CargoDetails = Dict[
+NextExpectedActivityDetails = Optional[tuple[str, ...]]
+CargoDetails = dict[
     str, Optional[Union[str, bool, datetime, NextExpectedActivityDetails]]
 ]
 
@@ -91,7 +91,7 @@ class BookingService:
 
     def request_possible_routes_for_cargo(
         self, tracking_id: str
-    ) -> List[ItineraryDetails]:
+    ) -> list[ItineraryDetails]:
         routes = self.app.request_possible_routes_for_cargo(UUID(tracking_id))
         return [self.dict_from_itinerary(route) for route in routes]
 
@@ -138,6 +138,6 @@ class BookingService:
 
 # Stub function that picks an itinerary from a list of possible itineraries.
 def select_preferred_itinerary(
-    itineraries: List[ItineraryDetails],
+    itineraries: list[ItineraryDetails],
 ) -> ItineraryDetails:
     return itineraries[0]

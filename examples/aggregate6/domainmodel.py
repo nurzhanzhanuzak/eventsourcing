@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import singledispatch
-from typing import Tuple
 from uuid import uuid4
 
 from eventsourcing.domain import datetime_now_with_tzinfo
@@ -17,7 +16,7 @@ from examples.aggregate6.baseclasses import (
 @dataclass(frozen=True)
 class Dog(Aggregate):
     name: str
-    tricks: Tuple[str, ...]
+    tricks: tuple[str, ...]
 
 
 @dataclass(frozen=True)

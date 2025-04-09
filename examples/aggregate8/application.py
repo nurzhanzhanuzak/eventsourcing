@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Dict
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from eventsourcing.application import Application
 from eventsourcing.utils import get_topic
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 class DogSchool(Application):
     is_snapshotting_enabled = True
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "TRANSCODER_TOPIC": get_topic(OrjsonTranscoder),
         "MAPPER_TOPIC": get_topic(PydanticMapper),
     }
@@ -28,7 +28,7 @@ class DogSchool(Application):
         dog.add_trick(Trick(name=trick))
         self.save(dog)
 
-    def get_dog(self, dog_id: UUID) -> Dict[str, Any]:
+    def get_dog(self, dog_id: UUID) -> dict[str, Any]:
         dog: Dog = self.repository.get(dog_id)
         return {
             "name": dog.name,

@@ -4,13 +4,16 @@ import contextlib
 from collections import defaultdict
 from datetime import datetime
 from functools import singledispatch
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict
 
 from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.utils import get_topic
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 class DomainEvent(BaseModel):
@@ -32,7 +35,7 @@ class Aggregate(BaseModel):
     def hold_event(self, event: DomainEvent) -> None:
         all_pending_events[id(self)].append(event)
 
-    def collect_events(self) -> List[DomainEvent]:
+    def collect_events(self) -> list[DomainEvent]:
         try:
             return all_pending_events.pop(id(self))
         except KeyError:  # pragma: no cover
@@ -45,7 +48,7 @@ class Aggregate(BaseModel):
 
 class Snapshot(DomainEvent):
     topic: str
-    state: Dict[str, Any]
+    state: dict[str, Any]
 
     @classmethod
     def take(cls, aggregate: Aggregate) -> Snapshot:
@@ -79,12 +82,12 @@ class Trick(BaseModel):
     name: str
 
 
-all_pending_events: Dict[int, List[DomainEvent]] = defaultdict(list)
+all_pending_events: dict[int, list[DomainEvent]] = defaultdict(list)
 
 
 class Dog(Aggregate):
     name: str
-    tricks: Tuple[Trick, ...]
+    tricks: tuple[Trick, ...]
 
 
 class DogRegistered(DomainEvent):

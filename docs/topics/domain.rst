@@ -1593,11 +1593,10 @@ feature of the dataclasses module.
 .. code-block:: python
 
     from dataclasses import field
-    from typing import List
 
     @dataclass
     class MyAggregate(Aggregate):
-        tricks: List[str] = field(default_factory=list, init=False)
+        tricks: list[str] = field(default_factory=list, init=False)
 
 
     # Create a new aggregate.

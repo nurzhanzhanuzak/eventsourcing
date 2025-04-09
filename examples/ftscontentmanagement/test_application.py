@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import ClassVar, Dict
+from typing import ClassVar
 from unittest import TestCase
 from uuid import uuid4
 
@@ -15,7 +15,7 @@ from examples.ftscontentmanagement.sqlite import SQLiteFtsApplicationRecorder
 
 
 class SearchableContentApplicationTestCase(TestCase):
-    env: ClassVar[Dict[str, str]] = {}
+    env: ClassVar[dict[str, str]] = {}
 
     def test_app(self) -> None:
         app = FtsContentManagement(env=self.env)
@@ -72,7 +72,7 @@ class SearchableContentApplicationTestCase(TestCase):
 
 
 class TestWithSQLite(SearchableContentApplicationTestCase):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "eventsourcing.sqlite",
         "APPLICATION_RECORDER_TOPIC": get_topic(SQLiteFtsApplicationRecorder),
         "SQLITE_DBNAME": ":memory:",
@@ -80,7 +80,7 @@ class TestWithSQLite(SearchableContentApplicationTestCase):
 
 
 class TestWithPostgres(SearchableContentApplicationTestCase):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "eventsourcing.postgres",
         "APPLICATION_RECORDER_TOPIC": get_topic(PostgresFtsApplicationRecorder),
     }

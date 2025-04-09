@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Callable, Dict, Iterable, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
 from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.utils import get_topic
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 class DomainEvent(BaseModel):
@@ -29,7 +32,7 @@ class Aggregate(BaseModel):
 
 class Snapshot(DomainEvent):
     topic: str
-    state: Dict[str, Any]
+    state: dict[str, Any]
 
     @classmethod
     def take(cls, aggregate: Aggregate) -> Snapshot:

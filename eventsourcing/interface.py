@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from base64 import b64decode, b64encode
-from typing import Generic, List, Sequence
+from typing import TYPE_CHECKING, Generic
 from uuid import UUID
 
 from eventsourcing.application import NotificationLog, Section, TApplication
 from eventsourcing.persistence import Notification
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class NotificationLogInterface(ABC):
@@ -142,7 +145,7 @@ class NotificationLogJSONClient(NotificationLog):
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,
-    ) -> List[Notification]:
+    ) -> list[Notification]:
         """
         Returns a selection of
         :class:`~eventsourcing.persistence.Notification` objects

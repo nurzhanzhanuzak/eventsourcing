@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.persistence import Tracking, TrackingRecorder
@@ -13,6 +13,8 @@ from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 from examples.ftscontentmanagement.postgres import PostgresFtsRecorder
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from eventsourcing.domain import DomainEventProtocol
 
 

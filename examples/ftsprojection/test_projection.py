@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from typing import ClassVar, Dict
+from typing import ClassVar
 from uuid import uuid4
 
 from eventsourcing.postgres import PostgresDatastore
@@ -13,7 +13,7 @@ from examples.ftsprojection.projection import FtsProjection, PostgresFtsTracking
 
 
 class TestFtsProjection(unittest.TestCase):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "CONTENTMANAGEMENT_PERSISTENCE_MODULE": "eventsourcing.postgres",
         "CONTENTMANAGEMENT_POSTGRES_DBNAME": "eventsourcing",
         "CONTENTMANAGEMENT_POSTGRES_HOST": "127.0.0.1",

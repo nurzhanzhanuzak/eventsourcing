@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, List, Sequence, Tuple, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
 from eventsourcing.sqlite import (
@@ -13,6 +13,8 @@ from eventsourcing.sqlite import (
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from eventsourcing.persistence import ApplicationRecorder, StoredEvent
 
 
@@ -38,7 +40,7 @@ class SearchableTimestampsApplicationRecorder(
             "LIMIT 1"
         )
 
-    def construct_create_table_statements(self) -> List[str]:
+    def construct_create_table_statements(self) -> list[str]:
         statements = super().construct_create_table_statements()
         statements.append(
             "CREATE TABLE IF NOT EXISTS "
@@ -54,14 +56,14 @@ class SearchableTimestampsApplicationRecorder(
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
         notification_ids = super()._insert_events(c, stored_events, **kwargs)
 
         # Insert event timestamps.
         event_timestamps_data = cast(
-            List[Tuple[UUID, datetime, int]], kwargs["event_timestamps_data"]
+            list[tuple[UUID, datetime, int]], kwargs["event_timestamps_data"]
         )
         for originator_id, timestamp, originator_version in event_timestamps_data:
             c.execute(

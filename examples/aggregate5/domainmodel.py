@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
 from uuid import uuid4
 
 from eventsourcing.dispatch import singledispatchmethod
@@ -11,7 +10,7 @@ from examples.aggregate5.baseclasses import Aggregate, DomainEvent
 @dataclass(frozen=True)
 class Dog(Aggregate):
     name: str
-    tricks: Tuple[str, ...]
+    tricks: tuple[str, ...]
 
     @dataclass(frozen=True)
     class Registered(DomainEvent):
@@ -22,7 +21,7 @@ class Dog(Aggregate):
         trick: str
 
     @staticmethod
-    def register(name: str) -> Tuple[Dog, DomainEvent]:
+    def register(name: str) -> tuple[Dog, DomainEvent]:
         event = Dog.Registered(
             originator_id=uuid4(),
             originator_version=1,
@@ -32,7 +31,7 @@ class Dog(Aggregate):
         dog: Dog = Dog.mutate(event, None)
         return dog, event
 
-    def add_trick(self, trick: str) -> Tuple[Dog, DomainEvent]:
+    def add_trick(self, trick: str) -> tuple[Dog, DomainEvent]:
         event = self.trigger_event(Dog.TrickAdded, trick=trick)
         dog: Dog = Dog.mutate(event, self)
         return dog, event

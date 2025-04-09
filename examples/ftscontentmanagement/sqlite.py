@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Sequence
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from eventsourcing.sqlite import (
@@ -13,6 +13,8 @@ from examples.contentmanagement.application import PageNotFoundError
 from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from eventsourcing.persistence import StoredEvent
 
 
@@ -103,7 +105,7 @@ class SQLiteFtsRecorder(FtsRecorder, SQLiteRecorder):
                 (page.slug, page.title, page.body, str(page.id)),
             )
 
-    def search_pages(self, query: str) -> List[UUID]:
+    def search_pages(self, query: str) -> list[UUID]:
         with self.datastore.transaction(commit=False) as c:
             c.execute(self.search_pages_statement, [query])
             return [UUID(row["page_id"]) for row in c.fetchall()]
@@ -126,7 +128,7 @@ class SQLiteFtsApplicationRecorder(SQLiteFtsRecorder, SQLiteApplicationRecorder)
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         *,
         insert_pages: Sequence[PageInfo] = (),
         update_pages: Sequence[PageInfo] = (),

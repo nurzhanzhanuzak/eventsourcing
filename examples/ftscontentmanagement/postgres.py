@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Sequence
+from typing import TYPE_CHECKING, Any
 
 from eventsourcing.postgres import (
     PostgresApplicationRecorder,
@@ -11,6 +11,7 @@ from examples.contentmanagement.application import PageNotFoundError
 from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from uuid import UUID
 
     from psycopg import Cursor
@@ -81,7 +82,7 @@ class PostgresFtsRecorder(
             params = (page.slug, page.title, page.body, page.id)
             c.execute(self.update_page_statement, params, prepare=True)
 
-    def search_pages(self, query: str) -> List[UUID]:
+    def search_pages(self, query: str) -> list[UUID]:
         with self.datastore.transaction(commit=False) as curs:
             curs.execute(self.search_pages_statement, [query], prepare=True)
             return [row["page_id"] for row in curs.fetchall()]
@@ -104,7 +105,7 @@ class PostgresFtsApplicationRecorder(PostgresFtsRecorder, PostgresApplicationRec
     def _insert_events(
         self,
         c: Cursor[DictRow],
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         *,
         insert_pages: Sequence[PageInfo] = (),
         update_pages: Sequence[PageInfo] = (),

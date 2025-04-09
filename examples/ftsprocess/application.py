@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Dict, List, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from eventsourcing.system import ProcessApplication
 from examples.contentmanagement.domainmodel import Page
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class FtsProcess(ProcessApplication):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "COMPRESSOR_TOPIC": "gzip",
     }
 
@@ -51,6 +51,6 @@ class FtsProcess(ProcessApplication):
                 ]
             )
 
-    def search(self, query: str) -> List[UUID]:
+    def search(self, query: str) -> list[UUID]:
         recorder = cast(FtsRecorder, self.recorder)
         return recorder.search_pages(query)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Type
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from eventsourcing.application import Application, ProjectorFunction
 from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
@@ -23,10 +23,10 @@ class DogSchool(Application):
     is_snapshotting_enabled = True
     snapshot_class = Snapshot
     snapshotting_intervals: ClassVar[
-        Dict[Type[MutableOrImmutableAggregate], int] | None
+        dict[type[MutableOrImmutableAggregate], int] | None
     ] = {Dog: 5}
     snapshotting_projectors: ClassVar[
-        Dict[Type[MutableOrImmutableAggregate], ProjectorFunction[Any, Any]] | None
+        dict[type[MutableOrImmutableAggregate], ProjectorFunction[Any, Any]] | None
     ] = {Dog: project_dog}
 
     def register_dog(self, name: str) -> UUID:
@@ -39,7 +39,7 @@ class DogSchool(Application):
         dog = add_trick(dog, trick)
         self.save(dog)
 
-    def get_dog(self, dog_id: UUID) -> Dict[str, Any]:
+    def get_dog(self, dog_id: UUID) -> dict[str, Any]:
         dog = self.repository.get(dog_id, projector_func=project_dog)
         return {"name": dog.name, "tricks": tuple([t.name for t in dog.tricks])}
 

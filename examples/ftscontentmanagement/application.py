@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from examples.contentmanagement.application import ContentManagement, PageDetailsType
 from examples.contentmanagement.domainmodel import Page
@@ -17,9 +17,9 @@ class FtsContentManagement(ContentManagement):
         self,
         *objs: MutableOrImmutableAggregate | DomainEventProtocol | None,
         **kwargs: Any,
-    ) -> List[Recording]:
-        insert_pages: List[PageInfo] = []
-        update_pages: List[PageInfo] = []
+    ) -> list[Recording]:
+        insert_pages: list[PageInfo] = []
+        update_pages: list[PageInfo] = []
         for obj in objs:
             if isinstance(obj, Page):
                 if obj.version == len(obj.pending_events):
@@ -30,7 +30,7 @@ class FtsContentManagement(ContentManagement):
         kwargs["update_pages"] = update_pages
         return super().save(*objs, **kwargs)
 
-    def search(self, query: str) -> List[PageDetailsType]:
+    def search(self, query: str) -> list[PageDetailsType]:
         pages = []
         recorder = cast(FtsRecorder, self.recorder)
         for page_id in recorder.search_pages(query):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import Tuple
 from uuid import uuid4
 
 from pydantic import BaseModel
@@ -21,7 +20,7 @@ class Trick(BaseModel):
 
 class Dog(Aggregate):
     name: str
-    tricks: Tuple[Trick, ...]
+    tricks: tuple[Trick, ...]
 
 
 class DogRegistered(DomainEvent):

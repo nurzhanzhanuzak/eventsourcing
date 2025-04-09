@@ -4,7 +4,7 @@ import logging
 from asyncio import CancelledError
 from contextlib import contextmanager
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Callable, Iterator, List, Sequence, Type
+from typing import TYPE_CHECKING, Any, Callable
 
 import psycopg
 import psycopg.errors
@@ -37,6 +37,7 @@ from eventsourcing.persistence import (
 from eventsourcing.utils import Environment, resolve_topic, retry, strtobool
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
     from uuid import UUID
 
     from typing_extensions import Self
@@ -190,7 +191,7 @@ class PostgresRecorder:
         self.datastore = datastore
         self.create_table_statements = self.construct_create_table_statements()
 
-    def construct_create_table_statements(self) -> List[str]:
+    def construct_create_table_statements(self) -> list[str]:
         return []
 
     @staticmethod
@@ -247,11 +248,11 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         self.select_events_statement = (
             f"SELECT * FROM {self.events_table_name} WHERE originator_id = %s"
         )
-        self.lock_table_statements: List[str] = []
+        self.lock_table_statements: list[str] = []
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_events(
-        self, stored_events: List[StoredEvent], **kwargs: Any
+        self, stored_events: list[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
         conn: Connection[DictRow]
         exc: Exception | None = None
@@ -283,7 +284,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
     def _insert_events(
         self,
         c: Cursor[DictRow],
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **_: Any,
     ) -> None:
         pass
@@ -291,7 +292,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
     def _insert_stored_events(
         self,
         c: Cursor[DictRow],
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **_: Any,
     ) -> None:
         # Only do something if there is something to do.
@@ -324,7 +325,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
     def _fetch_ids_after_insert_events(
         self,
         c: Cursor[DictRow],
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
         return None
@@ -338,9 +339,9 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         lte: int | None = None,
         desc: bool = False,
         limit: int | None = None,
-    ) -> List[StoredEvent]:
+    ) -> list[StoredEvent]:
         statement = self.select_events_statement
-        params: List[Any] = [originator_id]
+        params: list[Any] = [originator_id]
         if gt is not None:
             params.append(gt)
             statement += " AND originator_version > %s"
@@ -413,13 +414,13 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,
-    ) -> List[Notification]:
+    ) -> list[Notification]:
         """
         Returns a list of event notifications
         from 'start', limited by 'limit'.
         """
 
-        params: List[int | str | Sequence[str]] = []
+        params: list[int | str | Sequence[str]] = []
         statement = f"SELECT * FROM {self.events_table_name}"
         has_where = False
         if start is not None:
@@ -508,10 +509,10 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
     def _fetch_ids_after_insert_events(
         self,
         c: Cursor[DictRow],
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
-        notification_ids: List[int] = []
+        notification_ids: list[int] = []
         len_events = len(stored_events)
         if len_events:
             while c.nextset() and len(notification_ids) != len_events:
@@ -667,7 +668,7 @@ class PostgresProcessRecorder(
     def _insert_events(
         self,
         c: Cursor[DictRow],
-        stored_events: List[StoredEvent],
+        stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> None:
         tracking: Tracking | None = kwargs.get("tracking", None)
@@ -893,7 +894,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
 
         application_recorder_topic = self.env.get(self.APPLICATION_RECORDER_TOPIC)
         if application_recorder_topic:
-            application_recorder_class: Type[PostgresApplicationRecorder] = (
+            application_recorder_class: type[PostgresApplicationRecorder] = (
                 resolve_topic(application_recorder_topic)
             )
             assert issubclass(application_recorder_class, PostgresApplicationRecorder)
@@ -909,7 +910,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
         return recorder
 
     def tracking_recorder(
-        self, tracking_recorder_class: Type[PostgresTrackingRecorder] | None = None
+        self, tracking_recorder_class: type[PostgresTrackingRecorder] | None = None
     ) -> PostgresTrackingRecorder:
         prefix = self.env.name.lower() or "notification"
         tracking_table_name = prefix + "_tracking"
@@ -942,7 +943,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
 
         process_recorder_topic = self.env.get(self.PROCESS_RECORDER_TOPIC)
         if process_recorder_topic:
-            process_recorder_class: Type[PostgresTrackingRecorder] = resolve_topic(
+            process_recorder_class: type[PostgresTrackingRecorder] = resolve_topic(
                 process_recorder_topic
             )
             assert issubclass(process_recorder_class, PostgresProcessRecorder)

@@ -5,7 +5,6 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from threading import Event, Thread
 from time import sleep
-from typing import List
 from unittest import TestCase, skipIf
 from unittest.mock import Mock
 from uuid import uuid4
@@ -705,7 +704,7 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder.max_notification_id()
 
     def test_fetch_ids_after_insert_events(self):
-        def make_events() -> List[StoredEvent]:
+        def make_events() -> list[StoredEvent]:
             return [
                 StoredEvent(
                     originator_id=uuid4(),

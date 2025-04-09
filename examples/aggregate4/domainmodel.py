@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, cast
+from typing import cast
 from uuid import uuid4
 
 from eventsourcing.dispatch import singledispatchmethod
@@ -12,7 +12,7 @@ from examples.aggregate4.baseclasses import Aggregate, DomainEvent
 @dataclass
 class Dog(Aggregate):
     name: str
-    tricks: List[str]
+    tricks: list[str]
 
     @dataclass(frozen=True)
     class Registered(DomainEvent):

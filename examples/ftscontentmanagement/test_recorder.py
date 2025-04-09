@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import ClassVar, Dict
+from typing import ClassVar
 from unittest import TestCase
 from uuid import uuid4
 
@@ -19,7 +19,7 @@ from examples.ftscontentmanagement.sqlite import SQLiteFtsRecorder
 
 
 class FtsRecorderTestCase(TestCase, ABC):
-    env: ClassVar[Dict[str, str]] = {}
+    env: ClassVar[dict[str, str]] = {}
 
     def test_recorder(self) -> None:
         recorder = self.construct_recorder()
@@ -79,7 +79,7 @@ class TestWithSQLite(FtsRecorderTestCase):
 
 
 class TestWithPostgres(FtsRecorderTestCase):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "eventsourcing.postgres",
         "APPLICATION_RECORDER_TOPIC": get_topic(PostgresFtsApplicationRecorder),
     }

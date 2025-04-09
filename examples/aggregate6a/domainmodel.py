@@ -4,21 +4,13 @@ import contextlib
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import singledispatch
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Tuple,
-    TypeVar,
-)
+from typing import TYPE_CHECKING, Callable, Optional, TypeVar
 from uuid import UUID, uuid4
 
 from eventsourcing.domain import Snapshot, datetime_now_with_tzinfo
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from datetime import datetime
 
 
@@ -39,7 +31,7 @@ class Aggregate:
     def hold_event(self, event: DomainEvent) -> None:
         all_pending_events[id(self)].append(event)
 
-    def collect_events(self) -> List[DomainEvent]:
+    def collect_events(self) -> list[DomainEvent]:
         try:
             return all_pending_events.pop(id(self))
         except KeyError:  # pragma: no cover
@@ -67,13 +59,13 @@ def aggregate_projector(
     return project_aggregate
 
 
-all_pending_events: Dict[int, List[DomainEvent]] = defaultdict(list)
+all_pending_events: dict[int, list[DomainEvent]] = defaultdict(list)
 
 
 @dataclass(frozen=True)
 class Dog(Aggregate):
     name: str
-    tricks: Tuple[str, ...]
+    tricks: tuple[str, ...]
 
 
 @dataclass(frozen=True)

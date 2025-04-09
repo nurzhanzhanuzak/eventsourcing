@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, ClassVar, Dict, Mapping, Type
+from typing import TYPE_CHECKING, ClassVar
 from unittest import TestCase
 
 from eventsourcing.application import Application
@@ -14,8 +14,10 @@ from eventsourcing.projection import Projection, ProjectionRunner
 from eventsourcing.tests.postgres_utils import drop_postgres_table
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from psycopg import Connection
-    from psycopg.rows import DictRow
+    from psycopg.rows import dictRow
 
 
 class CountRecorderInterface(TrackingRecorder):
@@ -105,7 +107,7 @@ class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorderInterface):
         self._incr_counter("SUBSEQUENT_EVENTS", tracking)
 
     def _incr_counter(self, name: str, tracking: Tracking) -> None:
-        c: Connection[DictRow]
+        c: Connection[dictRow]
         with self.datastore.get_connection() as c, c.transaction(), c.cursor() as curs:
             self._insert_tracking(c, tracking)
             curs.execute(
@@ -174,7 +176,7 @@ class CountProjection(Projection[CountRecorderInterface]):
 
 class TestCountProjection(TestCase, ABC):
     env: ClassVar[Mapping[str, str]] = {}
-    tracking_recorder_class: Type[TrackingRecorder] = POPOCountRecorder
+    tracking_recorder_class: type[TrackingRecorder] = POPOCountRecorder
 
     def test_runner_with_count_projection(self):
         # Construct runner with application, projection, and recorder.
@@ -243,7 +245,7 @@ class TestCountProjection(TestCase, ABC):
 
 
 class TestCountProjectionWithPostgres(TestCountProjection):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "eventsourcing.postgres",
         "POSTGRES_DBNAME": "eventsourcing",
         "POSTGRES_HOST": "127.0.0.1",

@@ -6,7 +6,7 @@ from abc import abstractmethod
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Event, Thread
-from typing import Callable, ClassVar, List, Sequence
+from typing import TYPE_CHECKING, Callable, ClassVar
 from unittest.case import TestCase
 from uuid import UUID
 
@@ -16,6 +16,9 @@ from eventsourcing.interface import (
     NotificationLogJSONService,
 )
 from eventsourcing.tests.application import BankAccounts
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class TestRemoteNotificationLog(TestCase):
@@ -165,7 +168,7 @@ class BankAccountsJSONClient:
 
 
 class HTTPApplicationServer(Thread):
-    prepare: ClassVar[List[Callable]] = []
+    prepare: ClassVar[list[Callable]] = []
 
     def __init__(self, address, handler):
         super().__init__(daemon=True)

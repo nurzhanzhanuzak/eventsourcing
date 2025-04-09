@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import List
-
 from pydantic import BaseModel
 
 from eventsourcing.domain import event
@@ -14,7 +12,7 @@ class Trick(BaseModel):
 
 class DogSnapshotState(SnapshotState):
     name: str
-    tricks: List[Trick]
+    tricks: list[Trick]
 
 
 class Dog(Aggregate):
@@ -24,7 +22,7 @@ class Dog(Aggregate):
     @event("Registered")
     def __init__(self, name: str) -> None:
         self.name = name
-        self.tricks: List[Trick] = []
+        self.tricks: list[Trick] = []
 
     @event("TrickAdded")
     def add_trick(self, trick: Trick) -> None:

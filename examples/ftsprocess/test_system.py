@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar, Dict
+from typing import ClassVar
 from unittest import TestCase
 from uuid import uuid4
 
@@ -17,7 +17,7 @@ from examples.ftsprocess.system import ContentManagementSystem
 
 
 class ContentManagementSystemTestCase(TestCase):
-    env: ClassVar[Dict[str, str]] = {}
+    env: ClassVar[dict[str, str]] = {}
 
     def test_system(self) -> None:
         with SingleThreadedRunner(
@@ -136,7 +136,7 @@ class ContentManagementSystemTestCase(TestCase):
 
 
 class TestWithSQLite(ContentManagementSystemTestCase):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "eventsourcing.sqlite",
         "PROCESS_RECORDER_TOPIC": get_topic(SQLiteFtsProcessRecorder),
         "SQLITE_DBNAME": ":memory:",
@@ -144,7 +144,7 @@ class TestWithSQLite(ContentManagementSystemTestCase):
 
 
 class TestWithPostgres(ContentManagementSystemTestCase):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "eventsourcing.postgres",
         "PROCESS_RECORDER_TOPIC": get_topic(PostgresFtsProcessRecorder),
         "POSTGRES_DBNAME": "eventsourcing",

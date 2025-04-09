@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, cast
+from typing import TYPE_CHECKING, cast
 
 from eventsourcing.application import AggregateNotFoundError
 from examples.cargoshipping.application import BookingApplication
@@ -20,7 +20,7 @@ class CargoNotFoundError(AggregateNotFoundError):
 
 
 class SearchableTimestampsApplication(BookingApplication):
-    def _record(self, processing_event: ProcessingEvent) -> List[Recording]:
+    def _record(self, processing_event: ProcessingEvent) -> list[Recording]:
         event_timestamps_data = [
             (e.originator_id, e.timestamp, e.originator_version)
             for e in processing_event.events

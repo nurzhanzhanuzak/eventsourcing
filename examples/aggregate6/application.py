@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from eventsourcing.application import Application
 from examples.aggregate6.baseclasses import Snapshot
@@ -23,6 +23,6 @@ class DogSchool(Application):
         dog = self.repository.get(dog_id, projector_func=project_dog)
         self.save(add_trick(dog, trick))
 
-    def get_dog(self, dog_id: UUID) -> Dict[str, Any]:
+    def get_dog(self, dog_id: UUID) -> dict[str, Any]:
         dog = self.repository.get(dog_id, projector_func=project_dog)
         return {"name": dog.name, "tricks": dog.tricks}

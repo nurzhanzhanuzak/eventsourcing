@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Dict, Type, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 from unittest import TestCase
 
 from eventsourcing.application import ProgrammingError
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 class SubDogSchool(DogSchool):
     snapshotting_intervals: ClassVar[
-        Dict[Type[MutableOrImmutableAggregate], int] | None
+        dict[type[MutableOrImmutableAggregate], int] | None
     ] = {Dog: 1}
 
     def register_dog(self, name: str) -> UUID:

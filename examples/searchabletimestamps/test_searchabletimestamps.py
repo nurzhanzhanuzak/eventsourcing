@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from datetime import timedelta
 from time import sleep
-from typing import ClassVar, Dict
+from typing import ClassVar
 from unittest import TestCase
 
 from eventsourcing.domain import datetime_now_with_tzinfo
@@ -17,7 +17,7 @@ from examples.searchabletimestamps.application import (
 
 
 class SearchableTimestampsTestCase(TestCase):
-    env: ClassVar[Dict[str, str]]
+    env: ClassVar[dict[str, str]]
 
     def test(self) -> None:
         # Construct application.
@@ -51,14 +51,14 @@ class SearchableTimestampsTestCase(TestCase):
 
 
 class WithSQLite(SearchableTimestampsTestCase):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "examples.searchabletimestamps.sqlite",
         "SQLITE_DBNAME": ":memory:",
     }
 
 
 class WithPostgreSQL(SearchableTimestampsTestCase):
-    env: ClassVar[Dict[str, str]] = {
+    env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "examples.searchabletimestamps.postgres"
     }
 
