@@ -134,14 +134,14 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             gt=self.tracking_recorder.max_tracking_id(self.app.name),
             topics=self.projection.topics,
         )
-        self._has_error = Event()
+        self._is_stopping = Event()
         self.thread_error: BaseException | None = None
         self.processing_thread = Thread(
             target=self._process_events_loop,
             kwargs={
                 "subscription": self.subscription,
                 "projection": self.projection,
-                "has_error": self._has_error,
+                "is_stopping": self._is_stopping,
                 "runner": weakref.ref(self),
             },
         )
@@ -158,13 +158,14 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         return Environment(name, _env)
 
     def stop(self) -> None:
+        self._is_stopping.set()
         self.subscription.stop()
 
     @staticmethod
     def _process_events_loop(
         subscription: ApplicationSubscription,
         projection: Projection[TrackingRecorder],
-        has_error: Event,
+        is_stopping: Event,
         runner: weakref.ReferenceType[ProjectionRunner[Application, TrackingRecorder]],
     ) -> None:
         try:
@@ -184,12 +185,11 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
                     stacklevel=2,
                 )
 
-            has_error.set()
+            is_stopping.set()
             subscription.subscription.stop()
 
     def run_forever(self, timeout: float | None = None) -> None:
-        if self._has_error.wait(timeout=timeout):
-            assert self.thread_error is not None  # for mypy
+        if self._is_stopping.wait(timeout=timeout) and self.thread_error is not None:
             raise self.thread_error
 
     def wait(self, notification_id: int, timeout: float = 1.0) -> None:
@@ -198,11 +198,11 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
                 application_name=self.subscription.name,
                 notification_id=notification_id,
                 timeout=timeout,
-                interrupt=self._has_error,
+                interrupt=self._is_stopping,
             )
         except WaitInterruptedError:
-            assert self.thread_error is not None  # for mypy
-            raise self.thread_error from None
+            if self.thread_error is not None:
+                raise self.thread_error from None
 
     def __enter__(self) -> Self:
         return self

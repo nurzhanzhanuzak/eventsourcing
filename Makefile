@@ -3,28 +3,31 @@ DOTENV_FILE ?= dev/.env
 
 -include $(DOTENV_FILE)
 
-POETRY ?= poetry
-POETRY_VERSION=1.8.3
+POETRY_VERSION=2.1.2
+POETRY ?= poetry@$(POETRY_VERSION)
 POETRY_INSTALLER_URL ?= https://install.python-poetry.org
 PYTHONUNBUFFERED=1
 
 .PHONY: install-poetry
 install-poetry:
-	curl -sSL $(POETRY_INSTALLER_URL) | python3
+	@pipx install --suffix="@$(POETRY_VERSION)" "poetry==$(POETRY_VERSION)"
+	$(POETRY) --version
+
+.PHONY: poetry-version
+poetry-version:
 	$(POETRY) --version
 
 .PHONY: install
 install:
-	$(POETRY) install --sync --extras "crypto cryptography" --with "docs" -vv $(opts)
+	$(POETRY) sync --extras "crypto cryptography" --with "docs" -vv $(opts)
 
 .PHONY: install-packages
 install-packages:
-	$(POETRY) install --sync --no-root --extras "crypto cryptography" --with "docs" -vv $(opts)
+	$(POETRY) sync --no-root --extras "crypto cryptography" --with "docs" -vv $(opts)
 
 .PHONY: update-lockfile
 update-lockfile:
 	$(POETRY) lock
-# 	$(POETRY) lock --no-update
 
 .PHONY: update-packages
 update-packages: update-lockfile install-packages

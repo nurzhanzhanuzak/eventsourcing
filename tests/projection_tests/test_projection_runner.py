@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import threading
 import warnings
 import weakref
 from threading import Event
+from time import sleep
 from typing import TYPE_CHECKING
 from unittest import TestCase
 
@@ -106,6 +108,68 @@ class TestProjectionRunner(TestCase):
         self.assertEqual(
             runner.projection.tracking_recorder.get_subsequent_events_counter(), 2
         )
+
+    def test_runner_stop(self):
+
+        exception_raised = Event()
+
+        def call_runforever(r: ProjectionRunner):
+            exception_raised.clear()
+            try:
+                r.run_forever()
+            except Exception:
+                exception_raised.set()
+
+        def call_wait(r: ProjectionRunner):
+            exception_raised.clear()
+            try:
+                r.wait(10000000)
+            except Exception:
+                exception_raised.set()
+
+        # Call stop() before run_forever().
+        with ProjectionRunner(
+            application_class=Application,
+            projection_class=CountProjection,
+            tracking_recorder_class=POPOCountRecorder,
+        ) as runner:
+            runner.stop()
+            runner.run_forever()
+
+        # Call stop() before wait().
+        with ProjectionRunner(
+            application_class=Application,
+            projection_class=CountProjection,
+            tracking_recorder_class=POPOCountRecorder,
+        ) as runner:
+            runner.stop()
+            runner.wait(10000)
+
+        # Call stop() after run_forever().
+        with ProjectionRunner(
+            application_class=Application,
+            projection_class=CountProjection,
+            tracking_recorder_class=POPOCountRecorder,
+        ) as runner:
+            thread = threading.Thread(target=call_runforever, args=(runner,))
+            thread.start()
+            sleep(0.1)
+            runner.stop()
+            thread.join()
+        self.assertFalse(exception_raised.is_set())
+
+        # Call stop() after wait().
+        with ProjectionRunner(
+            application_class=Application,
+            projection_class=CountProjection,
+            tracking_recorder_class=POPOCountRecorder,
+        ) as runner:
+            thread = threading.Thread(target=call_wait, args=(runner,))
+            thread.start()
+            sleep(0.1)
+            runner.stop()
+            thread.join()
+        self.assertFalse(exception_raised.is_set())
 
     def test_runner_as_context_manager(self):
         with ProjectionRunner(

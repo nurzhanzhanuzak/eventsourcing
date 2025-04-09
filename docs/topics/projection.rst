@@ -167,7 +167,8 @@ and tracking object yielded by the application subscription.
 
 The projection runner has a method :func:`~eventsourcing.projection.Projection.run_forever` which will block
 until either the :func:`~eventsourcing.projection.Projection.process_event` method raises an error, or until
-the application subscription raises an error, or until the optional timeout is reached.
+the application subscription raises an error, or until the optional timeout is reached, or until the
+:func:`~eventsourcing.projection.Projection.stop` method is called.
 
 Projection runner objects can be used as context managers.
 
