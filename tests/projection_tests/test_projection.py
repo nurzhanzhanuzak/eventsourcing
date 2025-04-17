@@ -7,11 +7,12 @@ from unittest import TestCase
 from eventsourcing.application import Application
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import Aggregate, DomainEventProtocol
-from eventsourcing.persistence import Tracking, TrackingRecorder
+from eventsourcing.persistence import InfrastructureFactory, Tracking, TrackingRecorder
 from eventsourcing.popo import POPOTrackingRecorder
 from eventsourcing.postgres import PostgresDatastore, PostgresTrackingRecorder
 from eventsourcing.projection import Projection, ProjectionRunner
 from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.utils import Environment
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -67,16 +68,11 @@ class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorderInterface):
     def __init__(
         self,
         datastore: PostgresDatastore,
-        *,
-        tracking_table_name: str = "OVERWRITTEN",
         **kwargs,
     ):
-        _ = tracking_table_name
-        tracking_table_name = "countprojection_tracking"
-        events_counter_table_name: str = "countprojection"
-        super().__init__(datastore, tracking_table_name=tracking_table_name, **kwargs)
-        self.check_table_name_length(events_counter_table_name, datastore.schema)
-        self.counter_table_name = events_counter_table_name
+        super().__init__(datastore, **kwargs)
+        self.counter_table_name = "countprojection"
+        self.check_table_name_length(self.counter_table_name)
         self.create_table_statements.append(
             "CREATE TABLE IF NOT EXISTS "
             f"{self.counter_table_name} ("
@@ -251,19 +247,13 @@ class TestCountProjectionWithPostgres(TestCountProjection):
             env=self.env,
         )
 
-        # Construct separate instance of application.
+        # Construct separate instance of "write model".
         write_model = Application(self.env)
 
-        # Construct separate instance of recorder.
-        read_model = PostgresCountRecorder(
-            datastore=PostgresDatastore(
-                "eventsourcing",
-                "127.0.0.1",
-                "5432",
-                "eventsourcing",
-                "eventsourcing",
-            ),
-        )
+        # Construct separate instance of "read model".
+        read_model = InfrastructureFactory.construct(
+            env=Environment(name=CountProjection.__name__, env=self.env)
+        ).tracking_recorder(self.tracking_recorder_class)
 
         # Write some events.
         aggregate = Aggregate()
@@ -291,7 +281,7 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         self.assertEqual(read_model.get_created_events_counter(), 4)
         self.assertEqual(read_model.get_subsequent_events_counter(), 8)
 
-    def test_throw_spanner(self):
+    def test_run_forever_raises_projection_error(self):
         super().test_run_forever_raises_projection_error()
         # Resume...
         runner = ProjectionRunner(
@@ -301,19 +291,13 @@ class TestCountProjectionWithPostgres(TestCountProjection):
             env=self.env,
         )
 
-        # Construct separate instance of application.
+        # Construct separate instance of "write model".
         write_model = Application(self.env)
 
-        # Construct separate instance of recorder.
-        read_model = PostgresCountRecorder(
-            datastore=PostgresDatastore(
-                "eventsourcing",
-                "127.0.0.1",
-                "5432",
-                "eventsourcing",
-                "eventsourcing",
-            ),
-        )
+        # Construct separate instance of "read model".
+        read_model = InfrastructureFactory.construct(
+            env=Environment(name=CountProjection.__name__, env=self.env)
+        ).tracking_recorder(self.tracking_recorder_class)
 
         # Still terminates with projection error.
         with self.assertRaises(SpannerThrownError):
@@ -324,9 +308,6 @@ class TestCountProjectionWithPostgres(TestCountProjection):
             read_model.wait(
                 write_model.name, write_model.recorder.max_notification_id()
             )
-
-    def test_run_forever_raises_projection_error(self):
-        super().test_run_forever_raises_projection_error()
 
     def setUp(self) -> None:
         super().setUp()
