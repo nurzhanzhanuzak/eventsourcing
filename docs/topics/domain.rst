@@ -2492,10 +2492,7 @@ You can localize date-time values by calling :data:`astimezone()` on a
 .. code-block:: python
 
     from datetime import timezone
-    try:
-        from zoneinfo import ZoneInfo
-    except ImportError:
-        from backports.zoneinfo import ZoneInfo
+    from zoneinfo import ZoneInfo
 
 
     # Function to localize datetimes. See also the pytz module.
@@ -2531,12 +2528,11 @@ You can localize date-time values by calling :data:`astimezone()` on a
 
 However, if necessary, this default can be changed by assigning a :class:`tzinfo`
 object to the :data:`TZINFO` attribute of the :mod:`eventsourcing.domain` module. The
-:data:`TZINFO` value can be configured using environment variables, by setting the
-environment variable ``TZINFO_TOPIC`` to a :ref:`topic string <Topics>` that locates
-a Python :data:`tzinfo` object in your code, for example a :data:`timezone`
-with an ``offset`` value, or a :data:``ZoneInfo`` from Python Standard Library with a
-suitable ``key``. You need to set this environment variable before the
-:mod:`eventsourcing.domain` is imported, or otherwise assign to the :data:`TZINFO`
+:data:`TZINFO` value can be configured by setting the environment variable ``TZINFO_TOPIC``
+to a :ref:`topic string <Topics>` that locates a Python :data:`tzinfo` object in your code,
+for example a :data:`timezone` with an ``offset`` value, or a :data:`ZoneInfo` from Python Standard
+Library with a suitable ``key``. You need to set this environment variable before the
+:mod:`eventsourcing.domain` module is imported, or otherwise assign to the :data:`TZINFO`
 attribute after that module has been imported. However, it is probably best to use
 a timezone with a fixed offset from UTC, in which case you will probably still need
 to convert to local time in the user interface. So it is strongly recommended to use
@@ -2544,12 +2540,7 @@ the default :data:`TZINFO`.
 
 Please see the Python `docs <https://docs.python.org/3/library/zoneinfo.html>`_ for
 more information about timezones, in particular the need to install :data:`tzdata`
-on some systems. Please note, the ``zoneinfo`` package is new in Python 3.9, so users
-of earlier versions of Python may wish to install the ``backports.zoneinfo`` package.
-
-::
-
-    $ pip install 'backports.zoneinfo;python_version<"3.9"'
+on some systems.
 
 
 Initial version number
