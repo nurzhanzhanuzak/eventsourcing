@@ -86,6 +86,8 @@ sourcing.
 
 Next, let's talk about aggregate events in more detail.
 
+.. _Created events:
+
 "Created" events
 ================
 
@@ -249,6 +251,8 @@ was used to reconstruct the initial state of the aggregate.
 We can take this further by defining aggregate command methods that change
 the state of an aggregate, and subsequent event classes so the command
 methods can operate in an event-sourced style.
+
+.. _Subsequent events:
 
 Subsequent events
 =================
