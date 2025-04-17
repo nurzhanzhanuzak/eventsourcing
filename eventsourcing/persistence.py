@@ -510,16 +510,19 @@ class TrackingRecorder(Recorder, ABC):
         """
 
     @abstractmethod
-    def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
+    def has_tracking_id(
+        self, application_name: str, notification_id: int | None
+    ) -> bool:
         """
         Returns True if a tracking object with the given application name
-        and notification ID has been recorded, otherwise returns False.
+        and notification ID has been recorded, and True if given notification_id is
+        None, otherwise returns False.
         """
 
     def wait(
         self,
         application_name: str,
-        notification_id: int,
+        notification_id: int | None,
         timeout: float = 1.0,
         interrupt: Event | None = None,
     ) -> None:

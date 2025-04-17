@@ -639,7 +639,11 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
             return fetchone["max"]
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
-    def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
+    def has_tracking_id(
+        self, application_name: str, notification_id: int | None
+    ) -> bool:
+        if notification_id is None:
+            return True
         conn: Connection[DictRow]
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             curs.execute(

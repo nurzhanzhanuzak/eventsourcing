@@ -188,7 +188,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         if self._is_stopping.wait(timeout=timeout) and self.thread_error is not None:
             raise self.thread_error
 
-    def wait(self, notification_id: int, timeout: float = 1.0) -> None:
+    def wait(self, notification_id: int | None, timeout: float = 1.0) -> None:
         try:
             self.projection.view.wait(
                 application_name=self.subscription.name,

@@ -530,7 +530,11 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
             c.execute(self.select_max_tracking_id_statement, params)
             return c.fetchone()[0]
 
-    def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
+    def has_tracking_id(
+        self, application_name: str, notification_id: int | None
+    ) -> bool:
+        if notification_id is None:
+            return True
         params = [application_name, notification_id]
         with self.datastore.transaction(commit=False) as c:
             c.execute(self.count_tracking_id_statement, params)

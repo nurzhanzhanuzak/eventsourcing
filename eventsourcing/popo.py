@@ -219,7 +219,11 @@ class POPOTrackingRecorder(POPORecorder, TrackingRecorder):
         with self._database_lock:
             return self._max_tracking_ids[application_name]
 
-    def has_tracking_id(self, application_name: str, notification_id: int) -> bool:
+    def has_tracking_id(
+        self, application_name: str, notification_id: int | None
+    ) -> bool:
+        if notification_id is None:
+            return True
         with self._database_lock:
             return notification_id in self._tracking_table[application_name]
 
