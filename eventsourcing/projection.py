@@ -96,9 +96,6 @@ class Projection(ABC, Generic[TTrackingRecorder]):
         """
 
 
-TProjection = TypeVar("TProjection", bound=Projection[Any])
-
-
 TApplication = TypeVar("TApplication", bound=Application)
 
 
