@@ -160,14 +160,14 @@ class CountProjection(Projection[CountRecorderInterface]):
 
 class TestCountProjection(TestCase, ABC):
     env: ClassVar[Mapping[str, str]] = {}
-    tracking_recorder_class: type[TrackingRecorder] = POPOCountRecorder
+    view_class: type[CountRecorderInterface] = POPOCountRecorder
 
     def test_runner_with_count_projection(self):
         # Construct runner with application, projection, and recorder.
         runner = ProjectionRunner(
             application_class=Application,
+            view_class=self.view_class,
             projection_class=CountProjection,
-            tracking_recorder_class=self.tracking_recorder_class,
             env=self.env,
         )
 
@@ -205,8 +205,8 @@ class TestCountProjection(TestCase, ABC):
         # Construct runner with application, projection, and recorder.
         runner = ProjectionRunner(
             application_class=Application,
+            view_class=self.view_class,
             projection_class=CountProjection,
-            tracking_recorder_class=self.tracking_recorder_class,
             env=self.env,
         )
         write_model = runner.app
@@ -235,15 +235,15 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         "POSTGRES_USER": "eventsourcing",
         "POSTGRES_PASSWORD": "eventsourcing",
     }
-    tracking_recorder_class = PostgresCountRecorder
+    view_class = PostgresCountRecorder
 
     def test_runner_with_count_projection(self):
         super().test_runner_with_count_projection()
         # Resume....
         _ = ProjectionRunner(
             application_class=Application,
+            view_class=self.view_class,
             projection_class=CountProjection,
-            tracking_recorder_class=self.tracking_recorder_class,
             env=self.env,
         )
 
@@ -251,9 +251,11 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         write_model = Application(self.env)
 
         # Construct separate instance of "read model".
-        read_model = InfrastructureFactory.construct(
-            env=Environment(name=CountProjection.__name__, env=self.env)
-        ).tracking_recorder(self.tracking_recorder_class)
+        read_model = (
+            InfrastructureFactory[CountRecorderInterface]
+            .construct(env=Environment(name=CountProjection.__name__, env=self.env))
+            .tracking_recorder(self.view_class)
+        )
 
         # Write some events.
         aggregate = Aggregate()
@@ -286,8 +288,8 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         # Resume...
         runner = ProjectionRunner(
             application_class=Application,
+            view_class=self.view_class,
             projection_class=CountProjection,
-            tracking_recorder_class=self.tracking_recorder_class,
             env=self.env,
         )
 
@@ -297,7 +299,7 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         # Construct separate instance of "read model".
         read_model = InfrastructureFactory.construct(
             env=Environment(name=CountProjection.__name__, env=self.env)
-        ).tracking_recorder(self.tracking_recorder_class)
+        ).tracking_recorder(self.view_class)
 
         # Still terminates with projection error.
         with self.assertRaises(SpannerThrownError):

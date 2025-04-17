@@ -178,8 +178,8 @@ Projection runner objects can be used as context managers.
 
     with ProjectionRunner(
         application_class=Application,
+        view_class=MyPOPOTrackingRecorder,
         projection_class=MyProjection,
-        tracking_recorder_class=MyPOPOTrackingRecorder,
         env={},
     ) as runner:
         runner.run_forever(timeout=1)

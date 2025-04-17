@@ -32,8 +32,8 @@ class TestProjectionRunner(TestCase):
     def test_runner(self):
         runner = ProjectionRunner(
             application_class=Application,
+            view_class=POPOCountRecorder,
             projection_class=CountProjection,
-            tracking_recorder_class=POPOCountRecorder,
         )
 
         app = runner.app
@@ -75,8 +75,8 @@ class TestProjectionRunner(TestCase):
 
         runner = ProjectionRunner(
             application_class=Application,
+            view_class=POPOCountRecorder,
             projection_class=CountProjectionWithTopics,
-            tracking_recorder_class=POPOCountRecorder,
         )
 
         app = runner.app
@@ -112,8 +112,8 @@ class TestProjectionRunner(TestCase):
         # Call stop() before run_forever().
         with ProjectionRunner(
             application_class=Application,
+            view_class=POPOCountRecorder,
             projection_class=CountProjection,
-            tracking_recorder_class=POPOCountRecorder,
         ) as runner:
             runner.stop()
             runner.run_forever()
@@ -121,8 +121,8 @@ class TestProjectionRunner(TestCase):
         # Call stop() before wait().
         with ProjectionRunner(
             application_class=Application,
+            view_class=POPOCountRecorder,
             projection_class=CountProjection,
-            tracking_recorder_class=POPOCountRecorder,
         ) as runner:
             runner.stop()
             runner.wait(10000)
@@ -130,8 +130,8 @@ class TestProjectionRunner(TestCase):
         # Call stop() after run_forever().
         with ProjectionRunner(
             application_class=Application,
+            view_class=POPOCountRecorder,
             projection_class=CountProjection,
-            tracking_recorder_class=POPOCountRecorder,
         ) as runner:
             thread = threading.Thread(target=call_runforever, args=(runner,))
             thread.start()
@@ -143,8 +143,8 @@ class TestProjectionRunner(TestCase):
         # Call stop() after wait().
         with ProjectionRunner(
             application_class=Application,
+            view_class=POPOCountRecorder,
             projection_class=CountProjection,
-            tracking_recorder_class=POPOCountRecorder,
         ) as runner:
             thread = threading.Thread(target=call_wait, args=(runner,))
             thread.start()
@@ -156,8 +156,8 @@ class TestProjectionRunner(TestCase):
     def test_runner_as_context_manager(self):
         with ProjectionRunner(
             application_class=Application,
+            view_class=POPOCountRecorder,
             projection_class=CountProjection,
-            tracking_recorder_class=POPOCountRecorder,
         ) as runner:
 
             app = runner.app
@@ -193,8 +193,8 @@ class TestProjectionRunner(TestCase):
         # Construct a runner.
         runner = ProjectionRunner(
             application_class=Application,
+            view_class=POPOCountRecorder,
             projection_class=BrokenProjection,
-            tracking_recorder_class=POPOCountRecorder,
         )
 
         # Write an event.

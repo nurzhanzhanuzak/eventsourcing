@@ -104,27 +104,28 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         self,
         *,
         application_class: type[TApplication],
+        view_class: type[TTrackingRecorder],
         projection_class: type[Projection[TTrackingRecorder]],
-        tracking_recorder_class: type[TTrackingRecorder] | None = None,
         env: EnvType | None = None,
     ):
         self.app: TApplication = application_class(env)
 
-        self.projection_factory = InfrastructureFactory[TTrackingRecorder].construct(
-            env=self._construct_env(
-                name=projection_class.name or projection_class.__name__, env=env
+        self.view = (
+            InfrastructureFactory[TTrackingRecorder]
+            .construct(
+                env=self._construct_env(
+                    name=projection_class.name or projection_class.__name__, env=env
+                )
             )
-        )
-        self.tracking_recorder = self.projection_factory.tracking_recorder(
-            tracking_recorder_class
+            .tracking_recorder(view_class)
         )
 
         self.projection = projection_class(
-            view=self.tracking_recorder,
+            view=self.view,
         )
         self.subscription = ApplicationSubscription(
             app=self.app,
-            gt=self.tracking_recorder.max_tracking_id(self.app.name),
+            gt=self.view.max_tracking_id(self.app.name),
             topics=self.projection.topics,
         )
         self._is_stopping = Event()
