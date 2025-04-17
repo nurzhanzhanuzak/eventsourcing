@@ -286,7 +286,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
 
     def _insert_events(
         self,
-        c: Cursor[DictRow],
+        curs: Cursor[DictRow],
         stored_events: list[StoredEvent],
         **_: Any,
     ) -> None:
@@ -294,18 +294,18 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
 
     def _insert_stored_events(
         self,
-        c: Cursor[DictRow],
+        curs: Cursor[DictRow],
         stored_events: list[StoredEvent],
         **_: Any,
     ) -> None:
         # Only do something if there is something to do.
         if len(stored_events) > 0:
-            self._lock_table(c)
+            self._lock_table(curs)
 
-            self._notify_channel(c)
+            self._notify_channel(curs)
 
             # Insert events.
-            c.executemany(
+            curs.executemany(
                 query=self.insert_events_statement,
                 params_seq=[
                     (
@@ -319,15 +319,15 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
                 returning="RETURNING" in self.insert_events_statement,
             )
 
-    def _lock_table(self, c: Cursor[DictRow]) -> None:
+    def _lock_table(self, curs: Cursor[DictRow]) -> None:
         pass
 
-    def _notify_channel(self, c: Cursor[DictRow]) -> None:
+    def _notify_channel(self, curs: Cursor[DictRow]) -> None:
         pass
 
     def _fetch_ids_after_insert_events(
         self,
-        c: Cursor[DictRow],
+        curs: Cursor[DictRow],
         stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
@@ -482,7 +482,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
             assert fetchone is not None
             return fetchone["max"]
 
-    def _lock_table(self, c: Cursor[DictRow]) -> None:
+    def _lock_table(self, curs: Cursor[DictRow]) -> None:
         # Acquire "EXCLUSIVE" table lock, to serialize transactions that insert
         # stored events, so that readers don't pass over gaps that are filled in
         # later. We want each transaction that will be issued with notifications
@@ -504,23 +504,23 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         # https://stackoverflow.com/questions/45866187/guarantee-monotonicity-of
         # -postgresql-serial-column-values-by-commit-order
         for lock_statement in self.lock_table_statements:
-            c.execute(lock_statement, prepare=True)
+            curs.execute(lock_statement, prepare=True)
 
-    def _notify_channel(self, c: Cursor[DictRow]) -> None:
-        c.execute("NOTIFY " + self.channel_name)
+    def _notify_channel(self, curs: Cursor[DictRow]) -> None:
+        curs.execute("NOTIFY " + self.channel_name)
 
     def _fetch_ids_after_insert_events(
         self,
-        c: Cursor[DictRow],
+        curs: Cursor[DictRow],
         stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
         notification_ids: list[int] = []
         len_events = len(stored_events)
         if len_events:
-            while c.nextset() and len(notification_ids) != len_events:
-                if c.statusmessage and c.statusmessage.startswith("INSERT"):
-                    row = c.fetchone()
+            while curs.nextset() and len(notification_ids) != len_events:
+                if curs.statusmessage and curs.statusmessage.startswith("INSERT"):
+                    row = curs.fetchone()
                     assert row is not None
                     notification_ids.append(row["notification_id"])
             if len(notification_ids) != len(stored_events):
@@ -608,16 +608,20 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_tracking(self, tracking: Tracking) -> None:
-        c: Connection[DictRow]
-        with self.datastore.get_connection() as c, c.transaction(), c.cursor() as curs:
+        conn: Connection[DictRow]
+        with (
+            self.datastore.get_connection() as conn,
+            conn.transaction(),
+            conn.cursor() as curs,
+        ):
             self._insert_tracking(curs, tracking)
 
     def _insert_tracking(
         self,
-        c: Cursor[DictRow],
+        curs: Cursor[DictRow],
         tracking: Tracking,
     ) -> None:
-        c.execute(
+        curs.execute(
             query=self.insert_tracking_statement,
             params=(
                 tracking.application_name,
@@ -674,14 +678,14 @@ class PostgresProcessRecorder(
 
     def _insert_events(
         self,
-        c: Cursor[DictRow],
+        curs: Cursor[DictRow],
         stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> None:
         tracking: Tracking | None = kwargs.get("tracking", None)
         if tracking is not None:
-            self._insert_tracking(c, tracking=tracking)
-        super()._insert_events(c, stored_events, **kwargs)
+            self._insert_tracking(curs, tracking=tracking)
+        super()._insert_events(curs, stored_events, **kwargs)
 
 
 class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):

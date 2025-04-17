@@ -72,15 +72,15 @@ class PostgresFtsRecorder(
         with self.datastore.transaction(commit=True) as curs:
             self._update_pages(curs, pages)
 
-    def _insert_pages(self, c: Cursor[DictRow], pages: Sequence[PageInfo]) -> None:
+    def _insert_pages(self, curs: Cursor[DictRow], pages: Sequence[PageInfo]) -> None:
         for page in pages:
             params = (page.id, page.slug, page.title, page.body)
-            c.execute(self.insert_page_statement, params, prepare=True)
+            curs.execute(self.insert_page_statement, params, prepare=True)
 
-    def _update_pages(self, c: Cursor[DictRow], pages: Sequence[PageInfo]) -> None:
+    def _update_pages(self, curs: Cursor[DictRow], pages: Sequence[PageInfo]) -> None:
         for page in pages:
             params = (page.slug, page.title, page.body, page.id)
-            c.execute(self.update_page_statement, params, prepare=True)
+            curs.execute(self.update_page_statement, params, prepare=True)
 
     def search_pages(self, query: str) -> list[UUID]:
         with self.datastore.transaction(commit=False) as curs:
@@ -104,14 +104,14 @@ class PostgresFtsRecorder(
 class PostgresFtsApplicationRecorder(PostgresFtsRecorder, PostgresApplicationRecorder):
     def _insert_events(
         self,
-        c: Cursor[DictRow],
+        curs: Cursor[DictRow],
         stored_events: list[StoredEvent],
         *,
         insert_pages: Sequence[PageInfo] = (),
         update_pages: Sequence[PageInfo] = (),
         **kwargs: Any,
     ) -> None:
-        notification_ids = super()._insert_events(c, stored_events, **kwargs)
-        self._insert_pages(c, pages=insert_pages)
-        self._update_pages(c, pages=update_pages)
+        notification_ids = super()._insert_events(curs, stored_events, **kwargs)
+        self._insert_pages(curs, pages=insert_pages)
+        self._update_pages(curs, pages=update_pages)
         return notification_ids

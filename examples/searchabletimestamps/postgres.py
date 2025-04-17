@@ -52,7 +52,7 @@ class SearchableTimestampsApplicationRecorder(
 
     def _insert_events(
         self,
-        c: Cursor[DictRow],
+        curs: Cursor[DictRow],
         stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> None:
@@ -61,12 +61,12 @@ class SearchableTimestampsApplicationRecorder(
             list[tuple[UUID, datetime, int]], kwargs.get("event_timestamps_data")
         )
         for event_timestamp_data in event_timestamps_data:
-            c.execute(
+            curs.execute(
                 query=self.insert_event_timestamp_statement,
                 params=event_timestamp_data,
                 prepare=True,
             )
-        super()._insert_events(c, stored_events, **kwargs)
+        super()._insert_events(curs, stored_events, **kwargs)
 
     def get_version_at_timestamp(
         self, originator_id: UUID, timestamp: datetime
