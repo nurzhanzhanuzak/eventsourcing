@@ -30,9 +30,9 @@ class PostgresFtsRecorder(
         fts_table_name: str = "ftsprojection",
         **kwargs: Any,
     ):
-        self.check_table_name_length(fts_table_name, datastore.schema)
-        self.fts_table_name = fts_table_name
         super().__init__(datastore, **kwargs)
+        self.check_table_name_length(fts_table_name)
+        self.fts_table_name = fts_table_name
         self.create_table_statements.append(
             "CREATE TABLE IF NOT EXISTS "
             f"{self.fts_table_name} ("

@@ -27,9 +27,9 @@ class SearchableTimestampsApplicationRecorder(
         events_table_name: str = "stored_events",
         event_timestamps_table_name: str = "event_timestamps",
     ):
-        self.check_table_name_length(event_timestamps_table_name, datastore.schema)
-        self.event_timestamps_table_name = event_timestamps_table_name
         super().__init__(datastore, events_table_name=events_table_name)
+        self.check_table_name_length(event_timestamps_table_name)
+        self.event_timestamps_table_name = event_timestamps_table_name
         self.create_table_statements.append(
             "CREATE TABLE IF NOT EXISTS "
             f"{self.event_timestamps_table_name} ("

@@ -198,9 +198,8 @@ class PostgresRecorder:
     def construct_create_table_statements(self) -> list[str]:
         return []
 
-    @staticmethod
-    def check_table_name_length(table_name: str, schema_name: str) -> None:
-        schema_prefix = schema_name + "."
+    def check_table_name_length(self, table_name: str) -> None:
+        schema_prefix = self.datastore.schema + "."
         if table_name.startswith(schema_prefix):
             unqualified_table_name = table_name[len(schema_prefix) :]
         else:
@@ -223,7 +222,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         events_table_name: str = "stored_events",
     ):
         super().__init__(datastore)
-        self.check_table_name_length(events_table_name, datastore.schema)
+        self.check_table_name_length(events_table_name)
         self.events_table_name = events_table_name
         # Index names can't be qualified names, but
         # are created in the same schema as the table.
@@ -583,7 +582,7 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
         **kwargs: Any,
     ):
         super().__init__(datastore, **kwargs)
-        self.check_table_name_length(tracking_table_name, datastore.schema)
+        self.check_table_name_length(tracking_table_name)
         self.tracking_table_name = tracking_table_name
         self.create_table_statements.append(
             "CREATE TABLE IF NOT EXISTS "
