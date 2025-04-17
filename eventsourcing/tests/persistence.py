@@ -904,6 +904,7 @@ class ProcessRecorderTestCase(TestCase, ABC):
         # Construct the recorder.
         recorder = self.create_recorder()
 
+        self.assertTrue(recorder.has_tracking_id("upstream_app", None))
         self.assertFalse(recorder.has_tracking_id("upstream_app", 1))
         self.assertFalse(recorder.has_tracking_id("upstream_app", 2))
         self.assertFalse(recorder.has_tracking_id("upstream_app", 3))
