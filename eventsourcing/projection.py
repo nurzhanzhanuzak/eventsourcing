@@ -107,14 +107,13 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
     ):
         self.app: TApplication = application_class(env)
 
-        projection_environment = self._construct_env(
-            name=projection_class.name or projection_class.__name__, env=env
+        self.projection_factory = InfrastructureFactory[TTrackingRecorder].construct(
+            env=self._construct_env(
+                name=projection_class.name or projection_class.__name__, env=env
+            )
         )
-        self.projection_factory: InfrastructureFactory[TTrackingRecorder] = (
-            InfrastructureFactory.construct(env=projection_environment)
-        )
-        self.tracking_recorder: TTrackingRecorder = (
-            self.projection_factory.tracking_recorder(tracking_recorder_class)
+        self.tracking_recorder = self.projection_factory.tracking_recorder(
+            tracking_recorder_class
         )
 
         self.projection = projection_class(

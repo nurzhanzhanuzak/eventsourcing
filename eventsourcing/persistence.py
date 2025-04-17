@@ -12,9 +12,11 @@ from queue import Queue
 from threading import Condition, Event, Lock, Semaphore, Thread, Timer
 from time import monotonic, sleep, time
 from types import GenericAlias, ModuleType
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, Generic, Union, cast
 from uuid import UUID
 from warnings import warn
+
+from typing_extensions import TypeVar
 
 from eventsourcing.domain import DomainEventProtocol, EventSourcingError
 from eventsourcing.utils import (
@@ -634,11 +636,9 @@ class EventStore:
         )
 
 
-TInfrastructureFactory = TypeVar(
-    "TInfrastructureFactory", bound="InfrastructureFactory[Any]"
+TTrackingRecorder = TypeVar(
+    "TTrackingRecorder", bound=TrackingRecorder, default=TrackingRecorder
 )
-
-TTrackingRecorder = TypeVar("TTrackingRecorder", bound=TrackingRecorder)
 
 
 class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
@@ -658,14 +658,15 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
     @classmethod
     def construct(
-        cls: type[TInfrastructureFactory], env: Environment | None = None
-    ) -> TInfrastructureFactory:
+        cls: type[InfrastructureFactory[TTrackingRecorder]],
+        env: Environment | None = None,
+    ) -> InfrastructureFactory[TTrackingRecorder]:
         """
         Constructs concrete infrastructure factory for given
         named application. Reads and resolves persistence
         topic from environment variable 'PERSISTENCE_MODULE'.
         """
-        factory_cls: type[InfrastructureFactory[TrackingRecorder]]
+        factory_cls: type[InfrastructureFactory[TTrackingRecorder]]
         if env is None:
             env = Environment()
         topic = (
@@ -684,7 +685,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
             or "eventsourcing.popo"
         )
         try:
-            obj: type[InfrastructureFactory[TrackingRecorder]] | ModuleType = (
+            obj: type[InfrastructureFactory[TTrackingRecorder]] | ModuleType = (
                 resolve_topic(topic)
             )
         except TopicError as e:
@@ -697,7 +698,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
         if isinstance(obj, ModuleType):
             # Find the factory in the module.
-            factory_classes: list[type[InfrastructureFactory[TrackingRecorder]]] = []
+            factory_classes: list[type[InfrastructureFactory[TTrackingRecorder]]] = []
             for member in obj.__dict__.values():
                 if (
                     member is not InfrastructureFactory
@@ -724,7 +725,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
         else:
             msg = f"Not an infrastructure factory class or module: {topic}"
             raise AssertionError(msg)
-        return cast(TInfrastructureFactory, factory_cls(env=env))
+        return factory_cls(env=env)
 
     def __init__(self, env: Environment):
         """

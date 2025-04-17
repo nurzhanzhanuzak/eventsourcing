@@ -690,9 +690,7 @@ class Application:
             _env.update(env)
         return Environment(name, _env)
 
-    def construct_factory(
-        self, env: Environment
-    ) -> InfrastructureFactory[TrackingRecorder]:
+    def construct_factory(self, env: Environment) -> InfrastructureFactory:
         """
         Constructs an :class:`~eventsourcing.persistence.InfrastructureFactory`
         for use by the application.
