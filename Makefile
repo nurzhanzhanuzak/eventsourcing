@@ -5,7 +5,6 @@ DOTENV_FILE ?= dev/.env
 
 POETRY_VERSION=2.1.2
 POETRY ?= poetry@$(POETRY_VERSION)
-POETRY_INSTALLER_URL ?= https://install.python-poetry.org
 PYTHONUNBUFFERED=1
 
 .PHONY: install-poetry
