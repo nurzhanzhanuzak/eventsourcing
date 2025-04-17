@@ -27,11 +27,11 @@ class WithPostgres(TestCase):
         os.environ["POSTGRES_SCHEMA"] = "public"
 
         db = PostgresDatastore(
-            os.getenv("POSTGRES_DBNAME"),
-            os.getenv("POSTGRES_HOST"),
-            os.getenv("POSTGRES_PORT"),
-            os.getenv("POSTGRES_USER"),
-            os.getenv("POSTGRES_PASSWORD"),
+            os.environ["POSTGRES_DBNAME"],
+            os.environ["POSTGRES_HOST"],
+            os.environ["POSTGRES_PORT"],
+            os.environ["POSTGRES_USER"],
+            os.environ["POSTGRES_PASSWORD"],
         )
         drop_postgres_table(db, "public.bankaccounts_events")
         drop_postgres_table(db, "public.bankaccounts_snapshots")
@@ -41,11 +41,11 @@ class WithPostgres(TestCase):
 
     def tearDown(self) -> None:
         db = PostgresDatastore(
-            os.getenv("POSTGRES_DBNAME"),
-            os.getenv("POSTGRES_HOST"),
-            os.getenv("POSTGRES_PORT"),
-            os.getenv("POSTGRES_USER"),
-            os.getenv("POSTGRES_PASSWORD"),
+            os.environ["POSTGRES_DBNAME"],
+            os.environ["POSTGRES_HOST"],
+            os.environ["POSTGRES_PORT"],
+            os.environ["POSTGRES_USER"],
+            os.environ["POSTGRES_PASSWORD"],
         )
         drop_postgres_table(db, "public.bankaccounts_events")
         drop_postgres_table(db, "public.bankaccounts_snapshots")

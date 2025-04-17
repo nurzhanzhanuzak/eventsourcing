@@ -34,7 +34,7 @@ class TestDocs(TestCase):
     def tearDown(self) -> None:
         self.clean_env()
 
-    def clean_env(self):
+    def clean_env(self) -> None:
         clear_topic_cache()
         with PostgresDatastore(
             "eventsourcing",
@@ -70,7 +70,7 @@ class TestDocs(TestCase):
             with contextlib.suppress(KeyError):
                 del os.environ[key]
 
-    def test_readme(self):
+    def test_readme(self) -> None:
         self._out = ""
 
         path = join(base_dir, "README.md")
@@ -87,7 +87,7 @@ class TestDocs(TestCase):
         #     self.skipTest("Skipped test, README file not found: {}".format(path))
         # self.check_code_snippets_in_file(path)
 
-    def test_docs(self):
+    def test_docs(self) -> None:
         skipped = ["aggregate6.rst"]  # has :start-from: complications...
 
         self._out = ""
@@ -152,7 +152,7 @@ class TestDocs(TestCase):
         if failures:
             raise failures[0]
 
-    def check_code_snippets_in_file(self, doc_path):
+    def check_code_snippets_in_file(self, doc_path: str) -> None:
         # Extract lines of Python code from the README.md file.
 
         lines = []
@@ -274,10 +274,11 @@ class TestDocs(TestCase):
             stdout=PIPE,
             stderr=PIPE,
             env={"PYTHONPATH": base_dir},
+            encoding="utf-8",
         )
         out, err = p.communicate()
-        out = out.decode("utf8")
-        err = err.decode("utf8")
+        # out = out.decode("utf8")
+        # err = err.decode("utf8")
         out = out.replace(temp_path, doc_path)
         err = err.replace(temp_path, doc_path)
         exit_status = p.wait()

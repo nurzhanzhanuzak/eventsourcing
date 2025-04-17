@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from unittest import TestCase
 
 from eventsourcing.application import Application
+from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import Aggregate
 from eventsourcing.projection import (
     ApplicationSubscription,
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 
 
 class TestProjectionRunner(TestCase):
-    def test_runner(self):
+    def test_runner(self) -> None:
         runner = ProjectionRunner(
             application_class=Application,
             view_class=POPOCountRecorder,
@@ -64,12 +65,12 @@ class TestProjectionRunner(TestCase):
             runner.run_forever()
 
         with self.assertRaises(SpannerThrownError):
-            runner.wait("application", app.recorder.max_notification_id())
+            runner.wait(app.recorder.max_notification_id())
 
         with runner, self.assertRaises(SpannerThrownError):
             runner.run_forever()
 
-    def test_runner_with_topics(self):
+    def test_runner_with_topics(self) -> None:
         class CountProjectionWithTopics(CountProjection):
             topics = (get_topic(Aggregate.Event),)
 
@@ -91,18 +92,18 @@ class TestProjectionRunner(TestCase):
         # Should be two because we did include Aggregate.Event topic.
         self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 2)
 
-    def test_runner_stop(self):
+    def test_runner_stop(self) -> None:
 
         exception_raised = Event()
 
-        def call_runforever(r: ProjectionRunner):
+        def call_runforever(r: ProjectionRunner[Application]) -> None:
             exception_raised.clear()
             try:
                 r.run_forever()
             except Exception:
                 exception_raised.set()
 
-        def call_wait(r: ProjectionRunner):
+        def call_wait(r: ProjectionRunner[Application]) -> None:
             exception_raised.clear()
             try:
                 r.wait(10000000)
@@ -153,7 +154,7 @@ class TestProjectionRunner(TestCase):
             thread.join()
         self.assertFalse(exception_raised.is_set())
 
-    def test_runner_as_context_manager(self):
+    def test_runner_as_context_manager(self) -> None:
         with ProjectionRunner(
             application_class=Application,
             view_class=POPOCountRecorder,
@@ -181,10 +182,11 @@ class TestProjectionRunner(TestCase):
 
             runner.run_forever(timeout=0.1)
 
-    def test_warning_error_not_assigned_to_deleted_runner(self):
+    def test_warning_error_not_assigned_to_deleted_runner(self) -> None:
 
         # Define a project that raises an exception.
         class BrokenProjection(Projection):
+            @singledispatchmethod
             def process_event(
                 self, domain_event: DomainEventProtocol, tracking: Tracking
             ) -> None:
@@ -236,9 +238,11 @@ class TestProjectionRunner(TestCase):
 
             self.assertEqual(1, len(w))
             self.assertIs(w[-1].category, RuntimeWarning)
-            self.assertEqual(
+            last_message = w[-1].message
+            self.assertIsInstance(last_message, RuntimeWarning)
+            self.assertIn(
                 "ProjectionRunner was deleted before error could be assigned:",
-                w[-1].message.args[0].split("\n")[0],
+                str(last_message),
             )
 
         # Check the event was set anyway.

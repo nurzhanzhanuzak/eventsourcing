@@ -1053,7 +1053,7 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
 
 
 class InfrastructureFactoryTestCase(ABC, TestCase):
-    env: Environment | None = None
+    env: Environment
 
     @abstractmethod
     def expected_factory_class(self):

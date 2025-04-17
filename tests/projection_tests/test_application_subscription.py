@@ -8,7 +8,7 @@ from eventsourcing.utils import get_topic
 
 
 class TestApplicationSubscription(TestCase):
-    def test(self):
+    def test(self) -> None:
         app = Application()
 
         max_notification_id = app.recorder.max_notification_id()

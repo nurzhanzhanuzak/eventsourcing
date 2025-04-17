@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 from unittest import TestCase
 
 from eventsourcing.application import Application
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from psycopg import Connection
-    from psycopg.rows import dictRow
+    from psycopg.rows import DictRow
 
 
 class CountRecorderInterface(TrackingRecorder):
@@ -40,7 +40,7 @@ class CountRecorderInterface(TrackingRecorder):
 
 
 class POPOCountRecorder(POPOTrackingRecorder, CountRecorderInterface):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._created_events_counter = 0
         self._subsequent_events_counter = 0
@@ -68,7 +68,7 @@ class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorderInterface):
     def __init__(
         self,
         datastore: PostgresDatastore,
-        **kwargs,
+        **kwargs: Any,
     ):
         super().__init__(datastore, **kwargs)
         self.counter_table_name = "countprojection"
@@ -98,9 +98,13 @@ class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorderInterface):
         self._incr_counter("SUBSEQUENT_EVENTS", tracking)
 
     def _incr_counter(self, name: str, tracking: Tracking) -> None:
-        c: Connection[dictRow]
-        with self.datastore.get_connection() as c, c.transaction(), c.cursor() as curs:
-            self._insert_tracking(c, tracking)
+        conn: Connection[DictRow]
+        with (
+            self.datastore.get_connection() as conn,
+            conn.transaction(),
+            conn.cursor() as curs,
+        ):
+            self._insert_tracking(curs, tracking)
             curs.execute(
                 query=self.incr_counter_statement,
                 params=(name,),
@@ -162,7 +166,7 @@ class TestCountProjection(TestCase, ABC):
     env: ClassVar[Mapping[str, str]] = {}
     view_class: type[CountRecorderInterface] = POPOCountRecorder
 
-    def test_runner_with_count_projection(self):
+    def test_runner_with_count_projection(self) -> None:
         # Construct runner with application, projection, and recorder.
         runner = ProjectionRunner(
             application_class=Application,
@@ -201,7 +205,7 @@ class TestCountProjection(TestCase, ABC):
         self.assertEqual(read_model.get_created_events_counter(), 2)
         self.assertEqual(read_model.get_subsequent_events_counter(), 4)
 
-    def test_run_forever_raises_projection_error(self):
+    def test_run_forever_raises_projection_error(self) -> None:
         # Construct runner with application, projection, and recorder.
         runner = ProjectionRunner(
             application_class=Application,
@@ -237,7 +241,7 @@ class TestCountProjectionWithPostgres(TestCountProjection):
     }
     view_class = PostgresCountRecorder
 
-    def test_runner_with_count_projection(self):
+    def test_runner_with_count_projection(self) -> None:
         super().test_runner_with_count_projection()
         # Resume....
         _ = ProjectionRunner(
@@ -283,7 +287,7 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         self.assertEqual(read_model.get_created_events_counter(), 4)
         self.assertEqual(read_model.get_subsequent_events_counter(), 8)
 
-    def test_run_forever_raises_projection_error(self):
+    def test_run_forever_raises_projection_error(self) -> None:
         super().test_run_forever_raises_projection_error()
         # Resume...
         runner = ProjectionRunner(
@@ -319,7 +323,7 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         super().tearDown()
         self.drop_tables()
 
-    def drop_tables(self):
+    def drop_tables(self) -> None:
         datastore = PostgresDatastore(
             "eventsourcing",
             "127.0.0.1",

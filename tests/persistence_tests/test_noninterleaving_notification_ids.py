@@ -55,7 +55,7 @@ class TestNonInterleavingPostgres(NonInterleavingNotificationIDsBaseCase):
     def tearDown(self) -> None:
         self.drop_table()
 
-    def drop_table(self):
+    def drop_table(self) -> None:
         drop_postgres_table(self.datastore, "stored_events")
 
     def create_recorder(self) -> ApplicationRecorder:

@@ -1227,30 +1227,30 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
 
         # Set schema in environment.
         self.env[PostgresFactory.POSTGRES_SCHEMA] = "public"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.schema, "public")
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.schema, "public")
 
         # Check by default the table name is qualified.
-        recorder = self.factory.application_recorder()
+        recorder = factory.application_recorder()
         assert isinstance(recorder, PostgresApplicationRecorder)
         self.assertEqual(recorder.events_table_name, "public.testcase_events")
 
-    def test_scheme_adjusts_table_names_on_process_recorder(self):
-        self.factory = PostgresFactory(self.env)
+    def test_scheme_adjusts_table_names_on_process_recorder(self) -> None:
+        factory = PostgresFactory(self.env)
 
         # Check by default the table name is not qualified.
-        recorder = self.factory.process_recorder()
+        recorder = factory.process_recorder()
         assert isinstance(recorder, PostgresProcessRecorder)
         self.assertEqual(recorder.events_table_name, "testcase_events")
         self.assertEqual(recorder.tracking_table_name, "testcase_tracking")
 
         # Set schema in environment.
         self.env[PostgresFactory.POSTGRES_SCHEMA] = "public"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.schema, "public")
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.schema, "public")
 
         # Check by default the table name is qualified.
-        recorder = self.factory.process_recorder()
+        recorder = factory.process_recorder()
         assert isinstance(recorder, PostgresProcessRecorder)
         self.assertEqual(recorder.events_table_name, "public.testcase_events")
         self.assertEqual(recorder.tracking_table_name, "public.testcase_tracking")
