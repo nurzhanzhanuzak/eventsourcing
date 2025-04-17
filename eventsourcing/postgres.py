@@ -967,8 +967,5 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
         with contextlib.suppress(AttributeError):
             self.datastore.close()
 
-    def __del__(self) -> None:
-        self.close()
-
 
 Factory = PostgresFactory
