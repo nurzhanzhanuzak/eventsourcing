@@ -16,6 +16,10 @@ install-poetry:
 poetry-version:
 	$(POETRY) --version
 
+.PHONY: python-version
+python-version:
+	$(POETRY) run python --version
+
 .PHONY: install
 install:
 	$(POETRY) sync --extras "crypto cryptography" --with "docs" -vv $(opts)
