@@ -106,13 +106,16 @@ class TestPostgresDatastore(TestCase):
                     self.assertTrue(conn.closed is expect_conn_closed, raised_exc)
 
     def test_transaction_from_datastore(self):
-        with PostgresDatastore(
-            dbname="eventsourcing",
-            host="127.0.0.1",
-            port="5432",
-            user="eventsourcing",
-            password="eventsourcing",  # noqa: S106
-        ) as datastore, datastore.transaction(commit=False) as curs:
+        with (
+            PostgresDatastore(
+                dbname="eventsourcing",
+                host="127.0.0.1",
+                port="5432",
+                user="eventsourcing",
+                password="eventsourcing",  # noqa: S106
+            ) as datastore,
+            datastore.transaction(commit=False) as curs,
+        ):
             # As a convenience, we can use the transaction() method.
             curs.execute("SELECT 1")
             self.assertEqual(curs.fetchall(), [{"?column?": 1}])
@@ -129,14 +132,18 @@ class TestPostgresDatastore(TestCase):
         with self.assertRaises(OperationalError), datastore.get_connection():
             pass
 
-        with PostgresDatastore(
-            dbname="eventsourcing",
-            host="127.0.0.1",
-            port="987654321",  # bad value
-            user="eventsourcing",
-            password="eventsourcing",  # noqa: S106
-            pool_open_timeout=2,
-        ) as datastore, self.assertRaises(OperationalError), datastore.get_connection():
+        with (
+            PostgresDatastore(
+                dbname="eventsourcing",
+                host="127.0.0.1",
+                port="987654321",  # bad value
+                user="eventsourcing",
+                password="eventsourcing",  # noqa: S106
+                pool_open_timeout=2,
+            ) as datastore,
+            self.assertRaises(OperationalError),
+            datastore.get_connection(),
+        ):
             pass
 
     @skipIf(
@@ -202,9 +209,10 @@ class TestPostgresDatastore(TestCase):
                 sleep(2)
 
             # Error on commit is raised.
-            with self.assertRaises(InternalError), datastore.transaction(
-                commit=True
-            ) as curs:
+            with (
+                self.assertRaises(InternalError),
+                datastore.transaction(commit=True) as curs,
+            ):
                 # curs.execute("BEGIN")
                 curs.execute("SELECT 1")
                 self.assertFalse(curs.closed)
@@ -236,9 +244,11 @@ class TestPostgresDatastore(TestCase):
         ) as datastore:
 
             conn: Connection
-            with self.assertRaises(
-                OperationalError
-            ), datastore.get_connection() as conn, conn.cursor() as curs:
+            with (
+                self.assertRaises(OperationalError),
+                datastore.get_connection() as conn,
+                conn.cursor() as curs,
+            ):
                 curs.execute("SELECT 1")
 
         # Define a "get password" function, with a generator that returns
@@ -254,16 +264,20 @@ class TestPostgresDatastore(TestCase):
             return next(password_generator)
 
         # Construct datastore with "get password" function.
-        with PostgresDatastore(
-            dbname="eventsourcing",
-            host="127.0.0.1",
-            port="5432",
-            user="eventsourcing",
-            password="",
-            pool_size=1,
-            get_password_func=get_password_func,
-            connect_timeout=3,
-        ) as datastore, datastore.get_connection() as conn, conn.cursor() as curs:
+        with (
+            PostgresDatastore(
+                dbname="eventsourcing",
+                host="127.0.0.1",
+                port="5432",
+                user="eventsourcing",
+                password="",
+                pool_size=1,
+                get_password_func=get_password_func,
+                connect_timeout=3,
+            ) as datastore,
+            datastore.get_connection() as conn,
+            conn.cursor() as curs,
+        ):
             # Create a connection, and check it works (this test depends on psycopg
             # retrying attempt to connect, should call "get password" twice).
             curs.execute("SELECT 1")
