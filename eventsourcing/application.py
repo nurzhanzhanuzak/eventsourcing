@@ -43,7 +43,6 @@ from eventsourcing.persistence import (
     Notification,
     Recording,
     Tracking,
-    TrackingRecorder,
     Transcoder,
     UUIDAsHex,
 )
