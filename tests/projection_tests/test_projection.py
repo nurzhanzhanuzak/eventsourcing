@@ -37,10 +37,6 @@ class CountRecorderInterface(TrackingRecorder):
     def get_subsequent_events_counter(self) -> int:
         pass
 
-    @abstractmethod
-    def get_all_events_counter(self) -> int:
-        pass
-
 
 class POPOCountRecorder(POPOTrackingRecorder, CountRecorderInterface):
     def __init__(self):
@@ -63,9 +59,6 @@ class POPOCountRecorder(POPOTrackingRecorder, CountRecorderInterface):
 
     def get_subsequent_events_counter(self) -> int:
         return self._subsequent_events_counter
-
-    def get_all_events_counter(self) -> int:
-        return self._created_events_counter + self._subsequent_events_counter
 
 
 class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorderInterface):
@@ -132,11 +125,6 @@ class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorderInterface):
             fetchone = curs.fetchone()
             return fetchone["counter"] if fetchone else 0
 
-    def get_all_events_counter(self) -> int:
-        return self._select_counter("CREATED_EVENTS") + self._select_counter(
-            "SUBSEQUENT_EVENTS"
-        )
-
 
 class SpannerThrown(Aggregate.Event):
     pass
@@ -199,7 +187,6 @@ class TestCountProjection(TestCase, ABC):
         read_model.wait(write_model.name, recordings[-1].notification.id)
 
         # Query the read model.
-        self.assertEqual(read_model.get_all_events_counter(), 3)
         self.assertEqual(read_model.get_created_events_counter(), 1)
         self.assertEqual(read_model.get_subsequent_events_counter(), 2)
 
@@ -213,7 +200,6 @@ class TestCountProjection(TestCase, ABC):
         read_model.wait(write_model.name, recordings[-1].notification.id)
 
         # Query the read model.
-        self.assertEqual(read_model.get_all_events_counter(), 6)
         self.assertEqual(read_model.get_created_events_counter(), 2)
         self.assertEqual(read_model.get_subsequent_events_counter(), 4)
 
@@ -287,7 +273,6 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         read_model.wait(write_model.name, recordings[-1].notification.id)
 
         # Query the read model.
-        self.assertEqual(read_model.get_all_events_counter(), 9)
         self.assertEqual(read_model.get_created_events_counter(), 3)
         self.assertEqual(read_model.get_subsequent_events_counter(), 6)
 
@@ -301,7 +286,6 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         read_model.wait(write_model.name, recordings[-1].notification.id)
 
         # Query the read model.
-        self.assertEqual(read_model.get_all_events_counter(), 12)
         self.assertEqual(read_model.get_created_events_counter(), 4)
         self.assertEqual(read_model.get_subsequent_events_counter(), 8)
 
