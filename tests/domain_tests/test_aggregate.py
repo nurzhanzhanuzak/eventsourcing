@@ -1,6 +1,7 @@
+import dataclasses
 import inspect
 import warnings
-from dataclasses import _DataclassParams, dataclass
+from dataclasses import _DataclassParams, dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from unittest.case import TestCase
@@ -1173,6 +1174,449 @@ class TestBankAccount(TestCase):
         # Collect pending events.
         pending = account.collect_events()
         self.assertEqual(len(pending), 7)
+
+
+class TestAggregateSubclass(TestCase):
+    def test_subclasses_no_attrs(self):
+        @dataclass
+        class A(Aggregate):
+            pass
+
+        @dataclass
+        class B(A):
+            pass
+
+        B()
+
+    def test_subclasses_one_attr(self):
+        @dataclass
+        class A(Aggregate):
+            a: int
+
+        @dataclass
+        class B(A):
+            pass
+
+        with self.assertRaises(TypeError):
+            B()
+
+        B(a=1)
+
+
+class TestDemoNonidempotentDataclassBehaviour(TestCase):
+    def test_single_decorator_default_value_set_post_init(self):
+        @dataclasses.dataclass
+        class A:
+            a: int
+
+        @dataclasses.dataclass
+        class B(A):
+            b: bool = field(init=False)
+
+            def __post_init__(self):
+                self.b = False
+
+            def set_b(self):
+                self.b = True
+
+        @dataclasses.dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_double_decorator_default_set_post_init(self):
+        # Fails with missing positional argument.
+
+        @dataclasses.dataclass
+        @dataclasses.dataclass
+        class A:
+            a: int
+
+        @dataclasses.dataclass
+        @dataclasses.dataclass
+        class B(A):
+            b: bool = field(init=False)
+
+            def __post_init__(self):
+                self.b = False
+
+            def set_b(self):
+                self.b = True
+
+        @dataclasses.dataclass
+        @dataclasses.dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        with self.assertRaises(TypeError) as cm:
+            C(a=1, c="c")
+
+        self.assertIn("missing 1 required positional argument: 'b'", str(cm.exception))
+
+    def test_single_decorator_default_value_set_on_field(self):
+        @dataclasses.dataclass
+        class A:
+            a: int
+
+        @dataclasses.dataclass
+        class B(A):
+            b: bool = field(init=False, default=False)
+
+            def set_b(self):
+                self.b = True
+
+        @dataclasses.dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_double_decorator_default_value_set_on_field(self):
+        @dataclasses.dataclass
+        @dataclasses.dataclass
+        class A:
+            a: int
+
+        @dataclasses.dataclass
+        @dataclasses.dataclass
+        class B(A):
+            b: bool = field(init=False, default=False)
+
+            def set_b(self):
+                self.b = True
+
+        with self.assertRaises(TypeError) as cm:
+
+            @dataclasses.dataclass
+            @dataclasses.dataclass
+            class C(B):
+                c: str
+
+        self.assertIn(
+            "non-default argument 'c' follows default argument", str(cm.exception)
+        )
+
+
+class TestIdempotentDataclass(TestCase):
+    class A(Aggregate):
+        pass
+
+    def test_default_value_set_post_init(self):
+        @dataclass
+        class A:
+            a: int
+
+        @dataclass
+        class B(A):
+            b: bool = field(init=False)
+
+            def __post_init__(self):
+                self.b = False
+
+            def set_b(self):
+                self.b = True
+
+        @dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_default_value_set_on_field(self):
+        @dataclass
+        class A:
+            a: int
+
+        @dataclass
+        class B(A):
+            b: bool = field(init=False, default=False)
+
+            def set_b(self):
+                self.b = True
+
+        @dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_double_decorator_default_value_set_post_init(self):
+        @dataclass
+        @dataclass
+        class A:
+            a: int
+
+        @dataclass
+        @dataclass
+        class B(A):
+            b: bool = field(init=False)
+
+            def __post_init__(self):
+                self.b = False
+
+            def set_b(self):
+                self.b = True
+
+        @dataclass
+        @dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_double_decorator_default_value_set_on_field(self):
+        @dataclass
+        @dataclass
+        class A:
+            a: int
+
+        @dataclass
+        @dataclass
+        class B(A):
+            b: bool = field(init=False, default=False)
+
+            def set_b(self):
+                self.b = True
+
+        @dataclass
+        @dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+
+class TestAggregateSubclassWithFieldInitFalse(TestCase):
+    def test_without_decorator_default_value_set_post_init(self):
+        class A(Aggregate):
+            a: int
+
+        class B(A):
+            b: bool = field(init=False)
+
+            def __post_init__(self):
+                self.b = False
+
+            def set_b(self):
+                self.b = True
+
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_without_decorator_default_value_set_on_field(self):
+        class A(Aggregate):
+            a: int
+
+        class B(A):
+            b: bool = field(init=False, default=False)
+
+            def set_b(self):
+                self.b = True
+
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_with_decorator_default_value_set_post_init(self):
+        @dataclass
+        class A(Aggregate):
+            a: int
+
+        @dataclass
+        class B(A):
+            b: bool = field(init=False)
+
+            def __post_init__(self):
+                self.b = False
+
+            def set_b(self):
+                self.b = True
+
+        @dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_with_decorator_default_value_set_on_field(self):
+        @dataclass
+        class A(Aggregate):
+            a: int
+
+        @dataclass
+        class B(A):
+            b: bool = field(init=False, default=False)
+
+            def set_b(self):
+                self.b = True
+
+        @dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
 
 
 class TestAggregateNotFound(TestCase):

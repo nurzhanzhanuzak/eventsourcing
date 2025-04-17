@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import dataclasses
+import importlib
 import inspect
 import os
-from dataclasses import dataclass
 from datetime import datetime, tzinfo
 from functools import cache
 from types import FunctionType, WrapperDescriptorType
@@ -336,7 +337,7 @@ class MetaDomainEvent(type):
         event_cls = cast(
             type[TDomainEvent], super().__new__(cls, name, bases, cls_dict)
         )
-        event_cls = dataclass(frozen=True)(event_cls)
+        event_cls = dataclasses.dataclass(frozen=True)(event_cls)
         event_cls.__signature__ = inspect.signature(event_cls.__init__)  # type: ignore
         return event_cls
 
@@ -886,6 +887,34 @@ _annotations_mention_id: set[MetaAggregate[Aggregate]] = set()
 _init_mentions_id: set[MetaAggregate[Aggregate]] = set()
 
 
+def _ensure_idempotent_dataclass(module_name: str) -> None:
+    module = importlib.import_module(module_name)
+    if (
+        "dataclass" in module.__dict__
+        and module.__dict__["dataclass"] == dataclasses.dataclass
+        and "__original_dataclass_func__" not in module.__dict__
+    ):
+        module.__dict__["__original_dataclass_func__"] = module.__dict__["dataclass"]
+        module.__dict__["dataclass"] = _idempotent_dataclass
+
+
+def _idempotent_dataclass(cls: type[object] | None = None, /, **kwargs: Any) -> Any:
+
+    def idempotent_wrap(cls: type[object]) -> type[object]:
+        # Avoid processing dataclass twice.
+        if "__dataclass_fields__" in cls.__dict__:
+            return cls
+        return dataclasses.dataclass(**kwargs)(cls)
+
+    # See if we're being called as @dataclass or @dataclass().
+    if cls is None:
+        # We're called with parens.
+        return idempotent_wrap
+
+    # We're called as @dataclass without parens.
+    return idempotent_wrap(cls)
+
+
 class MetaAggregate(type, Generic[TAggregate]):
     """
     Metaclass for aggregate classes.
@@ -924,6 +953,12 @@ class MetaAggregate(type, Generic[TAggregate]):
         """
         Configures aggregate class definition.
         """
+
+        # Avoid processing dataclass twice. This avoids dataclasses.Field(init=False)
+        # attributes being reduced to annotation only and then appearing in __init__
+        # method signature when class is reprocessed, and other similar problems.
+        _ensure_idempotent_dataclass(module_name=args[2]["__module__"])
+
         try:
             class_annotations = args[2]["__annotations__"]
         except KeyError:
@@ -937,8 +972,8 @@ class MetaAggregate(type, Generic[TAggregate]):
             else:
                 annotations_mention_id = True
         aggregate_cls = type.__new__(cls, *args)
-        if class_annotations:
-            aggregate_cls = dataclass(eq=False, repr=False)(aggregate_cls)
+        if class_annotations or any(dataclasses.is_dataclass(base) for base in args[1]):
+            aggregate_cls = dataclasses.dataclass(eq=False, repr=False)(aggregate_cls)
         if annotations_mention_id:
             _annotations_mention_id.add(aggregate_cls)
         return aggregate_cls
