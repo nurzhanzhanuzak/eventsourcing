@@ -46,11 +46,13 @@ class POPOCountRecorder(POPOTrackingRecorder, CountRecorderInterface):
 
     def incr_created_events_counter(self, tracking: Tracking) -> None:
         with self._database_lock:
+            self._assert_tracking_uniqueness(tracking)
             self._insert_tracking(tracking)
             self._created_events_counter += 1
 
     def incr_subsequent_events_counter(self, tracking: Tracking) -> None:
         with self._database_lock:
+            self._assert_tracking_uniqueness(tracking)
             self._insert_tracking(tracking)
             self._subsequent_events_counter += 1
 
