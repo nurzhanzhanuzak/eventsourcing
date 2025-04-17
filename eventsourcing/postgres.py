@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 from asyncio import CancelledError
 from contextlib import contextmanager
@@ -178,6 +179,9 @@ class PostgresDatastore:
         return self
 
     def __exit__(self, *args: object, **kwargs: Any) -> None:
+        self.close()
+
+    def __del__(self) -> None:
         self.close()
 
 
@@ -960,7 +964,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
         return recorder
 
     def close(self) -> None:
-        if hasattr(self, "datastore"):
+        with contextlib.suppress(AttributeError):
             self.datastore.close()
 
     def __del__(self) -> None:
