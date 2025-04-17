@@ -72,7 +72,7 @@ class Projection(ABC, Generic[TTrackingRecorder]):
     name: str = ""
     """Name of projection, used to pick prefixed environment variables."""
     topics: Sequence[str] = ()
-    """Event topics, used to filter events in database."""
+    """Filter events in database when subscribing to an application."""
 
     def __init__(
         self,
