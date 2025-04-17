@@ -1,13 +1,11 @@
 import dataclasses
 import inspect
-import warnings
-from dataclasses import _DataclassParams, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from unittest.case import TestCase
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
-from eventsourcing.application import AggregateNotFound, AggregateNotFoundError
 from eventsourcing.domain import (
     Aggregate,
     AggregateCreated,
@@ -35,25 +33,20 @@ class TestMetaAggregate(TestCase):
         class MyAggregate(Aggregate):
             pass
 
-        self.assertFalse("__dataclass_params__" in MyAggregate.__dict__)
+        self.assertFalse("__dataclass_fields__" in MyAggregate.__dict__)
 
-        # Has a dataclass decorator (helps IDE know what's going on with annotations).
+        # Has a dataclass decorator but no annotations.
         @dataclass
         class MyAggregate(Aggregate):
             pass
 
-        self.assertTrue("__dataclass_params__" in MyAggregate.__dict__)
-        self.assertIsInstance(MyAggregate.__dataclass_params__, _DataclassParams)
-        self.assertFalse(MyAggregate.__dataclass_params__.frozen)
+        self.assertTrue("__dataclass_fields__" in MyAggregate.__dict__)
 
         # Has annotations but no decorator.
-        @dataclass
         class MyAggregate(Aggregate):
             a: int
 
-        self.assertTrue("__dataclass_params__" in MyAggregate.__dict__)
-        self.assertIsInstance(MyAggregate.__dataclass_params__, _DataclassParams)
-        self.assertFalse(MyAggregate.__dataclass_params__.frozen)
+        self.assertTrue("__dataclass_fields__" in MyAggregate.__dict__)
 
     def test_aggregate_subclass_gets_a_default_created_event_class(self):
         class MyAggregate(Aggregate):
@@ -1617,28 +1610,3 @@ class TestAggregateSubclassWithFieldInitFalse(TestCase):
         self.assertEqual(c.c, "c")
         c.set_b()
         self.assertEqual(c.b, True)
-
-
-class TestAggregateNotFound(TestCase):
-    def test(self):
-        # Check we didn't break any code.
-        try:
-            raise AggregateNotFoundError
-        except AggregateNotFound:
-            pass
-
-        # # Verify deprecation warning.
-        # with warnings.catch_warnings(record=True) as w:
-        #     AggregateNotFound()
-        #
-        # self.assertEqual(len(w), 1)
-        # self.assertIs(w[-1].category, DeprecationWarning)
-        # self.assertEqual(
-        #     "AggregateNotFound is deprecated, use AggregateNotFoundError instead",
-        #     w[-1].message.args[0],
-        # )
-
-        # Verify no deprecation warning.
-        with warnings.catch_warnings(record=True) as w:
-            AggregateNotFoundError()
-        self.assertEqual(len(w), 0)
