@@ -43,15 +43,8 @@ class TestProjectionRunner(TestCase):
         recordings = app.save(aggregate)
 
         runner.wait(recordings[-1].notification.id)
-        self.assertEqual(
-            runner.projection.tracking_recorder.get_all_events_counter(), 3
-        )
-        self.assertEqual(
-            runner.projection.tracking_recorder.get_created_events_counter(), 1
-        )
-        self.assertEqual(
-            runner.projection.tracking_recorder.get_subsequent_events_counter(), 2
-        )
+        self.assertEqual(runner.projection.view.get_created_events_counter(), 1)
+        self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 2)
 
         aggregate = Aggregate()
         aggregate.trigger_event(event_class=Aggregate.Event)
@@ -59,15 +52,8 @@ class TestProjectionRunner(TestCase):
         recordings = app.save(aggregate)
 
         runner.wait(recordings[-1].notification.id)
-        self.assertEqual(
-            runner.projection.tracking_recorder.get_all_events_counter(), 6
-        )
-        self.assertEqual(
-            runner.projection.tracking_recorder.get_created_events_counter(), 2
-        )
-        self.assertEqual(
-            runner.projection.tracking_recorder.get_subsequent_events_counter(), 4
-        )
+        self.assertEqual(runner.projection.view.get_created_events_counter(), 2)
+        self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 4)
 
         runner.run_forever(timeout=0.1)
 
@@ -101,13 +87,9 @@ class TestProjectionRunner(TestCase):
 
         runner.wait(recordings[-1].notification.id)
         # Should be zero because we didn't include Aggregate.Created topic.
-        self.assertEqual(
-            runner.projection.tracking_recorder.get_created_events_counter(), 0
-        )
+        self.assertEqual(runner.projection.view.get_created_events_counter(), 0)
         # Should be two because we did include Aggregate.Event topic.
-        self.assertEqual(
-            runner.projection.tracking_recorder.get_subsequent_events_counter(), 2
-        )
+        self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 2)
 
     def test_runner_stop(self):
 
@@ -185,15 +167,8 @@ class TestProjectionRunner(TestCase):
             recordings = app.save(aggregate)
 
             runner.wait(recordings[-1].notification.id)
-            self.assertEqual(
-                runner.projection.tracking_recorder.get_all_events_counter(), 3
-            )
-            self.assertEqual(
-                runner.projection.tracking_recorder.get_created_events_counter(), 1
-            )
-            self.assertEqual(
-                runner.projection.tracking_recorder.get_subsequent_events_counter(), 2
-            )
+            self.assertEqual(runner.projection.view.get_created_events_counter(), 1)
+            self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 2)
 
             aggregate = Aggregate()
             aggregate.trigger_event(event_class=Aggregate.Event)
@@ -201,15 +176,8 @@ class TestProjectionRunner(TestCase):
             recordings = app.save(aggregate)
 
             runner.wait(recordings[-1].notification.id)
-            self.assertEqual(
-                runner.projection.tracking_recorder.get_all_events_counter(), 6
-            )
-            self.assertEqual(
-                runner.projection.tracking_recorder.get_created_events_counter(), 2
-            )
-            self.assertEqual(
-                runner.projection.tracking_recorder.get_subsequent_events_counter(), 4
-            )
+            self.assertEqual(runner.projection.view.get_created_events_counter(), 2)
+            self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 4)
 
             runner.run_forever(timeout=0.1)
 

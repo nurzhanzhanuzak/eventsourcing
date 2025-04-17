@@ -37,7 +37,7 @@ class FtsProjection(Projection[FtsTrackingRecorder]):
     def process_event(
         self, domain_event: DomainEventProtocol, tracking: Tracking
     ) -> None:
-        self.tracking_recorder.insert_tracking(tracking)
+        self.view.insert_tracking(tracking)
 
     @process_event.register
     def page_created(self, domain_event: Page.Created, tracking: Tracking) -> None:
@@ -47,19 +47,19 @@ class FtsProjection(Projection[FtsTrackingRecorder]):
             title=domain_event.title,
             body=domain_event.body,
         )
-        self.tracking_recorder.insert_pages_with_tracking([new_page], tracking)
+        self.view.insert_pages_with_tracking([new_page], tracking)
 
     @process_event.register
     def body_updated(self, domain_event: Page.BodyUpdated, tracking: Tracking) -> None:
         page_id = domain_event.originator_id
-        old_page = self.tracking_recorder.select_page(page_id)
+        old_page = self.view.select_page(page_id)
         new_page = PageInfo(
             id=page_id,
             slug=old_page.slug,
             title=old_page.title,
             body=apply_diff(old_page.body, domain_event.diff),
         )
-        self.tracking_recorder.update_pages_with_tracking([new_page], tracking)
+        self.view.update_pages_with_tracking([new_page], tracking)
 
 
 class PostgresFtsTrackingRecorder(

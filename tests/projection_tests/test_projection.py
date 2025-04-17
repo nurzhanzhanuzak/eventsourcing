@@ -149,12 +149,10 @@ class SpannerThrownError(Exception):
 class CountProjection(Projection[CountRecorderInterface]):
     def __init__(
         self,
-        tracking_recorder: CountRecorderInterface,
+        view: CountRecorderInterface,
     ):
-        assert isinstance(tracking_recorder, CountRecorderInterface), type(
-            tracking_recorder
-        )
-        super().__init__(tracking_recorder)
+        assert isinstance(view, CountRecorderInterface), type(view)
+        super().__init__(view)
 
     @singledispatchmethod
     def process_event(self, _: DomainEventProtocol, tracking: Tracking) -> None:
@@ -162,11 +160,11 @@ class CountProjection(Projection[CountRecorderInterface]):
 
     @process_event.register
     def aggregate_created(self, _: Aggregate.Created, tracking: Tracking) -> None:
-        self.tracking_recorder.incr_created_events_counter(tracking)
+        self.view.incr_created_events_counter(tracking)
 
     @process_event.register
     def aggregate_event(self, _: Aggregate.Event, tracking: Tracking) -> None:
-        self.tracking_recorder.incr_subsequent_events_counter(tracking)
+        self.view.incr_subsequent_events_counter(tracking)
 
     @process_event.register
     def spanner_thrown(self, _: SpannerThrown, __: Tracking) -> None:
@@ -189,7 +187,7 @@ class TestCountProjection(TestCase, ABC):
 
         # Get "read" and "write" model instances from the runner.
         write_model = runner.app
-        read_model = runner.projection.tracking_recorder
+        read_model = runner.projection.view
 
         # Write some events.
         aggregate = Aggregate()
@@ -228,7 +226,7 @@ class TestCountProjection(TestCase, ABC):
             env=self.env,
         )
         write_model = runner.app
-        read_model = runner.projection.tracking_recorder
+        read_model = runner.projection.view
 
         # Write some events.
         aggregate = Aggregate()

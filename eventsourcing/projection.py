@@ -76,9 +76,15 @@ class Projection(ABC, Generic[TTrackingRecorder]):
 
     def __init__(
         self,
-        tracking_recorder: TTrackingRecorder,
+        view: TTrackingRecorder,
     ):
-        self.tracking_recorder = tracking_recorder
+        """Initialises a projection instance."""
+        self._view = view
+
+    @property
+    def view(self) -> TTrackingRecorder:
+        """Materialised view of an event-sourced application."""
+        return self._view
 
     @singledispatchmethod
     @abstractmethod
@@ -117,7 +123,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         )
 
         self.projection = projection_class(
-            tracking_recorder=self.tracking_recorder,
+            view=self.tracking_recorder,
         )
         self.subscription = ApplicationSubscription(
             app=self.app,
@@ -184,7 +190,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
 
     def wait(self, notification_id: int, timeout: float = 1.0) -> None:
         try:
-            self.projection.tracking_recorder.wait(
+            self.projection.view.wait(
                 application_name=self.subscription.name,
                 notification_id=notification_id,
                 timeout=timeout,
