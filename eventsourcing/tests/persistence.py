@@ -10,7 +10,7 @@ from tempfile import NamedTemporaryFile
 from threading import Event, Thread, get_ident
 from time import sleep
 from timeit import timeit
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 from unittest import TestCase
 from uuid import UUID, uuid4
 
@@ -39,7 +39,7 @@ from eventsourcing.persistence import (
 from eventsourcing.utils import Environment, get_topic
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterator
 
     from typing_extensions import Never
 
@@ -541,24 +541,12 @@ class ApplicationRecorderTestCase(TestCase, ABC):
 
         errors_happened = Event()
 
-        counts = {}
-        threads: dict[int, int] = {}
-        durations: dict[int, float] = {}
-
         # Match this to the batch page size in postgres insert for max throughput.
-        num_events = 500
-
-        started = datetime.now()
+        num_events_per_job = 500
+        num_jobs = 60
+        num_workers = 4
 
         def insert_events() -> None:
-            thread_id = get_ident()
-            if thread_id not in threads:
-                threads[thread_id] = len(threads)
-            if thread_id not in counts:
-                counts[thread_id] = 0
-            if thread_id not in durations:
-                durations[thread_id] = 0
-
             originator_id = uuid4()
             stored_events = [
                 StoredEvent(
@@ -567,7 +555,7 @@ class ApplicationRecorderTestCase(TestCase, ABC):
                     topic="topic",
                     state=b"state",
                 )
-                for i in range(num_events)
+                for i in range(num_events_per_job)
             ]
 
             try:
@@ -577,26 +565,29 @@ class ApplicationRecorderTestCase(TestCase, ABC):
                 errors_happened.set()
                 tb = traceback.format_exc()
                 print(tb)
-            finally:
-                ended = datetime.now()
-                duration = (ended - started).total_seconds()
-                counts[thread_id] += 1
-                durations[thread_id] = duration
 
-        num_jobs = 60
+        # Warm up.
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = []
+            for _ in range(num_workers):
+                future = executor.submit(insert_events)
+                futures.append(future)
+            for future in futures:
+                future.result()
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        # Run.
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            started = datetime.now()
             futures = []
             for _ in range(num_jobs):
                 future = executor.submit(insert_events)
-                # future.add_done_callback(self.close_db_connection)
                 futures.append(future)
             for future in futures:
                 future.result()
 
         self.assertFalse(errors_happened.is_set(), "There were errors (see above)")
         ended = datetime.now()
-        rate = num_jobs * num_events / (ended - started).total_seconds()
+        rate = num_jobs * num_events_per_job / (ended - started).total_seconds()
         print(f"Rate: {rate:.0f} inserts per second")
 
     def optional_test_insert_subscribe(self) -> None:
@@ -758,7 +749,7 @@ class ApplicationRecorderTestCase(TestCase, ABC):
 
 class TrackingRecorderTestCase(TestCase, ABC):
     @abstractmethod
-    def create_recorder(self) -> ProcessRecorder:
+    def create_recorder(self) -> TrackingRecorder:
         """"""
 
     def test_insert_tracking(self) -> None:
@@ -1059,23 +1050,28 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
         pass
 
 
-class InfrastructureFactoryTestCase(ABC, TestCase):
+_TInfrastrutureFactory = TypeVar(
+    "_TInfrastrutureFactory", bound=InfrastructureFactory[Any]
+)
+
+
+class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactory]):
     env: Environment
 
     @abstractmethod
-    def expected_factory_class(self) -> type[InfrastructureFactory]:
+    def expected_factory_class(self) -> type[_TInfrastrutureFactory]:
         pass
 
     @abstractmethod
-    def expected_aggregate_recorder_class(self) -> None:
+    def expected_aggregate_recorder_class(self) -> type[AggregateRecorder]:
         pass
 
     @abstractmethod
-    def expected_application_recorder_class(self) -> None:
+    def expected_application_recorder_class(self) -> type[ApplicationRecorder]:
         pass
 
     @abstractmethod
-    def expected_tracking_recorder_class(self) -> None:
+    def expected_tracking_recorder_class(self) -> type[TrackingRecorder]:
         pass
 
     @abstractmethod
@@ -1083,11 +1079,13 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         pass
 
     @abstractmethod
-    def expected_process_recorder_class(self) -> None:
+    def expected_process_recorder_class(self) -> type[ProcessRecorder]:
         pass
 
     def setUp(self) -> None:
-        self.factory = InfrastructureFactory.construct(self.env)
+        self.factory = cast(
+            _TInfrastrutureFactory, InfrastructureFactory.construct(self.env)
+        )
         self.assertIsInstance(self.factory, self.expected_factory_class())
         self.transcoder = JSONTranscoder()
         self.transcoder.register(UUIDAsHex())
@@ -1264,7 +1262,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         self.assertEqual(type(recorder), self.expected_process_recorder_class())
 
 
-def tmpfile_uris() -> Iterable[str]:
+def tmpfile_uris() -> Iterator[str]:
     tmp_files = []
     ram_disk_path = "/Volumes/RAM DISK/"
     prefix = None

@@ -5,6 +5,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from threading import Event, Thread
 from time import sleep
+from typing import TYPE_CHECKING
 from unittest import TestCase, skipIf
 from unittest.mock import Mock
 from uuid import uuid4
@@ -14,6 +15,8 @@ from psycopg import Connection
 from psycopg_pool import ConnectionPool
 
 from eventsourcing.persistence import (
+    AggregateRecorder,
+    ApplicationRecorder,
     DatabaseError,
     DataError,
     IntegrityError,
@@ -22,6 +25,7 @@ from eventsourcing.persistence import (
     NotSupportedError,
     OperationalError,
     PersistenceError,
+    ProcessRecorder,
     ProgrammingError,
     StoredEvent,
     Tracking,
@@ -50,12 +54,15 @@ from eventsourcing.tests.postgres_utils import (
 from eventsourcing.utils import Environment, get_topic
 from tests.persistence_tests.test_connection_pool import TestConnectionPool
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
 
 class TestPostgresDatastore(TestCase):
-    def test_is_pipeline_supported(self):
+    def test_is_pipeline_supported(self) -> None:
         self.assertTrue(psycopg.Pipeline.is_supported())
 
-    def test_has_connection_pool(self):
+    def test_has_connection_pool(self) -> None:
         with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
@@ -65,20 +72,23 @@ class TestPostgresDatastore(TestCase):
         ) as datastore:
             self.assertIsInstance(datastore.pool, ConnectionPool)
 
-    def test_get_connection(self):
-        with PostgresDatastore(
-            dbname="eventsourcing",
-            host="127.0.0.1",
-            port="5432",
-            user="eventsourcing",
-            password="eventsourcing",  # noqa: S106
-        ) as datastore:
-            conn: Connection
-            with datastore.get_connection() as conn:
-                self.assertIsInstance(conn, Connection)
+    def test_get_connection(self) -> None:
+        with (
+            PostgresDatastore(
+                dbname="eventsourcing",
+                host="127.0.0.1",
+                port="5432",
+                user="eventsourcing",
+                password="eventsourcing",  # noqa: S106
+            ) as datastore,
+            datastore.get_connection() as conn,
+        ):
+            self.assertIsInstance(conn, Connection)
 
-    def test_context_manager_converts_exceptions_and_conditionally_calls_close(self):
-        cases = [
+    def test_context_manager_converts_exceptions_and_conditionally_calls_close(
+        self,
+    ) -> None:
+        cases: list[tuple[type[Exception], Exception | type[Exception], bool]] = [
             (InterfaceError, psycopg.InterfaceError(), True),
             (DataError, psycopg.DataError(), False),
             (OperationalError, psycopg.OperationalError(), True),
@@ -100,13 +110,12 @@ class TestPostgresDatastore(TestCase):
         ) as datastore:
             for expected_exc_type, raised_exc, expect_conn_closed in cases:
                 with self.assertRaises(expected_exc_type):
-                    conn: Connection
                     with datastore.get_connection() as conn:
                         self.assertFalse(conn.closed)
                         raise raised_exc
                     self.assertTrue(conn.closed is expect_conn_closed, raised_exc)
 
-    def test_transaction_from_datastore(self):
+    def test_transaction_from_datastore(self) -> None:
         with (
             PostgresDatastore(
                 dbname="eventsourcing",
@@ -121,7 +130,7 @@ class TestPostgresDatastore(TestCase):
             curs.execute("SELECT 1")
             self.assertEqual(curs.fetchall(), [{"?column?": 1}])
 
-    def test_connect_failure_raises_operational_error(self):
+    def test_connect_failure_raises_operational_error(self) -> None:
         datastore = PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
@@ -151,9 +160,9 @@ class TestPostgresDatastore(TestCase):
         sys.version_info[:2] < (3, 8),
         "The 'check' argument and the check_connection() method aren't supported.",
     )
-    def test_pre_ping(self):
+    def test_pre_ping(self) -> None:
         # Define method to open and close a connection, and then execute a statement.
-        def open_close_execute(*, pre_ping: bool):
+        def open_close_execute(*, pre_ping: bool) -> None:
             with PostgresDatastore(
                 dbname="eventsourcing",
                 host="127.0.0.1",
@@ -165,7 +174,6 @@ class TestPostgresDatastore(TestCase):
             ) as datastore:
 
                 # Create a connection.
-                conn: Connection
                 with datastore.get_connection() as conn, conn.cursor() as curs:
                     curs.execute("SELECT 1")
                     self.assertEqual(curs.fetchall(), [{"?column?": 1}])
@@ -178,7 +186,6 @@ class TestPostgresDatastore(TestCase):
                 self.assertFalse(datastore.pool._pool[0].closed)
 
                 # Get a closed connection.
-                conn: Connection
                 with datastore.get_connection() as conn:
                     self.assertFalse(conn.closed)
 
@@ -192,7 +199,7 @@ class TestPostgresDatastore(TestCase):
         # Now try that again with pre-ping enabled.
         open_close_execute(pre_ping=True)
 
-    def test_idle_in_transaction_session_timeout(self):
+    def test_idle_in_transaction_session_timeout(self) -> None:
         with PostgresDatastore(
             dbname="eventsourcing",
             host="127.0.0.1",
@@ -232,36 +239,34 @@ class TestPostgresDatastore(TestCase):
                 self.assertFalse(curs.closed)
                 sleep(2)
 
-    def test_get_password_func(self):
+    def test_get_password_func(self) -> None:
         # Check correct password is required, wrong password causes operational error.
-        with PostgresDatastore(
-            dbname="eventsourcing",
-            host="127.0.0.1",
-            port="5432",
-            user="eventsourcing",
-            password="wrong",  # noqa: S106
-            pool_size=1,
-            connect_timeout=3,
-        ) as datastore:
-
-            conn: Connection
-            with (
-                self.assertRaises(OperationalError),
-                datastore.get_connection() as conn,
-                conn.cursor() as curs,
-            ):
-                curs.execute("SELECT 1")
+        with (
+            PostgresDatastore(
+                dbname="eventsourcing",
+                host="127.0.0.1",
+                port="5432",
+                user="eventsourcing",
+                password="wrong",  # noqa: S106
+                pool_size=1,
+                connect_timeout=3,
+            ) as datastore,
+            self.assertRaises(OperationalError),
+            datastore.get_connection() as conn,
+            conn.cursor() as curs,
+        ):
+            curs.execute("SELECT 1")
 
         # Define a "get password" function, with a generator that returns
         # wrong password a few times first.
-        def password_token_generator():
+        def password_token_generator() -> Iterator[str]:
             yield "wrong"
             yield "wrong"
             yield "eventsourcing"
 
         password_generator = password_token_generator()
 
-        def get_password_func():
+        def get_password_func() -> str:
             return next(password_generator)
 
         # Construct datastore with "get password" function.
@@ -288,7 +293,7 @@ class TestPostgresDatastore(TestCase):
 MAX_IDENTIFIER_LEN = 63
 
 
-def _check_identifier_is_max_len(identifier):
+def _check_identifier_is_max_len(identifier: str) -> None:
     if len(identifier) != MAX_IDENTIFIER_LEN:
         msg = "Expected length of name string to be max identifier length"
         raise ValueError(msg)
@@ -301,6 +306,9 @@ _check_identifier_is_max_len(EVENTS_TABLE_NAME)
 
 class SetupPostgresDatastore(TestCase):
     schema = ""
+    pool_size = 1
+    max_overflow = 0
+    max_waiting = 0
 
     def setUp(self) -> None:
         super().setUp()
@@ -310,6 +318,9 @@ class SetupPostgresDatastore(TestCase):
             "5432",
             "eventsourcing",
             "eventsourcing",
+            pool_size=self.pool_size,
+            max_overflow=self.max_overflow,
+            max_waiting=self.max_waiting,
             schema=self.schema,
         )
         self.drop_tables()
@@ -319,7 +330,7 @@ class SetupPostgresDatastore(TestCase):
         self.drop_tables()
         self.datastore.close()
 
-    def drop_tables(self):
+    def drop_tables(self) -> None:
         events_table_name = EVENTS_TABLE_NAME
         if self.datastore.schema:
             events_table_name = f"{self.datastore.schema}.{events_table_name}"
@@ -329,14 +340,12 @@ class SetupPostgresDatastore(TestCase):
 class WithSchema(SetupPostgresDatastore):
     schema = "myschema"
 
-    def test_datastore_has_schema(self):
+    def test_datastore_has_schema(self) -> None:
         self.assertEqual(self.datastore.schema, self.schema)
 
 
 class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTestCase):
-    def create_recorder(
-        self, table_name=EVENTS_TABLE_NAME
-    ) -> PostgresAggregateRecorder:
+    def create_recorder(self, table_name: str = EVENTS_TABLE_NAME) -> AggregateRecorder:
         if self.datastore.schema:
             table_name = f"{self.datastore.schema}.{table_name}"
         recorder = PostgresAggregateRecorder(
@@ -345,25 +354,25 @@ class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTes
         recorder.create_table()
         return recorder
 
-    def drop_tables(self):
+    def drop_tables(self) -> None:
         super().drop_tables()
         drop_postgres_table(self.datastore, "stored_events")
 
-    def test_create_table(self):
+    def test_create_table(self) -> None:
         recorder = PostgresAggregateRecorder(
             datastore=self.datastore, events_table_name="stored_events"
         )
         recorder.create_table()
 
-    def test_insert_and_select(self):
+    def test_insert_and_select(self) -> None:
         super().test_insert_and_select()
 
-    def test_performance(self):
+    def test_performance(self) -> None:
         super().test_performance()
 
-    def test_retry_insert_events_after_closing_connection(self):
+    def test_retry_insert_events_after_closing_connection(self) -> None:
         # This checks connection is recreated after connections are closed.
-        self.datastore.pool.pool_size = 1
+        self.datastore.pool.resize(1, 1)
 
         # Construct the recorder.
         recorder = self.create_recorder()
@@ -392,19 +401,21 @@ class TestPostgresAggregateRecorderWithSchema(
 
 
 class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
-    def create_recorder(self, table_name=EVENTS_TABLE_NAME):
+    def create_recorder(
+        self, table_name: str = EVENTS_TABLE_NAME
+    ) -> PostgresAggregateRecorder:
         return PostgresAggregateRecorder(
             datastore=self.datastore, events_table_name=table_name
         )
 
-    def test_excessively_long_table_name_raises_error(self):
+    def test_excessively_long_table_name_raises_error(self) -> None:
         # Add one more character to the table name.
         long_table_name = "s" + EVENTS_TABLE_NAME
         self.assertEqual(len(long_table_name), 64)
         with self.assertRaises(ProgrammingError):
             self.create_recorder(long_table_name)
 
-    def test_create_table_raises_programming_error_when_sql_is_broken(self):
+    def test_create_table_raises_programming_error_when_sql_is_broken(self) -> None:
         recorder = self.create_recorder()
 
         # Mess up the statement.
@@ -412,7 +423,9 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         with self.assertRaises(ProgrammingError):
             recorder.create_table()
 
-    def test_insert_events_raises_programming_error_when_table_not_created(self):
+    def test_insert_events_raises_programming_error_when_table_not_created(
+        self,
+    ) -> None:
         # Construct the recorder.
         recorder = self.create_recorder()
 
@@ -426,7 +439,7 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         with self.assertRaises(ProgrammingError):
             recorder.insert_events([stored_event1])
 
-    def test_insert_events_raises_programming_error_when_sql_is_broken(self):
+    def test_insert_events_raises_programming_error_when_sql_is_broken(self) -> None:
         # Construct the recorder.
         recorder = self.create_recorder()
 
@@ -444,7 +457,9 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         with self.assertRaises(ProgrammingError):
             recorder.insert_events([stored_event1])
 
-    def test_select_events_raises_programming_error_when_table_not_created(self):
+    def test_select_events_raises_programming_error_when_table_not_created(
+        self,
+    ) -> None:
         # Construct the recorder.
         recorder = self.create_recorder()
 
@@ -453,7 +468,7 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         with self.assertRaises(ProgrammingError):
             recorder.select_events(originator_id=originator_id)
 
-    def test_select_events_raises_programming_error_when_sql_is_broken(self):
+    def test_select_events_raises_programming_error_when_sql_is_broken(self) -> None:
         # Construct the recorder.
         recorder = self.create_recorder()
 
@@ -468,7 +483,7 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
 
 
 class TestPostgresSubscription(TestCase):
-    def test_listen_catches_error(self):
+    def test_listen_catches_error(self) -> None:
         mock_recorder = Mock(spec=PostgresApplicationRecorder)
 
         subscription = PostgresSubscription(mock_recorder, 0)
@@ -489,8 +504,8 @@ class TestPostgresApplicationRecorder(
     SetupPostgresDatastore, ApplicationRecorderTestCase
 ):
     def create_recorder(
-        self, table_name=EVENTS_TABLE_NAME
-    ) -> PostgresApplicationRecorder:
+        self, table_name: str = EVENTS_TABLE_NAME
+    ) -> ApplicationRecorder:
         if self.datastore.schema:
             table_name = f"{self.datastore.schema}.{table_name}"
         recorder = PostgresApplicationRecorder(
@@ -503,16 +518,18 @@ class TestPostgresApplicationRecorder(
         super().test_insert_select()
 
     def test_insert_subscribe(self) -> None:
+        self.datastore.pool.resize(2, 2)
         super().optional_test_insert_subscribe()
 
     def test_subscribe_concurrent_reading_and_writing(self) -> None:
+        self.datastore.pool.resize(2, 2)
         recorder = self.create_recorder()
 
         num_batches = 20
         batch_size = 100
         num_events = num_batches * batch_size
 
-        def read(last_notification_id: int):
+        def read(last_notification_id: int) -> None:
             start = datetime.now()
             with recorder.subscribe(last_notification_id) as subscription:
                 for i, notification in enumerate(subscription):
@@ -529,7 +546,7 @@ class TestPostgresApplicationRecorder(
                 "seconds",
             )
 
-        def write():
+        def write() -> None:
             start = datetime.now()
             for _ in range(num_batches):
                 events = []
@@ -571,19 +588,22 @@ class TestPostgresApplicationRecorder(
 
         thread_pool.shutdown()
 
-    def test_concurrent_no_conflicts(self):
+    def test_concurrent_no_conflicts(self) -> None:
+        self.datastore.pool.resize(12, 12)
         super().test_concurrent_no_conflicts()
 
-    def test_concurrent_throughput(self):
-        self.datastore.pool.pool_size = 4
+    def test_concurrent_throughput(self) -> None:
+        self.datastore.pool.resize(10, 10)
         super().test_concurrent_throughput()
 
-    def test_retry_select_notifications_after_closing_connection(self):
+    def test_retry_select_notifications_after_closing_connection(self) -> None:
         # This checks connection is recreated after InterfaceError.
 
         # Construct the recorder.
         recorder = self.create_recorder()
-        self.datastore.pool.pool_size = 1
+
+        self.assertEqual(len(self.datastore.pool._pool), 1)
+        self.assertFalse(self.datastore.pool._pool[0].closed)
 
         # Write a stored event.
         originator_id = uuid4()
@@ -597,17 +617,28 @@ class TestPostgresApplicationRecorder(
 
         # Close connections.
         pg_close_all_connections()
+
+        self.assertEqual(len(self.datastore.pool._pool), 1)
         self.assertFalse(self.datastore.pool._pool[0].closed)
+        conn_id_before = id(self.datastore.pool._pool[0])
 
         # Select events.
         recorder.select_notifications(start=1, limit=1)
 
-    def test_retry_max_notification_id_after_closing_connection(self):
+        self.assertEqual(len(self.datastore.pool._pool), 1)
+        self.assertFalse(self.datastore.pool._pool[0].closed)
+        conn_id_after = id(self.datastore.pool._pool[0])
+        self.assertNotEqual(conn_id_before, conn_id_after)
+
+    def test_retry_max_notification_id_after_closing_connection(self) -> None:
         # This checks connection is recreated after InterfaceError.
 
         # Construct the recorder.
         recorder = self.create_recorder()
-        self.datastore.pool.pool_size = 1
+
+        self.assertEqual(len(self.datastore.pool._pool), 1)
+        self.assertFalse(self.datastore.pool._pool[0].closed)
+        conn_id_before = id(self.datastore.pool._pool[0])
 
         # Write a stored event.
         originator_id = uuid4()
@@ -621,13 +652,18 @@ class TestPostgresApplicationRecorder(
 
         # Close connections.
         pg_close_all_connections()
-        self.assertFalse(self.datastore.pool._pool[0].closed)
 
         # Get max notification ID.
         recorder.max_notification_id()
 
-    def test_insert_lock_timeout_actually_works(self):
+        self.assertEqual(len(self.datastore.pool._pool), 1)
+        self.assertFalse(self.datastore.pool._pool[0].closed)
+        conn_id_after = id(self.datastore.pool._pool[0])
+        self.assertNotEqual(conn_id_before, conn_id_after)
+
+    def test_insert_lock_timeout_actually_works(self) -> None:
         self.datastore.lock_timeout = 1
+        self.datastore.pool.resize(2, 2)
         recorder: PostgresApplicationRecorder = self.create_recorder()
 
         stored_event1 = StoredEvent(
@@ -647,18 +683,16 @@ class TestPostgresApplicationRecorder(
         test_ended = Event()
         table_lock_timed_out = Event()
 
-        def insert1():
-            conn = self.datastore.get_connection()
-            with conn as conn, conn.transaction(), conn.cursor() as curs:
+        def insert1() -> None:
+            with self.datastore.transaction() as curs:
                 # Lock table.
                 recorder._insert_stored_events(curs, [stored_event1])
                 table_lock_acquired.set()
                 # Wait for other thread to timeout.
                 test_ended.wait(timeout=5)  # keep the lock
 
-        def insert2():
+        def insert2() -> None:
             try:
-                conn: Connection
                 with self.datastore.get_connection() as conn:
                     # Wait for other thread to lock table.
                     table_lock_acquired.wait(timeout=5)
@@ -690,17 +724,21 @@ class TestPostgresApplicationRecorderWithSchema(
 
 
 class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
-    def create_recorder(self, table_name=EVENTS_TABLE_NAME):
+    def create_recorder(
+        self, table_name: str = EVENTS_TABLE_NAME
+    ) -> ApplicationRecorder:
         return PostgresApplicationRecorder(self.datastore, events_table_name=table_name)
 
-    def test_excessively_long_table_name_raises_error(self):
+    def test_excessively_long_table_name_raises_error(self) -> None:
         # Add one more character to the table name.
         long_table_name = "s" + EVENTS_TABLE_NAME
         self.assertEqual(len(long_table_name), 64)
         with self.assertRaises(ProgrammingError):
             self.create_recorder(long_table_name)
 
-    def test_select_notification_raises_programming_error_when_table_not_created(self):
+    def test_select_notification_raises_programming_error_when_table_not_created(
+        self,
+    ) -> None:
         # Construct the recorder.
         recorder = self.create_recorder()
 
@@ -708,7 +746,9 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
         with self.assertRaises(ProgrammingError):
             recorder.select_notifications(start=1, limit=1)
 
-    def test_max_notification_id_raises_programming_error_when_table_not_created(self):
+    def test_max_notification_id_raises_programming_error_when_table_not_created(
+        self,
+    ) -> None:
         # Construct the recorder.
         recorder = PostgresApplicationRecorder(
             datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
@@ -718,7 +758,7 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
         with self.assertRaises(ProgrammingError):
             recorder.max_notification_id()
 
-    def test_fetch_ids_after_insert_events(self):
+    def test_fetch_ids_after_insert_events(self) -> None:
         def make_events() -> list[StoredEvent]:
             return [
                 StoredEvent(
@@ -755,14 +795,14 @@ _check_identifier_is_max_len(TRACKING_TABLE_NAME)
 
 
 class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestCase):
-    def drop_tables(self):
+    def drop_tables(self) -> None:
         super().drop_tables()
         tracking_table_name = TRACKING_TABLE_NAME
         if self.datastore.schema:
             tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
         drop_postgres_table(self.datastore, tracking_table_name)
 
-    def create_recorder(self) -> PostgresTrackingRecorder:
+    def create_recorder(self) -> TrackingRecorder:
         tracking_table_name = TRACKING_TABLE_NAME
         if self.datastore.schema:
             tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
@@ -773,10 +813,10 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
         recorder.create_table()
         return recorder
 
-    def test_insert_tracking(self):
+    def test_insert_tracking(self) -> None:
         super().test_insert_tracking()
 
-    def test_excessively_long_table_names_raise_error(self):
+    def test_excessively_long_table_names_raise_error(self) -> None:
         with self.assertRaises(ProgrammingError):
             PostgresProcessRecorder(
                 datastore=self.datastore,
@@ -786,14 +826,14 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
 
 
 class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCase):
-    def drop_tables(self):
+    def drop_tables(self) -> None:
         super().drop_tables()
         tracking_table_name = TRACKING_TABLE_NAME
         if self.datastore.schema:
             tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
         drop_postgres_table(self.datastore, tracking_table_name)
 
-    def create_recorder(self):
+    def create_recorder(self) -> ProcessRecorder:
         events_table_name = EVENTS_TABLE_NAME
         tracking_table_name = TRACKING_TABLE_NAME
         if self.datastore.schema:
@@ -808,10 +848,10 @@ class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCas
         recorder.create_table()
         return recorder
 
-    def test_performance(self):
+    def test_performance(self) -> None:
         super().test_performance()
 
-    def test_excessively_long_table_names_raise_error(self):
+    def test_excessively_long_table_names_raise_error(self) -> None:
         with self.assertRaises(ProgrammingError):
             PostgresProcessRecorder(
                 self.datastore,
@@ -826,12 +866,14 @@ class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCas
                 tracking_table_name="n" + TRACKING_TABLE_NAME,
             )
 
-    def test_retry_max_tracking_id_after_closing_connection(self):
+    def test_retry_max_tracking_id_after_closing_connection(self) -> None:
         # This checks connection is recreated after InterfaceError.
 
         # Construct the recorder.
         recorder = self.create_recorder()
-        self.datastore.pool.pool_size = 1
+
+        self.assertEqual(len(self.datastore.pool._pool), 1)
+        self.assertFalse(self.datastore.pool._pool[0].closed)
 
         # Write a tracking record.
         originator_id = uuid4()
@@ -845,11 +887,19 @@ class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCas
 
         # Close connections.
         pg_close_all_connections()
+
+        self.assertEqual(len(self.datastore.pool._pool), 1)
         self.assertFalse(self.datastore.pool._pool[0].closed)
+
+        conn_id_before = id(self.datastore.pool._pool[0])
 
         # Get max tracking ID.
         notification_id = recorder.max_tracking_id("upstream")
         self.assertEqual(notification_id, 1)
+
+        # Check the connection has been replaced.
+        conn_id_after = id(self.datastore.pool._pool[0])
+        self.assertNotEqual(conn_id_before, conn_id_after)
 
 
 class TestPostgresProcessRecorderWithSchema(WithSchema, TestPostgresProcessRecorder):
@@ -857,18 +907,20 @@ class TestPostgresProcessRecorderWithSchema(WithSchema, TestPostgresProcessRecor
 
 
 class TestPostgresProcessRecorderErrors(SetupPostgresDatastore, TestCase):
-    def drop_tables(self):
+    def drop_tables(self) -> None:
         super().drop_tables()
         drop_postgres_table(self.datastore, TRACKING_TABLE_NAME)
 
-    def create_recorder(self):
+    def create_recorder(self) -> PostgresProcessRecorder:
         return PostgresProcessRecorder(
             datastore=self.datastore,
             events_table_name=EVENTS_TABLE_NAME,
             tracking_table_name=TRACKING_TABLE_NAME,
         )
 
-    def test_max_tracking_id_raises_programming_error_when_table_not_created(self):
+    def test_max_tracking_id_raises_programming_error_when_table_not_created(
+        self,
+    ) -> None:
         # Construct the recorder.
         recorder = self.create_recorder()
 
@@ -877,20 +929,20 @@ class TestPostgresProcessRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder.max_tracking_id("upstream")
 
 
-class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
-    def test_create_application_recorder(self):
+class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFactory]):
+    def test_create_application_recorder(self) -> None:
         super().test_create_application_recorder()
 
-    def expected_factory_class(self):
+    def expected_factory_class(self) -> type[PostgresFactory]:
         return PostgresFactory
 
-    def expected_aggregate_recorder_class(self):
+    def expected_aggregate_recorder_class(self) -> type[AggregateRecorder]:
         return PostgresAggregateRecorder
 
-    def expected_application_recorder_class(self):
+    def expected_application_recorder_class(self) -> type[ApplicationRecorder]:
         return PostgresApplicationRecorder
 
-    def expected_tracking_recorder_class(self):
+    def expected_tracking_recorder_class(self) -> type[TrackingRecorder]:
         return PostgresTrackingRecorder
 
     class PostgresTrackingRecorderSubclass(PostgresTrackingRecorder):
@@ -899,13 +951,13 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
     def tracking_recorder_subclass(self) -> type[TrackingRecorder]:
         return self.PostgresTrackingRecorderSubclass
 
-    def test_create_tracking_recorder(self):
+    def test_create_tracking_recorder(self) -> None:
         super().test_create_tracking_recorder()
         self.factory.datastore.schema = "myschema"
         recorder = self.factory.tracking_recorder()
         self.assertTrue(recorder.tracking_table_name.startswith("myschema."))
 
-    def expected_process_recorder_class(self):
+    def expected_process_recorder_class(self) -> type[ProcessRecorder]:
         return PostgresProcessRecorder
 
     def setUp(self) -> None:
@@ -923,7 +975,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
         self.drop_tables()
         super().tearDown()
 
-    def drop_tables(self):
+    def drop_tables(self) -> None:
         with PostgresDatastore(
             "eventsourcing",
             "127.0.0.1",
@@ -934,143 +986,140 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             drop_postgres_table(datastore, "testcase_events")
             drop_postgres_table(datastore, "testcase_tracking")
 
-    def test_close(self):
+    def test_close(self) -> None:
         factory = PostgresFactory(self.env)
-        conn: Connection
         with factory.datastore.get_connection() as conn:
             conn.execute("SELECT 1")
         self.assertFalse(factory.datastore.pool.closed)
         factory.close()
         self.assertTrue(factory.datastore.pool.closed)
 
-    def test_conn_max_age_is_set_to_float(self):
+    def test_conn_max_age_is_set_to_float(self) -> None:
         self.env[PostgresFactory.POSTGRES_CONN_MAX_AGE] = ""
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_lifetime, 60 * 60.0)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.max_lifetime, 60 * 60.0)
 
-    def test_conn_max_age_is_set_to_number(self):
+    def test_conn_max_age_is_set_to_number(self) -> None:
         self.env[PostgresFactory.POSTGRES_CONN_MAX_AGE] = "0"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_lifetime, 0)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.max_lifetime, 0)
 
-    def test_pool_size_is_five_by_default(self):
+    def test_pool_size_is_five_by_default(self) -> None:
         self.assertTrue(PostgresFactory.POSTGRES_POOL_SIZE not in self.env)
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.min_size, 5)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.min_size, 5)
 
         self.env[PostgresFactory.POSTGRES_POOL_SIZE] = ""
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.min_size, 5)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.min_size, 5)
 
-    def test_max_overflow_is_ten_by_default(self):
+    def test_max_overflow_is_ten_by_default(self) -> None:
         self.assertTrue(PostgresFactory.POSTGRES_MAX_OVERFLOW not in self.env)
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_size, 15)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.max_size, 15)
 
         self.env[PostgresFactory.POSTGRES_MAX_OVERFLOW] = ""
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_size, 15)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.max_size, 15)
 
-    def test_max_overflow_is_set(self):
+    def test_max_overflow_is_set(self) -> None:
         self.env[PostgresFactory.POSTGRES_MAX_OVERFLOW] = "7"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_size, 12)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.max_size, 12)
 
-    def test_pool_size_is_set(self):
+    def test_pool_size_is_set(self) -> None:
         self.env[PostgresFactory.POSTGRES_POOL_SIZE] = "6"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.min_size, 6)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.min_size, 6)
 
-    def test_connect_timeout_is_thirty_by_default(self):
+    def test_connect_timeout_is_thirty_by_default(self) -> None:
         self.assertTrue(PostgresFactory.POSTGRES_CONNECT_TIMEOUT not in self.env)
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.timeout, 30)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.timeout, 30)
 
         self.env[PostgresFactory.POSTGRES_CONNECT_TIMEOUT] = ""
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.timeout, 30)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.timeout, 30)
 
-    def test_connect_timeout_is_set(self):
+    def test_connect_timeout_is_set(self) -> None:
         self.env[PostgresFactory.POSTGRES_CONNECT_TIMEOUT] = "8"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.timeout, 8)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.timeout, 8)
 
-    def test_max_waiting_is_0_by_default(self):
+    def test_max_waiting_is_0_by_default(self) -> None:
         self.assertTrue(PostgresFactory.POSTGRES_MAX_WAITING not in self.env)
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_waiting, 0)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.max_waiting, 0)
 
         self.env[PostgresFactory.POSTGRES_MAX_WAITING] = ""
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_waiting, 0)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.max_waiting, 0)
 
-    def test_max_waiting_is_set(self):
+    def test_max_waiting_is_set(self) -> None:
         self.env[PostgresFactory.POSTGRES_MAX_WAITING] = "8"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pool.max_waiting, 8)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.max_waiting, 8)
 
-    def test_lock_timeout_is_zero_by_default(self):
+    def test_lock_timeout_is_zero_by_default(self) -> None:
         self.assertTrue(PostgresFactory.POSTGRES_LOCK_TIMEOUT not in self.env)
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.lock_timeout, 0)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.lock_timeout, 0)
 
         self.env[PostgresFactory.POSTGRES_LOCK_TIMEOUT] = ""
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.lock_timeout, 0)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.lock_timeout, 0)
 
-    def test_lock_timeout_is_set(self):
+    def test_lock_timeout_is_set(self) -> None:
         self.env[PostgresFactory.POSTGRES_LOCK_TIMEOUT] = "1"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.lock_timeout, 1)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.lock_timeout, 1)
 
-    def test_idle_in_transaction_session_timeout_is_5_by_default(self):
+    def test_idle_in_transaction_session_timeout_is_5_by_default(self) -> None:
         self.assertTrue(
             PostgresFactory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT not in self.env
         )
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.idle_in_transaction_session_timeout, 5)
-        self.factory.close()
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.idle_in_transaction_session_timeout, 5)
+        factory.close()
 
         self.env[PostgresFactory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT] = ""
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.idle_in_transaction_session_timeout, 5)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.idle_in_transaction_session_timeout, 5)
 
-    def test_idle_in_transaction_session_timeout_is_set(self):
+    def test_idle_in_transaction_session_timeout_is_set(self) -> None:
         self.env[PostgresFactory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT] = "10"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.idle_in_transaction_session_timeout, 10)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.idle_in_transaction_session_timeout, 10)
 
-    def test_pre_ping_off_by_default(self):
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pre_ping, False)
+    def test_pre_ping_off_by_default(self) -> None:
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pre_ping, False)
 
-    def test_pre_ping_off(self):
+    def test_pre_ping_off(self) -> None:
         self.env[PostgresFactory.POSTGRES_PRE_PING] = "off"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pre_ping, False)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pre_ping, False)
 
-    def test_pre_ping_on(self):
+    def test_pre_ping_on(self) -> None:
         self.env[PostgresFactory.POSTGRES_PRE_PING] = "on"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.pre_ping, True)
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pre_ping, True)
 
-    def test_get_password_topic_not_set(self):
-        self.factory = PostgresFactory(self.env)
-        self.assertIsNone(self.factory.datastore.pool.get_password_func, None)
+    def test_get_password_topic_not_set(self) -> None:
+        factory = PostgresFactory(self.env)
+        self.assertIsNone(factory.datastore.pool.get_password_func, None)
 
-    def test_get_password_topic_set(self):
-        def get_password_func():
+    def test_get_password_topic_set(self) -> None:
+        def get_password_func() -> str:
             return "eventsourcing"
 
         self.env[PostgresFactory.POSTGRES_GET_PASSWORD_TOPIC] = get_topic(
             get_password_func
         )
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(
-            self.factory.datastore.pool.get_password_func, get_password_func
-        )
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.pool.get_password_func, get_password_func)
 
-    def test_environment_error_raised_when_conn_max_age_not_a_float(self):
+    def test_environment_error_raised_when_conn_max_age_not_a_float(self) -> None:
         self.env[PostgresFactory.POSTGRES_CONN_MAX_AGE] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory(self.env)
@@ -1080,7 +1129,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "is invalid. If set, a float or empty string is expected: 'abc'",
         )
 
-    def test_environment_error_raised_when_connect_timeout_not_an_integer(self):
+    def test_environment_error_raised_when_connect_timeout_not_an_integer(self) -> None:
         self.env[PostgresFactory.POSTGRES_CONNECT_TIMEOUT] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory(self.env)
@@ -1090,7 +1139,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "is invalid. If set, an integer or empty string is expected: 'abc'",
         )
 
-    def test_environment_error_raised_when_max_waiting_not_an_integer(self):
+    def test_environment_error_raised_when_max_waiting_not_an_integer(self) -> None:
         self.env[PostgresFactory.POSTGRES_MAX_WAITING] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory(self.env)
@@ -1100,7 +1149,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "is invalid. If set, an integer or empty string is expected: 'abc'",
         )
 
-    def test_environment_error_raised_when_lock_timeout_not_an_integer(self):
+    def test_environment_error_raised_when_lock_timeout_not_an_integer(self) -> None:
         self.env[PostgresFactory.POSTGRES_LOCK_TIMEOUT] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory(self.env)
@@ -1110,7 +1159,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "is invalid. If set, an integer or empty string is expected: 'abc'",
         )
 
-    def test_environment_error_raised_when_min_conn_not_an_integer(self):
+    def test_environment_error_raised_when_min_conn_not_an_integer(self) -> None:
         self.env[PostgresFactory.POSTGRES_POOL_SIZE] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory(self.env)
@@ -1120,7 +1169,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "is invalid. If set, an integer or empty string is expected: 'abc'",
         )
 
-    def test_environment_error_raised_when_max_conn_not_an_integer(self):
+    def test_environment_error_raised_when_max_conn_not_an_integer(self) -> None:
         self.env[PostgresFactory.POSTGRES_MAX_OVERFLOW] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory(self.env)
@@ -1132,7 +1181,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
 
     def test_environment_error_raised_when_idle_in_transaction_session_timeout_not_int(
         self,
-    ):
+    ) -> None:
         self.env[PostgresFactory.POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory(self.env)
@@ -1143,7 +1192,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "is invalid. If set, an integer or empty string is expected: 'abc'",
         )
 
-    def test_environment_error_raised_when_dbname_missing(self):
+    def test_environment_error_raised_when_dbname_missing(self) -> None:
         del self.env[PostgresFactory.POSTGRES_DBNAME]
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory.construct(self.env)
@@ -1153,7 +1202,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "with key 'POSTGRES_DBNAME'",
         )
 
-    def test_environment_error_raised_when_dbhost_missing(self):
+    def test_environment_error_raised_when_dbhost_missing(self) -> None:
         del self.env[PostgresFactory.POSTGRES_HOST]
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory.construct(self.env)
@@ -1162,7 +1211,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "Postgres host not found in environment with key 'POSTGRES_HOST'",
         )
 
-    def test_environment_error_raised_when_user_missing(self):
+    def test_environment_error_raised_when_user_missing(self) -> None:
         del self.env[PostgresFactory.POSTGRES_USER]
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory.construct(self.env)
@@ -1171,7 +1220,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "Postgres user not found in environment with key 'POSTGRES_USER'",
         )
 
-    def test_environment_error_raised_when_password_missing(self):
+    def test_environment_error_raised_when_password_missing(self) -> None:
         del self.env[PostgresFactory.POSTGRES_PASSWORD]
         with self.assertRaises(EnvironmentError) as cm:
             PostgresFactory.construct(self.env)
@@ -1180,49 +1229,49 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
             "Postgres password not found in environment with key 'POSTGRES_PASSWORD'",
         )
 
-    def test_schema_set_to_empty_string(self):
+    def test_schema_set_to_empty_string(self) -> None:
         self.env[PostgresFactory.POSTGRES_SCHEMA] = ""
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.schema, "")
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.schema, "")
 
-    def test_schema_set_to_whitespace(self):
+    def test_schema_set_to_whitespace(self) -> None:
         self.env[PostgresFactory.POSTGRES_SCHEMA] = " "
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.schema, "")
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.schema, "")
 
-    def test_scheme_adjusts_table_names_on_aggregate_recorder(self):
-        self.factory = PostgresFactory(self.env)
+    def test_scheme_adjusts_table_names_on_aggregate_recorder(self) -> None:
+        factory = PostgresFactory(self.env)
 
         # Check by default the table name is not qualified.
-        recorder = self.factory.aggregate_recorder("events")
+        recorder = factory.aggregate_recorder("events")
         assert isinstance(recorder, PostgresAggregateRecorder)
         self.assertEqual(recorder.events_table_name, "testcase_events")
 
         # Check by default the table name is not qualified.
-        recorder = self.factory.aggregate_recorder("snapshots")
+        recorder = factory.aggregate_recorder("snapshots")
         assert isinstance(recorder, PostgresAggregateRecorder)
         self.assertEqual(recorder.events_table_name, "testcase_snapshots")
 
         # Set schema in environment.
         self.env[PostgresFactory.POSTGRES_SCHEMA] = "public"
-        self.factory = PostgresFactory(self.env)
-        self.assertEqual(self.factory.datastore.schema, "public")
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.schema, "public")
 
         # Check by default the table name is qualified.
-        recorder = self.factory.aggregate_recorder("events")
+        recorder = factory.aggregate_recorder("events")
         assert isinstance(recorder, PostgresAggregateRecorder)
         self.assertEqual(recorder.events_table_name, "public.testcase_events")
 
         # Check by default the table name is qualified.
-        recorder = self.factory.aggregate_recorder("snapshots")
+        recorder = factory.aggregate_recorder("snapshots")
         assert isinstance(recorder, PostgresAggregateRecorder)
         self.assertEqual(recorder.events_table_name, "public.testcase_snapshots")
 
-    def test_scheme_adjusts_table_name_on_application_recorder(self):
-        self.factory = PostgresFactory(self.env)
+    def test_scheme_adjusts_table_name_on_application_recorder(self) -> None:
+        factory = PostgresFactory(self.env)
 
         # Check by default the table name is not qualified.
-        recorder = self.factory.application_recorder()
+        recorder = factory.application_recorder()
         assert isinstance(recorder, PostgresApplicationRecorder)
         self.assertEqual(recorder.events_table_name, "testcase_events")
 

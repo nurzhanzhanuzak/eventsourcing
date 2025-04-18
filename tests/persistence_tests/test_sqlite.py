@@ -5,6 +5,8 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 from eventsourcing.persistence import (
+    AggregateRecorder,
+    ApplicationRecorder,
     DatabaseError,
     DataError,
     InfrastructureFactory,
@@ -14,6 +16,7 @@ from eventsourcing.persistence import (
     NotSupportedError,
     OperationalError,
     PersistenceError,
+    ProcessRecorder,
     ProgrammingError,
     StoredEvent,
     TrackingRecorder,
@@ -261,7 +264,7 @@ class TestSQLiteApplicationRecorderErrors(TestCase):
 
 
 class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
-    def create_recorder(self):
+    def create_recorder(self) -> TrackingRecorder:
         recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
         recorder.create_table()
         return recorder
@@ -302,13 +305,13 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
     def expected_factory_class(self):
         return SQLiteFactory
 
-    def expected_aggregate_recorder_class(self):
+    def expected_aggregate_recorder_class(self) -> type[AggregateRecorder]:
         return SQLiteAggregateRecorder
 
-    def expected_application_recorder_class(self):
+    def expected_application_recorder_class(self) -> type[ApplicationRecorder]:
         return SQLiteApplicationRecorder
 
-    def expected_tracking_recorder_class(self):
+    def expected_tracking_recorder_class(self) -> type[TrackingRecorder]:
         return SQLiteTrackingRecorder
 
     class SQLiteTrackingRecorderSubclass(SQLiteTrackingRecorder):
@@ -317,7 +320,7 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
     def tracking_recorder_subclass(self) -> type[TrackingRecorder]:
         return self.SQLiteTrackingRecorderSubclass
 
-    def expected_process_recorder_class(self):
+    def expected_process_recorder_class(self) -> type[ProcessRecorder]:
         return SQLiteProcessRecorder
 
     def setUp(self) -> None:

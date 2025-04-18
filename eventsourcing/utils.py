@@ -8,7 +8,8 @@ from inspect import isfunction
 from random import random
 from threading import Lock
 from time import sleep
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, no_type_check, overload
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, Union, no_type_check, overload
 
 if TYPE_CHECKING:
     from types import FunctionType, WrapperDescriptorType
@@ -20,12 +21,14 @@ class TopicError(Exception):
     """
 
 
-_type_cache: dict[type, str] = {}
-_topic_cache: dict[str, Any] = {}
+SupportsTopic = Union[type, Callable[..., Any], ModuleType]
+
+_type_cache: dict[SupportsTopic, str] = {}
+_topic_cache: dict[str, SupportsTopic] = {}
 _topic_cache_lock = Lock()
 
 
-def get_topic(cls: type) -> str:
+def get_topic(obj: SupportsTopic, /) -> str:
     """
     Returns a "topic string" that locates the given class
     in its module. The string is formed by joining the
@@ -33,11 +36,11 @@ def get_topic(cls: type) -> str:
     colon character.
     """
     try:
-        return _type_cache[cls]
+        return _type_cache[obj]
     except KeyError:
-        topic = f"{cls.__module__}:{cls.__qualname__}"
-        register_topic(topic, cls)
-        _type_cache[cls] = topic
+        topic = f"{obj.__module__}:{obj.__qualname__}"
+        register_topic(topic, obj)
+        _type_cache[obj] = topic
         return topic
 
 
@@ -97,7 +100,7 @@ def resolve_topic(topic: str) -> Any:
     return obj
 
 
-def register_topic(topic: str, obj: Any) -> None:
+def register_topic(topic: str, obj: SupportsTopic) -> None:
     """
     Registers a topic with an object, so the object will be
     returned whenever the topic is resolved.

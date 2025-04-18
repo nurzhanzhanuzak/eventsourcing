@@ -5,6 +5,9 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 from eventsourcing.persistence import (
+    AggregateRecorder,
+    ApplicationRecorder,
+    ProcessRecorder,
     ProgrammingError,
     StoredEvent,
     Tracking,
@@ -135,9 +138,12 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase):
 
         thread_pool.shutdown()
 
+    def test_concurrent_throughput(self):
+        super().test_concurrent_throughput()
+
 
 class TestPOPOTrackingRecorder(TrackingRecorderTestCase):
-    def create_recorder(self):
+    def create_recorder(self) -> TrackingRecorder:
         return POPOTrackingRecorder()
 
     def test_wait(self):
@@ -197,13 +203,13 @@ class TestPOPOInfrastructureFactory(InfrastructureFactoryTestCase):
     def expected_factory_class(self):
         return POPOFactory
 
-    def expected_aggregate_recorder_class(self):
+    def expected_aggregate_recorder_class(self) -> type[AggregateRecorder]:
         return POPOAggregateRecorder
 
-    def expected_application_recorder_class(self):
+    def expected_application_recorder_class(self) -> type[ApplicationRecorder]:
         return POPOApplicationRecorder
 
-    def expected_tracking_recorder_class(self):
+    def expected_tracking_recorder_class(self) -> type[TrackingRecorder]:
         return POPOTrackingRecorder
 
     class POPOTrackingRecorderSubclass(POPOTrackingRecorder):
@@ -212,7 +218,7 @@ class TestPOPOInfrastructureFactory(InfrastructureFactoryTestCase):
     def tracking_recorder_subclass(self) -> type[TrackingRecorder]:
         return self.POPOTrackingRecorderSubclass
 
-    def expected_process_recorder_class(self):
+    def expected_process_recorder_class(self) -> type[ProcessRecorder]:
         return POPOProcessRecorder
 
 
