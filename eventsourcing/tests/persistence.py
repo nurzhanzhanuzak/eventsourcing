@@ -10,7 +10,7 @@ from tempfile import NamedTemporaryFile
 from threading import Event, Thread, get_ident
 from time import sleep
 from timeit import timeit
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeVar
 from unittest import TestCase
 from uuid import UUID, uuid4
 
@@ -31,11 +31,17 @@ from eventsourcing.persistence import (
     StoredEvent,
     Tracking,
     TrackingRecorder,
+    Transcoder,
     Transcoding,
     UUIDAsHex,
     WaitInterruptedError,
 )
 from eventsourcing.utils import Environment, get_topic
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from typing_extensions import Never
 
 
 class AggregateRecorderTestCase(TestCase, ABC):
@@ -696,7 +702,7 @@ class ApplicationRecorderTestCase(TestCase, ABC):
         with recorder.subscribe(gt=max_notification_id2) as subscription:
 
             # Receive events from the subscription.
-            notifications: list[Notification] = []
+            notifications = []
             for notification in subscription:
                 notifications.append(notification)
                 if len(notifications) == 1:
@@ -755,7 +761,7 @@ class TrackingRecorderTestCase(TestCase, ABC):
     def create_recorder(self) -> ProcessRecorder:
         """"""
 
-    def test_insert_tracking(self):
+    def test_insert_tracking(self) -> None:
         tracking_recorder = self.create_recorder()
 
         # Construct tracking objects.
@@ -787,7 +793,7 @@ class TrackingRecorderTestCase(TestCase, ABC):
         assert tracking_recorder.has_tracking_id("upstream2", 21)
         assert not tracking_recorder.has_tracking_id("upstream2", 22)
 
-    def test_wait(self):
+    def test_wait(self) -> None:
         tracking_recorder = self.create_recorder()
         tracking1 = Tracking(notification_id=21, application_name="upstream1")
         tracking_recorder.insert_tracking(tracking=tracking1)
@@ -900,7 +906,7 @@ class ProcessRecorderTestCase(TestCase, ABC):
             2,
         )
 
-    def test_has_tracking_id(self):
+    def test_has_tracking_id(self) -> None:
         # Construct the recorder.
         recorder = self.create_recorder()
 
@@ -976,7 +982,7 @@ class ProcessRecorderTestCase(TestCase, ABC):
 class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
     insert_num = 1000
 
-    def test(self):
+    def test(self) -> None:
         recorder = self.create_recorder()
 
         max_notification_id = recorder.max_notification_id()
@@ -991,7 +997,7 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
 
         errors = []
 
-        def insert_stack(stack):
+        def insert_stack(stack: list[StoredEvent]) -> None:
             try:
                 race_started.wait()
                 recorder.insert_events(stack)
@@ -1037,7 +1043,7 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
         else:
             self.assertGreater(min_id_for_sequence2, max_id_for_sequence1)
 
-    def create_stack(self, originator_id):
+    def create_stack(self, originator_id: UUID) -> list[StoredEvent]:
         return [
             StoredEvent(
                 originator_id=originator_id,
@@ -1057,27 +1063,27 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
     env: Environment
 
     @abstractmethod
-    def expected_factory_class(self):
+    def expected_factory_class(self) -> type[InfrastructureFactory]:
         pass
 
     @abstractmethod
-    def expected_aggregate_recorder_class(self):
+    def expected_aggregate_recorder_class(self) -> None:
         pass
 
     @abstractmethod
-    def expected_application_recorder_class(self):
+    def expected_application_recorder_class(self) -> None:
         pass
 
     @abstractmethod
-    def expected_tracking_recorder_class(self):
+    def expected_tracking_recorder_class(self) -> None:
         pass
 
     @abstractmethod
-    def tracking_recorder_subclass(self):
+    def tracking_recorder_subclass(self) -> type[TrackingRecorder]:
         pass
 
     @abstractmethod
-    def expected_process_recorder_class(self):
+    def expected_process_recorder_class(self) -> None:
         pass
 
     def setUp(self) -> None:
@@ -1088,10 +1094,10 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         self.transcoder.register(DecimalAsStr())
         self.transcoder.register(DatetimeAsISO())
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.factory.close()
 
-    def test_createmapper(self):
+    def test_createmapper(self) -> None:
         # Want to construct:
         #  - application recorder
         #  - snapshot recorder
@@ -1127,7 +1133,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         self.assertIsNone(mapper.cipher)
         self.assertIsNone(mapper.compressor)
 
-    def test_createmapper_with_compressor(self):
+    def test_createmapper_with_compressor(self) -> None:
         # Create mapper with compressor class as topic.
         self.env[self.factory.COMPRESSOR_TOPIC] = get_topic(ZlibCompressor)
         mapper = self.factory.mapper(transcoder=self.transcoder)
@@ -1142,7 +1148,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         self.assertEqual(mapper.compressor, zlib)
         self.assertIsNone(mapper.cipher)
 
-    def test_createmapper_with_cipher(self):
+    def test_createmapper_with_cipher(self) -> None:
         # Check cipher needs a key.
         self.env[self.factory.CIPHER_TOPIC] = get_topic(AESCipher)
 
@@ -1163,7 +1169,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
 
     def test_createmapper_with_cipher_and_compressor(
         self,
-    ):
+    ) -> None:
         # Create mapper with cipher and compressor.
         self.env[self.factory.COMPRESSOR_TOPIC] = get_topic(ZlibCompressor)
 
@@ -1176,7 +1182,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         self.assertIsNotNone(mapper.cipher)
         self.assertIsNotNone(mapper.compressor)
 
-    def test_mapper_with_wrong_cipher_key(self):
+    def test_mapper_with_wrong_cipher_key(self) -> None:
         self.env.name = "App1"
         self.env[self.factory.CIPHER_TOPIC] = get_topic(AESCipher)
         cipher_key1 = AESCipher.create_key(16)
@@ -1206,7 +1212,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         with self.assertRaises(ValueError):
             mapper2.to_domain_event(stored_event)
 
-    def test_create_aggregate_recorder(self):
+    def test_create_aggregate_recorder(self) -> None:
         recorder = self.factory.aggregate_recorder()
         self.assertEqual(type(recorder), self.expected_aggregate_recorder_class())
 
@@ -1217,7 +1223,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         recorder = self.factory.aggregate_recorder()
         self.assertEqual(type(recorder), self.expected_aggregate_recorder_class())
 
-    def test_create_application_recorder(self):
+    def test_create_application_recorder(self) -> None:
         recorder = self.factory.application_recorder()
         self.assertEqual(type(recorder), self.expected_application_recorder_class())
         self.assertIsInstance(recorder, ApplicationRecorder)
@@ -1227,7 +1233,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         recorder = self.factory.application_recorder()
         self.assertEqual(type(recorder), self.expected_application_recorder_class())
 
-    def test_create_tracking_recorder(self):
+    def test_create_tracking_recorder(self) -> None:
         recorder = self.factory.tracking_recorder()
         self.assertEqual(type(recorder), self.expected_tracking_recorder_class())
         self.assertIsInstance(recorder, TrackingRecorder)
@@ -1247,7 +1253,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         recorder = self.factory.tracking_recorder()
         self.assertEqual(type(recorder), subclass)
 
-    def test_create_process_recorder(self):
+    def test_create_process_recorder(self) -> None:
         recorder = self.factory.process_recorder()
         self.assertEqual(type(recorder), self.expected_process_recorder_class())
         self.assertIsInstance(recorder, ProcessRecorder)
@@ -1258,7 +1264,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase):
         self.assertEqual(type(recorder), self.expected_process_recorder_class())
 
 
-def tmpfile_uris():
+def tmpfile_uris() -> Iterable[str]:
     tmp_files = []
     ram_disk_path = "/Volumes/RAM DISK/"
     prefix = None
@@ -1274,7 +1280,7 @@ class CustomType1:
     def __init__(self, value: UUID):
         self.value = value
 
-    def __eq__(self, other: CustomType1):
+    def __eq__(self, other: object) -> bool:
         return type(self) is type(other) and self.__dict__ == other.__dict__
 
 
@@ -1282,39 +1288,46 @@ class CustomType2:
     def __init__(self, value: CustomType1):
         self.value = value
 
-    def __eq__(self, other: CustomType2):
+    def __eq__(self, other: object) -> bool:
         return type(self) is type(other) and self.__dict__ == other.__dict__
 
 
-class Mydict(dict):
-    def __repr__(self):
+_KT = TypeVar("_KT")
+_VT = TypeVar("_VT")
+
+
+class Mydict(dict[_KT, _VT]):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}({super().__repr__()})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return type(self) is type(other) and super().__eq__(other)
 
 
-class MyList(list):
-    def __repr__(self):
+_T = TypeVar("_T")
+
+
+class MyList(list[_T]):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}({super().__repr__()})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return type(self) is type(other) and super().__eq__(other)
 
 
 class MyStr(str):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}({super().__repr__()})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return type(self) is type(other) and super().__eq__(other)
 
 
 class MyInt(int):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}({super().__repr__()})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return type(self) is type(other) and super().__eq__(other)
 
 
@@ -1350,10 +1363,10 @@ class TranscoderTestCase(TestCase):
     def setUp(self) -> None:
         self.transcoder = self.construct_transcoder()
 
-    def construct_transcoder(self):
+    def construct_transcoder(self) -> Transcoder:
         raise NotImplementedError
 
-    def test_str(self):
+    def test_str(self) -> None:
         obj = "a"
         data = self.transcoder.encode(obj)
         self.assertEqual(data, b'"a"')
@@ -1385,48 +1398,48 @@ class TranscoderTestCase(TestCase):
             obj, self.transcoder.decode(legacy_encoding_with_ensure_ascii_true)
         )
 
-    def test_dict(self):
+    def test_dict(self) -> None:
         # Empty dict.
-        obj = {}
-        data = self.transcoder.encode(obj)
+        obj1: dict[Never, Never] = {}
+        data = self.transcoder.encode(obj1)
         self.assertEqual(data, b"{}")
-        self.assertEqual(obj, self.transcoder.decode(data))
+        self.assertEqual(obj1, self.transcoder.decode(data))
 
         # dict with single key.
-        obj = {"a": 1}
-        data = self.transcoder.encode(obj)
+        obj2 = {"a": 1}
+        data = self.transcoder.encode(obj2)
         self.assertEqual(data, b'{"a":1}')
-        self.assertEqual(obj, self.transcoder.decode(data))
+        self.assertEqual(obj2, self.transcoder.decode(data))
 
         # dict with many keys.
-        obj = {"a": 1, "b": 2}
-        data = self.transcoder.encode(obj)
+        obj3 = {"a": 1, "b": 2}
+        data = self.transcoder.encode(obj3)
         self.assertEqual(data, b'{"a":1,"b":2}')
-        self.assertEqual(obj, self.transcoder.decode(data))
+        self.assertEqual(obj3, self.transcoder.decode(data))
 
         # Empty dict in dict.
-        obj = {"a": {}}
-        data = self.transcoder.encode(obj)
+        obj4: dict[str, dict[Never, Never]] = {"a": {}}
+        data = self.transcoder.encode(obj4)
         self.assertEqual(data, b'{"a":{}}')
-        self.assertEqual(obj, self.transcoder.decode(data))
+        self.assertEqual(obj4, self.transcoder.decode(data))
 
         # Empty dicts in dict.
-        obj = {"a": {}, "b": {}}
-        data = self.transcoder.encode(obj)
+        obj5: dict[str, dict[Never, Never]] = {"a": {}, "b": {}}
+        data = self.transcoder.encode(obj5)
         self.assertEqual(data, b'{"a":{},"b":{}}')
-        self.assertEqual(obj, self.transcoder.decode(data))
+        self.assertEqual(obj5, self.transcoder.decode(data))
 
         # Empty dict in dict in dict.
-        obj = {"a": {"b": {}}}
-        data = self.transcoder.encode(obj)
+        obj6: dict[str, dict[str, dict[Never, Never]]] = {"a": {"b": {}}}
+        data = self.transcoder.encode(obj6)
         self.assertEqual(data, b'{"a":{"b":{}}}')
-        self.assertEqual(obj, self.transcoder.decode(data))
+        self.assertEqual(obj6, self.transcoder.decode(data))
 
         # Int in dict in dict in dict.
-        obj = {"a": {"b": {"c": 1}}}
-        data = self.transcoder.encode(obj)
+        obj7 = {"a": {"b": {"c": 1}}}
+        data = self.transcoder.encode(obj7)
         self.assertEqual(data, b'{"a":{"b":{"c":1}}}')
-        self.assertEqual(obj, self.transcoder.decode(data))
+        self.assertEqual(obj7, self.transcoder.decode(data))
 
         # TODO: Int keys?
         # obj = {1: "a"}
@@ -1434,115 +1447,115 @@ class TranscoderTestCase(TestCase):
         # self.assertEqual(data, b'{1:{"a"}')
         # self.assertEqual(obj, self.transcoder.decode(data))
 
-    def test_dict_with_len_2_and__data_(self):
+    def test_dict_with_len_2_and__data_(self) -> None:
         obj = {"_data_": 1, "something_else": 2}
         data = self.transcoder.encode(obj)
         self.assertEqual(obj, self.transcoder.decode(data))
 
-    def test_dict_with_len_2_and__type_(self):
+    def test_dict_with_len_2_and__type_(self) -> None:
         obj = {"_type_": 1, "something_else": 2}
         data = self.transcoder.encode(obj)
         self.assertEqual(obj, self.transcoder.decode(data))
 
-    def test_dict_subclass(self):
+    def test_dict_subclass(self) -> None:
         my_dict = Mydict({"a": 1})
         data = self.transcoder.encode(my_dict)
         self.assertEqual(b'{"_type_":"mydict","_data_":{"a":1}}', data)
         copy = self.transcoder.decode(data)
         self.assertEqual(my_dict, copy)
 
-    def test_list_subclass(self):
+    def test_list_subclass(self) -> None:
         my_list = MyList((("a", 1),))
         data = self.transcoder.encode(my_list)
         copy = self.transcoder.decode(data)
         self.assertEqual(my_list, copy)
 
-    def test_str_subclass(self):
+    def test_str_subclass(self) -> None:
         my_str = MyStr("a")
         data = self.transcoder.encode(my_str)
         copy = self.transcoder.decode(data)
         self.assertEqual(my_str, copy)
 
-    def test_int_subclass(self):
+    def test_int_subclass(self) -> None:
         my_int = MyInt(3)
         data = self.transcoder.encode(my_int)
         copy = self.transcoder.decode(data)
         self.assertEqual(my_int, copy)
 
-    def test_tuple(self):
+    def test_tuple(self) -> None:
         # Empty tuple.
-        obj = ()
-        data = self.transcoder.encode(obj)
+        obj1 = ()
+        data = self.transcoder.encode(obj1)
         self.assertEqual(data, b'{"_type_":"tuple_as_list","_data_":[]}')
-        self.assertEqual(obj, self.transcoder.decode(data))
+        self.assertEqual(obj1, self.transcoder.decode(data))
 
         # Empty tuple in a tuple.
-        obj = ((),)
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj2 = ((),)
+        data = self.transcoder.encode(obj2)
+        self.assertEqual(obj2, self.transcoder.decode(data))
 
         # Int in tuple in a tuple.
-        obj = ((1, 2),)
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj3 = ((1, 2),)
+        data = self.transcoder.encode(obj3)
+        self.assertEqual(obj3, self.transcoder.decode(data))
 
         # Str in tuple in a tuple.
-        obj = (("a", "b"),)
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj4 = (("a", "b"),)
+        data = self.transcoder.encode(obj4)
+        self.assertEqual(obj4, self.transcoder.decode(data))
 
         # Int and str in tuple in a tuple.
-        obj = ((1, "a"),)
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj5 = ((1, "a"),)
+        data = self.transcoder.encode(obj5)
+        self.assertEqual(obj5, self.transcoder.decode(data))
 
-    def test_list(self):
+    def test_list(self) -> None:
         # Empty list.
-        obj = []
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj1: list[Never] = []
+        data = self.transcoder.encode(obj1)
+        self.assertEqual(obj1, self.transcoder.decode(data))
 
         # Empty list in a list.
-        obj = [[]]
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj2: list[list[Never]] = [[]]
+        data = self.transcoder.encode(obj2)
+        self.assertEqual(obj2, self.transcoder.decode(data))
 
         # Int in list in a list.
-        obj = [[1, 2]]
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj3 = [[1, 2]]
+        data = self.transcoder.encode(obj3)
+        self.assertEqual(obj3, self.transcoder.decode(data))
 
         # Str in list in a list.
-        obj = [["a", "b"]]
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj4 = [["a", "b"]]
+        data = self.transcoder.encode(obj4)
+        self.assertEqual(obj4, self.transcoder.decode(data))
 
         # Int and str in list in a list.
-        obj = [[1, "a"]]
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj5 = [[1, "a"]]
+        data = self.transcoder.encode(obj5)
+        self.assertEqual(obj5, self.transcoder.decode(data))
 
-    def test_mixed(self):
-        obj = [(1, "a"), {"b": 2}]
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+    def test_mixed(self) -> None:
+        obj1 = [(1, "a"), {"b": 2}]
+        data = self.transcoder.encode(obj1)
+        self.assertEqual(obj1, self.transcoder.decode(data))
 
-        obj = ([1, "a"], {"b": 2})
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj2 = ([1, "a"], {"b": 2})
+        data = self.transcoder.encode(obj2)
+        self.assertEqual(obj2, self.transcoder.decode(data))
 
-        obj = {"a": (1, 2), "b": [3, 4]}
-        data = self.transcoder.encode(obj)
-        self.assertEqual(obj, self.transcoder.decode(data))
+        obj3 = {"a": (1, 2), "b": [3, 4]}
+        data = self.transcoder.encode(obj3)
+        self.assertEqual(obj3, self.transcoder.decode(data))
 
-    def test_custom_type_in_dict(self):
+    def test_custom_type_in_dict(self) -> None:
         # Int in dict in dict in dict.
         obj = {"a": CustomType2(CustomType1(UUID("b2723fe2c01a40d2875ea3aac6a09ff5")))}
         data = self.transcoder.encode(obj)
         decoded_obj = self.transcoder.decode(data)
         self.assertEqual(obj, decoded_obj)
 
-    def test_nested_custom_type(self):
+    def test_nested_custom_type(self) -> None:
         obj = CustomType2(CustomType1(UUID("b2723fe2c01a40d2875ea3aac6a09ff5")))
         data = self.transcoder.encode(obj)
         expect = (
@@ -1558,7 +1571,7 @@ class TranscoderTestCase(TestCase):
         self.assertIsInstance(copy.value.value, UUID)
         self.assertEqual(copy.value.value, obj.value.value)
 
-    def test_custom_type_error(self):
+    def test_custom_type_error(self) -> None:
         # Expect a TypeError when encoding because transcoding not registered.
         with self.assertRaises(TypeError) as cm:
             self.transcoder.encode(MyClass())

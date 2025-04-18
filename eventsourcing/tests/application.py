@@ -34,7 +34,7 @@ class ExampleApplicationTestCase(TestCase):
     counts: ClassVar[dict[type[TestCase], int]] = {}
     expected_factory_topic: str
 
-    def test_example_application(self):
+    def test_example_application(self) -> None:
         app = BankAccounts(env={"IS_SNAPSHOTTING_ENABLED": "y"})
 
         self.assertEqual(get_topic(type(app.factory)), self.expected_factory_topic)
@@ -80,30 +80,32 @@ class ExampleApplicationTestCase(TestCase):
         # Take snapshot (specify version).
         app.take_snapshot(account_id, version=Aggregate.INITIAL_VERSION + 1)
 
+        assert app.snapshots is not None  # for mypy
         snapshots = list(app.snapshots.get(account_id))
         self.assertEqual(len(snapshots), 1)
         self.assertEqual(snapshots[0].originator_version, Aggregate.INITIAL_VERSION + 1)
 
-        from_snapshot = app.repository.get(
+        from_snapshot1: BankAccount = app.repository.get(
             account_id, version=Aggregate.INITIAL_VERSION + 2
         )
-        self.assertIsInstance(from_snapshot, BankAccount)
-        self.assertEqual(from_snapshot.version, Aggregate.INITIAL_VERSION + 2)
-        self.assertEqual(from_snapshot.balance, Decimal("35.00"))
+        self.assertIsInstance(from_snapshot1, BankAccount)
+        self.assertEqual(from_snapshot1.version, Aggregate.INITIAL_VERSION + 2)
+        self.assertEqual(from_snapshot1.balance, Decimal("35.00"))
 
         # Take snapshot (don't specify version).
         app.take_snapshot(account_id)
+        assert app.snapshots is not None  # for mypy
         snapshots = list(app.snapshots.get(account_id))
         self.assertEqual(len(snapshots), 2)
         self.assertEqual(snapshots[0].originator_version, Aggregate.INITIAL_VERSION + 1)
         self.assertEqual(snapshots[1].originator_version, Aggregate.INITIAL_VERSION + 3)
 
-        from_snapshot = app.repository.get(account_id)
-        self.assertIsInstance(from_snapshot, BankAccount)
-        self.assertEqual(from_snapshot.version, Aggregate.INITIAL_VERSION + 3)
-        self.assertEqual(from_snapshot.balance, Decimal("65.00"))
+        from_snapshot2: BankAccount = app.repository.get(account_id)
+        self.assertIsInstance(from_snapshot2, BankAccount)
+        self.assertEqual(from_snapshot2.version, Aggregate.INITIAL_VERSION + 3)
+        self.assertEqual(from_snapshot2.balance, Decimal("65.00"))
 
-    def test__put_performance(self):
+    def test__put_performance(self) -> None:
         app = BankAccounts()
 
         # Open an account.
@@ -113,7 +115,7 @@ class ExampleApplicationTestCase(TestCase):
         )
         account = app.get_account(account_id)
 
-        def put():
+        def put() -> None:
             # Credit the account.
             account.append_transaction(Decimal("10.00"))
             app.save(account)
@@ -125,14 +127,14 @@ class ExampleApplicationTestCase(TestCase):
         duration = timeit(put, number=self.timeit_number)
         self.print_time("store events", duration)
 
-    def test__get_performance_with_snapshotting_enabled(self):
+    def test__get_performance_with_snapshotting_enabled(self) -> None:
         print()
         self._test_get_performance(is_snapshotting_enabled=True)
 
-    def test__get_performance_without_snapshotting_enabled(self):
+    def test__get_performance_without_snapshotting_enabled(self) -> None:
         self._test_get_performance(is_snapshotting_enabled=False)
 
-    def _test_get_performance(self, *, is_snapshotting_enabled: bool):
+    def _test_get_performance(self, *, is_snapshotting_enabled: bool) -> None:
         app = BankAccounts(
             env={"IS_SNAPSHOTTING_ENABLED": "y" if is_snapshotting_enabled else "n"}
         )
@@ -143,7 +145,7 @@ class ExampleApplicationTestCase(TestCase):
             email_address="alice@example.com",
         )
 
-        def read():
+        def read() -> None:
             # Get the account.
             app.get_account(account_id)
 
@@ -158,7 +160,7 @@ class ExampleApplicationTestCase(TestCase):
             test_label = "get without snapshotting"
         self.print_time(test_label, duration)
 
-    def print_time(self, test_label, duration):
+    def print_time(self, test_label: str, duration: float) -> None:
         cls = type(self)
         if cls not in self.started_ats:
             self.started_ats[cls] = datetime.now()
@@ -176,8 +178,8 @@ class ExampleApplicationTestCase(TestCase):
         )
 
         if self.counts[cls] == 3:
-            duration = datetime.now() - cls.started_ats[cls]
-            print(f"{cls.__name__: <29} timeit duration: {duration}")
+            cls_duration = datetime.now() - cls.started_ats[cls]
+            print(f"{cls.__name__: <29} timeit duration: {cls_duration}")
             sys.stdout.flush()
 
 
@@ -199,7 +201,7 @@ class BankAccounts(Application):
         super().register_transcodings(transcoder)
         transcoder.register(EmailAddressAsStr())
 
-    def open_account(self, full_name, email_address):
+    def open_account(self, full_name: str, email_address: str) -> UUID:
         account = BankAccount.open(
             full_name=full_name,
             email_address=email_address,
@@ -218,7 +220,7 @@ class BankAccounts(Application):
 
     def get_account(self, account_id: UUID) -> BankAccount:
         try:
-            aggregate = self.repository.get(account_id)
+            aggregate: BankAccount = self.repository.get(account_id)
         except AggregateNotFoundError:
             raise self.AccountNotFoundError(account_id) from None
         else:
@@ -230,7 +232,7 @@ class BankAccounts(Application):
 
 
 class ApplicationTestCase(TestCase):
-    def test_name(self):
+    def test_name(self) -> None:
         self.assertEqual(Application.name, "Application")
 
         class MyApplication1(Application):
@@ -243,7 +245,7 @@ class ApplicationTestCase(TestCase):
 
         self.assertEqual(MyApplication2.name, "MyBoundedContext")
 
-    def test_resolve_persistence_topics(self):
+    def test_resolve_persistence_topics(self) -> None:
         # None specified.
         app = Application()
         self.assertIsInstance(app.factory, InfrastructureFactory)
@@ -279,7 +281,7 @@ class ApplicationTestCase(TestCase):
             "eventsourcing.application:Application",
         )
 
-    def test_save_returns_recording_event(self):
+    def test_save_returns_recording_event(self) -> None:
         app = Application()
 
         recordings = app.save()
@@ -301,7 +303,9 @@ class ApplicationTestCase(TestCase):
         self.assertEqual(recordings[0].notification.id, 3)
         self.assertEqual(recordings[1].notification.id, 4)
 
-    def test_take_snapshot_raises_assertion_error_if_snapshotting_not_enabled(self):
+    def test_take_snapshot_raises_assertion_error_if_snapshotting_not_enabled(
+        self,
+    ) -> None:
         app = Application()
         with self.assertRaises(AssertionError) as cm:
             app.take_snapshot(uuid4())
@@ -314,12 +318,13 @@ class ApplicationTestCase(TestCase):
             "application class.",
         )
 
-    def test_application_with_cached_aggregates_and_fastforward(self):
+    def test_application_with_cached_aggregates_and_fastforward(self) -> None:
         app = Application(env={"AGGREGATE_CACHE_MAXSIZE": "10"})
 
         aggregate = Aggregate()
         app.save(aggregate)
         # Should not put the aggregate in the cache.
+        assert app.repository.cache is not None  # for mypy
         with self.assertRaises(KeyError):
             self.assertEqual(aggregate, app.repository.cache.get(aggregate.id))
 
@@ -339,7 +344,7 @@ class ApplicationTestCase(TestCase):
         app.repository.get(aggregate.id)
         self.assertEqual(aggregate, app.repository.cache.get(aggregate.id))
 
-    def test_application_fastforward_skipping_during_contention(self):
+    def test_application_fastforward_skipping_during_contention(self) -> None:
         app = Application(
             env={
                 "AGGREGATE_CACHE_MAXSIZE": "10",
@@ -354,18 +359,18 @@ class ApplicationTestCase(TestCase):
         stopped = Event()
 
         # Trigger, save, get, check.
-        def trigger_save_get_check():
+        def trigger_save_get_check() -> None:
             while not stopped.is_set():
                 try:
-                    aggregate = app.repository.get(aggregate_id)
+                    aggregate: Aggregate = app.repository.get(aggregate_id)
                     aggregate.trigger_event(Aggregate.Event)
                     saved_version = aggregate.version
                     try:
                         app.save(aggregate)
                     except IntegrityError:
                         continue
-                    cached_version = app.repository.get(aggregate_id).version
-                    if saved_version > cached_version:
+                    cached: Aggregate = app.repository.get(aggregate_id)
+                    if saved_version > cached.version:
                         print(f"Skipped fast-forwarding at version {saved_version}")
                         stopped.set()
                     if aggregate.version % 1000 == 0:
@@ -384,7 +389,7 @@ class ApplicationTestCase(TestCase):
             self.fail("Didn't skip fast forwarding before test timed out...")
         executor.shutdown()
 
-    def test_application_fastforward_blocking_during_contention(self):
+    def test_application_fastforward_blocking_during_contention(self) -> None:
         app = Application(
             env={
                 "AGGREGATE_CACHE_MAXSIZE": "10",
@@ -398,18 +403,18 @@ class ApplicationTestCase(TestCase):
         stopped = Event()
 
         # Trigger, save, get, check.
-        def trigger_save_get_check():
+        def trigger_save_get_check() -> None:
             while not stopped.is_set():
                 try:
-                    aggregate = app.repository.get(aggregate_id)
+                    aggregate: Aggregate = app.repository.get(aggregate_id)
                     aggregate.trigger_event(Aggregate.Event)
                     saved_version = aggregate.version
                     try:
                         app.save(aggregate)
                     except IntegrityError:
                         continue
-                    cached_version = app.repository.get(aggregate_id).version
-                    if saved_version > cached_version:
+                    cached: Aggregate = app.repository.get(aggregate_id)
+                    if saved_version > cached.version:
                         print(f"Skipped fast-forwarding at version {saved_version}")
                         stopped.set()
                     if aggregate.version % 1000 == 0:
@@ -429,7 +434,7 @@ class ApplicationTestCase(TestCase):
             self.fail("Wrongly skipped fast forwarding")
         executor.shutdown()
 
-    def test_application_with_cached_aggregates_not_fastforward(self):
+    def test_application_with_cached_aggregates_not_fastforward(self) -> None:
         app = Application(
             env={
                 "AGGREGATE_CACHE_MAXSIZE": "10",
@@ -439,11 +444,12 @@ class ApplicationTestCase(TestCase):
         aggregate = Aggregate()
         app.save(aggregate)
         # Should put the aggregate in the cache.
+        assert app.repository.cache is not None  # for mypy
         self.assertEqual(aggregate, app.repository.cache.get(aggregate.id))
         app.repository.get(aggregate.id)
         self.assertEqual(aggregate, app.repository.cache.get(aggregate.id))
 
-    def test_application_with_deepcopy_from_cache_arg(self):
+    def test_application_with_deepcopy_from_cache_arg(self) -> None:
         app = Application(
             env={
                 "AGGREGATE_CACHE_MAXSIZE": "10",
@@ -452,14 +458,15 @@ class ApplicationTestCase(TestCase):
         aggregate = Aggregate()
         app.save(aggregate)
         self.assertEqual(aggregate.version, 1)
-        aggregate = app.repository.get(aggregate.id)
-        aggregate.version = 101
+        reconstructed: Aggregate = app.repository.get(aggregate.id)
+        reconstructed.version = 101
+        assert app.repository.cache is not None  # for mypy
         self.assertEqual(app.repository.cache.get(aggregate.id).version, 1)
-        aggregate = app.repository.get(aggregate.id, deepcopy_from_cache=False)
-        aggregate.version = 101
+        cached: Aggregate = app.repository.get(aggregate.id, deepcopy_from_cache=False)
+        cached.version = 101
         self.assertEqual(app.repository.cache.get(aggregate.id).version, 101)
 
-    def test_application_with_deepcopy_from_cache_attribute(self):
+    def test_application_with_deepcopy_from_cache_attribute(self) -> None:
         app = Application(
             env={
                 "AGGREGATE_CACHE_MAXSIZE": "10",
@@ -468,15 +475,16 @@ class ApplicationTestCase(TestCase):
         aggregate = Aggregate()
         app.save(aggregate)
         self.assertEqual(aggregate.version, 1)
-        aggregate = app.repository.get(aggregate.id)
-        aggregate.version = 101
+        reconstructed: Aggregate = app.repository.get(aggregate.id)
+        reconstructed.version = 101
+        assert app.repository.cache is not None  # for mypy
         self.assertEqual(app.repository.cache.get(aggregate.id).version, 1)
         app.repository.deepcopy_from_cache = False
-        aggregate = app.repository.get(aggregate.id)
-        aggregate.version = 101
+        cached: Aggregate = app.repository.get(aggregate.id)
+        cached.version = 101
         self.assertEqual(app.repository.cache.get(aggregate.id).version, 101)
 
-    def test_application_log(self):
+    def test_application_log(self) -> None:
         # Check the old 'log' attribute presents the 'notification log' object.
         app = Application()
 
@@ -486,6 +494,6 @@ class ApplicationTestCase(TestCase):
 
         self.assertEqual(1, len(w))
         self.assertIs(w[-1].category, DeprecationWarning)
-        self.assertEqual(
-            "'log' is deprecated, use 'notifications' instead", w[-1].message.args[0]
+        self.assertIn(
+            "'log' is deprecated, use 'notifications' instead", str(w[-1].message)
         )

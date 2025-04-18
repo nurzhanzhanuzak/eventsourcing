@@ -4,6 +4,7 @@ import dataclasses
 import importlib
 import inspect
 import os
+from dataclasses import dataclass
 from datetime import datetime, tzinfo
 from functools import cache
 from types import FunctionType, WrapperDescriptorType
@@ -326,6 +327,34 @@ class CanInitAggregate(CanMutateAggregate):
         return agg
 
 
+def _ensure_idempotent_dataclass(module_name: str) -> None:
+    module = importlib.import_module(module_name)
+    if (
+        "dataclass" in module.__dict__
+        and module.__dict__["dataclass"] == dataclasses.dataclass
+        and "__original_dataclass_func__" not in module.__dict__
+    ):
+        module.__dict__["__original_dataclass_func__"] = module.__dict__["dataclass"]
+        module.__dict__["dataclass"] = _idempotent_dataclass
+
+
+def _idempotent_dataclass(cls: type[object] | None = None, /, **kwargs: Any) -> Any:
+
+    def idempotent_wrap(cls: type[object]) -> type[object]:
+        # Avoid processing dataclass twice.
+        if "__dataclass_fields__" in cls.__dict__:
+            return cls
+        return dataclasses.dataclass(**kwargs)(cls)
+
+    # See if we're being called as @dataclass or @dataclass().
+    if cls is None:
+        # We're called with parens.
+        return idempotent_wrap
+
+    # We're called as @dataclass without parens.
+    return idempotent_wrap(cls)
+
+
 class MetaDomainEvent(type):
     """
     Metaclass which ensures all domain event classes are frozen dataclasses.
@@ -334,6 +363,9 @@ class MetaDomainEvent(type):
     def __new__(
         cls, name: str, bases: tuple[type[TDomainEvent], ...], cls_dict: dict[str, Any]
     ) -> type[TDomainEvent]:
+        # Avoid trying to freeze twice.
+        _ensure_idempotent_dataclass(module_name=cls_dict["__module__"])
+
         event_cls = cast(
             type[TDomainEvent], super().__new__(cls, name, bases, cls_dict)
         )
@@ -342,6 +374,10 @@ class MetaDomainEvent(type):
         return event_cls
 
 
+_ensure_idempotent_dataclass(module_name=__name__)
+
+
+@dataclass(frozen=True)
 class DomainEvent(CanCreateTimestamp, metaclass=MetaDomainEvent):
     """
     Frozen data class representing domain model events.
@@ -363,6 +399,7 @@ class AggregateEvent(CanMutateAggregate, DomainEvent):
     """
 
 
+@dataclass(frozen=True)
 class AggregateCreated(CanInitAggregate, AggregateEvent):
     """
     Frozen data class representing the initial creation of an aggregate.
@@ -885,34 +922,6 @@ def _raise_missing_names_type_error(missing_names: list[str], msg: str) -> None:
 
 _annotations_mention_id: set[MetaAggregate[Aggregate]] = set()
 _init_mentions_id: set[MetaAggregate[Aggregate]] = set()
-
-
-def _ensure_idempotent_dataclass(module_name: str) -> None:
-    module = importlib.import_module(module_name)
-    if (
-        "dataclass" in module.__dict__
-        and module.__dict__["dataclass"] == dataclasses.dataclass
-        and "__original_dataclass_func__" not in module.__dict__
-    ):
-        module.__dict__["__original_dataclass_func__"] = module.__dict__["dataclass"]
-        module.__dict__["dataclass"] = _idempotent_dataclass
-
-
-def _idempotent_dataclass(cls: type[object] | None = None, /, **kwargs: Any) -> Any:
-
-    def idempotent_wrap(cls: type[object]) -> type[object]:
-        # Avoid processing dataclass twice.
-        if "__dataclass_fields__" in cls.__dict__:
-            return cls
-        return dataclasses.dataclass(**kwargs)(cls)
-
-    # See if we're being called as @dataclass or @dataclass().
-    if cls is None:
-        # We're called with parens.
-        return idempotent_wrap
-
-    # We're called as @dataclass without parens.
-    return idempotent_wrap(cls)
 
 
 class MetaAggregate(type, Generic[TAggregate]):

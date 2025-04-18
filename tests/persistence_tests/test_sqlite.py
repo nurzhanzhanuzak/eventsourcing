@@ -16,6 +16,7 @@ from eventsourcing.persistence import (
     PersistenceError,
     ProgrammingError,
     StoredEvent,
+    TrackingRecorder,
 )
 from eventsourcing.sqlite import (
     SQLiteAggregateRecorder,
@@ -313,7 +314,7 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
     class SQLiteTrackingRecorderSubclass(SQLiteTrackingRecorder):
         pass
 
-    def tracking_recorder_subclass(self):
+    def tracking_recorder_subclass(self) -> type[TrackingRecorder]:
         return self.SQLiteTrackingRecorderSubclass
 
     def expected_process_recorder_class(self):

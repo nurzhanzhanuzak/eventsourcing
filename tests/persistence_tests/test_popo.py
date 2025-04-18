@@ -4,7 +4,12 @@ from unittest import TestCase
 from unittest.mock import Mock
 from uuid import uuid4
 
-from eventsourcing.persistence import ProgrammingError, StoredEvent, Tracking
+from eventsourcing.persistence import (
+    ProgrammingError,
+    StoredEvent,
+    Tracking,
+    TrackingRecorder,
+)
 from eventsourcing.popo import (
     POPOAggregateRecorder,
     POPOApplicationRecorder,
@@ -204,7 +209,7 @@ class TestPOPOInfrastructureFactory(InfrastructureFactoryTestCase):
     class POPOTrackingRecorderSubclass(POPOTrackingRecorder):
         pass
 
-    def tracking_recorder_subclass(self):
+    def tracking_recorder_subclass(self) -> type[TrackingRecorder]:
         return self.POPOTrackingRecorderSubclass
 
     def expected_process_recorder_class(self):

@@ -25,6 +25,7 @@ from eventsourcing.persistence import (
     ProgrammingError,
     StoredEvent,
     Tracking,
+    TrackingRecorder,
 )
 from eventsourcing.postgres import (
     PostgresAggregateRecorder,
@@ -895,7 +896,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase):
     class PostgresTrackingRecorderSubclass(PostgresTrackingRecorder):
         pass
 
-    def tracking_recorder_subclass(self):
+    def tracking_recorder_subclass(self) -> type[TrackingRecorder]:
         return self.PostgresTrackingRecorderSubclass
 
     def test_create_tracking_recorder(self):
