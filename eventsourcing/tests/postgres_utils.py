@@ -5,12 +5,12 @@ from eventsourcing.postgres import PostgresDatastore
 
 
 def pg_close_all_connections(
-    name="eventsourcing",
-    host="127.0.0.1",
-    port="5432",
-    user="postgres",
-    password="postgres",  # noqa: S107
-):
+    name: str = "eventsourcing",
+    host: str = "127.0.0.1",
+    port: str = "5432",
+    user: str = "postgres",
+    password: str = "postgres",  # noqa: S107
+) -> None:
     try:
         # For local development... probably.
         pg_conn = psycopg.connect(
@@ -40,10 +40,9 @@ def pg_close_all_connections(
     """
     pg_conn_cursor = pg_conn.cursor()
     pg_conn_cursor.execute(close_all_connections)
-    return close_all_connections, pg_conn_cursor
 
 
-def drop_postgres_table(datastore: PostgresDatastore, table_name):
+def drop_postgres_table(datastore: PostgresDatastore, table_name: str) -> None:
     statement = f"DROP TABLE {table_name}"
     try:
         with datastore.transaction(commit=True) as curs:
