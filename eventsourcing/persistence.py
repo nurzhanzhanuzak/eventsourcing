@@ -14,7 +14,6 @@ from time import monotonic, sleep, time
 from types import GenericAlias, ModuleType
 from typing import TYPE_CHECKING, Any, Generic, Union, cast
 from uuid import UUID
-from warnings import warn
 
 from typing_extensions import TypeVar
 
@@ -285,15 +284,6 @@ class Mapper:
             topic=topic,
             state=stored_state,
         )
-
-    def from_domain_event(self, domain_event: DomainEventProtocol) -> StoredEvent:
-        warn(
-            "'from_domain_event()' is deprecated, use 'to_stored_event()' instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self.to_stored_event(domain_event)
 
     def to_domain_event(self, stored_event: StoredEvent) -> DomainEventProtocol:
         """

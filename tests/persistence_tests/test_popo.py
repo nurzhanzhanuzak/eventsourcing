@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from unittest import TestCase
@@ -7,6 +9,7 @@ from uuid import uuid4
 from eventsourcing.persistence import (
     AggregateRecorder,
     ApplicationRecorder,
+    Notification,
     ProcessRecorder,
     ProgrammingError,
     StoredEvent,
@@ -32,12 +35,12 @@ from eventsourcing.utils import Environment
 
 
 class TestPOPOAggregateRecorder(AggregateRecorderTestCase):
-    def create_recorder(self):
+    def create_recorder(self) -> AggregateRecorder:
         return POPOAggregateRecorder()
 
 
-class TestPOPOApplicationRecorder(ApplicationRecorderTestCase):
-    def create_recorder(self):
+class TestPOPOApplicationRecorder(ApplicationRecorderTestCase[POPOApplicationRecorder]):
+    def create_recorder(self) -> POPOApplicationRecorder:
         return POPOApplicationRecorder()
 
     def test_insert_select(self) -> None:
@@ -69,7 +72,7 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase):
         # This was returning 4.
         self.assertEqual(len(recorder.select_notifications(-1, 10)), 2)
 
-    def test_insert_subscribe(self):
+    def test_insert_subscribe(self) -> None:
         super().optional_test_insert_subscribe()
 
     def test_subscribe_concurrent_reading_and_writing(self) -> None:
@@ -79,7 +82,7 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase):
         batch_size = 100
         num_events = num_batches * batch_size
 
-        def read(last_notification_id: int):
+        def read(last_notification_id: int | None) -> None:
             start = datetime.now()
             with recorder.subscribe(last_notification_id) as subscription:
                 for i, notification in enumerate(subscription):
@@ -96,7 +99,7 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase):
                 "seconds",
             )
 
-        def write():
+        def write() -> None:
             start = datetime.now()
             for _ in range(num_batches):
                 events = []
@@ -131,6 +134,7 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase):
 
         print("Sequential...")
         last_notification_id = recorder.max_notification_id()
+        assert isinstance(last_notification_id, int)  # Should be int by now.
         write_job = thread_pool.submit(write)
         write_job.result()
         read_job = thread_pool.submit(read, last_notification_id)
@@ -138,7 +142,7 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase):
 
         thread_pool.shutdown()
 
-    def test_concurrent_throughput(self):
+    def test_concurrent_throughput(self) -> None:
         super().test_concurrent_throughput()
 
 
@@ -146,15 +150,15 @@ class TestPOPOTrackingRecorder(TrackingRecorderTestCase):
     def create_recorder(self) -> TrackingRecorder:
         return POPOTrackingRecorder()
 
-    def test_wait(self):
+    def test_wait(self) -> None:
         super().test_wait()
 
 
 class TestPOPOProcessRecorder(ProcessRecorderTestCase):
-    def create_recorder(self):
+    def create_recorder(self) -> ProcessRecorder:
         return POPOProcessRecorder()
 
-    def test_performance(self):
+    def test_performance(self) -> None:
         super().test_performance()
 
     def test_max_doesnt_increase_when_lower_inserted_later(self) -> None:
@@ -195,12 +199,12 @@ class TestPOPOProcessRecorder(ProcessRecorderTestCase):
         )
 
 
-class TestPOPOInfrastructureFactory(InfrastructureFactoryTestCase):
+class TestPOPOInfrastructureFactory(InfrastructureFactoryTestCase[POPOFactory]):
     def setUp(self) -> None:
         self.env = Environment("TestCase")
         super().setUp()
 
-    def expected_factory_class(self):
+    def expected_factory_class(self) -> type[POPOFactory]:
         return POPOFactory
 
     def expected_aggregate_recorder_class(self) -> type[AggregateRecorder]:
@@ -223,7 +227,7 @@ class TestPOPOInfrastructureFactory(InfrastructureFactoryTestCase):
 
 
 class TestPOPOSubscription(TestCase):
-    def test_listen_catches_error(self):
+    def test_listen_catches_error(self) -> None:
 
         mock_recorder = Mock(spec=POPOApplicationRecorder)
 
@@ -242,20 +246,40 @@ class TestPOPOSubscription(TestCase):
         with self.assertRaises(StopIteration):
             next(subscription)
 
-        subscription._notifications = [1, 2, 3]
+        subscription._notifications = [
+            Notification(
+                id=1, originator_id=uuid4(), originator_version=1, topic="", state=b""
+            ),
+            Notification(
+                id=2, originator_id=uuid4(), originator_version=1, topic="", state=b""
+            ),
+            Notification(
+                id=3, originator_id=uuid4(), originator_version=1, topic="", state=b""
+            ),
+        ]
         subscription._notifications_index = 0
 
         subscription._has_been_stopped = False
-        self.assertEqual(1, next(subscription))
-        self.assertEqual(2, next(subscription))
-        self.assertEqual(3, next(subscription))
+        self.assertEqual(1, next(subscription).id)
+        self.assertEqual(2, next(subscription).id)
+        self.assertEqual(3, next(subscription).id)
 
         subscription._notifications_queue.put([])
 
         with self.assertRaises(StopIteration):
             next(subscription)
 
-        subscription._notifications = [1, 2, 3]
+        subscription._notifications = [
+            Notification(
+                id=4, originator_id=uuid4(), originator_version=1, topic="", state=b""
+            ),
+            Notification(
+                id=5, originator_id=uuid4(), originator_version=1, topic="", state=b""
+            ),
+            Notification(
+                id=6, originator_id=uuid4(), originator_version=1, topic="", state=b""
+            ),
+        ]
         subscription._notifications_index = 0
         subscription._thread_error = ValueError()
         subscription._has_been_stopped = True

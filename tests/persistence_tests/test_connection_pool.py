@@ -20,68 +20,68 @@ from eventsourcing.persistence import (
 
 
 class DummyCursor(Cursor):
-    def __init__(self):
+    def __init__(self) -> None:
         self._closed = False
-        self._results = None
+        self._results: list[list[int]] | None = None
 
-    def execute(self, statement: str | bytes, _: Any = None):
+    def execute(self, statement: str | bytes, _: Any = None) -> None:
         if self._closed:
             raise PersistenceError
         assert statement == "SELECT 1"
         self._results = [[1]]
 
-    def fetchall(self):
+    def fetchall(self) -> Any:
         if self._closed:
             raise PersistenceError
         if self._results is None:
             raise ProgrammingError
         return self._results
 
-    def fetchone(self):
+    def fetchone(self) -> Any:
         if self._closed:
             raise PersistenceError
         if self._results is None:
             raise ProgrammingError
         return self._results[0]
 
-    def close(self):
+    def close(self) -> None:
         self._closed = True
 
 
-class DummyConnection(Connection):
+class DummyConnection(Connection[DummyCursor]):
     def __init__(self, max_age: float | None = None):
         super().__init__(max_age=max_age)
         self._cursors: list[DummyCursor] = []
         self._closed_on_server = False
 
-    def commit(self):
+    def commit(self) -> None:
         if self.closed:
             msg = "Closed"
             raise PersistenceError(msg)
 
-    def rollback(self):
+    def rollback(self) -> None:
         if self.closed:
             msg = "Closed"
             raise PersistenceError(msg)
 
-    def cursor(self):
+    def cursor(self) -> DummyCursor:
         curs = DummyCursor()
         self._cursors.append(curs)
         if self._closed or self._closed_on_server:
             curs.close()
         return curs
 
-    def _close(self):
+    def _close(self) -> None:
         for curs in self._cursors:
             curs.close()
         super()._close()
 
-    def close_on_server(self):
+    def close_on_server(self) -> None:
         self._closed_on_server = True
 
 
-class DummyConnectionPool(ConnectionPool):
-    def _create_connection(self) -> Connection:
+class DummyConnectionPool(ConnectionPool[DummyConnection]):
+    def _create_connection(self) -> DummyConnection:
         return DummyConnection(max_age=self.max_age)
 
 
@@ -89,7 +89,7 @@ class TestConnection(TestCase):
     def tearDown(self) -> None:
         sys.stdout.flush()
 
-    def test_commit_rollback_close(self):
+    def test_commit_rollback_close(self) -> None:
         conn = DummyConnection()
         self.assertFalse(conn.closed)
         self.assertFalse(conn.closing)
@@ -106,7 +106,7 @@ class TestConnection(TestCase):
         with self.assertRaises(PersistenceError):
             conn.rollback()
 
-    def test_max_age(self):
+    def test_max_age(self) -> None:
         conn = DummyConnection(max_age=0)
         sleep(0.01)
         self.assertTrue(conn.closing)
@@ -115,7 +115,7 @@ class TestConnection(TestCase):
         sleep(0.01)
         self.assertTrue(conn.closed)
 
-    def test_close_on_server(self):
+    def test_close_on_server(self) -> None:
         conn = DummyConnection()
         conn.close_on_server()
         self.assertFalse(conn.closing)
@@ -127,17 +127,19 @@ class TestConnection(TestCase):
 class TestConnectionPool(TestCase):
     ProgrammingError = ProgrammingError
     PersistenceError = PersistenceError
-    allowed_connecting_time = 0
+    allowed_connecting_time = 0.0
     expected_result_from_select_1: ClassVar[list[list[int]]] = [[1]]
 
     def create_pool(
         self,
-        pool_size=1,
-        max_overflow=0,
-        max_age=None,
-        pre_ping=False,
-        mutually_exclusive_read_write=False,
-    ):
+        *,
+        pool_size: int = 1,
+        max_overflow: int = 0,
+        pool_timeout: float = 5.0,
+        max_age: float | None = None,
+        pre_ping: bool = False,
+        mutually_exclusive_read_write: bool = True,
+    ) -> ConnectionPool[Any]:
         return DummyConnectionPool(
             pool_size=pool_size,
             max_overflow=max_overflow,
@@ -146,12 +148,12 @@ class TestConnectionPool(TestCase):
             mutually_exclusive_read_write=mutually_exclusive_read_write,
         )
 
-    def close_connection_on_server(self, *connections):
+    def close_connection_on_server(self, *connections: Connection[Any]) -> None:
         for conn in connections:
             assert isinstance(conn, DummyConnection)
             conn.close_on_server()
 
-    def test_get_and_put(self):
+    def test_get_and_put(self) -> None:
         pool = self.create_pool(pool_size=2, max_overflow=2)
 
         self.assertEqual(pool.num_in_use, 0)
@@ -264,12 +266,12 @@ class TestConnectionPool(TestCase):
         self.assertEqual(pool.num_in_pool, 2)
         self.assertTrue(conn10.closed)
 
-    def test_connection_not_from_pool(self):
+    def test_connection_not_from_pool(self) -> None:
         pool = self.create_pool()
         with self.assertRaises(ConnectionNotFromPoolError):
             pool.put_connection(pool._create_connection())
 
-    def test_close_before_returning(self):
+    def test_close_before_returning(self) -> None:
         pool = self.create_pool()
         self.assertEqual(pool.num_in_use, 0)
         self.assertEqual(pool.num_in_pool, 0)
@@ -283,7 +285,7 @@ class TestConnectionPool(TestCase):
         self.assertEqual(pool.num_in_use, 0)
         self.assertEqual(pool.num_in_pool, 0)
 
-    def test_close_after_returning(self):
+    def test_close_after_returning(self) -> None:
         pool = self.create_pool()
         conn1 = pool.get_connection()
         pool.put_connection(conn1)
@@ -293,7 +295,7 @@ class TestConnectionPool(TestCase):
         conn1 = pool.get_connection()
         self.assertFalse(conn1.closed)
 
-    def test_close_on_server_after_returning_without_pre_ping(self):
+    def test_close_on_server_after_returning_without_pre_ping(self) -> None:
         pool = self.create_pool()
 
         conn1 = pool.get_connection()
@@ -314,7 +316,7 @@ class TestConnectionPool(TestCase):
         with self.assertRaises(self.PersistenceError):
             conn1.cursor().execute("SELECT 1")
 
-    def test_close_on_server_after_returning_with_pre_ping(self):
+    def test_close_on_server_after_returning_with_pre_ping(self) -> None:
         pool = self.create_pool(pre_ping=True)
 
         conn1 = pool.get_connection()
@@ -330,7 +332,7 @@ class TestConnectionPool(TestCase):
         curs.execute("SELECT 1")
         self.assertEqual(curs.fetchall(), self.expected_result_from_select_1)
 
-    def test_max_age(self):
+    def test_max_age(self) -> None:
         pool = self.create_pool(max_age=0.2)
 
         # Timer fires after conn returned to pool.
@@ -368,7 +370,7 @@ class TestConnectionPool(TestCase):
         self.assertNotEqual(id(conn2), id(conn3))
         pool.put_connection(conn3)
 
-    def test_get_with_timeout(self):
+    def test_get_with_timeout(self) -> None:
         pool = self.create_pool()
 
         # Get a connection.
@@ -393,12 +395,12 @@ class TestConnectionPool(TestCase):
         getting_conn2 = Event()
         got_conn2 = Event()
 
-        def put_conn1():
+        def put_conn1() -> None:
             getting_conn2.wait()
             sleep(0.05)
             pool.put_connection(conn1)
 
-        def get_conn2():
+        def get_conn2() -> None:
             getting_conn2.set()
             pool.get_connection(timeout=0.1)
             got_conn2.set()
@@ -409,7 +411,7 @@ class TestConnectionPool(TestCase):
         thread2.start()
         self.assertTrue(got_conn2.wait(timeout=0.3))
 
-    def test_close_pool(self):
+    def test_close_pool(self) -> None:
         # Get three connections and return one of them.
         pool = self.create_pool(pool_size=2, max_overflow=1)
         conn1 = pool.get_connection()
@@ -441,7 +443,7 @@ class TestConnectionPool(TestCase):
 
         self.assertTrue(pool.closed)
 
-    def test_fairness(self):
+    def test_fairness(self) -> None:
         pool_size = 1
         num_threads = 5
         num_gets = 5
@@ -461,11 +463,11 @@ class TestConnectionPool(TestCase):
         deadline = num_threads * num_gets * hold_connection * 10
 
         class WorkerThread(Thread):
-            def __init__(self, name):
+            def __init__(self, name: str) -> None:
                 super().__init__(daemon=True)
                 self.name = name
 
-            def run(self):
+            def run(self) -> None:
                 for _ in range(num_gets):
                     if is_stopped.is_set():
                         break
@@ -494,11 +496,11 @@ class TestConnectionPool(TestCase):
         expected_sequence = names * num_gets
         self.assertEqual(expected_sequence, conn_sequence)
 
-    def test_reader_writer(self):
+    def test_reader_writer(self) -> None:
         self._test_reader_writer_with_mutually_exclusive_read_write()
         self._test_reader_writer_without_mutually_exclusive_read_write()
 
-    def _test_reader_writer_with_mutually_exclusive_read_write(self):
+    def _test_reader_writer_with_mutually_exclusive_read_write(self) -> None:
         pool = self.create_pool(pool_size=3, mutually_exclusive_read_write=True)
         self.assertTrue(pool._mutually_exclusive_read_write)
 
@@ -588,7 +590,7 @@ class TestConnectionPool(TestCase):
         self.assertEqual(0, pool._num_writers)
         self.assertEqual(0, pool._num_readers)
 
-    def _test_reader_writer_without_mutually_exclusive_read_write(self):
+    def _test_reader_writer_without_mutually_exclusive_read_write(self) -> None:
         pool = self.create_pool(pool_size=3, mutually_exclusive_read_write=False)
         self.assertFalse(pool._mutually_exclusive_read_write)
 
@@ -667,7 +669,7 @@ class TestConnectionPool(TestCase):
         self.assertEqual(0, pool._num_writers)
         self.assertEqual(2, pool._num_readers)
 
-    def test_semaphore_timeout_branch(self):
+    def test_semaphore_timeout_branch(self) -> None:
         # This test exercises unusual path where waiting for
         # the semaphore times out. This only happens when
         # the timeouts are very short and there are a lot
@@ -693,7 +695,7 @@ class TestConnectionPool(TestCase):
 
         # Block on waiting for a writer connection (holds the semaphore).
         class WriterThread(Thread):
-            def run(self):
+            def run(self) -> None:
                 with contextlib.suppress(ConnectionUnavailableError):
                     pool.get_connection(timeout=0.1, is_writer=True)
 
@@ -717,6 +719,6 @@ _print = print
 print_lock = Lock()
 
 
-def print(*args):  # noqa: A001
+def print(*args: Any) -> None:  # noqa: A001
     with print_lock:
         _print(*args)

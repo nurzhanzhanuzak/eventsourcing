@@ -423,6 +423,13 @@ class Runner(ABC):
         Returns an application instance for given application class.
         """
 
+    def __enter__(self) -> Self:
+        self.start()
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        self.stop()
+
 
 class RunnerAlreadyStartedError(Exception):
     """
@@ -547,13 +554,6 @@ class SingleThreadedRunner(Runner, RecordingEventReceiver):
         app = self.apps[cls.name]
         assert isinstance(app, cls)
         return app
-
-    def __enter__(self) -> Self:
-        self.start()
-        return self
-
-    def __exit__(self, *args: object, **kwargs: Any) -> None:
-        self.stop()
 
 
 class NewSingleThreadedRunner(Runner, RecordingEventReceiver):

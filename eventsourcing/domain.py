@@ -218,6 +218,7 @@ class CanMutateAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
     method that evolves the state of an aggregate.
     """
 
+    # Todo: Move this to a HasTimestamp? Why is it here??
     timestamp: datetime
     """Timezone-aware :class:`datetime` object representing when an event occurred."""
 

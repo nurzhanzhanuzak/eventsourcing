@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import sqlite3
 from sqlite3 import Connection
+from typing import Any
 from unittest import TestCase
 from unittest.mock import Mock
 from uuid import uuid4
@@ -7,6 +10,7 @@ from uuid import uuid4
 from eventsourcing.persistence import (
     AggregateRecorder,
     ApplicationRecorder,
+    ConnectionPool,
     DatabaseError,
     DataError,
     InfrastructureFactory,
@@ -48,19 +52,19 @@ class TestTransaction(TestCase):
         self.mock = Mock(Connection)
         self.t = SQLiteTransaction(self.mock, commit=True)
 
-    def test_calls_commit_if_error_not_raised_during_transaction(self):
+    def test_calls_commit_if_error_not_raised_during_transaction(self) -> None:
         with self.t:
             pass
         self.mock.commit.assert_called()
         self.mock.rollback.assert_not_called()
 
-    def test_calls_rollback_if_error_is_raised_during_transaction(self):
+    def test_calls_rollback_if_error_is_raised_during_transaction(self) -> None:
         with self.assertRaises(TypeError), self.t:
             raise TypeError
         self.mock.commit.assert_not_called()
         self.mock.rollback.assert_called()
 
-    def test_converts_errors_raised_in_transactions(self):
+    def test_converts_errors_raised_in_transactions(self) -> None:
         errors = [
             (InterfaceError, sqlite3.InterfaceError),
             (DataError, sqlite3.DataError),
@@ -82,13 +86,14 @@ class SQLiteConnectionPoolTestCase(TestConnectionPool):
 
     def create_pool(
         self,
-        pool_size=1,
-        max_overflow=0,
-        pool_timeout=5.0,
-        max_age=None,
-        pre_ping=False,
-        mutually_exclusive_read_write=True,
-    ):
+        *,
+        pool_size: int = 1,
+        max_overflow: int = 0,
+        pool_timeout: float = 5.0,
+        max_age: float | None = None,
+        pre_ping: bool = False,
+        mutually_exclusive_read_write: bool = True,
+    ) -> ConnectionPool[Any]:
         return SQLiteConnectionPool(
             db_name=self.db_name,
             pool_size=pool_size,
@@ -98,10 +103,10 @@ class SQLiteConnectionPoolTestCase(TestConnectionPool):
             pre_ping=pre_ping,
         )
 
-    def test_close_on_server_after_returning_with_pre_ping(self):
+    def test_close_on_server_after_returning_with_pre_ping(self) -> None:
         pass
 
-    def test_close_on_server_after_returning_without_pre_ping(self):
+    def test_close_on_server_after_returning_without_pre_ping(self) -> None:
         pass
 
 
@@ -111,7 +116,7 @@ class TestSQLiteConnectionPoolWithInMemoryDB(SQLiteConnectionPoolTestCase):
     def setUp(self) -> None:
         self.db_name = ":memory:"
 
-    def test_reader_writer(self):
+    def test_reader_writer(self) -> None:
         super()._test_reader_writer_with_mutually_exclusive_read_write()
 
 
@@ -122,7 +127,7 @@ class TestSQLiteConnectionPoolWithFileDB(SQLiteConnectionPoolTestCase):
         self.tmp_urls = tmpfile_uris()
         self.db_name = next(self.tmp_urls)
 
-    def test_reader_writer(self):
+    def test_reader_writer(self) -> None:
         super()._test_reader_writer_without_mutually_exclusive_read_write()
 
 
@@ -130,12 +135,12 @@ class TestSqliteDatastore(TestCase):
     def setUp(self) -> None:
         self.datastore = SQLiteDatastore(":memory:")
 
-    def test_connect_failure_raises_interface_error(self):
-        datastore = SQLiteDatastore(None)
+    def test_connect_failure_raises_interface_error(self) -> None:
+        datastore = SQLiteDatastore(None)  # type: ignore[arg-type]
         with self.assertRaises(InterfaceError), datastore.transaction(commit=False):
             pass
 
-    def test_transaction(self):
+    def test_transaction(self) -> None:
         transaction = self.datastore.transaction(commit=False)
         with transaction as cursor:
             cursor.execute("SELECT 1")
@@ -144,7 +149,7 @@ class TestSqliteDatastore(TestCase):
             self.assertEqual(len(rows[0]), 1)
             self.assertEqual(rows[0][0], 1)
 
-    def test_sets_wal_journal_mode_if_not_memory(self):
+    def test_sets_wal_journal_mode_if_not_memory(self) -> None:
         # Check datastore for in-memory database.
         with self.datastore.transaction(commit=False):
             pass
@@ -175,66 +180,68 @@ class TestSqliteDatastore(TestCase):
 
 
 class TestSQLiteAggregateRecorder(AggregateRecorderTestCase):
-    def create_recorder(self):
+    def create_recorder(self) -> AggregateRecorder:
         recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         recorder.create_table()
         return recorder
 
 
 class TestSQLiteAggregateRecorderErrors(TestCase):
-    def test_raises_operational_error_when_creating_table_fails(self):
+    def test_raises_operational_error_when_creating_table_fails(self) -> None:
         recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         # Broken create table statements.
         recorder.create_table_statements = ["BLAH"]
         with self.assertRaises(OperationalError):
             recorder.create_table()
 
-    def test_raises_operational_error_when_inserting_fails(self):
+    def test_raises_operational_error_when_inserting_fails(self) -> None:
         recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         # Don't create table.
         with self.assertRaises(OperationalError):
             recorder.insert_events([])
 
-    def test_raises_operational_error_when_selecting_fails(self):
+    def test_raises_operational_error_when_selecting_fails(self) -> None:
         recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         # Don't create table.
         with self.assertRaises(OperationalError):
             recorder.select_events(uuid4())
 
 
-class TestSQLiteApplicationRecorder(ApplicationRecorderTestCase):
-    def create_recorder(self):
+class TestSQLiteApplicationRecorder(
+    ApplicationRecorderTestCase[SQLiteApplicationRecorder]
+):
+    def create_recorder(self) -> SQLiteApplicationRecorder:
         recorder = SQLiteApplicationRecorder(
             SQLiteDatastore(db_name=self.db_uri, pool_size=100)
         )
         recorder.create_table()
         return recorder
 
-    def test_insert_select(self):
+    def test_insert_select(self) -> None:
         self.db_uri = ":memory:"
         super().test_insert_select()
 
-    def test_concurrent_no_conflicts(self):
+    def test_concurrent_no_conflicts(self) -> None:
         self.uris = tmpfile_uris()
         self.db_uri = next(self.uris)
         super().test_concurrent_no_conflicts()
 
-    def test_concurrent_no_conflicts_in_memory_db(self):
+    def test_concurrent_no_conflicts_in_memory_db(self) -> None:
         self.db_uri = "file::memory:?cache=shared"
         super().test_concurrent_no_conflicts()
 
-    def test_concurrent_throughput(self):
+    def test_concurrent_throughput(self) -> None:
         self.uris = tmpfile_uris()
         self.db_uri = next(self.uris)
         super().test_concurrent_throughput()
 
-    def test_concurrent_throughput_in_memory_db(self):
+    def test_concurrent_throughput_in_memory_db(self) -> None:
         self.db_uri = "file::memory:?cache=shared"
         super().test_concurrent_throughput()
 
 
 class TestSQLiteApplicationRecorderErrors(TestCase):
-    def test_insert_raises_operational_error_if_table_not_created(self):
+    def test_insert_raises_operational_error_if_table_not_created(self) -> None:
         recorder = SQLiteApplicationRecorder(SQLiteDatastore(":memory:"))
         stored_event1 = StoredEvent(
             originator_id=uuid4(),
@@ -246,7 +253,7 @@ class TestSQLiteApplicationRecorderErrors(TestCase):
             # Haven't created table.
             recorder.insert_events([stored_event1])
 
-    def test_select_raises_operational_error_if_table_not_created(self):
+    def test_select_raises_operational_error_if_table_not_created(self) -> None:
         recorder = SQLiteApplicationRecorder(SQLiteDatastore(":memory:"))
         with self.assertRaises(OperationalError):
             recorder.select_events(uuid4())
@@ -257,7 +264,7 @@ class TestSQLiteApplicationRecorderErrors(TestCase):
         with self.assertRaises(OperationalError):
             recorder.max_notification_id()
 
-    def test_subscribe_raised_not_implemented_error(self):
+    def test_subscribe_raised_not_implemented_error(self) -> None:
         recorder = SQLiteApplicationRecorder(SQLiteDatastore(":memory:"))
         with self.assertRaises(NotImplementedError):
             recorder.subscribe(0)
@@ -269,19 +276,19 @@ class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
         recorder.create_table()
         return recorder
 
-    def test_insert_tracking(self):
+    def test_insert_tracking(self) -> None:
         super().test_insert_tracking()
 
 
 class TestSQLiteProcessRecorder(ProcessRecorderTestCase):
-    def create_recorder(self):
+    def create_recorder(self) -> ProcessRecorder:
         recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
         recorder.create_table()
         return recorder
 
 
 class TestSQLiteProcessRecorderErrors(TestCase):
-    def test_insert_raises_operational_error_if_table_not_created(self):
+    def test_insert_raises_operational_error_if_table_not_created(self) -> None:
         recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
         stored_event1 = StoredEvent(
             originator_id=uuid4(),
@@ -292,7 +299,7 @@ class TestSQLiteProcessRecorderErrors(TestCase):
         with self.assertRaises(OperationalError):
             recorder.insert_events([stored_event1])
 
-    def test_select_raises_operational_error_if_table_not_created(self):
+    def test_select_raises_operational_error_if_table_not_created(self) -> None:
         recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
         with self.assertRaises(OperationalError):
             recorder.select_events(uuid4())
@@ -301,8 +308,8 @@ class TestSQLiteProcessRecorderErrors(TestCase):
             recorder.max_tracking_id("application name")
 
 
-class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
-    def expected_factory_class(self):
+class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase[SQLiteFactory]):
+    def expected_factory_class(self) -> type[SQLiteFactory]:
         return SQLiteFactory
 
     def expected_aggregate_recorder_class(self) -> type[AggregateRecorder]:
@@ -336,7 +343,7 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
         if SQLiteFactory.SQLITE_LOCK_TIMEOUT in self.env:
             del self.env[SQLiteFactory.SQLITE_LOCK_TIMEOUT]
 
-    def test_construct_raises_environment_error_when_dbname_missing(self):
+    def test_construct_raises_environment_error_when_dbname_missing(self) -> None:
         del self.env[SQLiteFactory.SQLITE_DBNAME]
         with self.assertRaises(EnvironmentError) as cm:
             InfrastructureFactory.construct(self.env)
@@ -346,7 +353,7 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
             "TESTCASE_SQLITE_DBNAME, SQLITE_DBNAME",
         )
 
-    def test_environment_error_raised_when_lock_timeout_not_an_int(self):
+    def test_environment_error_raised_when_lock_timeout_not_an_int(self) -> None:
         self.env[SQLiteFactory.SQLITE_LOCK_TIMEOUT] = "abc"
         with self.assertRaises(EnvironmentError) as cm:
             SQLiteFactory(self.env)
@@ -356,7 +363,7 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase):
             "is invalid. If set, an int or empty string is expected: 'abc'",
         )
 
-    def test_lock_timeout_value(self):
+    def test_lock_timeout_value(self) -> None:
         factory = SQLiteFactory(self.env)
         self.assertEqual(factory.datastore.pool.lock_timeout, None)
 

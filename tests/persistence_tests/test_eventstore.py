@@ -1,6 +1,7 @@
 from decimal import Decimal
 from unittest.case import TestCase
 
+from eventsourcing.domain import CanMutateProtocol
 from eventsourcing.persistence import (
     DatetimeAsISO,
     DecimalAsStr,
@@ -15,7 +16,7 @@ from eventsourcing.tests.domain import BankAccount
 
 
 class TestEventStore(TestCase):
-    def test(self):
+    def test(self) -> None:
         # Open an account.
         account = BankAccount.open(
             full_name="Alice",
@@ -56,15 +57,16 @@ class TestEventStore(TestCase):
         # Reconstruct the bank account.
         copy = None
         for domain_event in domain_events:
+            assert isinstance(domain_event, CanMutateProtocol)
             copy = domain_event.mutate(copy)
 
         # Check copy has correct attribute values.
+        assert copy is not None
         self.assertEqual(copy.id, account.id)
         self.assertEqual(copy.balance, Decimal("65.00"))
 
         # Get last event.
-        events = event_store.get(account.id, desc=True, limit=1)
-        events = list(events)
+        events = tuple(event_store.get(account.id, desc=True, limit=1))
         self.assertEqual(len(events), 1)
         last_event = events[0]
 

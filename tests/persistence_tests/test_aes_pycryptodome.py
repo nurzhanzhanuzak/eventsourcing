@@ -6,7 +6,7 @@ from eventsourcing.utils import Environment
 
 
 class TestAESCipher(TestCase):
-    def test_createkey(self):
+    def test_createkey(self) -> None:
         environment = Environment()
 
         # Valid key lengths.
@@ -36,7 +36,7 @@ class TestAESCipher(TestCase):
             AESCipher.create_key(36)
 
         # Non-valid key lengths (on construction).
-        def create_key(num_bytes):
+        def create_key(num_bytes: int) -> str:
             return b64encode(AESCipher.random_bytes(num_bytes)).decode("utf8")
 
         key = create_key(12)
@@ -62,7 +62,7 @@ class TestAESCipher(TestCase):
         with self.assertRaises(OSError):
             AESCipher(Environment())
 
-    def test_encrypt_and_decrypt(self):
+    def test_encrypt_and_decrypt(self) -> None:
         environment = Environment()
 
         key = AESCipher.create_key(16)

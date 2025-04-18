@@ -6,7 +6,7 @@ from eventsourcing.utils import Environment
 
 
 class TestAesCipherInteroperability(TestCase):
-    def test(self):
+    def test(self) -> None:
         environment = Environment()
         key = pycryptodome.AESCipher.create_key(16)
         environment["CIPHER_KEY"] = key

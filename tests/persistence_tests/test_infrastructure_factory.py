@@ -13,12 +13,14 @@ from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
 
 
 class TestInfrastructureFactory(TestCase):
-    def test_constructs_popo_factory_by_default(self):
+    def test_constructs_popo_factory_by_default(self) -> None:
         factory = InfrastructureFactory.construct()
         self.assertIsInstance(factory, InfrastructureFactory)
         self.assertIsInstance(factory, eventsourcing.popo.POPOFactory)
 
-    def test_construct_raises_exception_when_persistence_module_is_invalid(self):
+    def test_construct_raises_exception_when_persistence_module_is_invalid(
+        self,
+    ) -> None:
         with self.assertRaises(EnvironmentError):
             InfrastructureFactory.construct(
                 Environment(
@@ -33,7 +35,7 @@ class TestInfrastructureFactory(TestCase):
                 )
             )
 
-    def test_construct_transcoder(self):
+    def test_construct_transcoder(self) -> None:
         # No environment variables.
         factory = InfrastructureFactory.construct()
         transcoder = factory.transcoder()
@@ -66,7 +68,7 @@ class TestInfrastructureFactory(TestCase):
         transcoder = factory.transcoder()
         self.assertIsInstance(transcoder, OrjsonTranscoder)
 
-    def test_construct_mapper(self):
+    def test_construct_mapper(self) -> None:
         # No environment variables.
         factory = InfrastructureFactory.construct()
         mapper = factory.mapper()
@@ -107,7 +109,7 @@ class TestInfrastructureFactory(TestCase):
         self.assertIsInstance(mapper, PydanticMapper)
         self.assertIsInstance(mapper.transcoder, OrjsonTranscoder)
 
-    def test_construct_event_store(self):
+    def test_construct_event_store(self) -> None:
         factory = InfrastructureFactory.construct()
         event_store = factory.event_store()
         self.assertIsInstance(event_store, EventStore)

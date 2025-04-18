@@ -17,27 +17,27 @@ class TestJSONTranscoder(TranscoderTestCase):
         return transcoder
 
     @skip("test_tuple(): JSONTranscoder converts tuples to lists")
-    def test_tuple(self):
+    def test_tuple(self) -> None:
         pass
 
     @skip("test_mixed(): JSONTranscoder converts tuples to lists")
-    def test_mixed(self):
+    def test_mixed(self) -> None:
         pass
 
     @skip("test_dict_subclass(): JSONTranscoder converts dict subclasses to dict")
-    def test_dict_subclass(self):
+    def test_dict_subclass(self) -> None:
         pass
 
     @skip("test_list_subclass(): JSONTranscoder converts list subclasses to list")
-    def test_list_subclass(self):
+    def test_list_subclass(self) -> None:
         pass
 
     @skip("test_str_subclass(): JSONTranscoder converts str subclasses to str")
-    def test_str_subclass(self):
+    def test_str_subclass(self) -> None:
         pass
 
     @skip("test_int_subclass(): JSONTranscoder converts int subclasses to int")
-    def test_int_subclass(self):
+    def test_int_subclass(self) -> None:
         pass
 
 

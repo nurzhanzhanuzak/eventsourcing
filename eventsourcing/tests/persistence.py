@@ -10,9 +10,11 @@ from tempfile import NamedTemporaryFile
 from threading import Event, Thread, get_ident
 from time import sleep
 from timeit import timeit
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, cast
 from unittest import TestCase
 from uuid import UUID, uuid4
+
+from typing_extensions import TypeVar
 
 from eventsourcing.cipher import AESCipher
 from eventsourcing.compressor import ZlibCompressor
@@ -213,12 +215,17 @@ class AggregateRecorderTestCase(TestCase, ABC):
         )
 
 
-class ApplicationRecorderTestCase(TestCase, ABC):
+_TApplicationRecorder = TypeVar(
+    "_TApplicationRecorder", bound=ApplicationRecorder, default=ApplicationRecorder
+)
+
+
+class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder]):
     INITIAL_VERSION = 1
     EXPECT_CONTIGUOUS_NOTIFICATION_IDS = True
 
     @abstractmethod
-    def create_recorder(self) -> ApplicationRecorder:
+    def create_recorder(self) -> _TApplicationRecorder:
         """"""
 
     def test_insert_select(self) -> None:

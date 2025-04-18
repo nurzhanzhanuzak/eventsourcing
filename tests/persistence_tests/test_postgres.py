@@ -501,11 +501,11 @@ class TestPostgresSubscription(TestCase):
 
 
 class TestPostgresApplicationRecorder(
-    SetupPostgresDatastore, ApplicationRecorderTestCase
+    SetupPostgresDatastore, ApplicationRecorderTestCase[PostgresApplicationRecorder]
 ):
     def create_recorder(
         self, table_name: str = EVENTS_TABLE_NAME
-    ) -> ApplicationRecorder:
+    ) -> PostgresApplicationRecorder:
         if self.datastore.schema:
             table_name = f"{self.datastore.schema}.{table_name}"
         recorder = PostgresApplicationRecorder(
@@ -664,7 +664,7 @@ class TestPostgresApplicationRecorder(
     def test_insert_lock_timeout_actually_works(self) -> None:
         self.datastore.lock_timeout = 1
         self.datastore.pool.resize(2, 2)
-        recorder: PostgresApplicationRecorder = self.create_recorder()
+        recorder = self.create_recorder()
 
         stored_event1 = StoredEvent(
             originator_id=uuid4(),
