@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import dataclasses
 import inspect
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from unittest.case import TestCase
+from typing import cast
+from unittest import TestCase
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from eventsourcing.domain import (
@@ -23,24 +26,28 @@ from eventsourcing.utils import get_method_name
 
 
 class TestMetaAggregate(TestCase):
-    def test_aggregate_class_has_a_created_event_class(self):
-        self.assertTrue(hasattr(Aggregate, "_created_event_class"))
-        self.assertTrue(issubclass(Aggregate._created_event_class, AggregateCreated))
-        self.assertEqual(Aggregate._created_event_class, Aggregate.Created)
+    def test_aggregate_class_has_a_created_event_class(self) -> None:
+        a = Aggregate()
+        created_event = a._pending_events[0]
+        self.assertIs(type(created_event), Aggregate.Created)
 
-    def test_aggregate_subclass_is_a_dataclass_iff_decorated_or_has_annotations(self):
+    def test_aggregate_subclass_is_a_dataclass_iff_decorated_or_has_annotations(
+        self,
+    ) -> None:
+        self.assertFalse("__dataclass_fields__" in Aggregate.__dict__)
+
         # No dataclass decorator, no annotations.
-        class MyAggregate(Aggregate):
+        class MyAggregateWithoutDecorator(Aggregate):
             pass
 
-        self.assertFalse("__dataclass_fields__" in MyAggregate.__dict__)
+        self.assertFalse("__dataclass_fields__" in MyAggregateWithoutDecorator.__dict__)
 
         # Has a dataclass decorator but no annotations.
         @dataclass
-        class MyAggregate(Aggregate):
+        class MyAggregateWithDecorator(Aggregate):
             pass
 
-        self.assertTrue("__dataclass_fields__" in MyAggregate.__dict__)
+        self.assertTrue("__dataclass_fields__" in MyAggregateWithDecorator.__dict__)
 
         # Has annotations but no decorator.
         class MyAggregate(Aggregate):
@@ -48,39 +55,36 @@ class TestMetaAggregate(TestCase):
 
         self.assertTrue("__dataclass_fields__" in MyAggregate.__dict__)
 
-    def test_aggregate_subclass_gets_a_default_created_event_class(self):
+    def test_aggregate_subclass_gets_a_default_created_event_class(self) -> None:
         class MyAggregate(Aggregate):
             pass
 
-        self.assertTrue(hasattr(MyAggregate, "_created_event_class"))
-        self.assertTrue(issubclass(MyAggregate._created_event_class, AggregateCreated))
-        self.assertEqual(MyAggregate._created_event_class, MyAggregate.Created)
+        a = MyAggregate()
+        created_event = a._pending_events[0]
+        self.assertIs(type(created_event), MyAggregate.Created)
 
-    def test_aggregate_subclass_has_a_custom_created_event_class(self):
+    def test_aggregate_subclass_has_a_custom_created_event_class(self) -> None:
         class MyAggregate(Aggregate):
             class Started(AggregateCreated):
                 pass
 
-        self.assertTrue(hasattr(MyAggregate, "_created_event_class"))
-        self.assertTrue(issubclass(MyAggregate._created_event_class, AggregateCreated))
-        self.assertEqual(MyAggregate._created_event_class, MyAggregate.Started)
+        a = MyAggregate()
+        created_event = a._pending_events[0]
+        self.assertIs(type(created_event), MyAggregate.Started)
 
-    def test_aggregate_subclass_has_a_custom_created_event_class_name(self):
+    def test_aggregate_subclass_has_a_custom_created_event_class_name(self) -> None:
         @dataclass
         class MyAggregate(Aggregate, created_event_name="Started"):
             pass
 
         a = MyAggregate()
-        self.assertEqual(type(a.pending_events[0]).__name__, "Started")
+        created_event = a._pending_events[0]
+        self.assertIs(type(created_event), MyAggregate.Started)
+        self.assertTrue(
+            type(created_event).__qualname__.endswith("MyAggregate.Started")
+        )
 
-        self.assertTrue(hasattr(MyAggregate, "_created_event_class"))
-        created_event_cls = MyAggregate._created_event_class
-        self.assertEqual(created_event_cls.__name__, "Started")
-        self.assertTrue(created_event_cls.__qualname__.endswith("MyAggregate.Started"))
-        self.assertTrue(issubclass(created_event_cls, AggregateCreated))
-        self.assertEqual(created_event_cls, MyAggregate.Started)
-
-    def test_can_define_initial_version_number(self):
+    def test_can_define_initial_version_number(self) -> None:
         class MyAggregate1(Aggregate):
             INITIAL_VERSION = 0
 
@@ -101,23 +105,33 @@ class TestMetaAggregate(TestCase):
 
 
 class TestAggregateCreation(TestCase):
-    def test_call_class_method_create(self):
+    def test_call_class_method_create(self) -> None:
         # Check the _create() method creates a new aggregate.
         before_created = Aggregate.Event.create_timestamp()
-        uuid = uuid4()
+        aggregate_id = uuid4()
         a = Aggregate._create(
             event_class=AggregateCreated,
-            id=uuid,
+            id=aggregate_id,
         )
         after_created = Aggregate.Event.create_timestamp()
         self.assertIsInstance(a, Aggregate)
-        self.assertEqual(a.id, uuid)
+        self.assertEqual(a.id, aggregate_id)
         self.assertEqual(a.version, 1)
         self.assertEqual(a.created_on, a.modified_on)
         self.assertGreater(a.created_on, before_created)
         self.assertGreater(after_created, a.created_on)
 
-    def test_raises_when_create_args_mismatch_created_event(self):
+    def test_raises_when_call_class_method_create_with_invalid_id(self) -> None:
+        # Check the _create() method creates a new aggregate.
+        aggregate_id = "my-id"
+        with self.assertRaises(TypeError) as cm:
+            Aggregate._create(
+                event_class=AggregateCreated,
+                id=aggregate_id,
+            )
+        self.assertEqual(cm.exception.args[0], "Given id was not a UUID: my-id")
+
+    def test_raises_when_create_args_mismatch_created_event(self) -> None:
         class BrokenAggregate(Aggregate):
             @classmethod
             def create(cls, name):
@@ -129,12 +143,12 @@ class TestAggregateCreation(TestCase):
         method_name = get_method_name(BrokenAggregate.Created.__init__)
 
         self.assertEqual(
-            "Unable to construct 'Created' event: "
+            f"Unable to construct '{BrokenAggregate.Created.__qualname__}' event: "
             f"{method_name}() got an unexpected keyword argument 'name'",
             cm.exception.args[0],
         )
 
-    def test_call_base_class(self):
+    def test_call_base_class(self) -> None:
         before_created = Aggregate.Event.create_timestamp()
         a = Aggregate()
         after_created = Aggregate.Event.create_timestamp()
@@ -152,7 +166,7 @@ class TestAggregateCreation(TestCase):
         self.assertIsInstance(events[0], AggregateCreated)
         self.assertEqual("Aggregate.Created", type(events[0]).__qualname__)
 
-    def test_call_subclass_with_no_init(self):
+    def test_call_subclass_with_no_init(self) -> None:
         qualname = type(self).__qualname__
         prefix = f"{qualname}.test_call_subclass_with_no_init.<locals>."
 
@@ -199,12 +213,12 @@ class TestAggregateCreation(TestCase):
         self.assertIsInstance(events[0], AggregateCreated)
         self.assertEqual(f"{prefix}MyAggregate3.Started", type(events[0]).__qualname__)
 
-    def test_init_no_args(self):
+    def test_init_no_args(self) -> None:
         qualname = type(self).__qualname__
         prefix = f"{qualname}.test_init_no_args.<locals>."
 
         class MyAggregate1(Aggregate):
-            def __init__(self):
+            def __init__(self) -> None:
                 pass
 
         a = MyAggregate1()
@@ -222,7 +236,7 @@ class TestAggregateCreation(TestCase):
         # Do it again using @dataclass (makes no difference)...
         @dataclass  # ...this just makes the code completion work in the IDE.
         class MyAggregate2(Aggregate):
-            def __init__(self):
+            def __init__(self) -> None:
                 pass
 
         # Check the init method takes no args (except "self").
@@ -248,7 +262,7 @@ class TestAggregateCreation(TestCase):
         self.assertIsInstance(events[0], AggregateCreated)
         self.assertEqual(f"{prefix}MyAggregate3.Started", type(events[0]).__qualname__)
 
-    def test_raises_when_init_with_no_args_called_with_args(self):
+    def test_raises_when_init_with_no_args_called_with_args(self) -> None:
         # First, with a normal dataclass, to document the errors.
         @dataclass
         class Data(Aggregate):
@@ -281,7 +295,7 @@ class TestAggregateCreation(TestCase):
         assert_raises(Data)
         assert_raises(MyAgg)
 
-    def test_init_defined_with_positional_or_keyword_arg(self):
+    def test_init_defined_with_positional_or_keyword_arg(self) -> None:
         class MyAgg(Aggregate):
             def __init__(self, value):
                 self.value = value
@@ -298,7 +312,7 @@ class TestAggregateCreation(TestCase):
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 1)
 
-    def test_init_defined_with_default_keyword_arg(self):
+    def test_init_defined_with_default_keyword_arg(self) -> None:
         class MyAgg(Aggregate):
             def __init__(self, value=0):
                 self.value = value
@@ -309,7 +323,9 @@ class TestAggregateCreation(TestCase):
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 1)
 
-    def test_init_with_default_keyword_arg_required_positional_and_keyword_only(self):
+    def test_init_with_default_keyword_arg_required_positional_and_keyword_only(
+        self,
+    ) -> None:
         class MyAgg(Aggregate):
             def __init__(self, a, b=0, *, c):
                 self.a = a
@@ -321,7 +337,7 @@ class TestAggregateCreation(TestCase):
         self.assertEqual(x.b, 0)
         self.assertEqual(x.c, 2)
 
-    def test_raises_when_init_missing_1_required_positional_arg(self):
+    def test_raises_when_init_missing_1_required_positional_arg(self) -> None:
         class MyAgg(Aggregate):
             def __init__(self, value):
                 self.value = value
@@ -335,7 +351,7 @@ class TestAggregateCreation(TestCase):
             "positional argument: 'value'",
         )
 
-    def test_raises_when_init_missing_1_required_keyword_only_arg(self):
+    def test_raises_when_init_missing_1_required_keyword_only_arg(self) -> None:
         class MyAgg(Aggregate):
             def __init__(self, *, value):
                 self.value = value
@@ -349,7 +365,9 @@ class TestAggregateCreation(TestCase):
             "keyword-only argument: 'value'",
         )
 
-    def test_raises_when_init_missing_required_positional_and_keyword_only_arg(self):
+    def test_raises_when_init_missing_required_positional_and_keyword_only_arg(
+        self,
+    ) -> None:
         class MyAgg(Aggregate):
             def __init__(self, a, *, b):
                 pass
@@ -378,7 +396,7 @@ class TestAggregateCreation(TestCase):
             f"{method_name}() missing 1 required positional argument: 'a'",
         )
 
-    def test_raises_when_init_missing_2_required_positional_args(self):
+    def test_raises_when_init_missing_2_required_positional_args(self) -> None:
         class MyAgg(Aggregate):
             def __init__(self, a, b, *, c):
                 pass
@@ -393,7 +411,7 @@ class TestAggregateCreation(TestCase):
             f"{method_name}() missing 2 required positional arguments: 'a' and 'b'",
         )
 
-    def test_raises_when_init_gets_unexpected_keyword_argument(self):
+    def test_raises_when_init_gets_unexpected_keyword_argument(self) -> None:
         class MyAgg(Aggregate):
             def __init__(self, a=1):
                 pass
@@ -424,7 +442,7 @@ class TestAggregateCreation(TestCase):
             f"{method_name}() got an unexpected keyword argument 'b'",
         )
 
-    def test_init_defined_as_dataclass_no_default(self):
+    def test_init_defined_as_dataclass_no_default(self) -> None:
         class MyAgg(Aggregate):
             value: int
 
@@ -440,7 +458,7 @@ class TestAggregateCreation(TestCase):
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 1)
 
-    def test_init_defined_as_dataclass_with_default(self):
+    def test_init_defined_as_dataclass_with_default(self) -> None:
         class MyAgg(Aggregate):
             value: int = 0
 
@@ -472,7 +490,9 @@ class TestAggregateCreation(TestCase):
             cm.exception.args[0],
         )
 
-    def test_init_defined_as_dataclass_mixture_of_nondefault_and_default_values(self):
+    def test_init_defined_as_dataclass_mixture_of_nondefault_and_default_values(
+        self,
+    ) -> None:
         @dataclass
         class MyAgg(Aggregate):
             a: int
@@ -530,7 +550,7 @@ class TestAggregateCreation(TestCase):
         test_init(Data)
         test_init(MyAgg)
 
-    def test_raises_when_init_has_variable_positional_params(self):
+    def test_raises_when_init_has_variable_positional_params(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class _(Aggregate):  # noqa: N801
@@ -541,7 +561,7 @@ class TestAggregateCreation(TestCase):
             cm.exception.args[0], "*values not supported by decorator on __init__()"
         )
 
-    def test_raises_when_init_has_variable_keyword_params(self):
+    def test_raises_when_init_has_variable_keyword_params(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class _(Aggregate):  # noqa: N801
@@ -552,7 +572,7 @@ class TestAggregateCreation(TestCase):
             cm.exception.args[0], "**values not supported by decorator on __init__()"
         )
 
-    def test_define_custom_create_id_as_uuid5(self):
+    def test_define_custom_create_id_as_uuid5(self) -> None:
         class MyAggregate1(Aggregate):
             def __init__(self, name):
                 self.name = name
@@ -578,20 +598,27 @@ class TestAggregateCreation(TestCase):
         self.assertEqual(a.name, "name")
         self.assertEqual(a.id, MyAggregate2.create_id("name"))
 
-    def test_raises_type_error_if_create_id_not_staticmethod_or_classmethod(self):
+    def test_raises_type_error_if_create_id_does_not_return_uuid(
+        self,
+    ) -> None:
+        class MyAggregate(Aggregate):
+            @staticmethod
+            def create_id() -> UUID:
+                pass
+
+        with self.assertRaises(TypeError):
+            MyAggregate()
+
+    def test_raises_type_error_if_create_id_not_staticmethod_or_classmethod(
+        self,
+    ) -> None:
         with self.assertRaises(TypeError):
 
             class MyAggregate(Aggregate):
-                def create_id(self, myarg):
-                    pass
+                def create_id(self, myarg: str) -> UUID:
+                    return uuid4()
 
-    def test_raises_type_error_if_created_event_class_not_aggregate_created(self):
-        with self.assertRaises(TypeError):
-
-            class MyAggregate(Aggregate):
-                _created_event_class = Aggregate.Event
-
-    def test_refuse_implicit_choice_of_alternative_created_events(self):
+    def test_refuse_implicit_choice_of_alternative_created_events(self) -> None:
         # In case aggregates were created with old Created event,
         # there may need to be several defined. Then, when calling
         # aggregate class, require explicit statement of which to use.
@@ -612,28 +639,14 @@ class TestAggregateCreation(TestCase):
             # This is not okay.
             MyAggregate1()
 
-        self.assertTrue(
-            cm.exception.args[0].startswith(
-                "Can't decide which of many "
-                '"created" event classes to '
-                "use: 'Started', 'Opened'"
-            )
+        self.assertEqual(
+            f"{MyAggregate1.__qualname__} can't decide which of many "
+            '"created" event classes to '
+            "use: 'Started', 'Opened'. "
+            "Please use class arg 'created_event_name' or "
+            "@event decorator on __init__ method.",
+            cm.exception.args[0],
         )
-
-        # Specify created event class using _created_event_class.
-        class MyAggregate2(Aggregate):
-            class Started(AggregateCreated):
-                pass
-
-            class Opened(AggregateCreated):
-                pass
-
-            _created_event_class = Started
-
-        # Call class, and expect Started event will be used.
-        a = MyAggregate2()
-        events = a.collect_events()
-        self.assertIsInstance(events[0], MyAggregate2.Started, type(events[0]))
 
         # Specify created event class using created_event_name.
         class MyAggregate3(Aggregate, created_event_name="Started"):
@@ -644,11 +657,13 @@ class TestAggregateCreation(TestCase):
                 pass
 
         # Call class, and expect Started event will be used.
-        a = MyAggregate3()
-        events = a.collect_events()
+        a3 = MyAggregate3()
+        events = a3.collect_events()
         self.assertIsInstance(events[0], MyAggregate3.Started)
 
-    def test_refuse_implicit_choice_of_alternative_created_events_on_subclass(self):
+    def test_refuse_implicit_choice_of_alternative_created_events_on_subclass(
+        self,
+    ) -> None:
         # In case aggregates were created with old Created event,
         # there may need to be several defined. Then, when calling
         # aggregate class, require explicit statement of which to use.
@@ -675,30 +690,15 @@ class TestAggregateCreation(TestCase):
 
         self.assertTrue(
             cm.exception.args[0].startswith(
-                "Can't decide which of many "
+                f"{MyAggregate1.__qualname__} can't decide which of many "
                 '"created" event classes to '
                 "use: 'Started', 'Opened'"
             )
         )
 
-        # Specify created event class using _created_event_class.
-        class MyAggregate2(MyBaseAggregate):
-            class Started(AggregateCreated):
-                pass
-
-            class Opened(AggregateCreated):
-                pass
-
-            _created_event_class = Started
-
-        # Call class, and expect Started event will be used.
-        a = MyAggregate2()
-        events = a.collect_events()
-        self.assertIsInstance(events[0], MyAggregate2.Started)
-
-    def test_uses_defined_created_event_when_given_name_matches(self):
+    def test_uses_defined_created_event_when_given_name_matches(self) -> None:
         class Order(Aggregate, created_event_name="Started"):
-            def __init__(self, name):
+            def __init__(self, name: str) -> None:
                 self.name = name
                 self.confirmed_at = None
                 self.pickedup_at = None
@@ -713,9 +713,9 @@ class TestAggregateCreation(TestCase):
         pending = order.collect_events()
         self.assertEqual(type(pending[0]).__name__, "Started")
 
-    def test_defines_created_event_when_given_name_does_not_match(self):
+    def test_defines_created_event_when_given_name_does_not_match(self) -> None:
         class Order(Aggregate, created_event_name="Started"):
-            def __init__(self, name):
+            def __init__(self, name: str) -> None:
                 self.name = name
                 self.confirmed_at = None
                 self.pickedup_at = None
@@ -728,44 +728,20 @@ class TestAggregateCreation(TestCase):
         self.assertEqual(type(pending[0]).__name__, "Started")
         self.assertTrue(isinstance(pending[0], Order.Created))
 
-    def test_raises_when_given_created_event_name_conflicts_with_created_event_class(
-        self,
-    ):
-        with self.assertRaises(TypeError) as cm:
-
-            class Order(Aggregate, created_event_name="Started"):
-                def __init__(self, name):
-                    self.name = name
-                    self.confirmed_at = None
-                    self.pickedup_at = None
-
-                class Created(AggregateCreated):
-                    name: str
-
-                class Started(AggregateCreated):
-                    name: str
-
-                _created_event_class = Created
-
-        self.assertEqual(
-            cm.exception.args[0],
-            "Can't use both '_created_event_class' and 'created_event_name'",
-        )
-
-    def test_define_create_id(self):
+    def test_define_create_id(self) -> None:
         @dataclass
         class Index(Aggregate):
             name: str
 
             @staticmethod
-            def create_id(name: str):
+            def create_id(name: str) -> UUID:
                 return uuid5(NAMESPACE_URL, f"/pages/{name}")
 
         index = Index(name="name")
         self.assertEqual(index.name, "name")
         self.assertEqual(index.id, Index.create_id("name"))
 
-    def test_id_dataclass_style(self):
+    def test_id_dataclass_style(self) -> None:
         @dataclass
         class MyDataclass:
             id: UUID
@@ -777,12 +753,12 @@ class TestAggregateCreation(TestCase):
             name: str
 
             @staticmethod
-            def create_id(name: str):
+            def create_id(name: str) -> UUID:
                 return uuid5(NAMESPACE_URL, f"/pages/{name}")
 
-        def assert_id_dataclass_style(cls):
+        def assert_id_dataclass_style(cls: type[MyDataclass | Index]) -> None:
             with self.assertRaises(TypeError) as cm:
-                cls()
+                cls()  # type: ignore
             self.assertEqual(
                 cm.exception.args[0],
                 f"{get_method_name(cls.__init__)}() missing 2 "
@@ -799,14 +775,14 @@ class TestAggregateCreation(TestCase):
         assert_id_dataclass_style(MyDataclass)
         assert_id_dataclass_style(Index)
 
-    def test_init_has_id_explicitly(self):
+    def test_init_has_id_explicitly(self) -> None:
         class Index(Aggregate):
             def __init__(self, id: UUID, name: str):  # noqa: A002
                 self._id = id
                 self.name = name
 
             @staticmethod
-            def create_id(name: str):
+            def create_id(name: str) -> UUID:
                 return uuid5(NAMESPACE_URL, f"/pages/{name}")
 
         name = "name"
@@ -816,7 +792,7 @@ class TestAggregateCreation(TestCase):
 
 
 class TestSubsequentEvents(TestCase):
-    def test_trigger_event(self):
+    def test_trigger_event(self) -> None:
         a = Aggregate()
 
         # Check the aggregate can trigger further events.
@@ -830,7 +806,7 @@ class TestSubsequentEvents(TestCase):
         self.assertIsInstance(pending[1], AggregateEvent)
         self.assertEqual(pending[1].originator_version, 2)
 
-    def test_event_mutate_raises_originator_version_error(self):
+    def test_event_mutate_raises_originator_version_error(self) -> None:
         a = Aggregate()
 
         # Try to mutate aggregate with an invalid domain event.
@@ -843,7 +819,7 @@ class TestSubsequentEvents(TestCase):
         with self.assertRaises(OriginatorVersionError):
             event.mutate(a)
 
-    def test_event_mutate_raises_originator_id_error(self):
+    def test_event_mutate_raises_originator_id_error(self) -> None:
         a = Aggregate()
 
         # Try to mutate aggregate with an invalid domain event.
@@ -856,10 +832,10 @@ class TestSubsequentEvents(TestCase):
         with self.assertRaises(OriginatorIDError):
             event.mutate(a)
 
-    def test_raises_when_triggering_event_with_mismatched_args(self):
+    def test_raises_when_triggering_event_with_mismatched_args(self) -> None:
         class MyAgg(Aggregate):
             @classmethod
-            def create(cls):
+            def create(cls) -> MyAgg:
                 return cls._create(event_class=cls.Created, id=uuid4())
 
             class ValueUpdated(AggregateEvent):
@@ -880,7 +856,7 @@ class TestSubsequentEvents(TestCase):
             cm.exception.args[0],
         )
 
-    # def test_raises_when_apply_method_returns_value(self):
+    # def test_raises_when_apply_method_returns_value(self) -> None:
     #     class MyAgg(Aggregate):
     #         class ValueUpdated(AggregateEvent):
     #             a: int
@@ -902,29 +878,29 @@ class TestSubsequentEvents(TestCase):
     #         msg,
     #     )
 
-    def test_eq(self):
+    def test_eq(self) -> None:
         class MyAggregate1(Aggregate):
             id: UUID
 
         id_a = uuid4()
         id_b = uuid4()
-        a = MyAggregate1(id=id_a)
-        self.assertEqual(a, a)
+        a1 = MyAggregate1(id=id_a)  # type: ignore
+        self.assertEqual(a1, a1)
 
-        b = MyAggregate1(id=id_b)
-        self.assertNotEqual(a, b)
+        b1 = MyAggregate1(id=id_b)  # type: ignore
+        self.assertNotEqual(a1, b1)
 
-        c = MyAggregate1(id=id_a)
-        self.assertNotEqual(a, c)
+        c1 = MyAggregate1(id=id_a)  # type: ignore
+        self.assertNotEqual(a1, c1)
 
-        a_copy = a.collect_events()[0].mutate(None)
-        self.assertEqual(a, a_copy)
+        a1_copy = a1.collect_events()[0].mutate(None)
+        self.assertEqual(a1, a1_copy)
 
         # Check the aggregate can trigger further events.
-        a.trigger_event(AggregateEvent)
-        self.assertNotEqual(a, a_copy)
-        a.collect_events()
-        self.assertNotEqual(a, a_copy)
+        a1.trigger_event(AggregateEvent)
+        self.assertNotEqual(a1, a1_copy)
+        a1.collect_events()
+        self.assertNotEqual(a1, a1_copy)
 
         @dataclass(eq=False)
         class MyAggregate2(Aggregate):
@@ -932,25 +908,25 @@ class TestSubsequentEvents(TestCase):
 
         id_a = uuid4()
         id_b = uuid4()
-        a = MyAggregate2(id=id_a)
-        self.assertEqual(a, a)
+        a2 = MyAggregate2(id=id_a)
+        self.assertEqual(a2, a2)
 
-        b = MyAggregate2(id=id_b)
-        self.assertNotEqual(a, b)
+        b2 = MyAggregate2(id=id_b)
+        self.assertNotEqual(a2, b2)
 
-        c = MyAggregate2(id=id_a)
-        self.assertNotEqual(a, c)
+        c2 = MyAggregate2(id=id_a)
+        self.assertNotEqual(a2, c2)
 
-        a_copy = a.collect_events()[0].mutate(None)
-        self.assertEqual(a, a_copy)
+        a2_copy = a2.collect_events()[0].mutate(None)
+        self.assertEqual(a2, a2_copy)
 
         # Check the aggregate can trigger further events.
-        a.trigger_event(AggregateEvent)
-        self.assertNotEqual(a, a_copy)
-        a.collect_events()
-        self.assertNotEqual(a, a_copy)
+        a2.trigger_event(AggregateEvent)
+        self.assertNotEqual(a2, a2_copy)
+        a2.collect_events()
+        self.assertNotEqual(a2, a2_copy)
 
-    def test_repr_baseclass(self):
+    def test_repr_baseclass(self) -> None:
         a = Aggregate()
 
         expect = (
@@ -973,7 +949,7 @@ class TestSubsequentEvents(TestCase):
         )
         self.assertEqual(expect, repr(a))
 
-    def test_repr_subclass(self):
+    def test_repr_subclass(self) -> None:
         class MyAggregate1(Aggregate):
             a: int
 
@@ -981,31 +957,31 @@ class TestSubsequentEvents(TestCase):
                 b: int
 
                 def apply(self, aggregate: TAggregate) -> None:
-                    aggregate.b = self.b
+                    aggregate.b = self.b  # type: ignore
 
-        a = MyAggregate1(a=1)
+        a1 = MyAggregate1(a=1)  # type: ignore
         expect = (
-            f"MyAggregate1(id={a.id!r}, "
+            f"MyAggregate1(id={a1.id!r}, "
             "version=1, "
-            f"created_on={a.created_on!r}, "
-            f"modified_on={a.modified_on!r}, "
+            f"created_on={a1.created_on!r}, "
+            f"modified_on={a1.modified_on!r}, "
             "a=1"
             ")"
         )
-        self.assertEqual(expect, repr(a))
+        self.assertEqual(expect, repr(a1))
 
-        a.trigger_event(MyAggregate1.ValueAssigned, b=2)
+        a1.trigger_event(MyAggregate1.ValueAssigned, b=2)
 
         expect = (
-            f"MyAggregate1(id={a.id!r}, "
+            f"MyAggregate1(id={a1.id!r}, "
             "version=2, "
-            f"created_on={a.created_on!r}, "
-            f"modified_on={a.modified_on!r}, "
+            f"created_on={a1.created_on!r}, "
+            f"modified_on={a1.modified_on!r}, "
             "a=1, "
             "b=2"
             ")"
         )
-        self.assertEqual(expect, repr(a))
+        self.assertEqual(expect, repr(a1))
 
         @dataclass(repr=False)
         class MyAggregate2(Aggregate):
@@ -1014,36 +990,36 @@ class TestSubsequentEvents(TestCase):
             class ValueAssigned(AggregateEvent):
                 b: int
 
-                def apply(self, aggregate: TAggregate) -> None:
-                    aggregate.b = self.b
+                def apply(self, aggregate: Aggregate) -> None:
+                    cast(MyAggregate2, aggregate).b = self.b  # type: ignore
 
-        a = MyAggregate2(a=1)
+        a2 = MyAggregate2(a=1)
         expect = (
-            f"MyAggregate2(id={a.id!r}, "
+            f"MyAggregate2(id={a2.id!r}, "
             "version=1, "
-            f"created_on={a.created_on!r}, "
-            f"modified_on={a.modified_on!r}, "
+            f"created_on={a2.created_on!r}, "
+            f"modified_on={a2.modified_on!r}, "
             "a=1"
             ")"
         )
-        self.assertEqual(expect, repr(a))
+        self.assertEqual(expect, repr(a2))
 
-        a.trigger_event(MyAggregate2.ValueAssigned, b=2)
+        a2.trigger_event(MyAggregate2.ValueAssigned, b=2)
 
         expect = (
-            f"MyAggregate2(id={a.id!r}, "
+            f"MyAggregate2(id={a2.id!r}, "
             "version=2, "
-            f"created_on={a.created_on!r}, "
-            f"modified_on={a.modified_on!r}, "
+            f"created_on={a2.created_on!r}, "
+            f"modified_on={a2.modified_on!r}, "
             "a=1, "
             "b=2"
             ")"
         )
-        self.assertEqual(expect, repr(a))
+        self.assertEqual(expect, repr(a2))
 
 
 class TestAggregateEventsAreSubclassed(TestCase):
-    def test_base_event_class_is_defined_if_missing(self):
+    def test_base_event_class_is_defined_if_missing(self) -> None:
         class MyAggregate(Aggregate):
             pass
 
@@ -1051,7 +1027,7 @@ class TestAggregateEventsAreSubclassed(TestCase):
         self.assertTrue(issubclass(MyAggregate.Event, Aggregate.Event))
         self.assertNotEqual(MyAggregate.Event, Aggregate.Event)
 
-    def test_base_event_class_is_not_redefined_if_exists(self):
+    def test_base_event_class_is_not_redefined_if_exists(self) -> None:
         class MyAggregate(Aggregate):
             class Event(Aggregate.Event):
                 pass
@@ -1061,7 +1037,7 @@ class TestAggregateEventsAreSubclassed(TestCase):
         self.assertTrue(MyAggregate.Event.__qualname__.endswith("MyAggregate.Event"))
         self.assertEqual(MyAggregate.my_event_cls, MyAggregate.Event)
 
-    def test_aggregate_events_are_subclassed(self):
+    def test_aggregate_events_are_subclassed(self) -> None:
         class MyAggregate(Aggregate):
             class Created(Aggregate.Created):
                 pass
@@ -1072,13 +1048,10 @@ class TestAggregateEventsAreSubclassed(TestCase):
             class Ended(Aggregate.Event):
                 pass
 
-            _created_event_class = Started
-
         self.assertTrue(MyAggregate.Event.__qualname__.endswith("MyAggregate.Event"))
         self.assertTrue(issubclass(MyAggregate.Created, MyAggregate.Event))
         self.assertTrue(issubclass(MyAggregate.Started, MyAggregate.Event))
         self.assertTrue(issubclass(MyAggregate.Ended, MyAggregate.Event))
-        self.assertEqual(MyAggregate._created_event_class, MyAggregate.Started)
 
         class MySubclass(MyAggregate):
             class Opened(MyAggregate.Started):
@@ -1095,22 +1068,42 @@ class TestAggregateEventsAreSubclassed(TestCase):
             MySubclass.Ended.__qualname__,
         )
 
+        ssc = MySubclass()
+        created_event = ssc._pending_events[0]
         self.assertTrue(
-            MySubclass._created_event_class.__qualname__.endswith("MySubclass.Opened")
+            type(created_event).__qualname__.endswith("MySubclass.Opened"),
+            type(created_event).__qualname__,
         )
 
-        class MySubSubClass(MySubclass):
+        class MySubSubclass(MySubclass):
             pass
 
         self.assertTrue(
-            MySubSubClass._created_event_class.__qualname__.endswith(
-                "MySubSubClass.Opened"
-            )
+            MySubSubclass.Event.__qualname__.endswith("MySubSubclass.Event")
+        )
+        self.assertTrue(
+            MySubSubclass.Created.__qualname__.endswith("MySubSubclass.Created")
+        )
+        self.assertTrue(
+            MySubSubclass.Started.__qualname__.endswith("MySubSubclass.Started"),
+            MySubSubclass.Started.__qualname__,
+        )
+        self.assertTrue(
+            MySubSubclass.Ended.__qualname__.endswith("MySubSubclass.Ended"),
+            MySubSubclass.Ended.__qualname__,
+        )
+
+        ssc = MySubSubclass()
+        created_event = ssc._pending_events[0]
+
+        self.assertTrue(
+            type(created_event).__qualname__.endswith("MySubSubclass.Opened"),
+            type(created_event).__qualname__,
         )
 
 
 class TestBankAccount(TestCase):
-    def test_subclass_bank_account(self):
+    def test_subclass_bank_account(self) -> None:
         # Open an account.
         account: BankAccount = BankAccount.open(
             full_name="Alice",
@@ -1170,7 +1163,7 @@ class TestBankAccount(TestCase):
 
 
 class TestAggregateSubclass(TestCase):
-    def test_subclasses_no_attrs(self):
+    def test_subclasses_no_attrs(self) -> None:
         @dataclass
         class A(Aggregate):
             pass
@@ -1181,7 +1174,7 @@ class TestAggregateSubclass(TestCase):
 
         B()
 
-    def test_subclasses_one_attr(self):
+    def test_subclasses_one_attr(self) -> None:
         @dataclass
         class A(Aggregate):
             a: int
@@ -1191,13 +1184,171 @@ class TestAggregateSubclass(TestCase):
             pass
 
         with self.assertRaises(TypeError):
-            B()
+            B()  # type: ignore
 
         B(a=1)
 
 
+class TestAggregateSubclassWithFieldInitFalse(TestCase):
+    def test_without_decorator_default_value_set_post_init(self) -> None:
+        class A(Aggregate):
+            a: int
+
+        class B(A):
+            b: bool = field(init=False)
+
+            def __post_init__(self) -> None:
+                self.b = False
+
+            def set_b(self) -> None:
+                self.b = True
+
+        class C(B):
+            c: str
+
+        a = A(a=1)  # type: ignore
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)  # type: ignore
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")  # type: ignore
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_without_decorator_default_value_set_on_field(self) -> None:
+        class A(Aggregate):
+            a: int
+
+        class B(A):
+            b: bool = field(init=False, default=False)
+
+            def set_b(self) -> None:
+                self.b = True
+
+        class C(B):
+            c: str
+
+        a = A(a=1)  # type: ignore
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)  # type: ignore
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")  # type: ignore
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_with_decorator_default_value_set_post_init(self) -> None:
+        @dataclass
+        class A(Aggregate):
+            a: int
+
+        @dataclass
+        class B(A):
+            b: bool = field(init=False)
+
+            def __post_init__(self) -> None:
+                self.b = False
+
+            def set_b(self) -> None:
+                self.b = True
+
+        @dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+    def test_with_decorator_default_value_set_on_field(self) -> None:
+        @dataclass
+        class A:
+            a: bool = field(init=False, default=False)
+
+            def set_a(self) -> None:
+                self.a = True
+
+        @dataclass
+        class B(A):
+            b: str
+
+        a = A()
+        self.assertFalse(a.a)
+
+        a.set_a()
+        self.assertTrue(a.a)
+
+        b = B(b=1)
+        self.assertFalse(b.a)
+        self.assertEqual(b.b, 1)
+
+        b.set_a()
+        self.assertTrue(b.a)
+
+    def test_with_decorator_default_value_set_on_field_on_subclass(self) -> None:
+        @dataclass
+        class A(Aggregate):
+            a: int
+
+        @dataclass
+        class B(A):
+            b: bool = field(init=False, default=False)
+
+            def set_b(self) -> None:
+                self.b = True
+
+        @dataclass
+        class C(B):
+            c: str
+
+        a = A(a=1)
+        self.assertEqual(a.a, 1)
+
+        b = B(a=1)
+        self.assertEqual(b.a, 1)
+        self.assertEqual(b.b, False)
+
+        b.set_b()
+        self.assertEqual(b.b, True)
+
+        c = C(a=1, c="c")
+        self.assertEqual(c.a, 1)
+        self.assertEqual(c.b, False)
+        self.assertEqual(c.c, "c")
+        c.set_b()
+        self.assertEqual(c.b, True)
+
+
 class TestDemoNonidempotentDataclassBehaviour(TestCase):
-    def test_single_decorator_default_value_set_post_init(self):
+    def test_single_decorator_default_value_set_post_init(self) -> None:
         @dataclasses.dataclass
         class A:
             a: int
@@ -1206,10 +1357,10 @@ class TestDemoNonidempotentDataclassBehaviour(TestCase):
         class B(A):
             b: bool = field(init=False)
 
-            def __post_init__(self):
+            def __post_init__(self) -> None:
                 self.b = False
 
-            def set_b(self):
+            def set_b(self) -> None:
                 self.b = True
 
         @dataclasses.dataclass
@@ -1233,7 +1384,7 @@ class TestDemoNonidempotentDataclassBehaviour(TestCase):
         c.set_b()
         self.assertEqual(c.b, True)
 
-    def test_double_decorator_default_set_post_init(self):
+    def test_double_decorator_default_set_post_init(self) -> None:
         # Fails with missing positional argument.
 
         @dataclasses.dataclass
@@ -1246,10 +1397,10 @@ class TestDemoNonidempotentDataclassBehaviour(TestCase):
         class B(A):
             b: bool = field(init=False)
 
-            def __post_init__(self):
+            def __post_init__(self) -> None:
                 self.b = False
 
-            def set_b(self):
+            def set_b(self) -> None:
                 self.b = True
 
         @dataclasses.dataclass
@@ -1272,7 +1423,7 @@ class TestDemoNonidempotentDataclassBehaviour(TestCase):
 
         self.assertIn("missing 1 required positional argument: 'b'", str(cm.exception))
 
-    def test_single_decorator_default_value_set_on_field(self):
+    def test_single_decorator_default_value_set_on_field(self) -> None:
         @dataclasses.dataclass
         class A:
             a: int
@@ -1281,7 +1432,7 @@ class TestDemoNonidempotentDataclassBehaviour(TestCase):
         class B(A):
             b: bool = field(init=False, default=False)
 
-            def set_b(self):
+            def set_b(self) -> None:
                 self.b = True
 
         @dataclasses.dataclass
@@ -1305,7 +1456,7 @@ class TestDemoNonidempotentDataclassBehaviour(TestCase):
         c.set_b()
         self.assertEqual(c.b, True)
 
-    def test_double_decorator_default_value_set_on_field(self):
+    def test_double_decorator_default_value_set_on_field(self) -> None:
         @dataclasses.dataclass
         @dataclasses.dataclass
         class A:
@@ -1316,7 +1467,7 @@ class TestDemoNonidempotentDataclassBehaviour(TestCase):
         class B(A):
             b: bool = field(init=False, default=False)
 
-            def set_b(self):
+            def set_b(self) -> None:
                 self.b = True
 
         with self.assertRaises(TypeError) as cm:
@@ -1329,284 +1480,3 @@ class TestDemoNonidempotentDataclassBehaviour(TestCase):
         self.assertIn(
             "non-default argument 'c' follows default argument", str(cm.exception)
         )
-
-
-class TestIdempotentDataclass(TestCase):
-    class A(Aggregate):
-        pass
-
-    def test_default_value_set_post_init(self):
-        @dataclass
-        class A:
-            a: int
-
-        @dataclass
-        class B(A):
-            b: bool = field(init=False)
-
-            def __post_init__(self):
-                self.b = False
-
-            def set_b(self):
-                self.b = True
-
-        @dataclass
-        class C(B):
-            c: str
-
-        a = A(a=1)
-        self.assertEqual(a.a, 1)
-
-        b = B(a=1)
-        self.assertEqual(b.a, 1)
-        self.assertEqual(b.b, False)
-
-        b.set_b()
-        self.assertEqual(b.b, True)
-
-        c = C(a=1, c="c")
-        self.assertEqual(c.a, 1)
-        self.assertEqual(c.b, False)
-        self.assertEqual(c.c, "c")
-        c.set_b()
-        self.assertEqual(c.b, True)
-
-    def test_default_value_set_on_field(self):
-        @dataclass
-        class A:
-            a: int
-
-        @dataclass
-        class B(A):
-            b: bool = field(init=False, default=False)
-
-            def set_b(self):
-                self.b = True
-
-        @dataclass
-        class C(B):
-            c: str
-
-        a = A(a=1)
-        self.assertEqual(a.a, 1)
-
-        b = B(a=1)
-        self.assertEqual(b.a, 1)
-        self.assertEqual(b.b, False)
-
-        b.set_b()
-        self.assertEqual(b.b, True)
-
-        c = C(a=1, c="c")
-        self.assertEqual(c.a, 1)
-        self.assertEqual(c.b, False)
-        self.assertEqual(c.c, "c")
-        c.set_b()
-        self.assertEqual(c.b, True)
-
-    def test_double_decorator_default_value_set_post_init(self):
-        @dataclass
-        @dataclass
-        class A:
-            a: int
-
-        @dataclass
-        @dataclass
-        class B(A):
-            b: bool = field(init=False)
-
-            def __post_init__(self):
-                self.b = False
-
-            def set_b(self):
-                self.b = True
-
-        @dataclass
-        @dataclass
-        class C(B):
-            c: str
-
-        a = A(a=1)
-        self.assertEqual(a.a, 1)
-
-        b = B(a=1)
-        self.assertEqual(b.a, 1)
-        self.assertEqual(b.b, False)
-        b.set_b()
-        self.assertEqual(b.b, True)
-
-        c = C(a=1, c="c")
-        self.assertEqual(c.a, 1)
-        self.assertEqual(c.b, False)
-        self.assertEqual(c.c, "c")
-        c.set_b()
-        self.assertEqual(c.b, True)
-
-    def test_double_decorator_default_value_set_on_field(self):
-        @dataclass
-        @dataclass
-        class A:
-            a: int
-
-        @dataclass
-        @dataclass
-        class B(A):
-            b: bool = field(init=False, default=False)
-
-            def set_b(self):
-                self.b = True
-
-        @dataclass
-        @dataclass
-        class C(B):
-            c: str
-
-        a = A(a=1)
-        self.assertEqual(a.a, 1)
-
-        b = B(a=1)
-        self.assertEqual(b.a, 1)
-        self.assertEqual(b.b, False)
-
-        b.set_b()
-        self.assertEqual(b.b, True)
-
-        c = C(a=1, c="c")
-        self.assertEqual(c.a, 1)
-        self.assertEqual(c.b, False)
-        self.assertEqual(c.c, "c")
-        c.set_b()
-        self.assertEqual(c.b, True)
-
-
-class TestAggregateSubclassWithFieldInitFalse(TestCase):
-    def test_without_decorator_default_value_set_post_init(self):
-        class A(Aggregate):
-            a: int
-
-        class B(A):
-            b: bool = field(init=False)
-
-            def __post_init__(self):
-                self.b = False
-
-            def set_b(self):
-                self.b = True
-
-        class C(B):
-            c: str
-
-        a = A(a=1)
-        self.assertEqual(a.a, 1)
-
-        b = B(a=1)
-        self.assertEqual(b.a, 1)
-        self.assertEqual(b.b, False)
-
-        b.set_b()
-        self.assertEqual(b.b, True)
-
-        c = C(a=1, c="c")
-        self.assertEqual(c.a, 1)
-        self.assertEqual(c.b, False)
-        self.assertEqual(c.c, "c")
-        c.set_b()
-        self.assertEqual(c.b, True)
-
-    def test_without_decorator_default_value_set_on_field(self):
-        class A(Aggregate):
-            a: int
-
-        class B(A):
-            b: bool = field(init=False, default=False)
-
-            def set_b(self):
-                self.b = True
-
-        class C(B):
-            c: str
-
-        a = A(a=1)
-        self.assertEqual(a.a, 1)
-
-        b = B(a=1)
-        self.assertEqual(b.a, 1)
-        self.assertEqual(b.b, False)
-
-        b.set_b()
-        self.assertEqual(b.b, True)
-
-        c = C(a=1, c="c")
-        self.assertEqual(c.a, 1)
-        self.assertEqual(c.b, False)
-        self.assertEqual(c.c, "c")
-        c.set_b()
-        self.assertEqual(c.b, True)
-
-    def test_with_decorator_default_value_set_post_init(self):
-        @dataclass
-        class A(Aggregate):
-            a: int
-
-        @dataclass
-        class B(A):
-            b: bool = field(init=False)
-
-            def __post_init__(self):
-                self.b = False
-
-            def set_b(self):
-                self.b = True
-
-        @dataclass
-        class C(B):
-            c: str
-
-        a = A(a=1)
-        self.assertEqual(a.a, 1)
-
-        b = B(a=1)
-        self.assertEqual(b.a, 1)
-        self.assertEqual(b.b, False)
-        b.set_b()
-        self.assertEqual(b.b, True)
-
-        c = C(a=1, c="c")
-        self.assertEqual(c.a, 1)
-        self.assertEqual(c.b, False)
-        self.assertEqual(c.c, "c")
-        c.set_b()
-        self.assertEqual(c.b, True)
-
-    def test_with_decorator_default_value_set_on_field(self):
-        @dataclass
-        class A(Aggregate):
-            a: int
-
-        @dataclass
-        class B(A):
-            b: bool = field(init=False, default=False)
-
-            def set_b(self):
-                self.b = True
-
-        @dataclass
-        class C(B):
-            c: str
-
-        a = A(a=1)
-        self.assertEqual(a.a, 1)
-
-        b = B(a=1)
-        self.assertEqual(b.a, 1)
-        self.assertEqual(b.b, False)
-
-        b.set_b()
-        self.assertEqual(b.b, True)
-
-        c = C(a=1, c="c")
-        self.assertEqual(c.a, 1)
-        self.assertEqual(c.b, False)
-        self.assertEqual(c.c, "c")
-        c.set_b()
-        self.assertEqual(c.b, True)

@@ -218,7 +218,9 @@ def reversed_keys(d: dict[Any, Any]) -> Iterator[Any]:
     return reversed(d.keys())
 
 
-def get_method_name(method: FunctionType | WrapperDescriptorType) -> str:
+def get_method_name(
+    method: Callable[..., Any] | FunctionType | WrapperDescriptorType,
+) -> str:
     if sys.version_info >= (3, 10):  # pragma: no cover
         return method.__qualname__
     return method.__name__  # pragma: no cover

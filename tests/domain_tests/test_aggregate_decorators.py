@@ -1125,16 +1125,15 @@ class TestEventDecorator(TestCase):
                 pass
 
         a = MyAggregate()
-        self.assertEqual(type(a.pending_events[0]).__name__, "Started")
-
-        self.assertTrue(hasattr(MyAggregate, "_created_event_class"))
-        created_event_cls = MyAggregate._created_event_class
+        created_event = a.pending_events[0]
+        created_event_cls = type(created_event)
         self.assertEqual(created_event_cls.__name__, "Started")
+
         self.assertTrue(created_event_cls.__qualname__.endswith("MyAggregate.Started"))
         self.assertTrue(issubclass(created_event_cls, AggregateCreated))
         self.assertEqual(created_event_cls, MyAggregate.Started)
 
-    def test_aggregate_has_a_created_event_class_mentioned_event_decorator(self):
+    def test_one_of_many_created_events_selected_by_init_method_decorator(self):
         class MyAggregate(Aggregate):
             class Started(AggregateCreated):
                 pass
@@ -1147,16 +1146,15 @@ class TestEventDecorator(TestCase):
                 pass
 
         a = MyAggregate()
-        self.assertEqual(type(a.pending_events[0]).__name__, "Started")
-
-        self.assertTrue(hasattr(MyAggregate, "_created_event_class"))
-        created_event_cls = MyAggregate._created_event_class
+        created_event = a.pending_events[0]
+        created_event_cls = type(created_event)
         self.assertEqual(created_event_cls.__name__, "Started")
         self.assertTrue(created_event_cls.__qualname__.endswith("MyAggregate.Started"))
         self.assertTrue(issubclass(created_event_cls, AggregateCreated))
         self.assertEqual(created_event_cls, MyAggregate.Started)
 
     def test_aggregate_has_incompatible_created_event_class_in_event_decorator(self):
+        # Event mentions 'a' but constructor doesn't.
         class MyAggregate1(Aggregate):
             class Started(AggregateCreated):
                 a: int
@@ -1167,8 +1165,12 @@ class TestEventDecorator(TestCase):
 
         with self.assertRaises(TypeError) as cm:
             MyAggregate1()
-        self.assertTrue(
-            cm.exception.args[0].startswith("Unable to construct 'Started' event")
+        self.assertEqual(
+            (
+                f"Unable to construct '{MyAggregate1.Started.__qualname__}' event:"
+                f" __init__() missing 1 required positional argument: 'a'"
+            ),
+            cm.exception.args[0],
         )
 
         with self.assertRaises(TypeError) as cm:
@@ -1180,6 +1182,7 @@ class TestEventDecorator(TestCase):
             cm.exception.args[0],
         )
 
+        # Constructor mentions 'a' but event doesn't.
         class MyAggregate2(Aggregate):
             class Started(AggregateCreated):
                 pass
@@ -1199,94 +1202,12 @@ class TestEventDecorator(TestCase):
 
         with self.assertRaises(TypeError) as cm:
             MyAggregate2(a=1)
-        self.assertTrue(
-            cm.exception.args[0].startswith("Unable to construct 'Started' event:"),
-            cm.exception.args[0],
-        )
-
-    def test_raises_when_using_created_event_class_and_init_event_decorator(self):
-        # Different name.
-        with self.assertRaises(TypeError) as cm:
-
-            class _(Aggregate):  # noqa: N801
-                class Started(AggregateCreated):
-                    a: int
-
-                class Opened(AggregateCreated):
-                    a: int
-
-                _created_event_class = Opened
-
-                @event("Started")
-                def __init__(self):
-                    pass
-
         self.assertEqual(
+            (
+                f"Unable to construct '{MyAggregate2.Started.__qualname__}' event:"
+                f" __init__() got an unexpected keyword argument 'a'"
+            ),
             cm.exception.args[0],
-            "Can't use both '_created_event_class' and decorator on __init__",
-        )
-
-        # Same name.
-        with self.assertRaises(TypeError) as cm:
-
-            class _(Aggregate):  # noqa: N801
-                class Started(AggregateCreated):
-                    a: int
-
-                class Opened(AggregateCreated):
-                    a: int
-
-                _created_event_class = Opened
-
-                @event("Opened")
-                def __init__(self):
-                    pass
-
-        self.assertEqual(
-            cm.exception.args[0],
-            "Can't use both '_created_event_class' and decorator on __init__",
-        )
-
-        # Different class.
-        with self.assertRaises(TypeError) as cm:
-
-            class _(Aggregate):  # noqa: N801
-                class Started(AggregateCreated):
-                    a: int
-
-                class Opened(AggregateCreated):
-                    a: int
-
-                _created_event_class = Opened
-
-                @event(Started)
-                def __init__(self):
-                    pass
-
-        self.assertEqual(
-            cm.exception.args[0],
-            "Can't use both '_created_event_class' and decorator on __init__",
-        )
-
-        # Same class.
-        with self.assertRaises(TypeError) as cm:
-
-            class _(Aggregate):  # noqa: N801
-                class Started(AggregateCreated):
-                    a: int
-
-                class Opened(AggregateCreated):
-                    a: int
-
-                _created_event_class = Opened
-
-                @event(Opened)
-                def __init__(self):
-                    pass
-
-        self.assertEqual(
-            cm.exception.args[0],
-            "Can't use both '_created_event_class' and decorator on __init__",
         )
 
     def test_raises_when_using_created_event_name_and_init_event_decorator(self):
