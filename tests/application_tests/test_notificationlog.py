@@ -7,7 +7,7 @@ from eventsourcing.sqlite import SQLiteApplicationRecorder, SQLiteDatastore
 
 
 class TestNotificationLog(TestCase):
-    def test_get_section(self):
+    def test_get_section(self) -> None:
         recorder = SQLiteApplicationRecorder(SQLiteDatastore(":memory:"))
         recorder.create_table()
 
@@ -151,7 +151,7 @@ class TestNotificationLog(TestCase):
         # self.assertEqual(section.section_id, "5,8")
         # self.assertEqual(section.next_id, "9,12")
 
-    def test_select(self):
+    def test_select(self) -> None:
         recorder = SQLiteApplicationRecorder(SQLiteDatastore(":memory:"))
         recorder.create_table()
 

@@ -6,10 +6,10 @@ from eventsourcing.tests.application import (
 
 
 class TestApplicationWithPOPO(ApplicationTestCase):
-    def test_application_fastforward_skipping_during_contention(self):
+    def test_application_fastforward_skipping_during_contention(self) -> None:
         self.skipTest("POPO is too fast for this test to work")
 
-    def test_application_fastforward_blocking_during_contention(self):
+    def test_application_fastforward_blocking_during_contention(self) -> None:
         self.skipTest("POPO is too fast for this test to make sense")
 
 

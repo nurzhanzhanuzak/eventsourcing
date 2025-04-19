@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import cast
 from unittest import TestCase
 
 from eventsourcing.domain import Snapshot
@@ -16,7 +17,7 @@ from eventsourcing.tests.domain import BankAccount
 
 
 class TestSnapshotting(TestCase):
-    def test(self):
+    def test(self) -> None:
         # Open an account.
         account = BankAccount.open(
             full_name="Alice",
@@ -34,14 +35,15 @@ class TestSnapshotting(TestCase):
         transcoder.register(DatetimeAsISO())
         transcoder.register(EmailAddressAsStr())
 
+        recorder = SQLiteAggregateRecorder(
+            SQLiteDatastore(":memory:"),
+            events_table_name="snapshots",
+        )
         snapshot_store = EventStore(
             mapper=Mapper(transcoder=transcoder),
-            recorder=SQLiteAggregateRecorder(
-                SQLiteDatastore(":memory:"),
-                events_table_name="snapshots",
-            ),
+            recorder=recorder,
         )
-        snapshot_store.recorder.create_table()
+        recorder.create_table()
 
         # Clear pending events.
         account.collect_events()
@@ -56,7 +58,7 @@ class TestSnapshotting(TestCase):
 
         # Get snapshot.
         snapshots = snapshot_store.get(account.id, desc=True, limit=1)
-        snapshot = next(snapshots)
+        snapshot = cast(Snapshot, next(snapshots))
         assert isinstance(snapshot, Snapshot)
 
         # Reconstruct the bank account.

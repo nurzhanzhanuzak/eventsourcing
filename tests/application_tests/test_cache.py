@@ -4,8 +4,8 @@ from eventsourcing.application import Cache, LRUCache
 
 
 class TestCache(TestCase):
-    def test_put_get(self):
-        cache = Cache()
+    def test_put_get(self) -> None:
+        cache: Cache[int, int] = Cache()
 
         with self.assertRaises(KeyError):
             cache.get(1)
@@ -37,8 +37,8 @@ class TestCache(TestCase):
 
 
 class TestLRUCache(TestCase):
-    def test_put_get(self):
-        cache = LRUCache(maxsize=2)
+    def test_put_get(self) -> None:
+        cache: LRUCache[int, int] = LRUCache(maxsize=2)
 
         with self.assertRaises(KeyError):
             cache.get(1)
@@ -65,8 +65,8 @@ class TestLRUCache(TestCase):
         cache.put(1, 3)
         self.assertEqual(3, cache.get(1))
 
-    def test_put_get_evict_recent(self):
-        cache = LRUCache(maxsize=3)
+    def test_put_get_evict_recent(self) -> None:
+        cache: LRUCache[int, int] = LRUCache(maxsize=3)
 
         cache.put(1, 1)
         self.assertEqual(1, cache.get(1))
@@ -93,8 +93,8 @@ class TestLRUCache(TestCase):
         evicted = cache.put(7, 7)
         self.assertEqual(evicted, (4, 4))
 
-    def test_put_get_evict_oldest(self):
-        cache = LRUCache(maxsize=3)
+    def test_put_get_evict_oldest(self) -> None:
+        cache: LRUCache[int, int] = LRUCache(maxsize=3)
 
         cache.put(1, 1)
         cache.put(2, 2)
@@ -113,8 +113,8 @@ class TestLRUCache(TestCase):
         evicted = cache.put(7, 7)
         self.assertEqual(evicted, (4, 4))
 
-    def test_put_get_evict_newest(self):
-        cache = LRUCache(maxsize=3)
+    def test_put_get_evict_newest(self) -> None:
+        cache: LRUCache[int, int] = LRUCache(maxsize=3)
 
         cache.put(1, 1)
         cache.put(2, 2)

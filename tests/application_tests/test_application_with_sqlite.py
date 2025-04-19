@@ -1,6 +1,6 @@
 import os
 from abc import ABC
-from collections.abc import Sequence
+from collections.abc import Iterator
 from unittest import TestCase
 
 from eventsourcing.tests.application import (
@@ -14,7 +14,7 @@ from eventsourcing.tests.persistence import tmpfile_uris
 class WithSQLite(TestCase, ABC):
     timeit_number = 30 * TIMEIT_FACTOR
     expected_factory_topic = "eventsourcing.sqlite:SQLiteFactory"
-    uris: Sequence[str] = ()
+    uris: Iterator[str] = iter(())
 
     def setUp(self) -> None:
         super().setUp()
@@ -33,7 +33,7 @@ class WithSQLiteFile(WithSQLite):
     uris = tmpfile_uris()
 
 
-def memory_uris():
+def memory_uris() -> Iterator[str]:
     db_number = 1
     while True:
         uri = f"file:db{db_number}?mode=memory&cache=shared"
@@ -46,12 +46,12 @@ class WithSQLiteInMemory(WithSQLite):
 
 
 class TestApplicationWithSQLiteFile(WithSQLiteFile, ApplicationTestCase):
-    def test_catchup_subscription(self):
+    def test_catchup_subscription(self) -> None:
         self.skipTest("SQLite recorder doesn't support subscriptions")
 
 
 class TestApplicationWithSQLiteInMemory(WithSQLiteInMemory, ApplicationTestCase):
-    def test_catchup_subscription(self):
+    def test_catchup_subscription(self) -> None:
         self.skipTest("SQLite recorder doesn't support subscriptions")
 
 

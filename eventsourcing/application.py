@@ -94,10 +94,9 @@ class Cache(Generic[S, T]):
             return self.cache.pop(key)
         return self.cache[key]
 
-    def put(self, key: S, value: T) -> T | None:
+    def put(self, key: S, value: T | None) -> None:
         if value is not None:
             self.cache[key] = value
-        return None
 
 
 class LRUCache(Cache[S, T]):
@@ -152,7 +151,7 @@ class LRUCache(Cache[S, T]):
                 return result
             raise KeyError
 
-    def put(self, key: S, value: T) -> Any | None:
+    def put(self, key: S, value: T | None) -> Any | None:
         evicted_key = None
         evicted_value = None
         with self.lock:

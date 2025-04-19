@@ -1640,6 +1640,7 @@ class CanSnapshotAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
         return aggregate
 
 
+@dataclass(frozen=True)
 class Snapshot(CanSnapshotAggregate, DomainEvent):
     """
     Snapshots represent the state of an aggregate at a particular

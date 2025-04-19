@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from decimal import Decimal
 from functools import reduce
+from typing import TYPE_CHECKING, cast
 from unittest.case import TestCase
 from uuid import uuid4
 
@@ -9,7 +12,7 @@ from eventsourcing.application import (
     LRUCache,
     Repository,
 )
-from eventsourcing.domain import Aggregate, Snapshot
+from eventsourcing.domain import Aggregate, DomainEventProtocol, Snapshot
 from eventsourcing.persistence import (
     DatetimeAsISO,
     DecimalAsStr,
@@ -23,6 +26,9 @@ from eventsourcing.sqlite import SQLiteAggregateRecorder, SQLiteDatastore
 from eventsourcing.tests.application import EmailAddressAsStr
 from eventsourcing.tests.domain import BankAccount
 from eventsourcing.utils import get_topic
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 class TestRepository(TestCase):
@@ -68,7 +74,7 @@ class TestRepository(TestCase):
         # Store pending events.
         event_store.put(pending)
 
-        copy = repository.get(account.id)
+        copy: BankAccount = repository.get(account.id)
         assert isinstance(copy, BankAccount)
         # Check copy has correct attribute values.
         assert copy.id == account.id
@@ -83,7 +89,7 @@ class TestRepository(TestCase):
         )
         snapshot_store.put([snapshot])
 
-        copy2 = repository.get(account.id)
+        copy2: BankAccount = repository.get(account.id)
         assert isinstance(copy2, BankAccount)
 
         # Check copy has correct attribute values.
@@ -95,30 +101,30 @@ class TestRepository(TestCase):
         event_store.put(account.collect_events())
 
         # Check copy has correct attribute values.
-        copy3 = repository.get(account.id)
+        copy3: BankAccount = repository.get(account.id)
         assert isinstance(copy3, BankAccount)
 
         assert copy3.id == account.id
         assert copy3.balance == Decimal("75.00")
 
         # Check can get old version of account.
-        copy4 = repository.get(account.id, version=copy.version)
+        copy4: BankAccount = repository.get(account.id, version=copy.version)
         assert isinstance(copy4, BankAccount)
         assert copy4.balance == Decimal("65.00")
 
-        copy5 = repository.get(account.id, version=1)
+        copy5: BankAccount = repository.get(account.id, version=1)
         assert isinstance(copy5, BankAccount)
         assert copy5.balance == Decimal("0.00")
 
-        copy6 = repository.get(account.id, version=2)
+        copy6: BankAccount = repository.get(account.id, version=2)
         assert isinstance(copy6, BankAccount)
         assert copy6.balance == Decimal("10.00")
 
-        copy7 = repository.get(account.id, version=3)
+        copy7: BankAccount = repository.get(account.id, version=3)
         assert isinstance(copy7, BankAccount)
         assert copy7.balance == Decimal("35.00"), copy7.balance
 
-        copy8 = repository.get(account.id, version=4)
+        copy8: BankAccount = repository.get(account.id, version=4)
         assert isinstance(copy8, BankAccount)
         assert copy8.balance == Decimal("65.00"), copy8.balance
 
@@ -167,7 +173,7 @@ class TestRepository(TestCase):
         # Store pending events.
         event_store.put(pending)
 
-        copy = repository.get(account.id)
+        copy: BankAccount = repository.get(account.id)
         assert isinstance(copy, BankAccount)
         # Check copy has correct attribute values.
         assert copy.id == account.id
@@ -178,36 +184,40 @@ class TestRepository(TestCase):
         event_store.put(account.collect_events())
 
         # Check copy has correct attribute values.
-        copy2 = repository.get(account.id)
+        copy2: BankAccount = repository.get(account.id)
         assert isinstance(copy2, BankAccount)
 
         assert copy2.id == account.id
         assert copy2.balance == Decimal("75.00")
 
         # Check can get old version of account.
-        copy3 = repository.get(account.id, version=copy.version)
+        copy3: BankAccount = repository.get(account.id, version=copy.version)
         assert isinstance(copy3, BankAccount)
         assert copy3.balance == Decimal("65.00")
 
-        copy4 = repository.get(account.id, version=1)
+        copy4: BankAccount = repository.get(account.id, version=1)
         assert isinstance(copy4, BankAccount)
         assert copy4.balance == Decimal("0.00")
 
-        copy5 = repository.get(account.id, version=2)
+        copy5: BankAccount = repository.get(account.id, version=2)
         assert isinstance(copy5, BankAccount)
         assert copy5.balance == Decimal("10.00")
 
-        copy6 = repository.get(account.id, version=3)
+        copy6: BankAccount = repository.get(account.id, version=3)
         assert isinstance(copy6, BankAccount)
         assert copy6.balance == Decimal("35.00"), copy6.balance
 
-        copy7 = repository.get(account.id, version=4)
+        copy7: BankAccount = repository.get(account.id, version=4)
         assert isinstance(copy7, BankAccount)
         assert copy7.balance == Decimal("65.00"), copy7.balance
 
-    def test_with_alternative_mutator_function(self):
-        def mutator(initial, domain_events):
-            return reduce(lambda a, e: e.mutate(a), domain_events, initial)
+    def test_with_alternative_mutator_function(self) -> None:
+        def mutator(
+            initial: Aggregate | None, domain_events: Iterable[DomainEventProtocol]
+        ) -> BankAccount:
+            return cast(
+                BankAccount, reduce(lambda a, e: e.mutate(a), domain_events, initial)
+            )
 
         transcoder = JSONTranscoder()
         transcoder.register(UUIDAsHex())
@@ -250,7 +260,7 @@ class TestRepository(TestCase):
         # Store pending events.
         event_store.put(pending)
 
-        copy = repository.get(account.id, projector_func=mutator)
+        copy: BankAccount = repository.get(account.id, projector_func=mutator)
         assert isinstance(copy, BankAccount)
         # Check copy has correct attribute values.
         assert copy.id == account.id
@@ -265,7 +275,7 @@ class TestRepository(TestCase):
         )
         snapshot_store.put([snapshot])
 
-        copy2 = repository.get(account.id)
+        copy2: BankAccount = repository.get(account.id)
         assert isinstance(copy2, BankAccount)
 
         # Check copy has correct attribute values.
@@ -277,34 +287,34 @@ class TestRepository(TestCase):
         event_store.put(account.collect_events())
 
         # Check copy has correct attribute values.
-        copy3 = repository.get(account.id)
+        copy3: BankAccount = repository.get(account.id)
         assert isinstance(copy3, BankAccount)
 
         assert copy3.id == account.id
         assert copy3.balance == Decimal("75.00")
 
         # Check can get old version of account.
-        copy4 = repository.get(account.id, version=copy.version)
+        copy4: BankAccount = repository.get(account.id, version=copy.version)
         assert isinstance(copy4, BankAccount)
         assert copy4.balance == Decimal("65.00")
 
-        copy5 = repository.get(account.id, version=1)
+        copy5: BankAccount = repository.get(account.id, version=1)
         assert isinstance(copy5, BankAccount)
         assert copy5.balance == Decimal("0.00")
 
-        copy6 = repository.get(account.id, version=2)
+        copy6: BankAccount = repository.get(account.id, version=2)
         assert isinstance(copy6, BankAccount)
         assert copy6.balance == Decimal("10.00")
 
-        copy7 = repository.get(account.id, version=3)
+        copy7: BankAccount = repository.get(account.id, version=3)
         assert isinstance(copy7, BankAccount)
         assert copy7.balance == Decimal("35.00"), copy7.balance
 
-        copy8 = repository.get(account.id, version=4)
+        copy8: BankAccount = repository.get(account.id, version=4)
         assert isinstance(copy8, BankAccount)
         assert copy8.balance == Decimal("65.00"), copy8.balance
 
-    def test_contains(self):
+    def test_contains(self) -> None:
         transcoder = JSONTranscoder()
         transcoder.register(UUIDAsHex())
         transcoder.register(DecimalAsStr())
@@ -323,7 +333,7 @@ class TestRepository(TestCase):
         self.assertTrue(aggregate.id in repository)
         self.assertFalse(uuid4() in repository)
 
-    def test_cache_maxsize_zero(self):
+    def test_cache_maxsize_zero(self) -> None:
         transcoder = JSONTranscoder()
         transcoder.register(UUIDAsHex())
         transcoder.register(DecimalAsStr())
@@ -345,13 +355,15 @@ class TestRepository(TestCase):
         event_store.put(aggregate.collect_events())
         self.assertTrue(aggregate.id in repository)
 
-        self.assertEqual(1, repository.get(aggregate.id).version)
+        reconstructed1: Aggregate = repository.get(aggregate.id)
+        self.assertEqual(1, reconstructed1.version)
 
         aggregate.trigger_event(Aggregate.Event)
         event_store.put(aggregate.collect_events())
-        self.assertEqual(2, repository.get(aggregate.id).version)
+        reconstructed2: Aggregate = repository.get(aggregate.id)
+        self.assertEqual(2, reconstructed2.version)
 
-    def test_cache_maxsize_nonzero(self):
+    def test_cache_maxsize_nonzero(self) -> None:
         transcoder = JSONTranscoder()
         transcoder.register(UUIDAsHex())
         transcoder.register(DecimalAsStr())
@@ -382,17 +394,22 @@ class TestRepository(TestCase):
         event_store.put(aggregate3.collect_events())
         self.assertTrue(aggregate3.id in repository)
 
+        assert repository.cache is not None  # for mypy
         self.assertFalse(aggregate1.id in repository.cache.cache)
 
-        self.assertEqual(1, repository.get(aggregate1.id).version)
-        self.assertEqual(1, repository.get(aggregate2.id).version)
-        self.assertEqual(1, repository.get(aggregate3.id).version)
+        reconstructed1: Aggregate = repository.get(aggregate1.id)
+        self.assertEqual(1, reconstructed1.version)
+        reconstructed2: Aggregate = repository.get(aggregate2.id)
+        self.assertEqual(1, reconstructed2.version)
+        reconstructed3: Aggregate = repository.get(aggregate3.id)
+        self.assertEqual(1, reconstructed3.version)
 
         aggregate1.trigger_event(Aggregate.Event)
         event_store.put(aggregate1.collect_events())
-        self.assertEqual(2, repository.get(aggregate1.id).version)
+        reconstructed4: Aggregate = repository.get(aggregate1.id)
+        self.assertEqual(2, reconstructed4.version)
 
-    def test_cache_fastforward_false(self):
+    def test_cache_fastforward_false(self) -> None:
         transcoder = JSONTranscoder()
         transcoder.register(UUIDAsHex())
         transcoder.register(DecimalAsStr())
@@ -413,13 +430,17 @@ class TestRepository(TestCase):
 
         aggregate = Aggregate()
         event_store.put(aggregate.collect_events())
-        self.assertEqual(1, repository.get(aggregate.id).version)
+        reconstructed1: Aggregate = repository.get(aggregate.id)
+        self.assertEqual(1, reconstructed1.version)
 
         aggregate.trigger_event(Aggregate.Event)
         event_store.put(aggregate.collect_events())
-        self.assertEqual(1, repository.get(aggregate.id).version)
+        reconstructed2: Aggregate = repository.get(aggregate.id)
+        self.assertEqual(1, reconstructed2.version)
 
-    def test_cache_raises_aggregate_not_found_when_projector_func_returns_none(self):
+    def test_cache_raises_aggregate_not_found_when_projector_func_returns_none(
+        self,
+    ) -> None:
         transcoder = JSONTranscoder()
         transcoder.register(UUIDAsHex())
         transcoder.register(DecimalAsStr())
@@ -439,14 +460,15 @@ class TestRepository(TestCase):
 
         aggregate = Aggregate()
         event_store.put(aggregate.collect_events())
-        self.assertEqual(1, repository.get(aggregate.id).version)
+        reconstructed: Aggregate = repository.get(aggregate.id)
+        self.assertEqual(1, reconstructed.version)
 
         aggregate.trigger_event(Aggregate.Event)
         event_store.put(aggregate.collect_events())
         with self.assertRaises(AggregateNotFoundError):
             repository.get(aggregate.id, projector_func=lambda _, __: None)
 
-    def test_fastforward_lock(self):
+    def test_fastforward_lock(self) -> None:
         repository = Repository(
             EventStore(
                 mapper=Mapper(transcoder=JSONTranscoder()),

@@ -17,7 +17,7 @@ class BankAccountsWithAutomaticSnapshotting(BankAccounts):
 
 
 class TestApplicationWithAutomaticSnapshotting(TestCase):
-    def test(self):
+    def test(self) -> None:
         app = BankAccountsWithAutomaticSnapshotting()
 
         # Check snapshotting is enabled by setting snapshotting_intervals only.
@@ -27,6 +27,7 @@ class TestApplicationWithAutomaticSnapshotting(TestCase):
         account_id = app.open_account("Alice", "alice@example.com")
 
         # Check there are no snapshots.
+        assert app.snapshots is not None  # for mypy
         snapshots = list(app.snapshots.get(account_id))
         self.assertEqual(len(snapshots), 0)
 

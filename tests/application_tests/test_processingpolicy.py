@@ -1,14 +1,18 @@
+from __future__ import annotations
+
 import warnings
 from unittest.case import TestCase
 from uuid import uuid4
 
-from eventsourcing.domain import Aggregate
+from eventsourcing.application import ProcessingEvent
+from eventsourcing.domain import Aggregate, DomainEventProtocol
 from eventsourcing.persistence import Tracking
-from eventsourcing.system import ProcessingEvent
 from eventsourcing.tests.domain import BankAccount
 
 
-def policy(domain_event, processing_event: ProcessingEvent):
+def policy(
+    domain_event: DomainEventProtocol, processing_event: ProcessingEvent
+) -> None:
     if isinstance(domain_event, BankAccount.Opened):
         notification = EmailNotification.create(
             to=domain_event.email_address,
@@ -18,7 +22,9 @@ def policy(domain_event, processing_event: ProcessingEvent):
         processing_event.collect_events(notification)
 
 
-def policy_legacy_save(domain_event, processing_event: ProcessingEvent):
+def policy_legacy_save(
+    domain_event: DomainEventProtocol, processing_event: ProcessingEvent
+) -> None:
     if isinstance(domain_event, BankAccount.Opened):
         notification = EmailNotification.create(
             to=domain_event.email_address,
@@ -29,7 +35,7 @@ def policy_legacy_save(domain_event, processing_event: ProcessingEvent):
 
 
 class TestProcessingPolicy(TestCase):
-    def test_policy(self):
+    def test_policy(self) -> None:
         # Open an account.
         account = BankAccount.open(
             full_name="Alice",
@@ -53,7 +59,7 @@ class TestProcessingPolicy(TestCase):
             EmailNotification.Created,
         )
 
-    def test_legacy_save(self):
+    def test_legacy_save(self) -> None:
         # Open an account.
         account = BankAccount.open(
             full_name="Alice",
@@ -75,9 +81,9 @@ class TestProcessingPolicy(TestCase):
 
         self.assertEqual(1, len(w))
         self.assertIs(w[-1].category, DeprecationWarning)
-        self.assertEqual(
+        self.assertIn(
             "'save()' is deprecated, use 'collect_events()' instead",
-            w[-1].message.args[0],
+            str(w[-1].message),
         )
 
         self.assertEqual(len(processing_event.events), 1)
@@ -88,13 +94,13 @@ class TestProcessingPolicy(TestCase):
 
 
 class EmailNotification(Aggregate):
-    def __init__(self, to, subject, message):
+    def __init__(self, to: str, subject: str, message: str) -> None:
         self.to = to
         self.subject = subject
         self.message = message
 
     @classmethod
-    def create(cls, to, subject, message):
+    def create(cls, to: str, subject: str, message: str) -> EmailNotification:
         return cls._create(
             cls.Created,
             id=uuid4(),

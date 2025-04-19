@@ -1,13 +1,13 @@
 from unittest.case import TestCase
 
+from eventsourcing.application import ProcessingEvent
 from eventsourcing.dispatch import singledispatchmethod
-from eventsourcing.domain import AggregateEvent
+from eventsourcing.domain import DomainEventProtocol
 from eventsourcing.persistence import JSONTranscoder
 from eventsourcing.system import (
     Follower,
     Leader,
     ProcessApplication,
-    ProcessingEvent,
     RecordingEvent,
     RecordingEventReceiver,
 )
@@ -17,7 +17,7 @@ from tests.application_tests.test_processingpolicy import EmailNotification
 
 
 class TestProcessApplication(TestCase):
-    def test_pull_and_process(self):
+    def test_pull_and_process(self) -> None:
         leader_cls = type(
             BankAccounts.__name__,
             (BankAccounts, Leader),
@@ -76,11 +76,11 @@ class EmailProcess(ProcessApplication):
         transcoder.register(EmailAddressAsStr())
 
     @singledispatchmethod
-    def policy(
+    def policy(  # type: ignore[override]
         self,
-        domain_event: AggregateEvent,
+        domain_event: DomainEventProtocol,
         processing_event: ProcessingEvent,
-    ):
+    ) -> None:
         """Default policy"""
 
     @policy.register
@@ -88,7 +88,7 @@ class EmailProcess(ProcessApplication):
         self,
         domain_event: BankAccount.Opened,
         processing_event: ProcessingEvent,
-    ):
+    ) -> None:
         notification = EmailNotification.create(
             to=domain_event.email_address,
             subject="Your New Account",

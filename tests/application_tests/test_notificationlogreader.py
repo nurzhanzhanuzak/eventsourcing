@@ -9,7 +9,7 @@ from eventsourcing.system import NotificationLogReader
 
 
 class TestNotificationLogReader(TestCase):
-    def test_read(self):
+    def test_read(self) -> None:
         recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
         recorder.create_table()
 
@@ -67,7 +67,7 @@ class TestNotificationLogReader(TestCase):
         notifications = list(reader.read(start=10))
         self.assertEqual(len(notifications), 0)
 
-    def test_select(self):
+    def test_select(self) -> None:
         recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
         recorder.create_table()
 
