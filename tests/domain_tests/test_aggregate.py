@@ -5,7 +5,7 @@ import inspect
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 from unittest import TestCase
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
@@ -79,7 +79,7 @@ class TestMetaAggregate(TestCase):
 
         a = MyAggregate()
         created_event = a._pending_events[0]
-        self.assertIs(type(created_event), MyAggregate.Started)
+        self.assertIs(type(created_event), MyAggregate.Started)  # type: ignore[attr-defined]
         self.assertTrue(
             type(created_event).__qualname__.endswith("MyAggregate.Started")
         )
@@ -88,20 +88,20 @@ class TestMetaAggregate(TestCase):
         class MyAggregate1(Aggregate):
             INITIAL_VERSION = 0
 
-        a = MyAggregate1()
-        self.assertEqual(a.version, 0)
+        a1 = MyAggregate1()
+        self.assertEqual(a1.version, 0)
 
         class MyAggregate2(Aggregate):
             pass
 
-        a = MyAggregate2()
-        self.assertEqual(a.version, 1)
+        a2 = MyAggregate2()
+        self.assertEqual(a2.version, 1)
 
         class MyAggregate3(Aggregate):
             INITIAL_VERSION = 2
 
-        a = MyAggregate3()
-        self.assertEqual(a.version, 2)
+        a3 = MyAggregate3()
+        self.assertEqual(a3.version, 2)
 
 
 class TestAggregateCreation(TestCase):
@@ -127,14 +127,14 @@ class TestAggregateCreation(TestCase):
         with self.assertRaises(TypeError) as cm:
             Aggregate._create(
                 event_class=AggregateCreated,
-                id=aggregate_id,
+                id=aggregate_id,  # type: ignore[arg-type]
             )
         self.assertEqual(cm.exception.args[0], "Given id was not a UUID: my-id")
 
     def test_raises_when_create_args_mismatch_created_event(self) -> None:
         class BrokenAggregate(Aggregate):
             @classmethod
-            def create(cls, name):
+            def create(cls, name: str) -> BrokenAggregate:
                 return cls._create(event_class=cls.Created, id=uuid4(), name=name)
 
         with self.assertRaises(TypeError) as cm:
@@ -173,14 +173,14 @@ class TestAggregateCreation(TestCase):
         class MyAggregate1(Aggregate):
             pass
 
-        a = MyAggregate1()
-        self.assertIsInstance(a.id, UUID)
-        self.assertIsInstance(a.version, int)
-        self.assertEqual(a.version, 1)
-        self.assertIsInstance(a.created_on, datetime)
-        self.assertIsInstance(a.modified_on, datetime)
+        a1 = MyAggregate1()
+        self.assertIsInstance(a1.id, UUID)
+        self.assertIsInstance(a1.version, int)
+        self.assertEqual(a1.version, 1)
+        self.assertIsInstance(a1.created_on, datetime)
+        self.assertIsInstance(a1.modified_on, datetime)
 
-        events = a.collect_events()
+        events = a1.collect_events()
         self.assertEqual(len(events), 1)
         self.assertIsInstance(events[0], AggregateCreated)
         self.assertEqual(f"{prefix}MyAggregate1.Created", type(events[0]).__qualname__)
@@ -202,13 +202,13 @@ class TestAggregateCreation(TestCase):
             class Started(AggregateCreated):
                 pass
 
-        a = MyAggregate3()
-        self.assertIsInstance(a.id, UUID)
-        self.assertIsInstance(a.version, int)
-        self.assertIsInstance(a.created_on, datetime)
-        self.assertIsInstance(a.modified_on, datetime)
+        a3 = MyAggregate3()
+        self.assertIsInstance(a3.id, UUID)
+        self.assertIsInstance(a3.version, int)
+        self.assertIsInstance(a3.created_on, datetime)
+        self.assertIsInstance(a3.modified_on, datetime)
 
-        events = a.collect_events()
+        events = a3.collect_events()
         self.assertEqual(len(events), 1)
         self.assertIsInstance(events[0], AggregateCreated)
         self.assertEqual(f"{prefix}MyAggregate3.Started", type(events[0]).__qualname__)
@@ -221,13 +221,13 @@ class TestAggregateCreation(TestCase):
             def __init__(self) -> None:
                 pass
 
-        a = MyAggregate1()
-        self.assertIsInstance(a.id, UUID)
-        self.assertIsInstance(a.version, int)
-        self.assertIsInstance(a.created_on, datetime)
-        self.assertIsInstance(a.modified_on, datetime)
+        a1 = MyAggregate1()
+        self.assertIsInstance(a1.id, UUID)
+        self.assertIsInstance(a1.version, int)
+        self.assertIsInstance(a1.created_on, datetime)
+        self.assertIsInstance(a1.modified_on, datetime)
 
-        events = a.collect_events()
+        events = a1.collect_events()
         self.assertEqual(len(events), 1)
         self.assertIsInstance(events[0], AggregateCreated)
         self.assertEqual(f"{prefix}MyAggregate1.Created", type(events[0]).__qualname__)
@@ -251,13 +251,13 @@ class TestAggregateCreation(TestCase):
             class Started(AggregateCreated):
                 pass
 
-        a = MyAggregate3()
-        self.assertIsInstance(a.id, UUID)
-        self.assertIsInstance(a.version, int)
-        self.assertIsInstance(a.created_on, datetime)
-        self.assertIsInstance(a.modified_on, datetime)
+        a3 = MyAggregate3()
+        self.assertIsInstance(a3.id, UUID)
+        self.assertIsInstance(a3.version, int)
+        self.assertIsInstance(a3.created_on, datetime)
+        self.assertIsInstance(a3.modified_on, datetime)
 
-        events = a.collect_events()
+        events = a3.collect_events()
         self.assertEqual(len(events), 1)
         self.assertIsInstance(events[0], AggregateCreated)
         self.assertEqual(f"{prefix}MyAggregate3.Started", type(events[0]).__qualname__)
@@ -273,11 +273,11 @@ class TestAggregateCreation(TestCase):
         class MyAgg(Aggregate):
             pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[Data | MyAgg]) -> None:
             method_name = get_method_name(cls.__init__)
 
             with self.assertRaises(TypeError) as cm:
-                cls(0)
+                cls(0)  # type: ignore[call-arg]
 
             self.assertEqual(
                 cm.exception.args[0],
@@ -285,7 +285,7 @@ class TestAggregateCreation(TestCase):
             )
 
             with self.assertRaises(TypeError) as cm:
-                cls(value=0)
+                cls(value=0)  # type: ignore[call-arg]
 
             self.assertEqual(
                 cm.exception.args[0],
@@ -297,7 +297,7 @@ class TestAggregateCreation(TestCase):
 
     def test_init_defined_with_positional_or_keyword_arg(self) -> None:
         class MyAgg(Aggregate):
-            def __init__(self, value):
+            def __init__(self, value: int) -> None:
                 self.value = value
 
         a = MyAgg(1)
@@ -314,7 +314,7 @@ class TestAggregateCreation(TestCase):
 
     def test_init_defined_with_default_keyword_arg(self) -> None:
         class MyAgg(Aggregate):
-            def __init__(self, value=0):
+            def __init__(self, value: int = 0) -> None:
                 self.value = value
 
         a = MyAgg()
@@ -327,7 +327,7 @@ class TestAggregateCreation(TestCase):
         self,
     ) -> None:
         class MyAgg(Aggregate):
-            def __init__(self, a, b=0, *, c):
+            def __init__(self, a: int, b: int = 0, *, c: Any) -> None:
                 self.a = a
                 self.b = b
                 self.c = c
@@ -339,11 +339,11 @@ class TestAggregateCreation(TestCase):
 
     def test_raises_when_init_missing_1_required_positional_arg(self) -> None:
         class MyAgg(Aggregate):
-            def __init__(self, value):
+            def __init__(self, value: Any) -> None:
                 self.value = value
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg()
+            MyAgg()  # type: ignore[call-arg]
 
         self.assertEqual(
             cm.exception.args[0],
@@ -353,11 +353,11 @@ class TestAggregateCreation(TestCase):
 
     def test_raises_when_init_missing_1_required_keyword_only_arg(self) -> None:
         class MyAgg(Aggregate):
-            def __init__(self, *, value):
+            def __init__(self, *, value: Any) -> None:
                 self.value = value
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg()
+            MyAgg()  # type: ignore[call-arg]
 
         self.assertEqual(
             cm.exception.args[0],
@@ -368,28 +368,28 @@ class TestAggregateCreation(TestCase):
     def test_raises_when_init_missing_required_positional_and_keyword_only_arg(
         self,
     ) -> None:
-        class MyAgg(Aggregate):
-            def __init__(self, a, *, b):
+        class MyAgg1(Aggregate):
+            def __init__(self, a: Any, *, b: Any) -> None:
                 pass
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg()
+            MyAgg1()  # type: ignore[call-arg]
 
-        method_name = get_method_name(MyAgg.__init__)
+        method_name = get_method_name(MyAgg1.__init__)
 
         self.assertEqual(
             cm.exception.args[0],
             f"{method_name}() missing 1 required positional argument: 'a'",
         )
 
-        class MyAgg(Aggregate):
-            def __init__(self, a, b=0, *, c):
+        class MyAgg2(Aggregate):
+            def __init__(self, a: Any, b: int = 0, *, c: Any) -> None:
                 self.a = a
                 self.b = b
                 self.c = c
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg(c=2)
+            MyAgg2(c=2)  # type: ignore[call-arg]
 
         self.assertEqual(
             cm.exception.args[0],
@@ -398,11 +398,11 @@ class TestAggregateCreation(TestCase):
 
     def test_raises_when_init_missing_2_required_positional_args(self) -> None:
         class MyAgg(Aggregate):
-            def __init__(self, a, b, *, c):
+            def __init__(self, a: Any, b: Any, *, c: Any) -> None:
                 pass
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg()
+            MyAgg()  # type: ignore[call-arg]
 
         method_name = get_method_name(MyAgg.__init__)
 
@@ -413,11 +413,11 @@ class TestAggregateCreation(TestCase):
 
     def test_raises_when_init_gets_unexpected_keyword_argument(self) -> None:
         class MyAgg(Aggregate):
-            def __init__(self, a=1):
+            def __init__(self, a: int = 1) -> None:
                 pass
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg(b=1)
+            MyAgg(b=1)  # type: ignore[call-arg]
 
         method_name = get_method_name(MyAgg.__init__)
 
@@ -427,7 +427,7 @@ class TestAggregateCreation(TestCase):
         )
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg(c=1)
+            MyAgg(c=1)  # type: ignore[call-arg]
 
         self.assertEqual(
             cm.exception.args[0],
@@ -435,7 +435,7 @@ class TestAggregateCreation(TestCase):
         )
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg(b=1, c=1)
+            MyAgg(b=1, c=1)  # type: ignore[call-arg]
 
         self.assertEqual(
             cm.exception.args[0],
@@ -446,13 +446,13 @@ class TestAggregateCreation(TestCase):
         class MyAgg(Aggregate):
             value: int
 
-        a = MyAgg(1)
+        a = MyAgg(1)  # type: ignore[call-arg]
         self.assertIsInstance(a, MyAgg)
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 1)
 
-        a = MyAgg(value=1)
+        a = MyAgg(value=1)  # type: ignore[call-arg]
         self.assertIsInstance(a, MyAgg)
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
@@ -462,13 +462,13 @@ class TestAggregateCreation(TestCase):
         class MyAgg(Aggregate):
             value: int = 0
 
-        a = MyAgg(1)
+        a = MyAgg(1)  # type: ignore[call-arg]
         self.assertIsInstance(a, MyAgg)
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 1)
 
-        a = MyAgg(value=1)
+        a = MyAgg(value=1)  # type: ignore[call-arg]
         self.assertIsInstance(a, MyAgg)
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
@@ -481,7 +481,7 @@ class TestAggregateCreation(TestCase):
         self.assertEqual(len(a.pending_events), 1)
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg(wrong=1)
+            MyAgg(wrong=1)  # type: ignore[call-arg]
 
         method_name = get_method_name(MyAgg.__init__)
 
@@ -508,7 +508,7 @@ class TestAggregateCreation(TestCase):
             c: int = 1
             d: int = 2
 
-        def test_init(cls):
+        def test_init(cls: type[MyAgg | Data]) -> None:
             obj = cls(b=1, a=2)
             self.assertEqual(obj.a, 2)
             self.assertEqual(obj.b, 1)
@@ -522,7 +522,7 @@ class TestAggregateCreation(TestCase):
             self.assertEqual(obj.d, 4)
 
             with self.assertRaises(TypeError) as cm:
-                obj = cls(1, 2, 3, c=4)
+                obj = cls(1, 2, 3, c=4)  # type: ignore[misc]
                 self.assertEqual(obj.a, 1)
                 self.assertEqual(obj.b, 2)
                 self.assertEqual(obj.c, 4)
@@ -536,7 +536,7 @@ class TestAggregateCreation(TestCase):
             )
 
             with self.assertRaises(TypeError) as cm:
-                obj = cls(1, a=2, d=3, c=4)
+                obj = cls(1, a=2, d=3, c=4)  # type: ignore[call-arg, misc]
                 self.assertEqual(obj.a, 2)
                 self.assertEqual(obj.b, 1)
                 self.assertEqual(obj.c, 4)
@@ -554,7 +554,7 @@ class TestAggregateCreation(TestCase):
         with self.assertRaises(TypeError) as cm:
 
             class _(Aggregate):  # noqa: N801
-                def __init__(self, *values):
+                def __init__(self, *values: Any) -> None:
                     pass
 
         self.assertEqual(
@@ -565,7 +565,7 @@ class TestAggregateCreation(TestCase):
         with self.assertRaises(TypeError) as cm:
 
             class _(Aggregate):  # noqa: N801
-                def __init__(self, **values):
+                def __init__(self, **values: Any) -> None:
                     pass
 
         self.assertEqual(
@@ -574,16 +574,16 @@ class TestAggregateCreation(TestCase):
 
     def test_define_custom_create_id_as_uuid5(self) -> None:
         class MyAggregate1(Aggregate):
-            def __init__(self, name):
+            def __init__(self, name: str) -> None:
                 self.name = name
 
             @classmethod
-            def create_id(cls, name):
+            def create_id(cls, name: str) -> UUID:
                 return uuid5(NAMESPACE_URL, f"/names/{name}")
 
-        a = MyAggregate1("name")
-        self.assertEqual(a.name, "name")
-        self.assertEqual(a.id, MyAggregate1.create_id("name"))
+        a1 = MyAggregate1("name")
+        self.assertEqual(a1.name, "name")
+        self.assertEqual(a1.id, MyAggregate1.create_id("name"))
 
         # Do it again with method defined as staticmethod.
         @dataclass
@@ -591,12 +591,12 @@ class TestAggregateCreation(TestCase):
             name: str
 
             @staticmethod
-            def create_id(name):
+            def create_id(name: str) -> UUID:
                 return uuid5(NAMESPACE_URL, f"/names/{name}")
 
-        a = MyAggregate2("name")
-        self.assertEqual(a.name, "name")
-        self.assertEqual(a.id, MyAggregate2.create_id("name"))
+        a2 = MyAggregate2("name")
+        self.assertEqual(a2.name, "name")
+        self.assertEqual(a2.id, MyAggregate2.create_id("name"))
 
     def test_raises_type_error_if_create_id_does_not_return_uuid(
         self,
@@ -604,7 +604,7 @@ class TestAggregateCreation(TestCase):
         class MyAggregate(Aggregate):
             @staticmethod
             def create_id() -> UUID:
-                pass
+                return None  # type: ignore[return-value]
 
         with self.assertRaises(TypeError):
             MyAggregate()
@@ -615,7 +615,7 @@ class TestAggregateCreation(TestCase):
         with self.assertRaises(TypeError):
 
             class MyAggregate(Aggregate):
-                def create_id(self, myarg: str) -> UUID:
+                def create_id(self, myarg: str) -> UUID:  # type: ignore[override]
                     return uuid4()
 
     def test_refuse_implicit_choice_of_alternative_created_events(self) -> None:
@@ -1306,9 +1306,9 @@ class TestAggregateSubclassWithFieldInitFalse(TestCase):
         a.set_a()
         self.assertTrue(a.a)
 
-        b = B(b=1)
+        b = B(b="1")
         self.assertFalse(b.a)
-        self.assertEqual(b.b, 1)
+        self.assertEqual(b.b, "1")
 
         b.set_a()
         self.assertTrue(b.a)

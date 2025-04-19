@@ -1487,14 +1487,14 @@ class Aggregate(metaclass=MetaAggregate):
 _created_event_classes[Aggregate] = [Aggregate.Created]
 
 
-# @overload
-# def aggregate(*, created_event_name: str) -> Callable[[Any], Type[Aggregate]]:
-#     ...
-#
-#
-# @overload
-# def aggregate(cls: Any) -> Type[Aggregate]:
-#     ...
+@overload
+def aggregate(*, created_event_name: str) -> Callable[[Any], type[Aggregate]]:
+    pass  # pragma: no cover
+
+
+@overload
+def aggregate(cls: Any) -> type[Aggregate]:
+    pass  # pragma: no cover
 
 
 def aggregate(

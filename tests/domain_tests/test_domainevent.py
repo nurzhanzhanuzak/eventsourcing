@@ -1,5 +1,5 @@
 import warnings
-from dataclasses import _DataclassParams
+from dataclasses import _DataclassParams, dataclass  # type: ignore[attr-defined]
 from datetime import datetime, timedelta, timezone
 from time import sleep
 from unittest.case import TestCase
@@ -15,21 +15,22 @@ from eventsourcing.domain import (
 
 
 class TestMetaDomainEvent(TestCase):
-    def test_class_instance_defined_as_frozen_dataclass(self):
+    def test_class_instance_defined_as_frozen_dataclass(self) -> None:
         class A(metaclass=MetaDomainEvent):
             pass
 
         self.assertIsInstance(A, type)
         self.assertTrue("__dataclass_params__" in A.__dict__)
-        self.assertIsInstance(A.__dataclass_params__, _DataclassParams)
-        self.assertTrue(A.__dataclass_params__.frozen)
+        dataclass_params = A.__dict__["__dataclass_params__"]
+        self.assertIsInstance(dataclass_params, _DataclassParams)
+        self.assertTrue(dataclass_params.frozen)
 
 
 class TestDomainEvent(TestCase):
-    def test_domain_event_class_is_a_meta_domain_event(self):
+    def test_domain_event_class_is_a_meta_domain_event(self) -> None:
         self.assertIsInstance(DomainEvent, MetaDomainEvent)
 
-    def test_create_timestamp(self):
+    def test_create_timestamp(self) -> None:
         before = datetime.now(tz=timezone.utc)
         sleep(1e-5)
         timestamp = DomainEvent.create_timestamp()
@@ -38,7 +39,7 @@ class TestDomainEvent(TestCase):
         self.assertGreater(timestamp, before)
         self.assertGreater(after, timestamp)
 
-    def test_domain_event_instance(self):
+    def test_domain_event_instance(self) -> None:
         originator_id = uuid4()
         originator_version = 101
         timestamp = DomainEvent.create_timestamp()
@@ -51,8 +52,9 @@ class TestDomainEvent(TestCase):
         self.assertEqual(a.originator_version, originator_version)
         self.assertEqual(a.timestamp, timestamp)
 
-    def test_examples(self):
+    def test_examples(self) -> None:
         # Define an 'account opened' domain event.
+        @dataclass(frozen=True)
         class AccountOpened(DomainEvent):
             full_name: str
 
@@ -69,6 +71,7 @@ class TestDomainEvent(TestCase):
         self.assertEqual(event3.originator_version, 0)
 
         # Define a 'full name updated' domain event.
+        @dataclass(frozen=True)
         class FullNameUpdated(DomainEvent):
             full_name: str
             timestamp: datetime
@@ -88,7 +91,7 @@ class TestDomainEvent(TestCase):
 
 
 class TestDatetimeNowWithTzinfo(TestCase):
-    def test(self):
+    def test(self) -> None:
         # Check datetime_now_with_tzinfo() returns a datetime with tzinfo.
         timestamp = datetime_now_with_tzinfo()
         self.assertIsInstance(timestamp, datetime)
@@ -113,10 +116,10 @@ class TestDatetimeNowWithTzinfo(TestCase):
 
         self.assertEqual(len(w), 1)
         self.assertIs(w[-1].category, DeprecationWarning)
-        self.assertEqual(
+        self.assertIn(
             (
                 "'create_utc_datetime_now()' is deprecated, "
                 "use 'datetime_now_with_tzinfo()' instead"
             ),
-            w[-1].message.args[0],
+            str(w[-1].message),
         )

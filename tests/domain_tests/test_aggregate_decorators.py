@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import contextlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 from unittest import TestCase
 
 from eventsourcing.application import Application
@@ -16,7 +19,7 @@ from eventsourcing.utils import get_method_name
 
 
 class TestAggregateDecorator(TestCase):
-    def test_decorate_class_with_no_bases(self):
+    def test_decorate_class_with_no_bases(self) -> None:
         @aggregate
         class MyAgg:
             """My doc"""
@@ -28,15 +31,15 @@ class TestAggregateDecorator(TestCase):
         self.assertTrue(MyAgg.__name__, "MyAgg")
         self.assertTrue(MyAgg.__doc__, "My doc")
         self.assertEqual(MyAgg.__bases__, (Aggregate,))
-        self.assertEqual(MyAgg.__annotations__, {"a": int})
+        self.assertEqual(MyAgg.__annotations__, {"a": "int"})
 
-        agg = MyAgg(a=1)
+        agg = MyAgg(a=1)  # type: ignore[call-arg]
         self.assertEqual(agg.a, 1)
-        self.assertEqual(len(agg.pending_events), 1)
+        self.assertEqual(len(agg.pending_events), 1)  # type: ignore[attr-defined]
         self.assertIsInstance(agg, Aggregate)
         self.assertIsInstance(agg, MyAgg)
 
-    def test_decorate_class_with_one_base(self):
+    def test_decorate_class_with_one_base(self) -> None:
         class MyBase:
             "My base doc"
 
@@ -52,16 +55,16 @@ class TestAggregateDecorator(TestCase):
         self.assertTrue(MyAgg.__name__, "MyAgg")
         self.assertTrue(MyAgg.__doc__, "My doc")
         self.assertEqual(MyAgg.__bases__, (MyBase, Aggregate))
-        self.assertEqual(MyAgg.__annotations__, {"a": int})
+        self.assertEqual(MyAgg.__annotations__, {"a": "int"})
 
-        agg = MyAgg(a=1)
+        agg = MyAgg(a=1)  # type: ignore[call-arg]
         self.assertEqual(agg.a, 1)
-        self.assertEqual(len(agg.pending_events), 1)
+        self.assertEqual(len(agg.pending_events), 1)  # type: ignore[attr-defined]
         self.assertIsInstance(agg, Aggregate)
         self.assertIsInstance(agg, MyAgg)
         self.assertIsInstance(agg, MyBase)
 
-    def test_decorate_class_with_two_bases(self):
+    def test_decorate_class_with_two_bases(self) -> None:
         class MyAbstract:
             "My base doc"
 
@@ -81,17 +84,17 @@ class TestAggregateDecorator(TestCase):
         self.assertTrue(MyAgg.__name__, "MyAgg")
         self.assertTrue(MyAgg.__doc__, "My doc")
         self.assertEqual(MyAgg.__bases__, (MyBase, Aggregate))
-        self.assertEqual(MyAgg.__annotations__, {"a": int})
+        self.assertEqual(MyAgg.__annotations__, {"a": "int"})
 
-        agg = MyAgg(a=1)
+        agg = MyAgg(a=1)  # type: ignore[call-arg]
         self.assertEqual(agg.a, 1)
-        self.assertEqual(len(agg.pending_events), 1)
+        self.assertEqual(len(agg.pending_events), 1)  # type: ignore[attr-defined]
         self.assertIsInstance(agg, Aggregate)
         self.assertIsInstance(agg, MyAgg)
         self.assertIsInstance(agg, MyBase)
         self.assertIsInstance(agg, MyAbstract)
 
-    def test_raises_when_decorating_aggregate_subclass(self):
+    def test_raises_when_decorating_aggregate_subclass(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             @aggregate
@@ -100,7 +103,7 @@ class TestAggregateDecorator(TestCase):
 
         self.assertIn("MyAgg is already an Aggregate", cm.exception.args[0])
 
-    def test_aggregate_on_dataclass(self):
+    def test_aggregate_on_dataclass(self) -> None:
         @aggregate
         @dataclass
         class MyAgg:
@@ -110,9 +113,9 @@ class TestAggregateDecorator(TestCase):
         self.assertIsInstance(a, MyAgg)
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
-        self.assertEqual(len(a.pending_events), 1)
+        self.assertEqual(len(a.pending_events), 1)  # type: ignore[attr-defined]
 
-    def test_dataclass_on_aggregate(self):
+    def test_dataclass_on_aggregate(self) -> None:
         @dataclass
         @aggregate
         class MyAgg:
@@ -122,26 +125,26 @@ class TestAggregateDecorator(TestCase):
         self.assertIsInstance(a, MyAgg)
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
-        self.assertEqual(len(a.pending_events), 1)
+        self.assertEqual(len(a.pending_events), 1)  # type: ignore[attr-defined]
 
-    def test_aggregate_decorator_called_with_create_event_name(self):
+    def test_aggregate_decorator_called_with_create_event_name(self) -> None:
         @aggregate(created_event_name="Started")
         class MyAgg:
             value: int
 
-        a = MyAgg(1)
+        a = MyAgg(1)  # type: ignore[call-arg]
         self.assertIsInstance(a, MyAgg)
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
-        self.assertEqual(len(a.pending_events), 1)
-        self.assertEqual(type(a.pending_events[0]).__name__, "Started")
+        self.assertEqual(len(a.pending_events), 1)  # type: ignore[attr-defined]
+        self.assertEqual(type(a.pending_events[0]).__name__, "Started")  # type: ignore[attr-defined]
 
 
 class TestEventDecorator(TestCase):
-    def test_event_name_inferred_from_method_no_args(self):
+    def test_event_name_inferred_from_method_no_args(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def heartbeat(self):
+            def heartbeat(self) -> None:
                 pass
 
         a = MyAgg()
@@ -150,12 +153,12 @@ class TestEventDecorator(TestCase):
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(a.version, 2)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.Heartbeat)
+        self.assertIsInstance(a.pending_events[1], MyAgg.Heartbeat)  # type: ignore[attr-defined]
 
-    def test_event_decorator_called_without_args(self):
+    def test_event_decorator_called_without_args(self) -> None:
         class MyAgg(Aggregate):
             @event()
-            def heartbeat(self):
+            def heartbeat(self) -> None:
                 pass
 
         a = MyAgg()
@@ -164,12 +167,12 @@ class TestEventDecorator(TestCase):
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(a.version, 2)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.Heartbeat)
+        self.assertIsInstance(a.pending_events[1], MyAgg.Heartbeat)  # type: ignore[attr-defined]
 
-    def test_event_name_inferred_from_method_with_arg(self):
+    def test_event_name_inferred_from_method_with_arg(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, value):
+            def value_changed(self, value: int) -> None:
                 self.value = value
 
         a = MyAgg()
@@ -179,12 +182,12 @@ class TestEventDecorator(TestCase):
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(a.version, 2)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_event_name_inferred_from_method_with_kwarg(self):
+    def test_event_name_inferred_from_method_with_kwarg(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, value):
+            def value_changed(self, value: int) -> None:
                 self.value = value
 
         a = MyAgg()
@@ -193,12 +196,12 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_event_name_inferred_from_method_with_default_kwarg(self):
+    def test_event_name_inferred_from_method_with_default_kwarg(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, value=3):
+            def value_changed(self, value: int = 3) -> None:
                 self.value = value
 
         a = MyAgg()
@@ -207,12 +210,12 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 3)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_method_name_same_on_class_and_instance(self):
+    def test_method_name_same_on_class_and_instance(self) -> None:
         # Check this works with Python object class.
         class MyClass:
-            def value_changed(self):
+            def value_changed(self) -> None:
                 pass
 
         a = MyClass()
@@ -224,17 +227,18 @@ class TestEventDecorator(TestCase):
         # Check this works with Aggregate class and @event decorator.
         class MyAggregate(Aggregate):
             @event
-            def value_changed(self):
+            def value_changed(self) -> None:
                 pass
 
-        a = MyAggregate()
+        a1 = MyAggregate()
 
         self.assertEqual(
-            get_method_name(a.value_changed), get_method_name(MyAggregate.value_changed)
+            get_method_name(a1.value_changed),
+            get_method_name(MyAggregate.value_changed),
         )
 
         self.assertTrue(
-            get_method_name(a.value_changed).endswith("value_changed"),
+            get_method_name(a1.value_changed).endswith("value_changed"),
         )
 
         self.assertTrue(
@@ -244,38 +248,40 @@ class TestEventDecorator(TestCase):
         # Check this works with Aggregate class and @event decorator.
         class MyAggregate2(Aggregate):
             @event()
-            def value_changed(self):
+            def value_changed(self) -> None:
                 pass
 
-        a = MyAggregate2()
+        a2 = MyAggregate2()
 
         self.assertEqual(
-            get_method_name(a.value_changed),
+            get_method_name(a2.value_changed),
             get_method_name(MyAggregate2.value_changed),
         )
 
         self.assertTrue(
-            get_method_name(a.value_changed).endswith("value_changed"),
+            get_method_name(a2.value_changed).endswith("value_changed"),
         )
 
         self.assertTrue(
             get_method_name(MyAggregate2.value_changed).endswith("value_changed"),
         )
 
-    def test_raises_when_method_takes_1_positional_argument_but_2_were_given(self):
+    def test_raises_when_method_takes_1_positional_argument_but_2_were_given(
+        self,
+    ) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self):
+            def value_changed(self) -> None:
                 pass
 
         class Data:
-            def value_changed(self):
+            def value_changed(self) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[MyAgg | Data]) -> None:
             obj = cls()
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed(1)
+                obj.value_changed(1)  # type: ignore[call-arg]
 
             name = get_method_name(cls.value_changed)
 
@@ -287,20 +293,22 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_method_takes_2_positional_argument_but_3_were_given(self):
+    def test_raises_when_method_takes_2_positional_argument_but_3_were_given(
+        self,
+    ) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, value):
+            def value_changed(self, value: int) -> None:
                 pass
 
         class Data:
-            def value_changed(self, value):
+            def value_changed(self, value: int) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[MyAgg | Data]) -> None:
             obj = cls()
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed(1, 2)
+                obj.value_changed(1, 2)  # type: ignore[call-arg]
             name = get_method_name(cls.value_changed)
             self.assertEqual(
                 f"{name}() takes 2 positional arguments but 3 were given",
@@ -310,20 +318,20 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_method_missing_1_required_positional_argument(self):
+    def test_raises_when_method_missing_1_required_positional_argument(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, a):
+            def value_changed(self, a: int) -> None:
                 pass
 
         class Data:
-            def value_changed(self, a):
+            def value_changed(self, a: int) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[MyAgg | Data]) -> None:
             obj = cls()
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed()
+                obj.value_changed()  # type: ignore[call-arg]
             name = get_method_name(cls.value_changed)
             self.assertEqual(
                 f"{name}() missing 1 required positional argument: 'a'",
@@ -333,20 +341,20 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_method_missing_2_required_positional_arguments(self):
+    def test_raises_when_method_missing_2_required_positional_arguments(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, a, b):
+            def value_changed(self, a: int, b: int) -> None:
                 pass
 
         class Data:
-            def value_changed(self, a, b):
+            def value_changed(self, a: int, b: int) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[MyAgg | Data]) -> None:
             obj = cls()
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed()
+                obj.value_changed()  # type: ignore[call-arg]
             name = get_method_name(obj.value_changed)
             self.assertEqual(
                 f"{name}() missing 2 required positional arguments: 'a' and 'b'",
@@ -356,20 +364,20 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_method_missing_3_required_positional_arguments(self):
+    def test_raises_when_method_missing_3_required_positional_arguments(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, a, b, c):
+            def value_changed(self, a: int, b: int, c: int) -> None:
                 pass
 
         class Data:
-            def value_changed(self, a, b, c):
+            def value_changed(self, a: int, b: int, c: int) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[MyAgg | Data]) -> None:
             obj = cls()
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed()
+                obj.value_changed()  # type: ignore[call-arg]
 
             name = get_method_name(cls.value_changed)
 
@@ -381,21 +389,21 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_method_missing_1_required_keyword_only_argument(self):
+    def test_raises_when_method_missing_1_required_keyword_only_argument(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, a, *, b):
+            def value_changed(self, a: int, *, b: int) -> None:
                 pass
 
         class Data:
-            def value_changed(self, a, *, b):
+            def value_changed(self, a: int, *, b: int) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[MyAgg | Data]) -> None:
             obj = cls()
 
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed(1)
+                obj.value_changed(1)  # type: ignore[call-arg]
 
             name = get_method_name(cls.value_changed)
             self.assertEqual(
@@ -406,21 +414,21 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_method_missing_2_required_keyword_only_arguments(self):
+    def test_raises_when_method_missing_2_required_keyword_only_arguments(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, a, *, b, c):
+            def value_changed(self, a: int, *, b: int, c: int) -> None:
                 pass
 
         class Data:
-            def value_changed(self, a, *, b, c):
+            def value_changed(self, a: int, *, b: int, c: int) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[MyAgg | Data]) -> None:
             obj = cls()
 
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed(1)
+                obj.value_changed(1)  # type: ignore[call-arg]
 
             name = get_method_name(cls.value_changed)
             self.assertEqual(
@@ -431,21 +439,21 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_method_missing_3_required_keyword_only_arguments(self):
+    def test_raises_when_method_missing_3_required_keyword_only_arguments(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, a, *, b, c, d):
+            def value_changed(self, a: int, *, b: int, c: int, d: int) -> None:
                 pass
 
         class Data:
-            def value_changed(self, a, *, b, c, d):
+            def value_changed(self, a: int, *, b: int, c: int, d: int) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[MyAgg | Data]) -> None:
             obj = cls()
 
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed(1)
+                obj.value_changed(1)  # type: ignore[call-arg]
 
             name = get_method_name(cls.value_changed)
             self.assertEqual(
@@ -457,21 +465,23 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_missing_positional_and_required_keyword_only_arguments(self):
+    def test_raises_when_missing_positional_and_required_keyword_only_arguments(
+        self,
+    ) -> None:
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, a, *, b, c, d):
+            def value_changed(self, a: int, *, b: int, c: int, d: int) -> None:
                 pass
 
         class Data:
-            def value_changed(self, a, *, b, c, d):
+            def value_changed(self, a: int, *, b: int, c: int, d: int) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[MyAgg | Data]) -> None:
             obj = cls()
 
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed()
+                obj.value_changed()  # type: ignore[call-arg]
 
             name = get_method_name(cls.value_changed)
             self.assertEqual(
@@ -482,21 +492,21 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_method_gets_unexpected_keyword_argument(self):
+    def test_raises_when_method_gets_unexpected_keyword_argument(self) -> None:
         class Data:
-            def value_changed(self, a):
+            def value_changed(self, a: int) -> None:
                 pass
 
         class MyAgg(Aggregate):
             @event
-            def value_changed(self, a):
+            def value_changed(self, a: int) -> None:
                 pass
 
-        def assert_raises(cls):
+        def assert_raises(cls: type[Data | MyAgg]) -> None:
             obj = cls()
 
             with self.assertRaises(TypeError) as cm:
-                obj.value_changed(b=1)
+                obj.value_changed(b=1)  # type: ignore[call-arg]
 
             name = get_method_name(cls.value_changed)
             self.assertEqual(
@@ -507,13 +517,13 @@ class TestEventDecorator(TestCase):
         assert_raises(MyAgg)
         assert_raises(Data)
 
-    def test_raises_when_method_is_staticmethod(self):
+    def test_raises_when_method_is_staticmethod(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class _(Aggregate):  # noqa: N801
                 @event
                 @staticmethod
-                def value_changed():
+                def value_changed() -> None:
                     pass
 
         self.assertIn(
@@ -526,7 +536,7 @@ class TestEventDecorator(TestCase):
             class MyAgg(Aggregate):
                 @event("ValueChanged")
                 @staticmethod
-                def value_changed():
+                def value_changed() -> None:
                     pass
 
         self.assertTrue(
@@ -536,13 +546,13 @@ class TestEventDecorator(TestCase):
             cm.exception.args[0],
         )
 
-    def test_raises_when_method_is_classmethod(self):
+    def test_raises_when_method_is_classmethod(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class _(Aggregate):  # noqa: N801
                 @event
                 @classmethod
-                def value_changed(cls):
+                def value_changed(cls) -> None:
                     pass
 
         self.assertIn(
@@ -555,7 +565,7 @@ class TestEventDecorator(TestCase):
             class MyAgg(Aggregate):
                 @event("ValueChanged")
                 @classmethod
-                def value_changed(cls):
+                def value_changed(cls) -> None:
                     pass
 
         self.assertTrue(
@@ -565,20 +575,22 @@ class TestEventDecorator(TestCase):
             cm.exception.args[0],
         )
 
-    def test_method_called_with_positional_defined_with_keyword_params(self):
+    def test_method_called_with_positional_defined_with_keyword_params(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def values_changed(self, a=None, b=None):
+            def values_changed(
+                self, a: int | None = None, b: int | None = None
+            ) -> None:
                 self.a = a
                 self.b = b
 
         a = MyAgg()
         a.values_changed(1, 2)
 
-    def test_method_called_with_keyword_defined_with_positional_params(self):
+    def test_method_called_with_keyword_defined_with_positional_params(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def values_changed(self, a, b):
+            def values_changed(self, a: int, b: int) -> None:
                 self.a = a
                 self.b = b
 
@@ -586,7 +598,7 @@ class TestEventDecorator(TestCase):
         a.values_changed(a=1, b=2)
 
     # @skipIf(sys.version_info[0:2] < (3, 8), "Positional only params not supported")
-    # def test_method_called_with_keyword_defined_with_positional_only(self):
+    # def test_method_called_with_keyword_defined_with_positional_only(self) -> None:
     #     @aggregate
     #     class MyAgg:
     #         @event
@@ -597,7 +609,7 @@ class TestEventDecorator(TestCase):
     #     a = MyAgg()
     #     a.values_changed(1, 2)
 
-    # def test_raises_when_method_has_positional_only_params(self):
+    # def test_raises_when_method_has_positional_only_params(self) -> None:
     #     @aggregate
     #     class MyAgg:
     #         @event
@@ -618,23 +630,25 @@ class TestEventDecorator(TestCase):
     #         cm.exception.args[0],
     #     )
 
-    def test_raises_when_decorated_method_called_directly_without_instance_arg(self):
+    def test_raises_when_decorated_method_called_directly_without_instance_arg(
+        self,
+    ) -> None:
         class MyAgg(Aggregate):
             @event
-            def method(self):
+            def method(self) -> None:
                 pass
 
         with self.assertRaises(TypeError) as cm:
-            MyAgg.method()
+            MyAgg.method()  # type: ignore[call-arg]
         self.assertEqual(
             cm.exception.args[0],
             "Expected aggregate as first argument",
         )
 
-    def test_decorated_method_called_directly_on_class(self):
+    def test_decorated_method_called_directly_on_class(self) -> None:
         class MyAgg(Aggregate):
             @event
-            def method(self):
+            def method(self) -> None:
                 pass
 
         a = MyAgg()
@@ -642,10 +656,10 @@ class TestEventDecorator(TestCase):
         MyAgg.method(a)
         self.assertEqual(a.version, 2)
 
-    def test_event_name_set_in_decorator(self):
+    def test_event_name_set_in_decorator(self) -> None:
         class MyAgg(Aggregate):
             @event("ValueChanged")
-            def set_value(self, value):
+            def set_value(self, value: int) -> None:
                 self.value = value
 
         a = MyAgg()
@@ -653,11 +667,11 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_event_called_to_redefine_method_with_explicit_name(self):
+    def test_event_called_to_redefine_method_with_explicit_name(self) -> None:
         class MyAgg(Aggregate):
-            def set_value(self, value):
+            def set_value(self, value: int) -> None:
                 self.value = value
 
             set_value = event("ValueChanged")(set_value)
@@ -667,11 +681,11 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_event_called_to_redefine_method_with_implied_name(self):
+    def test_event_called_to_redefine_method_with_implied_name(self) -> None:
         class MyAgg(Aggregate):
-            def value_changed(self, value):
+            def value_changed(self, value: int) -> None:
                 self.value = value
 
             set_value = event(value_changed)
@@ -681,51 +695,51 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_event_name_set_in_decorator_cannot_be_empty_string(self):
+    def test_event_name_set_in_decorator_cannot_be_empty_string(self) -> None:
         with self.assertRaises(ValueError) as cm:
 
             class MyAgg(Aggregate):
                 @event("")
-                def set_value(self, value):
+                def set_value(self, value: int) -> None:
                     self.value = value
 
         self.assertEqual(
             cm.exception.args[0], "Can't use empty string as name of event class"
         )
 
-    def test_event_with_name_decorates_property(self):
+    def test_event_with_name_decorates_property(self) -> None:
         class MyAgg(Aggregate):
-            def __init__(self, value):
+            def __init__(self, value: int) -> None:
                 self._value = value
 
             @property
-            def value(self):
+            def value(self) -> int:
                 return self._value
 
-            @event("ValueChanged")
+            @event("ValueChanged")  # type: ignore[misc]
             @value.setter
-            def value(self, x):
+            def value(self, x: int) -> None:
                 self._value = x
 
         a = MyAgg(0)
         self.assertEqual(a.value, 0)
-        a.value = 1
+        a.value = 1  # type: ignore[misc]
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_property_decorates_event_with_name(self):
+    def test_property_decorates_event_with_name(self) -> None:
         class MyAgg(Aggregate):
             @property
-            def value(self):
+            def value(self) -> int:
                 return self._value
 
             @value.setter
             @event("ValueChanged")
-            def value(self, x):
+            def value(self, x: int) -> None:
                 self._value = x
 
         a = MyAgg()
@@ -733,15 +747,15 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_property_called_with_decorated_set_method_with_name_given(self):
+    def test_property_called_with_decorated_set_method_with_name_given(self) -> None:
         class MyAgg(Aggregate):
-            def get_value(self):
+            def get_value(self) -> int:
                 return self._value
 
             @event("ValueChanged")
-            def set_value(self, x):
+            def set_value(self, x: int) -> None:
                 self._value = x
 
             value = property(get_value, set_value)
@@ -751,15 +765,15 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_property_called_with_decorated_set_method_with_name_inferred(self):
+    def test_property_called_with_decorated_set_method_with_name_inferred(self) -> None:
         class MyAgg(Aggregate):
-            def get_value(self):
+            def get_value(self) -> int:
                 return self._value
 
             @event
-            def value_changed(self, x):
+            def value_changed(self, x: int) -> None:
                 self._value = x
 
             value = property(get_value, value_changed)
@@ -769,14 +783,14 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_property_called_with_wrapped_set_method_with_name_given(self):
+    def test_property_called_with_wrapped_set_method_with_name_given(self) -> None:
         class MyAgg(Aggregate):
-            def get_value(self):
+            def get_value(self) -> int:
                 return self._value
 
-            def set_value(self, x):
+            def set_value(self, x: int) -> None:
                 self._value = x
 
             value = property(get_value, event("ValueChanged")(set_value))
@@ -786,14 +800,14 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_property_called_with_wrapped_set_method_with_name_inferred(self):
+    def test_property_called_with_wrapped_set_method_with_name_inferred(self) -> None:
         class MyAgg(Aggregate):
-            def get_value(self):
+            def get_value(self) -> int:
                 return self._value
 
-            def value_changed(self, x):
+            def value_changed(self, x: int) -> None:
                 self._value = x
 
             value = property(get_value, event(value_changed))
@@ -803,15 +817,15 @@ class TestEventDecorator(TestCase):
         self.assertEqual(a.value, 1)
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 2)
-        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)
+        self.assertIsInstance(a.pending_events[1], MyAgg.ValueChanged)  # type: ignore[attr-defined]
 
-    def test_raises_when_event_decorates_property_getter(self):
+    def test_raises_when_event_decorates_property_getter(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class MyAgg(Aggregate):
-                @event("ValueChanged")
+                @event("ValueChanged")  # type: ignore[prop-decorator]
                 @property
-                def value(self):
+                def value(self) -> None:
                     return None
 
         self.assertEqual(
@@ -822,29 +836,29 @@ class TestEventDecorator(TestCase):
 
             @aggregate
             class _:  # noqa: N801
-                @event("ValueChanged")
+                @event("ValueChanged")  # type: ignore[prop-decorator]
                 @property
-                def value(self):
+                def value(self) -> None:
                     return None
 
         self.assertEqual(
             cm.exception.args[0], "@event can't decorate value() property getter"
         )
 
-    def test_raises_when_event_without_name_decorates_property(self):
+    def test_raises_when_event_without_name_decorates_property(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class MyAgg(Aggregate):
-                def __init__(self, _):
+                def __init__(self, _: Any) -> None:
                     pass
 
                 @property
-                def value(self):
+                def value(self) -> None:
                     return None
 
-                @event
+                @event  # type: ignore[misc]
                 @value.setter
-                def value(self, x):
+                def value(self, x: int) -> None:
                     pass
 
         self.assertEqual(
@@ -852,20 +866,20 @@ class TestEventDecorator(TestCase):
             "@event on value() setter requires event name or class",
         )
 
-    def test_raises_when_property_decorates_event_without_name(self):
+    def test_raises_when_property_decorates_event_without_name(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class MyAgg(Aggregate):
-                def __init__(self, _):
+                def __init__(self, _: Any) -> None:
                     pass
 
                 @property
-                def value(self):
+                def value(self) -> None:
                     return None
 
                 @value.setter
                 @event
-                def value(self, _):
+                def value(self, _: Any) -> None:
                     pass
 
         self.assertEqual(
@@ -873,27 +887,27 @@ class TestEventDecorator(TestCase):
             "@event under value() property setter requires event class name",
         )
 
-    def test_raises_when_event_decorator_used_with_wrong_args(self):
+    def test_raises_when_event_decorator_used_with_wrong_args(self) -> None:
         with self.assertRaises(TypeError) as cm:
-            event(1)
+            event(1)  # type: ignore[call-overload]
         self.assertEqual(
             "1 is not a str, function, property, or subclass of CanMutateAggregate",
             cm.exception.args[0],
         )
 
         with self.assertRaises(TypeError) as cm:
-            event("EventName")(1)
+            event("EventName")(1)  # type: ignore[type-var]
         self.assertEqual(
             "1 is not a function or property",
             cm.exception.args[0],
         )
 
-    def test_raises_when_decorated_method_has_variable_args(self):
+    def test_raises_when_decorated_method_has_variable_args(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate):  # noqa: N801
+            class _1(Aggregate):  # noqa: N801
                 @event  # no event name
-                def method(self, *args):
+                def method(self, *args: Any) -> None:
                     pass
 
         self.assertEqual(
@@ -902,21 +916,21 @@ class TestEventDecorator(TestCase):
 
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate):  # noqa: N801
+            class _2(Aggregate):  # noqa: N801
                 @event("EventName")  # has event name
-                def method(self, *args):
+                def method(self, *args: Any) -> None:
                     pass
 
         self.assertEqual(
             cm.exception.args[0], "*args not supported by decorator on method()"
         )
 
-    def test_raises_when_decorated_method_has_variable_kwargs(self):
+    def test_raises_when_decorated_method_has_variable_kwargs(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate):  # noqa: N801
+            class _1(Aggregate):  # noqa: N801
                 @event  # no event name
-                def method(self, **kwargs):
+                def method(self, **kwargs: Any) -> None:
                     pass
 
         self.assertEqual(
@@ -925,9 +939,9 @@ class TestEventDecorator(TestCase):
 
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate):  # noqa: N801
+            class _2(Aggregate):  # noqa: N801
                 @event("EventName")  # has event name
-                def method(self, **kwargs):
+                def method(self, **kwargs: Any) -> None:
                     pass
 
         self.assertEqual(
@@ -937,14 +951,15 @@ class TestEventDecorator(TestCase):
         # With property.
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate):  # noqa: N801
+            class _3(Aggregate):  # noqa: N801
                 @property
-                def name(self):
+                def name(self) -> None:
                     return None
 
-                @event("EventName")  # before setter
+                # before setter
+                @event("EventName")  # type: ignore[misc]
                 @name.setter
-                def name(self, **kwargs):
+                def name(self, **kwargs: Any) -> None:
                     pass
 
         self.assertEqual(
@@ -953,14 +968,14 @@ class TestEventDecorator(TestCase):
 
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate):  # noqa: N801
+            class _4(Aggregate):  # noqa: N801
                 @property
-                def name(self):
+                def name(self) -> None:
                     return None
 
                 @name.setter
                 @event("EventName")  # after setter (same as without property)
-                def name(self, **kwargs):
+                def name(self, **kwargs: Any) -> None:
                     pass
 
         self.assertEqual(
@@ -968,7 +983,7 @@ class TestEventDecorator(TestCase):
         )
 
     # TODO: Somehow deal with custom decorators?
-    # def test_custom_decorators(self):
+    # def test_custom_decorators(self) -> None:
     #
     #     def mydecorator(f):
     #         def g(*args, **kwargs):
@@ -979,7 +994,7 @@ class TestEventDecorator(TestCase):
     #     class MyAgg:
     #         @event
     #         @mydecorator
-    #         def method(self):
+    #         def method(self) -> None:
     #             raise Exception("Shou")
     #
     #     a = MyAgg()
@@ -995,7 +1010,7 @@ class TestEventDecorator(TestCase):
                 at: datetime
 
             @triggers(Confirmed)
-            def confirm(self, at):
+            def confirm(self, at: datetime) -> None:
                 self.confirmed_at = at
 
         order = Order()
@@ -1004,9 +1019,9 @@ class TestEventDecorator(TestCase):
         self.assertIsInstance(order.confirmed_at, datetime)
 
         app: Application = Application()
-        app.save(order)
+        app.save(order)  # type: ignore[arg-type]
 
-        copy = app.repository.get(order.id)
+        copy: Order = app.repository.get(order.id)  # type: ignore[attr-defined]
 
         self.assertEqual(copy.confirmed_at, order.confirmed_at)
 
@@ -1027,7 +1042,7 @@ class TestEventDecorator(TestCase):
     #                     pass
     #
     #             @triggers(Confirmed)
-    #             def confirm(self):
+    #             def confirm(self) -> None:
     #                 pass
     #
     #     self.assertEqual(
@@ -1045,7 +1060,7 @@ class TestEventDecorator(TestCase):
                     at: datetime
 
                 @triggers("Confirmed")
-                def confirm(self, at):
+                def confirm(self, at: datetime) -> None:
                     self.confirmed_at = at
 
         self.assertEqual(
@@ -1060,11 +1075,11 @@ class TestEventDecorator(TestCase):
             @aggregate
             class Order(Aggregate):
                 @triggers("Confirmed")
-                def confirm1(self, at):
+                def confirm1(self, at: datetime) -> None:
                     self.confirmed_at = at
 
                 @triggers("Confirmed")
-                def confirm2(self, at):
+                def confirm2(self, at: datetime) -> None:
                     self.confirmed_at = at
 
         self.assertEqual(
@@ -1082,11 +1097,11 @@ class TestEventDecorator(TestCase):
                     at: datetime
 
                 @triggers(Confirmed)
-                def confirm1(self, at):
+                def confirm1(self, at: datetime) -> None:
                     self.confirmed_at = at
 
                 @triggers(Confirmed)
-                def confirm2(self, at):
+                def confirm2(self, at: datetime) -> None:
                     self.confirmed_at = at
 
         self.assertEqual(
@@ -1094,19 +1109,19 @@ class TestEventDecorator(TestCase):
             "Confirmed event class used in more than one decorator",
         )
 
-    def test_dirty_style_isnt_so_dirty_after_all(self):
+    def test_dirty_style_isnt_so_dirty_after_all(self) -> None:
         class Order(Aggregate):
-            def __init__(self, name):
+            def __init__(self, name: str) -> None:
                 self.name = name
-                self.confirmed_at = None
-                self.pickedup_at = None
+                self.confirmed_at: datetime | None = None
+                self.pickedup_at: datetime | None = None
 
             @event("Confirmed")
-            def confirm(self, at):
+            def confirm(self, at: datetime) -> None:
                 self.confirmed_at = at
 
             @event("PickedUp")
-            def pickup(self, at):
+            def pickup(self, at: datetime) -> None:
                 if self.confirmed_at is None:
                     msg = "Order is not confirmed"
                     raise RuntimeError(msg)
@@ -1118,10 +1133,12 @@ class TestEventDecorator(TestCase):
             order.pickup(AggregateEvent.create_timestamp())
         self.assertEqual(len(order.pending_events), 1)
 
-    def test_aggregate_has_a_created_event_name_defined_with_event_decorator(self):
+    def test_aggregate_has_a_created_event_name_defined_with_event_decorator(
+        self,
+    ) -> None:
         class MyAggregate(Aggregate):
             @event("Started")
-            def __init__(self):
+            def __init__(self) -> None:
                 pass
 
         a = MyAggregate()
@@ -1131,9 +1148,9 @@ class TestEventDecorator(TestCase):
 
         self.assertTrue(created_event_cls.__qualname__.endswith("MyAggregate.Started"))
         self.assertTrue(issubclass(created_event_cls, AggregateCreated))
-        self.assertEqual(created_event_cls, MyAggregate.Started)
+        self.assertEqual(created_event_cls, MyAggregate.Started)  # type: ignore[attr-defined]
 
-    def test_one_of_many_created_events_selected_by_init_method_decorator(self):
+    def test_one_of_many_created_events_selected_by_init_method_decorator(self) -> None:
         class MyAggregate(Aggregate):
             class Started(AggregateCreated):
                 pass
@@ -1142,7 +1159,7 @@ class TestEventDecorator(TestCase):
                 pass
 
             @event(Started)
-            def __init__(self):
+            def __init__(self) -> None:
                 pass
 
         a = MyAggregate()
@@ -1153,14 +1170,16 @@ class TestEventDecorator(TestCase):
         self.assertTrue(issubclass(created_event_cls, AggregateCreated))
         self.assertEqual(created_event_cls, MyAggregate.Started)
 
-    def test_aggregate_has_incompatible_created_event_class_in_event_decorator(self):
+    def test_aggregate_has_incompatible_created_event_class_in_event_decorator(
+        self,
+    ) -> None:
         # Event mentions 'a' but constructor doesn't.
         class MyAggregate1(Aggregate):
             class Started(AggregateCreated):
                 a: int
 
             @event(Started)
-            def __init__(self):
+            def __init__(self) -> None:
                 pass
 
         with self.assertRaises(TypeError) as cm:
@@ -1174,7 +1193,7 @@ class TestEventDecorator(TestCase):
         )
 
         with self.assertRaises(TypeError) as cm:
-            MyAggregate1(a=1)
+            MyAggregate1(a=1)  # type: ignore[call-arg]
 
         method_name = get_method_name(MyAggregate1.__init__)
         self.assertEqual(
@@ -1192,7 +1211,7 @@ class TestEventDecorator(TestCase):
                 self.a = a
 
         with self.assertRaises(TypeError) as cm:
-            MyAggregate2()
+            MyAggregate2()  # type: ignore[call-arg]
 
         method_name = get_method_name(MyAggregate2.__init__)
         self.assertEqual(
@@ -1210,11 +1229,13 @@ class TestEventDecorator(TestCase):
             cm.exception.args[0],
         )
 
-    def test_raises_when_using_created_event_name_and_init_event_decorator(self):
+    def test_raises_when_using_created_event_name_and_init_event_decorator(
+        self,
+    ) -> None:
         # Different name.
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate, created_event_name="Opened"):  # noqa: N801
+            class _1(Aggregate, created_event_name="Opened"):  # noqa: N801
                 class Started(AggregateCreated):
                     a: int
 
@@ -1222,7 +1243,7 @@ class TestEventDecorator(TestCase):
                     a: int
 
                 @event("Started")
-                def __init__(self):
+                def __init__(self) -> None:
                     pass
 
         self.assertEqual(
@@ -1233,7 +1254,7 @@ class TestEventDecorator(TestCase):
         # Same name.
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate, created_event_name="Opened"):  # noqa: N801
+            class _2(Aggregate, created_event_name="Opened"):  # noqa: N801
                 class Started(AggregateCreated):
                     a: int
 
@@ -1241,7 +1262,7 @@ class TestEventDecorator(TestCase):
                     a: int
 
                 @event("Opened")
-                def __init__(self):
+                def __init__(self) -> None:
                     pass
 
         self.assertEqual(
@@ -1252,7 +1273,7 @@ class TestEventDecorator(TestCase):
         # Different class.
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate, created_event_name="Opened"):  # noqa: N801
+            class _3(Aggregate, created_event_name="Opened"):  # noqa: N801
                 class Started(AggregateCreated):
                     a: int
 
@@ -1260,7 +1281,7 @@ class TestEventDecorator(TestCase):
                     a: int
 
                 @event(Started)
-                def __init__(self):
+                def __init__(self) -> None:
                     pass
 
         self.assertEqual(
@@ -1271,7 +1292,7 @@ class TestEventDecorator(TestCase):
         # Same class.
         with self.assertRaises(TypeError) as cm:
 
-            class _(Aggregate, created_event_name="Opened"):  # noqa: N801
+            class _4(Aggregate, created_event_name="Opened"):  # noqa: N801
                 class Started(AggregateCreated):
                     a: int
 
@@ -1279,7 +1300,7 @@ class TestEventDecorator(TestCase):
                     a: int
 
                 @event(Opened)
-                def __init__(self):
+                def __init__(self) -> None:
                     pass
 
         self.assertEqual(
@@ -1287,13 +1308,13 @@ class TestEventDecorator(TestCase):
             "Can't use both 'created_event_name' and decorator on __init__",
         )
 
-    def test_raises_when_using_init_event_decorator_without_args(self):
+    def test_raises_when_using_init_event_decorator_without_args(self) -> None:
         # Different name.
         with self.assertRaises(TypeError) as cm:
 
             class _(Aggregate):  # noqa: N801
                 @event
-                def __init__(self):
+                def __init__(self) -> None:
                     pass
 
         self.assertEqual(
@@ -1301,35 +1322,39 @@ class TestEventDecorator(TestCase):
             cm.exception.args[0],
         )
 
-    def test_raises_type_error_if_given_event_class_cannot_init_aggregate(self):
+    def test_raises_type_error_if_given_event_class_cannot_init_aggregate(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class MyAggregate(Aggregate):
                 @event(Aggregate.Event)
-                def __init__(self):
+                def __init__(self) -> None:
                     pass
 
         self.assertIn("not subclass of CanInit", cm.exception.args[0])
 
-    def test_raises_if_given_event_class_on_command_method_can_init_aggregate(self):
+    def test_raises_if_given_event_class_on_command_method_can_init_aggregate(
+        self,
+    ) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class MyAggregate(Aggregate):
                 @event(Aggregate.Created)
-                def do_something(self):
+                def do_something(self) -> None:
                     pass
 
         self.assertIn("is subclass of CanInit", cm.exception.args[0])
 
-    def test_raises_if_given_event_class_on_command_method_is_not_aggregate_event(self):
+    def test_raises_if_given_event_class_on_command_method_is_not_aggregate_event(
+        self,
+    ) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class X:
                 pass
 
             class MyAggregate(Aggregate):
-                @event(X)
-                def do_something(self):
+                @event(X)  # type: ignore[call-arg, type-var]
+                def do_something(self) -> None:
                     pass
 
         self.assertIn(
@@ -1337,13 +1362,13 @@ class TestEventDecorator(TestCase):
             cm.exception.args[0],
         )
 
-    def test_decorated_method_has_original_docstring(self):
+    def test_decorated_method_has_original_docstring(self) -> None:
         class MyAggregate(Aggregate):
-            def method0(self):
+            def method0(self) -> None:
                 """Method 0"""
 
             @event
-            def method1(self):
+            def method1(self) -> None:
                 """Method 1"""
 
         self.assertEqual(MyAggregate.method0.__doc__, "Method 0")
@@ -1351,28 +1376,28 @@ class TestEventDecorator(TestCase):
         self.assertEqual(MyAggregate.method1.__doc__, "Method 1")
         self.assertEqual(MyAggregate().method1.__doc__, "Method 1")
 
-    def test_decorated_method_has_original_annotations(self):
+    def test_decorated_method_has_original_annotations(self) -> None:
         class MyAggregate(Aggregate):
-            def method0(self, a: int):
+            def method0(self, a: int) -> None:
                 """Method 0"""
 
             @event
-            def method1(self, a: int):
+            def method1(self, a: int) -> None:
                 """Method 1"""
 
-        expected_annotations = {"a": int}
+        expected_annotations = {"a": "int", "return": "None"}
         self.assertEqual(MyAggregate.method0.__annotations__, expected_annotations)
         self.assertEqual(MyAggregate().method0.__annotations__, expected_annotations)
         self.assertEqual(MyAggregate.method1.__annotations__, expected_annotations)
         self.assertEqual(MyAggregate().method1.__annotations__, expected_annotations)
 
-    def test_decorated_method_has_original_module(self):
+    def test_decorated_method_has_original_module(self) -> None:
         class MyAggregate(Aggregate):
-            def method0(self, a: int):
+            def method0(self, a: int) -> None:
                 """Method 0"""
 
             @event
-            def method1(self, a: int):
+            def method1(self, a: int) -> None:
                 """Method 1"""
 
         expected_module = __name__
@@ -1381,13 +1406,13 @@ class TestEventDecorator(TestCase):
         self.assertEqual(MyAggregate.method1.__module__, expected_module)
         self.assertEqual(MyAggregate().method1.__module__, expected_module)
 
-    def test_decorated_method_has_original_name(self):
+    def test_decorated_method_has_original_name(self) -> None:
         class MyAggregate(Aggregate):
-            def method0(self, a: int):
+            def method0(self, a: int) -> None:
                 """Method 0"""
 
             @event
-            def method1(self, a: int):
+            def method1(self, a: int) -> None:
                 """Method 1"""
 
         self.assertEqual(MyAggregate.method0.__name__, "method0")
@@ -1395,11 +1420,11 @@ class TestEventDecorator(TestCase):
         self.assertEqual(MyAggregate.method1.__name__, "method1")
         self.assertEqual(MyAggregate().method1.__name__, "method1")
 
-    # def test_raises_when_apply_method_returns_value(self):
+    # def test_raises_when_apply_method_returns_value(self) -> None:
     #     # Different name.
     #     class MyAgg(Aggregate):
     #         @event("EventName")
-    #         def name(self):
+    #         def name(self) -> None:
     #             return 1
     #
     #     a = MyAgg()
@@ -1414,25 +1439,25 @@ class TestEventDecorator(TestCase):
     #         ),
     #         msg,
     #     )
-    def test_can_include_timestamp_in_command_method_signature(self):
+    def test_can_include_timestamp_in_command_method_signature(self) -> None:
         class Order(Aggregate):
-            def __init__(self, name, timestamp=None):
+            def __init__(self, name: str, timestamp: datetime | None = None) -> None:
                 self.name = name
-                self.confirmed_at = None
-                self.pickedup_at = None
+                self.confirmed_at: datetime | None = None
+                self.pickedup_at: datetime | None = None
 
             class Started(AggregateCreated):
                 name: str
 
             @event("Confirmed")
-            def confirm(self, timestamp=None):
+            def confirm(self, timestamp: datetime | None = None) -> None:
                 self.confirmed_at = timestamp
 
             class PickedUp(Aggregate.Event):
                 pass
 
             @event(PickedUp)
-            def picked_up(self, timestamp=None):
+            def picked_up(self, timestamp: datetime | None = None) -> None:
                 self.pickedup_at = timestamp
 
         order1 = Order("order1")
@@ -1471,19 +1496,19 @@ class TestEventDecorator(TestCase):
 class TestOrder(TestCase):
     def test(self) -> None:
         class Order(Aggregate):
-            def __init__(self, name):
+            def __init__(self, name: str) -> None:
                 self.name = name
-                self.confirmed_at = None
-                self.pickedup_at = None
+                self.confirmed_at: datetime | None = None
+                self.pickedup_at: datetime | None = None
 
             class Started(AggregateCreated):
                 name: str
 
             @event("Confirmed")
-            def confirm(self, at):
+            def confirm(self, at: datetime) -> None:
                 self.confirmed_at = at
 
-            def pickup(self, at):
+            def pickup(self, at: datetime) -> None:
                 if self.confirmed_at:
                     self._pickup(at)
                 else:
@@ -1491,7 +1516,7 @@ class TestOrder(TestCase):
                     raise Exception(msg)
 
             @event("Pickedup")
-            def _pickup(self, at):
+            def _pickup(self, at: datetime) -> None:
                 self.pickedup_at = at
 
         order = Order("my order")
@@ -1518,6 +1543,7 @@ class TestOrder(TestCase):
         for e in pending_events:
             copy = e.mutate(copy)
 
+        assert isinstance(copy, Order)
         self.assertEqual(copy.name, order.name)
         self.assertEqual(copy.created_on, order.created_on)
         self.assertEqual(copy.modified_on, order.modified_on)
