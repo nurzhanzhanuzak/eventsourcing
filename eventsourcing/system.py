@@ -7,16 +7,18 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from queue import Full, Queue
 from types import FrameType, ModuleType
-from typing import TYPE_CHECKING, Any, ClassVar, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, Union, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
     from typing_extensions import Self
+    from eventsourcing.dispatch import singledispatchmethod
 
 from eventsourcing.application import (
     Application,
     NotificationLog,
     ProcessingEvent,
+    ProgrammingError,
     Section,
     TApplication,
 )
@@ -196,8 +198,11 @@ class Follower(Application):
                 self.notify(processing_event.events)
                 self._notify(recordings)
 
-    @abstractmethod
-    def policy(
+    policy: (
+        Callable[[DomainEventProtocol, ProcessingEvent], None] | singledispatchmethod
+    )
+
+    def policy(  # type: ignore[no-redef]
         self,
         domain_event: DomainEventProtocol,
         processing_event: ProcessingEvent,
@@ -379,7 +384,7 @@ class System:
         return cls
 
     @property
-    def topic(self) -> str | None:
+    def topic(self) -> str:
         """
         Returns a topic to the system object, if constructed as a module attribute.
         """
@@ -389,6 +394,9 @@ class System:
             if value is self:
                 topic = module.__name__ + ":" + name
                 assert resolve_topic(topic) is self
+        if topic is None:
+            msg = "Unable to compute topic for system object: %s" % self
+            raise ProgrammingError(msg)
         return topic
 
 

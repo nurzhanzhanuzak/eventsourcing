@@ -76,7 +76,7 @@ class EmailProcess(ProcessApplication):
         transcoder.register(EmailAddressAsStr())
 
     @singledispatchmethod
-    def policy(  # type: ignore[override]
+    def policy(
         self,
         domain_event: DomainEventProtocol,
         processing_event: ProcessingEvent,

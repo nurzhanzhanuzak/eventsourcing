@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 from unittest.case import TestCase
-from uuid import NAMESPACE_URL, uuid4, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
-from eventsourcing.application import Application
-from eventsourcing.domain import Aggregate
+from eventsourcing.application import Application, ProcessingEvent, ProgrammingError
+from eventsourcing.dispatch import singledispatchmethod
+from eventsourcing.domain import Aggregate, DomainEventProtocol
 from eventsourcing.persistence import IntegrityError, Notification, Tracking
 from eventsourcing.system import (
     Follower,
@@ -35,7 +36,7 @@ system_defined_as_global = System(
 
 
 class TestSystem(TestCase):
-    def test_graph_nodes_and_edges(self):
+    def test_graph_nodes_and_edges(self) -> None:
         system = System(
             pipes=[
                 [
@@ -65,7 +66,7 @@ class TestSystem(TestCase):
 
         self.assertEqual(len(system.singles), 1)
 
-    def test_duplicate_edges_are_eliminated(self):
+    def test_duplicate_edges_are_eliminated(self) -> None:
         system = System(
             pipes=[
                 [
@@ -99,7 +100,7 @@ class TestSystem(TestCase):
 
         self.assertEqual(len(system.singles), 1)
 
-    def test_raises_type_error_not_a_follower(self):
+    def test_raises_type_error_not_a_follower(self) -> None:
         with self.assertRaises(TypeError) as cm:
             System(
                 pipes=[
@@ -115,7 +116,7 @@ class TestSystem(TestCase):
             "Not a follower class: <class 'eventsourcing.system.Leader'>",
         )
 
-    def test_raises_type_error_not_a_processor(self):
+    def test_raises_type_error_not_a_processor(self) -> None:
         with self.assertRaises(TypeError) as cm:
             System(
                 pipes=[
@@ -132,7 +133,7 @@ class TestSystem(TestCase):
             "Not a process application class: <class 'eventsourcing.system.Follower'>",
         )
 
-    def test_is_leaders_only(self):
+    def test_is_leaders_only(self) -> None:
         system = System(
             pipes=[
                 [
@@ -144,7 +145,7 @@ class TestSystem(TestCase):
         )
         self.assertEqual(list(system.leaders_only), ["Leader"])
 
-    def test_leader_class(self):
+    def test_leader_class(self) -> None:
         system = System(
             pipes=[
                 [
@@ -157,21 +158,22 @@ class TestSystem(TestCase):
         self.assertTrue(issubclass(system.leader_cls("Application"), Leader))
         self.assertTrue(issubclass(system.leader_cls("ProcessApplication"), Leader))
 
-    def test_system_has_topic_if_defined_as_module_attribute(self):
+    def test_system_has_topic_if_defined_as_module_attribute(self) -> None:
         system_topic = system_defined_as_global.topic
         self.assertTrue(system_topic.endswith("test_system:system_defined_as_global"))
         self.assertEqual(resolve_topic(system_topic), system_defined_as_global)
 
-    def test_system_topic_is_none_if_defined_in_function_body(self):
+    def test_system_topic_is_none_if_defined_in_function_body(self) -> None:
         system = System([[]])
-        self.assertIsNone(system.topic)
+        with self.assertRaises(ProgrammingError):
+            system.topic  # noqa: B018
 
 
 class TestLeader(TestCase):
-    def test(self):
+    def test(self) -> None:
         # Define fixture that receives prompts.
         class FollowerFixture(RecordingEventReceiver):
-            def __init__(self):
+            def __init__(self) -> None:
                 self.num_received = 0
 
             def receive_recording_event(self, _: RecordingEvent) -> None:
@@ -201,19 +203,24 @@ class TestLeader(TestCase):
 
 
 class TestFollower(TestCase):
-    def test_process_event(self):
+    def test_process_event(self) -> None:
         class UUID5EmailNotification(Aggregate):
-            def __init__(self, to, subject, message):
+            def __init__(self, to: str, subject: str, message: str) -> None:
                 self.to = to
                 self.subject = subject
                 self.message = message
 
             @staticmethod
-            def create_id(to: str):
+            def create_id(to: str) -> UUID:
                 return uuid5(NAMESPACE_URL, f"/emails/{to}")
 
         class UUID5EmailProcess(EmailProcess):
-            def policy(self, domain_event, processing_event):
+            @singledispatchmethod
+            def policy(
+                self,
+                domain_event: DomainEventProtocol,
+                processing_event: ProcessingEvent,
+            ) -> None:
                 if isinstance(domain_event, BankAccount.Opened):
                     notification = UUID5EmailNotification(
                         to=domain_event.email_address,
@@ -264,11 +271,11 @@ class TestFollower(TestCase):
         with self.assertRaises(IntegrityError):
             email_process.process_event(aggregate_event, tracking)
 
-    def test_filter_received_notifications(self):
+    def test_filter_received_notifications(self) -> None:
         class MyFollower(Follower):
             follow_topics: ClassVar[Sequence[str]] = []
 
-            def policy(self, *args, **kwargs):
+            def policy(self, *args: Any, **kwargs: Any) -> None:
                 pass
 
         follower = MyFollower()
@@ -282,7 +289,7 @@ class TestFollower(TestCase):
             )
         ]
         self.assertEqual(len(follower.filter_received_notifications(notifications)), 1)
-        follower.follow_topics = ["topic1"]
+        type(follower).follow_topics = ["topic1"]
         self.assertEqual(len(follower.filter_received_notifications(notifications)), 1)
-        follower.follow_topics = ["topic2"]
+        type(follower).follow_topics = ["topic2"]
         self.assertEqual(len(follower.filter_received_notifications(notifications)), 0)

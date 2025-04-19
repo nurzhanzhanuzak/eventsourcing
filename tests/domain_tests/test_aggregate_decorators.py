@@ -1184,12 +1184,18 @@ class TestEventDecorator(TestCase):
 
         with self.assertRaises(TypeError) as cm:
             MyAggregate1()
-        self.assertEqual(
-            (
+
+        # Check error message.
+        errmsg = cm.exception.args[0]
+        self.assertTrue(
+            errmsg.startswith(
                 f"Unable to construct '{MyAggregate1.Started.__qualname__}' event:"
-                f" __init__() missing 1 required positional argument: 'a'"
             ),
-            cm.exception.args[0],
+            errmsg,
+        )
+        self.assertTrue(
+            errmsg.endswith("__init__() missing 1 required positional argument: 'a'"),
+            errmsg,
         )
 
         with self.assertRaises(TypeError) as cm:
@@ -1213,6 +1219,7 @@ class TestEventDecorator(TestCase):
         with self.assertRaises(TypeError) as cm:
             MyAggregate2()  # type: ignore[call-arg]
 
+        # Check error message.
         method_name = get_method_name(MyAggregate2.__init__)
         self.assertEqual(
             f"{method_name}() missing 1 required positional argument: 'a'",
@@ -1221,12 +1228,16 @@ class TestEventDecorator(TestCase):
 
         with self.assertRaises(TypeError) as cm:
             MyAggregate2(a=1)
-        self.assertEqual(
-            (
+        errmsg = cm.exception.args[0]
+        self.assertTrue(
+            errmsg.startswith(
                 f"Unable to construct '{MyAggregate2.Started.__qualname__}' event:"
-                f" __init__() got an unexpected keyword argument 'a'"
             ),
-            cm.exception.args[0],
+            errmsg,
+        )
+        self.assertTrue(
+            errmsg.endswith("__init__() got an unexpected keyword argument 'a'"),
+            errmsg,
         )
 
     def test_raises_when_using_created_event_name_and_init_event_decorator(

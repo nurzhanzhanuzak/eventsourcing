@@ -1075,7 +1075,7 @@ class Aggregate(metaclass=MetaAggregate):
             created_event = event_class(**kwargs)
         except TypeError as e:
             msg = f"Unable to construct '{event_class.__qualname__}' event: {e}"
-            raise TypeError(msg) from None
+            raise TypeError(msg) from e
         # Construct the aggregate object.
         agg = cast(Self, created_event.mutate(None))
 

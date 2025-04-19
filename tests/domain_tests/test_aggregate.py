@@ -391,6 +391,7 @@ class TestAggregateCreation(TestCase):
         with self.assertRaises(TypeError) as cm:
             MyAgg2(c=2)  # type: ignore[call-arg]
 
+        method_name = get_method_name(MyAgg2.__init__)
         self.assertEqual(
             cm.exception.args[0],
             f"{method_name}() missing 1 required positional argument: 'a'",

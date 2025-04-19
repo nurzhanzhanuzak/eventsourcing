@@ -6,7 +6,7 @@ from abc import abstractmethod
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Event, Thread
-from typing import TYPE_CHECKING, Callable, ClassVar
+from typing import TYPE_CHECKING, Any, Callable, ClassVar
 from unittest.case import TestCase
 from uuid import UUID
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 class TestRemoteNotificationLog(TestCase):
-    def test_directly(self):
+    def test_directly(self) -> None:
         client = BankAccountsJSONClient(BankAccountsJSONService(BankAccounts()))
         account_id1 = client.open_account("Alice", "alice@example.com")
         account_id2 = client.open_account("Bob", "bob@example.com")
@@ -39,7 +39,7 @@ class TestRemoteNotificationLog(TestCase):
         self.assertEqual(notifications[0].originator_id, account_id1)
         self.assertEqual(notifications[1].originator_id, account_id2)
 
-    def test_with_http(self):
+    def test_with_http(self) -> None:
         server_address = ("127.0.0.1", 8080)
 
         server = HTTPApplicationServer(
@@ -73,7 +73,7 @@ class TestRemoteNotificationLog(TestCase):
         finally:
             server.stop()
 
-    def test_with_http_and_threads(self):
+    def test_with_http_and_threads(self) -> None:
         server_address = ("127.0.0.1", 8081)
 
         server = HTTPApplicationServer(
@@ -88,7 +88,7 @@ class TestRemoteNotificationLog(TestCase):
         try:
             self.has_errors = False
 
-            def open_account():
+            def open_account() -> None:
                 client = BankAccountsJSONClient(
                     BankAccountsHTTPClient(server_address=server_address)
                 )
@@ -156,7 +156,7 @@ class BankAccountsJSONClient:
         self.interface = interface
         self.log = NotificationLogJSONClient(interface)
 
-    def open_account(self, full_name, email_address) -> UUID:
+    def open_account(self, full_name: str, email_address: str) -> UUID:
         body = json.dumps(
             {
                 "full_name": full_name,
@@ -168,9 +168,9 @@ class BankAccountsJSONClient:
 
 
 class HTTPApplicationServer(Thread):
-    prepare: ClassVar[list[Callable]] = []
+    prepare: ClassVar[list[Callable[..., None]]] = []
 
-    def __init__(self, address, handler):
+    def __init__(self, address: tuple[str, int], handler: Any) -> None:
         super().__init__(daemon=True)
         self.server = HTTPServer(
             server_address=address,
@@ -178,23 +178,23 @@ class HTTPApplicationServer(Thread):
         )
         self.is_running = Event()
 
-    def run(self):
+    def run(self) -> None:
         [f() for f in self.prepare]
         self.is_running.set()
         self.server.serve_forever()
 
-    def stop(self):
+    def stop(self) -> None:
         self.server.shutdown()
         self.join()
 
     @classmethod
-    def before_first_request(cls, f):
+    def before_first_request(cls, f: Callable[..., None]) -> Callable[..., None]:
         HTTPApplicationServer.prepare.append(f)
         return f
 
 
 class BankAccountsHTTPHandler(BaseHTTPRequestHandler):
-    def do_PUT(self):  # noqa: N802
+    def do_PUT(self) -> None:  # noqa: N802
         if self.path.startswith("/accounts/"):
             length = int(self.headers["Content-Length"])
             request_msg = self.rfile.read(length).decode("utf8")
@@ -205,18 +205,17 @@ class BankAccountsHTTPHandler(BaseHTTPRequestHandler):
             status = 404
         self.send(body, status)
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self) -> None:  # noqa: N802
         if self.path.startswith("/notifications/"):
             section_id = self.path.split("/")[-1]
             body = bank_accounts_service.get_log_section(section_id)
             status = 200
         elif self.path.startswith("/notifications"):
             args = self.path.split("?")[-1].split("&")
-            args = [p.split("=") for p in args]
-            args = {p[0]: p[1] for p in args}
-            start = int(args["start"])
-            limit = int(args["limit"])
-            inclusive_of_start = bool(int(args["inclusive_of_start"]))
+            kwargs = {p[0]: p[1] for p in [p.split("=") for p in args]}
+            start = int(kwargs["start"])
+            limit = int(kwargs["limit"])
+            inclusive_of_start = bool(int(kwargs["inclusive_of_start"]))
 
             body = bank_accounts_service.get_notifications(
                 start=start, limit=limit, inclusive_of_start=inclusive_of_start
@@ -227,7 +226,7 @@ class BankAccountsHTTPHandler(BaseHTTPRequestHandler):
             status = 404
         self.send(body, status)
 
-    def send(self, body: str, status: int):
+    def send(self, body: str, status: int) -> None:
         self.send_response(status)
         self.send_header("Content-type", "text/html")
         self.end_headers()
@@ -235,7 +234,7 @@ class BankAccountsHTTPHandler(BaseHTTPRequestHandler):
 
 
 class BankAccountsHTTPClient(BankAccountsInterface):
-    def __init__(self, server_address):
+    def __init__(self, server_address: tuple[str, int | None]) -> None:
         self.connection = HTTPConnection(*server_address)
 
     def get_log_section(self, section_id: str) -> str:
@@ -260,7 +259,7 @@ class BankAccountsHTTPClient(BankAccountsInterface):
     def open_account(self, body: str) -> str:
         return self._request("PUT", "/accounts/", body.encode("utf8"))
 
-    def _request(self, method, url, body=None):
+    def _request(self, method: str, url: str, body: bytes | None = None) -> str:
         self.connection.request(method, url, body)
         response = self.connection.getresponse()
         return response.read().decode()
