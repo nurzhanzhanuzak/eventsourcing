@@ -303,7 +303,7 @@ method, and the materialised view's :func:`~eventsourcing.persistence.TrackingRe
 Counting events in PostgreSQL
 -----------------------------
 
-The ``TestEventCountersProjectionWithPostgres`` extends ``TestEventCountersProjection`` and runs
+The ``TestEventCountersProjectionWithPostgres`` class extends ``TestEventCountersProjection`` and runs
 ``EventCountersProjection`` with the ``PostgresEventCounters`` class.
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
