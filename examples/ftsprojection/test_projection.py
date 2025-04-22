@@ -67,8 +67,8 @@ class TestFtsProjection(unittest.TestCase):
         # Run the projection (independently of read and write model objects).
         _ = ProjectionRunner(
             application_class=ContentManagement,
-            view_class=PostgresFtsTrackingRecorder,
             projection_class=FtsProjection,
+            view_class=PostgresFtsTrackingRecorder,
             env=self.env,
         )
 

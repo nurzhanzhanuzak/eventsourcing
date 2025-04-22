@@ -18,8 +18,8 @@ from eventsourcing.projection import (
 )
 from eventsourcing.utils import get_topic
 from tests.projection_tests.test_projection import (
-    CountProjection,
-    POPOCountRecorder,
+    EventCountersProjection,
+    POPOEventCounters,
     SpannerThrown,
     SpannerThrownError,
 )
@@ -33,8 +33,8 @@ class TestProjectionRunner(TestCase):
     def test_runner(self) -> None:
         runner = ProjectionRunner(
             application_class=Application,
-            view_class=POPOCountRecorder,
-            projection_class=CountProjection,
+            projection_class=EventCountersProjection,
+            view_class=POPOEventCounters,
         )
 
         app = runner.app
@@ -44,8 +44,8 @@ class TestProjectionRunner(TestCase):
         recordings = app.save(aggregate)
 
         runner.wait(recordings[-1].notification.id)
-        self.assertEqual(runner.projection.view.get_created_events_counter(), 1)
-        self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 2)
+        self.assertEqual(runner.projection.view.get_created_event_counter(), 1)
+        self.assertEqual(runner.projection.view.get_subsequent_event_counter(), 2)
 
         aggregate = Aggregate()
         aggregate.trigger_event(event_class=Aggregate.Event)
@@ -53,8 +53,8 @@ class TestProjectionRunner(TestCase):
         recordings = app.save(aggregate)
 
         runner.wait(recordings[-1].notification.id)
-        self.assertEqual(runner.projection.view.get_created_events_counter(), 2)
-        self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 4)
+        self.assertEqual(runner.projection.view.get_created_event_counter(), 2)
+        self.assertEqual(runner.projection.view.get_subsequent_event_counter(), 4)
 
         runner.run_forever(timeout=0.1)
 
@@ -71,13 +71,13 @@ class TestProjectionRunner(TestCase):
             runner.run_forever()
 
     def test_runner_with_topics(self) -> None:
-        class CountProjectionWithTopics(CountProjection):
+        class EventCountersProjectionWithTopics(EventCountersProjection):
             topics = (get_topic(Aggregate.Event),)
 
         runner = ProjectionRunner(
             application_class=Application,
-            view_class=POPOCountRecorder,
-            projection_class=CountProjectionWithTopics,
+            projection_class=EventCountersProjectionWithTopics,
+            view_class=POPOEventCounters,
         )
 
         app = runner.app
@@ -88,9 +88,9 @@ class TestProjectionRunner(TestCase):
 
         runner.wait(recordings[-1].notification.id)
         # Should be zero because we didn't include Aggregate.Created topic.
-        self.assertEqual(runner.projection.view.get_created_events_counter(), 0)
+        self.assertEqual(runner.projection.view.get_created_event_counter(), 0)
         # Should be two because we did include Aggregate.Event topic.
-        self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 2)
+        self.assertEqual(runner.projection.view.get_subsequent_event_counter(), 2)
 
     def test_runner_stop(self) -> None:
 
@@ -113,8 +113,8 @@ class TestProjectionRunner(TestCase):
         # Call stop() before run_forever().
         with ProjectionRunner(
             application_class=Application,
-            view_class=POPOCountRecorder,
-            projection_class=CountProjection,
+            projection_class=EventCountersProjection,
+            view_class=POPOEventCounters,
         ) as runner:
             runner.stop()
             runner.run_forever()
@@ -122,8 +122,8 @@ class TestProjectionRunner(TestCase):
         # Call stop() before wait().
         with ProjectionRunner(
             application_class=Application,
-            view_class=POPOCountRecorder,
-            projection_class=CountProjection,
+            projection_class=EventCountersProjection,
+            view_class=POPOEventCounters,
         ) as runner:
             runner.stop()
             runner.wait(10000)
@@ -131,8 +131,8 @@ class TestProjectionRunner(TestCase):
         # Call stop() after run_forever().
         with ProjectionRunner(
             application_class=Application,
-            view_class=POPOCountRecorder,
-            projection_class=CountProjection,
+            projection_class=EventCountersProjection,
+            view_class=POPOEventCounters,
         ) as runner:
             thread = threading.Thread(target=call_runforever, args=(runner,))
             thread.start()
@@ -144,8 +144,8 @@ class TestProjectionRunner(TestCase):
         # Call stop() after wait().
         with ProjectionRunner(
             application_class=Application,
-            view_class=POPOCountRecorder,
-            projection_class=CountProjection,
+            projection_class=EventCountersProjection,
+            view_class=POPOEventCounters,
         ) as runner:
             thread = threading.Thread(target=call_wait, args=(runner,))
             thread.start()
@@ -157,8 +157,8 @@ class TestProjectionRunner(TestCase):
     def test_runner_as_context_manager(self) -> None:
         with ProjectionRunner(
             application_class=Application,
-            view_class=POPOCountRecorder,
-            projection_class=CountProjection,
+            projection_class=EventCountersProjection,
+            view_class=POPOEventCounters,
         ) as runner:
 
             app = runner.app
@@ -168,8 +168,8 @@ class TestProjectionRunner(TestCase):
             recordings = app.save(aggregate)
 
             runner.wait(recordings[-1].notification.id)
-            self.assertEqual(runner.projection.view.get_created_events_counter(), 1)
-            self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 2)
+            self.assertEqual(runner.projection.view.get_created_event_counter(), 1)
+            self.assertEqual(runner.projection.view.get_subsequent_event_counter(), 2)
 
             aggregate = Aggregate()
             aggregate.trigger_event(event_class=Aggregate.Event)
@@ -177,8 +177,8 @@ class TestProjectionRunner(TestCase):
             recordings = app.save(aggregate)
 
             runner.wait(recordings[-1].notification.id)
-            self.assertEqual(runner.projection.view.get_created_events_counter(), 2)
-            self.assertEqual(runner.projection.view.get_subsequent_events_counter(), 4)
+            self.assertEqual(runner.projection.view.get_created_event_counter(), 2)
+            self.assertEqual(runner.projection.view.get_subsequent_event_counter(), 4)
 
             runner.run_forever(timeout=0.1)
 
@@ -195,8 +195,8 @@ class TestProjectionRunner(TestCase):
         # Construct a runner.
         runner = ProjectionRunner(
             application_class=Application,
-            view_class=POPOCountRecorder,
             projection_class=BrokenProjection,
+            view_class=POPOEventCounters,
         )
 
         # Write an event.

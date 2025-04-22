@@ -88,7 +88,10 @@ class TestDocs(TestCase):
         # self.check_code_snippets_in_file(path)
 
     def test_docs(self) -> None:
-        skipped = ["aggregate6.rst"]  # has :start-from: complications...
+        skipped = [
+            "aggregate6.rst",  # has :start-from: complications...
+            "part4.rst",  # can't import abstract test case that is del-ed in module
+        ]
 
         self._out = ""
         docs_path = os.path.join(base_dir, "docs")

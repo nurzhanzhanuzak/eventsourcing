@@ -5,7 +5,7 @@ import logging
 from asyncio import CancelledError
 from contextlib import contextmanager
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 import psycopg
 import psycopg.errors
@@ -13,6 +13,7 @@ import psycopg_pool
 from psycopg import Connection, Cursor, Error
 from psycopg.generators import notifies
 from psycopg.rows import DictRow, dict_row
+from typing_extensions import TypeVar
 
 from eventsourcing.persistence import (
     AggregateRecorder,
@@ -660,6 +661,13 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
             return bool(fetchone["count"])
 
 
+TPostgresTrackingRecorder = TypeVar(
+    "TPostgresTrackingRecorder",
+    bound=PostgresTrackingRecorder,
+    default=PostgresTrackingRecorder,
+)
+
+
 class PostgresProcessRecorder(
     PostgresTrackingRecorder, PostgresApplicationRecorder, ProcessRecorder
 ):
@@ -921,18 +929,21 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
         return recorder
 
     def tracking_recorder(
-        self, tracking_recorder_class: type[PostgresTrackingRecorder] | None = None
-    ) -> PostgresTrackingRecorder:
+        self, tracking_recorder_class: type[TPostgresTrackingRecorder] | None = None
+    ) -> TPostgresTrackingRecorder:
         prefix = self.env.name.lower() or "notification"
         tracking_table_name = prefix + "_tracking"
         if self.datastore.schema:
             tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
+
         if tracking_recorder_class is None:
             tracking_recorder_topic = self.env.get(self.TRACKING_RECORDER_TOPIC)
             if tracking_recorder_topic:
                 tracking_recorder_class = resolve_topic(tracking_recorder_topic)
             else:
-                tracking_recorder_class = type(self).tracking_recorder_class
+                tracking_recorder_class = cast(
+                    type[TPostgresTrackingRecorder], type(self).tracking_recorder_class
+                )
         assert tracking_recorder_class is not None
         assert issubclass(tracking_recorder_class, PostgresTrackingRecorder)
         recorder = tracking_recorder_class(

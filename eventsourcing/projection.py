@@ -104,8 +104,8 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         self,
         *,
         application_class: type[TApplication],
-        view_class: type[TTrackingRecorder],
         projection_class: type[Projection[TTrackingRecorder]],
+        view_class: type[TTrackingRecorder],
         env: EnvType | None = None,
     ):
         self.app: TApplication = application_class(env)

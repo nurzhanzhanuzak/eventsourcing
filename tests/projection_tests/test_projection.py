@@ -7,9 +7,18 @@ from unittest import TestCase
 from eventsourcing.application import Application
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import Aggregate, DomainEventProtocol
-from eventsourcing.persistence import InfrastructureFactory, Tracking, TrackingRecorder
+from eventsourcing.persistence import (
+    InfrastructureFactory,
+    IntegrityError,
+    Tracking,
+    TrackingRecorder,
+)
 from eventsourcing.popo import POPOTrackingRecorder
-from eventsourcing.postgres import PostgresDatastore, PostgresTrackingRecorder
+from eventsourcing.postgres import (
+    PostgresDatastore,
+    PostgresFactory,
+    PostgresTrackingRecorder,
+)
 from eventsourcing.projection import Projection, ProjectionRunner
 from eventsourcing.tests.postgres_utils import drop_postgres_table
 from eventsourcing.utils import Environment
@@ -17,93 +26,163 @@ from eventsourcing.utils import Environment
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from psycopg import Connection
-    from psycopg.rows import DictRow
 
-
-class CountRecorderInterface(TrackingRecorder):
+class EventCountersInterface(TrackingRecorder):
     @abstractmethod
-    def incr_created_events_counter(self, tracking: Tracking) -> None:
+    def get_created_event_counter(self) -> int:
         pass
 
     @abstractmethod
-    def incr_subsequent_events_counter(self, tracking: Tracking) -> None:
+    def get_subsequent_event_counter(self) -> int:
         pass
 
     @abstractmethod
-    def get_created_events_counter(self) -> int:
+    def incr_created_event_counter(self, tracking: Tracking) -> None:
         pass
 
     @abstractmethod
-    def get_subsequent_events_counter(self) -> int:
+    def incr_subsequent_event_counter(self, tracking: Tracking) -> None:
         pass
 
 
-class POPOCountRecorder(POPOTrackingRecorder, CountRecorderInterface):
+class EventCountersViewTestCase(TestCase):
+    def construct_event_counters_view(self) -> EventCountersInterface:
+        raise NotImplementedError
+
+    def test(self) -> None:
+        # Construct materialised view object.
+        view = self.construct_event_counters_view()
+
+        # Check the view object is a tracking recorder.
+        self.assertIsInstance(view, TrackingRecorder)
+
+        # Check the view has processed no events.
+        self.assertIsNone(view.max_tracking_id("upstream"))
+
+        # Check the event counters are zero.
+        self.assertEqual(view.get_created_event_counter(), 0)
+        self.assertEqual(view.get_subsequent_event_counter(), 0)
+
+        # Increment the "created" event counter.
+        view.incr_created_event_counter(Tracking("upstream", 1))
+        self.assertEqual(view.get_created_event_counter(), 1)
+        self.assertEqual(view.get_subsequent_event_counter(), 0)
+
+        # Increment the subsequent event counter.
+        view.incr_subsequent_event_counter(Tracking("upstream", 2))
+        self.assertEqual(view.get_created_event_counter(), 1)
+        self.assertEqual(view.get_subsequent_event_counter(), 1)
+
+        # Increment the subsequent event counter again.
+        view.incr_subsequent_event_counter(Tracking("upstream", 3))
+        self.assertEqual(view.get_created_event_counter(), 1)
+        self.assertEqual(view.get_subsequent_event_counter(), 2)
+
+        # Check the tracking objects have been recorded.
+        self.assertEqual(view.max_tracking_id("upstream"), 3)
+
+        # Check the tracking objects are recorded uniquely and atomically.
+        with self.assertRaises(IntegrityError):
+            view.incr_created_event_counter(Tracking("upstream", 3))
+        self.assertEqual(view.get_created_event_counter(), 1)
+
+        with self.assertRaises(IntegrityError):
+            view.incr_subsequent_event_counter(Tracking("upstream", 3))
+        self.assertEqual(view.get_subsequent_event_counter(), 2)
+
+
+class TestPOPOEventCounters(EventCountersViewTestCase):
+    def construct_event_counters_view(self) -> EventCountersInterface:
+        return POPOEventCounters()
+
+
+class POPOEventCounters(POPOTrackingRecorder, EventCountersInterface):
     def __init__(self) -> None:
         super().__init__()
-        self._created_events_counter = 0
-        self._subsequent_events_counter = 0
+        self._created_event_counter = 0
+        self._subsequent_event_counter = 0
 
-    def incr_created_events_counter(self, tracking: Tracking) -> None:
+    def incr_created_event_counter(self, tracking: Tracking) -> None:
         with self._database_lock:
             self._assert_tracking_uniqueness(tracking)
             self._insert_tracking(tracking)
-            self._created_events_counter += 1
+            self._created_event_counter += 1
 
-    def incr_subsequent_events_counter(self, tracking: Tracking) -> None:
+    def incr_subsequent_event_counter(self, tracking: Tracking) -> None:
         with self._database_lock:
             self._assert_tracking_uniqueness(tracking)
             self._insert_tracking(tracking)
-            self._subsequent_events_counter += 1
+            self._subsequent_event_counter += 1
 
-    def get_created_events_counter(self) -> int:
-        return self._created_events_counter
+    def get_created_event_counter(self) -> int:
+        return self._created_event_counter
 
-    def get_subsequent_events_counter(self) -> int:
-        return self._subsequent_events_counter
+    def get_subsequent_event_counter(self) -> int:
+        return self._subsequent_event_counter
 
 
-class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorderInterface):
+class TestPostgresEventCounters(EventCountersViewTestCase):
+    def setUp(self) -> None:
+        self.factory = PostgresFactory(
+            env=Environment(
+                name="eventcounters",
+                env={
+                    PostgresFactory.POSTGRES_DBNAME: "eventsourcing",
+                    PostgresFactory.POSTGRES_HOST: "127.0.0.1",
+                    PostgresFactory.POSTGRES_PORT: "5432",
+                    PostgresFactory.POSTGRES_USER: "eventsourcing",
+                    PostgresFactory.POSTGRES_PASSWORD: "eventsourcing",
+                },
+            )
+        )
+
+    def construct_event_counters_view(self) -> EventCountersInterface:
+        return self.factory.tracking_recorder(PostgresEventCounters)
+
+    def tearDown(self) -> None:
+        drop_postgres_table(self.factory.datastore, self.factory.env.name + "_tracking")
+        drop_postgres_table(self.factory.datastore, self.factory.env.name)
+
+
+class PostgresEventCounters(PostgresTrackingRecorder, EventCountersInterface):
+    _created_event_counter_name = "CREATED_EVENTS"
+    _subsequent_event_counter_name = "SUBSEQUENT_EVENTS"
+
     def __init__(
         self,
         datastore: PostgresDatastore,
         **kwargs: Any,
     ):
         super().__init__(datastore, **kwargs)
-        self.counter_table_name = "countprojection"
-        self.check_table_name_length(self.counter_table_name)
+        assert self.tracking_table_name.endswith("_tracking")  # Because we replace it.
+        self.counters_table_name = self.tracking_table_name.replace("_tracking", "")
+        self.check_table_name_length(self.counters_table_name)
         self.create_table_statements.append(
             "CREATE TABLE IF NOT EXISTS "
-            f"{self.counter_table_name} ("
+            f"{self.counters_table_name} ("
             "counter_name text, "
             "counter bigint, "
             "PRIMARY KEY "
             "(counter_name))"
         )
         self.select_counter_statement = (
-            f"SELECT counter FROM {self.counter_table_name} WHERE counter_name=%s"
+            f"SELECT counter FROM {self.counters_table_name} WHERE counter_name=%s"
         )
 
         self.incr_counter_statement = (
-            f"INSERT INTO {self.counter_table_name} VALUES (%s, 1) "
+            f"INSERT INTO {self.counters_table_name} VALUES (%s, 1) "
             f"ON CONFLICT (counter_name) DO UPDATE "
-            f"SET counter = {self.counter_table_name}.counter + 1"
+            f"SET counter = {self.counters_table_name}.counter + 1"
         )
 
-    def incr_created_events_counter(self, tracking: Tracking) -> None:
-        self._incr_counter("CREATED_EVENTS", tracking)
+    def incr_created_event_counter(self, tracking: Tracking) -> None:
+        self._incr_counter(self._created_event_counter_name, tracking)
 
-    def incr_subsequent_events_counter(self, tracking: Tracking) -> None:
-        self._incr_counter("SUBSEQUENT_EVENTS", tracking)
+    def incr_subsequent_event_counter(self, tracking: Tracking) -> None:
+        self._incr_counter(self._subsequent_event_counter_name, tracking)
 
     def _incr_counter(self, name: str, tracking: Tracking) -> None:
-        conn: Connection[DictRow]
-        with (
-            self.datastore.get_connection() as conn,
-            conn.transaction(),
-            conn.cursor() as curs,
-        ):
+        with self.datastore.transaction(commit=True) as curs:
             self._insert_tracking(curs, tracking)
             curs.execute(
                 query=self.incr_counter_statement,
@@ -111,14 +190,14 @@ class PostgresCountRecorder(PostgresTrackingRecorder, CountRecorderInterface):
                 prepare=True,
             )
 
-    def get_created_events_counter(self) -> int:
-        return self._select_counter("CREATED_EVENTS")
+    def get_created_event_counter(self) -> int:
+        return self._select_counter(self._created_event_counter_name)
 
-    def get_subsequent_events_counter(self) -> int:
-        return self._select_counter("SUBSEQUENT_EVENTS")
+    def get_subsequent_event_counter(self) -> int:
+        return self._select_counter(self._subsequent_event_counter_name)
 
     def _select_counter(self, name: str) -> int:
-        with self.datastore.get_connection() as conn, conn.cursor() as curs:
+        with self.datastore.transaction(commit=False) as curs:
             curs.execute(
                 query=self.select_counter_statement,
                 params=(name,),
@@ -136,13 +215,8 @@ class SpannerThrownError(Exception):
     pass
 
 
-class CountProjection(Projection[CountRecorderInterface]):
-    def __init__(
-        self,
-        view: CountRecorderInterface,
-    ):
-        assert isinstance(view, CountRecorderInterface), type(view)
-        super().__init__(view)
+class EventCountersProjection(Projection[EventCountersInterface]):
+    name = "eventcounters"
 
     @singledispatchmethod
     def process_event(self, _: DomainEventProtocol, tracking: Tracking) -> None:
@@ -150,11 +224,11 @@ class CountProjection(Projection[CountRecorderInterface]):
 
     @process_event.register
     def aggregate_created(self, _: Aggregate.Created, tracking: Tracking) -> None:
-        self.view.incr_created_events_counter(tracking)
+        self.view.incr_created_event_counter(tracking)
 
     @process_event.register
     def aggregate_event(self, _: Aggregate.Event, tracking: Tracking) -> None:
-        self.view.incr_subsequent_events_counter(tracking)
+        self.view.incr_subsequent_event_counter(tracking)
 
     @process_event.register
     def spanner_thrown(self, _: SpannerThrown, __: Tracking) -> None:
@@ -162,16 +236,16 @@ class CountProjection(Projection[CountRecorderInterface]):
         raise SpannerThrownError(msg)
 
 
-class TestCountProjection(TestCase, ABC):
+class TestEventCountersProjection(TestCase, ABC):
+    view_class: type[EventCountersInterface] = POPOEventCounters
     env: ClassVar[Mapping[str, str]] = {}
-    view_class: type[CountRecorderInterface] = POPOCountRecorder
 
-    def test_runner_with_count_projection(self) -> None:
+    def test_event_counters_projection(self) -> None:
         # Construct runner with application, projection, and recorder.
         runner = ProjectionRunner(
             application_class=Application,
+            projection_class=EventCountersProjection,
             view_class=self.view_class,
-            projection_class=CountProjection,
             env=self.env,
         )
 
@@ -189,8 +263,8 @@ class TestCountProjection(TestCase, ABC):
         read_model.wait(write_model.name, recordings[-1].notification.id)
 
         # Query the read model.
-        self.assertEqual(read_model.get_created_events_counter(), 1)
-        self.assertEqual(read_model.get_subsequent_events_counter(), 2)
+        self.assertEqual(read_model.get_created_event_counter(), 1)
+        self.assertEqual(read_model.get_subsequent_event_counter(), 2)
 
         # Write some more events.
         aggregate = Aggregate()
@@ -202,15 +276,15 @@ class TestCountProjection(TestCase, ABC):
         read_model.wait(write_model.name, recordings[-1].notification.id)
 
         # Query the read model.
-        self.assertEqual(read_model.get_created_events_counter(), 2)
-        self.assertEqual(read_model.get_subsequent_events_counter(), 4)
+        self.assertEqual(read_model.get_created_event_counter(), 2)
+        self.assertEqual(read_model.get_subsequent_event_counter(), 4)
 
     def test_run_forever_raises_projection_error(self) -> None:
         # Construct runner with application, projection, and recorder.
         runner = ProjectionRunner(
             application_class=Application,
+            projection_class=EventCountersProjection,
             view_class=self.view_class,
-            projection_class=CountProjection,
             env=self.env,
         )
         write_model = runner.app
@@ -230,24 +304,30 @@ class TestCountProjection(TestCase, ABC):
             read_model.wait(write_model.name, recordings[-1].notification.id)
 
 
-class TestCountProjectionWithPostgres(TestCountProjection):
+class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
+    view_class = PostgresEventCounters
     env: ClassVar[dict[str, str]] = {
-        "PERSISTENCE_MODULE": "eventsourcing.postgres",
-        "POSTGRES_DBNAME": "eventsourcing",
-        "POSTGRES_HOST": "127.0.0.1",
-        "POSTGRES_PORT": "5432",
-        "POSTGRES_USER": "eventsourcing",
-        "POSTGRES_PASSWORD": "eventsourcing",
+        "APPLICATION_PERSISTENCE_MODULE": "eventsourcing.postgres",
+        "APPLICATION_POSTGRES_DBNAME": "eventsourcing",
+        "APPLICATION_POSTGRES_HOST": "127.0.0.1",
+        "APPLICATION_POSTGRES_PORT": "5432",
+        "APPLICATION_POSTGRES_USER": "eventsourcing",
+        "APPLICATION_POSTGRES_PASSWORD": "eventsourcing",
+        "EVENTCOUNTERS_PERSISTENCE_MODULE": "eventsourcing.postgres",
+        "EVENTCOUNTERS_POSTGRES_DBNAME": "eventsourcing",
+        "EVENTCOUNTERS_POSTGRES_HOST": "127.0.0.1",
+        "EVENTCOUNTERS_POSTGRES_PORT": "5432",
+        "EVENTCOUNTERS_POSTGRES_USER": "eventsourcing",
+        "EVENTCOUNTERS_POSTGRES_PASSWORD": "eventsourcing",
     }
-    view_class = PostgresCountRecorder
 
-    def test_runner_with_count_projection(self) -> None:
-        super().test_runner_with_count_projection()
+    def test_event_counters_projection(self) -> None:
+        super().test_event_counters_projection()
         # Resume....
         _ = ProjectionRunner(
             application_class=Application,
+            projection_class=EventCountersProjection,
             view_class=self.view_class,
-            projection_class=CountProjection,
             env=self.env,
         )
 
@@ -256,8 +336,8 @@ class TestCountProjectionWithPostgres(TestCountProjection):
 
         # Construct separate instance of "read model".
         read_model = (
-            InfrastructureFactory[CountRecorderInterface]
-            .construct(env=Environment(name=CountProjection.__name__, env=self.env))
+            InfrastructureFactory[EventCountersInterface]
+            .construct(env=Environment(name=EventCountersProjection.name, env=self.env))
             .tracking_recorder(self.view_class)
         )
 
@@ -271,8 +351,8 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         read_model.wait(write_model.name, recordings[-1].notification.id)
 
         # Query the read model.
-        self.assertEqual(read_model.get_created_events_counter(), 3)
-        self.assertEqual(read_model.get_subsequent_events_counter(), 6)
+        self.assertEqual(read_model.get_created_event_counter(), 3)
+        self.assertEqual(read_model.get_subsequent_event_counter(), 6)
 
         # Write some more events.
         aggregate = Aggregate()
@@ -284,16 +364,16 @@ class TestCountProjectionWithPostgres(TestCountProjection):
         read_model.wait(write_model.name, recordings[-1].notification.id)
 
         # Query the read model.
-        self.assertEqual(read_model.get_created_events_counter(), 4)
-        self.assertEqual(read_model.get_subsequent_events_counter(), 8)
+        self.assertEqual(read_model.get_created_event_counter(), 4)
+        self.assertEqual(read_model.get_subsequent_event_counter(), 8)
 
     def test_run_forever_raises_projection_error(self) -> None:
         super().test_run_forever_raises_projection_error()
         # Resume...
         runner = ProjectionRunner(
             application_class=Application,
+            projection_class=EventCountersProjection,
             view_class=self.view_class,
-            projection_class=CountProjection,
             env=self.env,
         )
 
@@ -302,7 +382,7 @@ class TestCountProjectionWithPostgres(TestCountProjection):
 
         # Construct separate instance of "read model".
         read_model = InfrastructureFactory.construct(
-            env=Environment(name=CountProjection.__name__, env=self.env)
+            env=Environment(name=EventCountersProjection.name, env=self.env)
         ).tracking_recorder(self.view_class)
 
         # Still terminates with projection error.
@@ -332,5 +412,8 @@ class TestCountProjectionWithPostgres(TestCountProjection):
             "eventsourcing",
         )
         drop_postgres_table(datastore, "application_events")
-        drop_postgres_table(datastore, "countprojection_tracking")
-        drop_postgres_table(datastore, "countprojection")
+        drop_postgres_table(datastore, "eventcounters_tracking")
+        drop_postgres_table(datastore, "eventcounters")
+
+
+del EventCountersViewTestCase
