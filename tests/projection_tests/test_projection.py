@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 from unittest import TestCase
 
 from eventsourcing.application import Application
@@ -123,17 +123,21 @@ class POPOEventCounters(POPOTrackingRecorder, EventCountersInterface):
 
 class TestPostgresEventCounters(EventCountersViewTestCase):
     def setUp(self) -> None:
-        self.factory = PostgresFactory(
-            env=Environment(
-                name="eventcounters",
-                env={
-                    PostgresFactory.POSTGRES_DBNAME: "eventsourcing",
-                    PostgresFactory.POSTGRES_HOST: "127.0.0.1",
-                    PostgresFactory.POSTGRES_PORT: "5432",
-                    PostgresFactory.POSTGRES_USER: "eventsourcing",
-                    PostgresFactory.POSTGRES_PASSWORD: "eventsourcing",
-                },
-            )
+        self.factory = cast(
+            PostgresFactory,
+            InfrastructureFactory.construct(
+                env=Environment(
+                    name="eventcounters",
+                    env={
+                        "PERSISTENCE_MODULE": "eventsourcing.postgres",
+                        "POSTGRES_DBNAME": "eventsourcing",
+                        "POSTGRES_HOST": "127.0.0.1",
+                        "POSTGRES_PORT": "5432",
+                        "POSTGRES_USER": "eventsourcing",
+                        "POSTGRES_PASSWORD": "eventsourcing",
+                    },
+                )
+            ),
         )
 
     def construct_event_counters_view(self) -> EventCountersInterface:
