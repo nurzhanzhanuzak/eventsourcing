@@ -5,9 +5,9 @@ Tutorial - Part 4 - Projections
 This part of the tutorial shows how the state of an event-sourced applications can be projected
 into a `materialised view <https://en.wikipedia.org/wiki/Materialized_view>`_ that supports arbitrary queries.
 
-As we saw in :doc:`Part 3 </topics/tutorial/part1>`, we can use the library's
+As we saw in :doc:`Part 3 </topics/tutorial/part3>`, we can use the library's
 :class:`~eventsourcing.application.Application` class to define an event-sourced
-application. The state of an event-sourced application is recorded as a set of many events,
+application. The state of an event-sourced application is recorded as a set of events,
 each of which is positioned in one of many "aggregate sequences" and also in the overall
 "application sequence".
 

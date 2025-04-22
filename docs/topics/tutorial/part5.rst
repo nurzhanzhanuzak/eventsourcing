@@ -3,7 +3,7 @@ Tutorial - Part 5 - Systems
 ===========================
 
 
-We have seen in :doc:`Part 3 </topics/tutorial/part1>` that we can use the library's
+We have seen in :doc:`Part 3 </topics/tutorial/part3>` that we can use the library's
 :class:`~eventsourcing.application.Application` class to define event-sourced
 applications, and we have seen in :doc:`Part 4 </topics/tutorial/part4>` that we
 can project the state of an application into materialised views that support arbitrary
