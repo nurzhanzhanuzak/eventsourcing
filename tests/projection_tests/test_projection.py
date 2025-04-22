@@ -251,66 +251,78 @@ class TestEventCountersProjection(TestCase, ABC):
 
     def test_event_counters_projection(self) -> None:
         # Construct runner with application, projection, and recorder.
-        runner = ProjectionRunner(
+        with ProjectionRunner(
             application_class=Application,
             projection_class=EventCountersProjection,
             view_class=self.view_class,
             env=self.env,
-        )
+        ) as runner:
 
-        # Get "read" and "write" model instances from the runner.
-        write_model = runner.app
-        read_model = runner.projection.view
+            # Get "read" and "write" model instances from the runner.
+            write_model = runner.app
+            read_model = runner.projection.view
 
-        # Write some events.
-        aggregate = Aggregate()
-        aggregate.trigger_event(event_class=Aggregate.Event)
-        aggregate.trigger_event(event_class=Aggregate.Event)
-        recordings = write_model.save(aggregate)
+            # Write some events.
+            aggregate = Aggregate()
+            aggregate.trigger_event(event_class=Aggregate.Event)
+            aggregate.trigger_event(event_class=Aggregate.Event)
+            recordings = write_model.save(aggregate)
 
-        # Wait for the events to be processed.
-        read_model.wait(write_model.name, recordings[-1].notification.id)
+            # Wait for the events to be processed.
+            read_model.wait(
+                application_name=write_model.name,
+                notification_id=recordings[-1].notification.id,
+                timeout=5,
+            )
 
-        # Query the read model.
-        self.assertEqual(read_model.get_created_event_counter(), 1)
-        self.assertEqual(read_model.get_subsequent_event_counter(), 2)
+            # Query the read model.
+            self.assertEqual(read_model.get_created_event_counter(), 1)
+            self.assertEqual(read_model.get_subsequent_event_counter(), 2)
 
-        # Write some more events.
-        aggregate = Aggregate()
-        aggregate.trigger_event(event_class=Aggregate.Event)
-        aggregate.trigger_event(event_class=Aggregate.Event)
-        recordings = write_model.save(aggregate)
+            # Write some more events.
+            aggregate = Aggregate()
+            aggregate.trigger_event(event_class=Aggregate.Event)
+            aggregate.trigger_event(event_class=Aggregate.Event)
+            recordings = write_model.save(aggregate)
 
-        # Wait for the events to be processed.
-        read_model.wait(write_model.name, recordings[-1].notification.id)
+            # Wait for the events to be processed.
+            read_model.wait(
+                application_name=write_model.name,
+                notification_id=recordings[-1].notification.id,
+                timeout=5,
+            )
 
-        # Query the read model.
-        self.assertEqual(read_model.get_created_event_counter(), 2)
-        self.assertEqual(read_model.get_subsequent_event_counter(), 4)
+            # Query the read model.
+            self.assertEqual(read_model.get_created_event_counter(), 2)
+            self.assertEqual(read_model.get_subsequent_event_counter(), 4)
 
     def test_run_forever_raises_projection_error(self) -> None:
         # Construct runner with application, projection, and recorder.
-        runner = ProjectionRunner(
+        with ProjectionRunner(
             application_class=Application,
             projection_class=EventCountersProjection,
             view_class=self.view_class,
             env=self.env,
-        )
-        write_model = runner.app
-        read_model = runner.projection.view
+        ) as runner:
+            write_model = runner.app
+            read_model = runner.projection.view
 
-        # Write some events.
-        aggregate = Aggregate()
-        aggregate.trigger_event(event_class=SpannerThrown)
-        recordings = write_model.save(aggregate)
+            # Write some events.
+            aggregate = Aggregate()
+            aggregate.trigger_event(event_class=SpannerThrown)
+            recordings = write_model.save(aggregate)
 
-        # Projection runner terminates with projection error.
-        with self.assertRaises(SpannerThrownError):
-            runner.run_forever()
+            # Projection runner terminates with projection error.
+            with self.assertRaises(SpannerThrownError):
+                runner.run_forever(timeout=5)
 
-        # Wait times out (event has not been processed).
-        with self.assertRaises(TimeoutError):
-            read_model.wait(write_model.name, recordings[-1].notification.id)
+            # Wait times out (event has not been processed).
+            with self.assertRaises(TimeoutError):
+                read_model.wait(
+                    application_name=write_model.name,
+                    notification_id=recordings[-1].notification.id,
+                    timeout=1,
+                )
 
 
 class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
@@ -332,77 +344,91 @@ class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
 
     def test_event_counters_projection(self) -> None:
         super().test_event_counters_projection()
+
         # Resume....
-        _ = ProjectionRunner(
+        with ProjectionRunner(
             application_class=Application,
             projection_class=EventCountersProjection,
             view_class=self.view_class,
             env=self.env,
-        )
+        ):
 
-        # Construct separate instance of "write model".
-        write_model = Application(self.env)
+            # Construct separate instance of "write model".
+            write_model = Application(self.env)
 
-        # Construct separate instance of "read model".
-        read_model = (
-            InfrastructureFactory[EventCountersInterface]
-            .construct(env=Environment(name=EventCountersProjection.name, env=self.env))
-            .tracking_recorder(self.view_class)
-        )
+            # Construct separate instance of "read model".
+            read_model = (
+                InfrastructureFactory[EventCountersInterface]
+                .construct(
+                    env=Environment(name=EventCountersProjection.name, env=self.env)
+                )
+                .tracking_recorder(self.view_class)
+            )
 
-        # Write some events.
-        aggregate = Aggregate()
-        aggregate.trigger_event(event_class=Aggregate.Event)
-        aggregate.trigger_event(event_class=Aggregate.Event)
-        recordings = write_model.save(aggregate)
+            # Write some events.
+            aggregate = Aggregate()
+            aggregate.trigger_event(event_class=Aggregate.Event)
+            aggregate.trigger_event(event_class=Aggregate.Event)
+            recordings = write_model.save(aggregate)
 
-        # Wait for events to be processed.
-        read_model.wait(write_model.name, recordings[-1].notification.id)
+            # Wait for events to be processed.
+            read_model.wait(
+                application_name=write_model.name,
+                notification_id=recordings[-1].notification.id,
+                timeout=5,
+            )
 
-        # Query the read model.
-        self.assertEqual(read_model.get_created_event_counter(), 3)
-        self.assertEqual(read_model.get_subsequent_event_counter(), 6)
+            # Query the read model.
+            self.assertEqual(read_model.get_created_event_counter(), 3)
+            self.assertEqual(read_model.get_subsequent_event_counter(), 6)
 
-        # Write some more events.
-        aggregate = Aggregate()
-        aggregate.trigger_event(event_class=Aggregate.Event)
-        aggregate.trigger_event(event_class=Aggregate.Event)
-        recordings = write_model.save(aggregate)
+            # Write some more events.
+            aggregate = Aggregate()
+            aggregate.trigger_event(event_class=Aggregate.Event)
+            aggregate.trigger_event(event_class=Aggregate.Event)
+            recordings = write_model.save(aggregate)
 
-        # Wait for events to be processed.
-        read_model.wait(write_model.name, recordings[-1].notification.id)
+            # Wait for events to be processed.
+            read_model.wait(
+                application_name=write_model.name,
+                notification_id=recordings[-1].notification.id,
+                timeout=5,
+            )
 
-        # Query the read model.
-        self.assertEqual(read_model.get_created_event_counter(), 4)
-        self.assertEqual(read_model.get_subsequent_event_counter(), 8)
+            # Query the read model.
+            self.assertEqual(read_model.get_created_event_counter(), 4)
+            self.assertEqual(read_model.get_subsequent_event_counter(), 8)
 
     def test_run_forever_raises_projection_error(self) -> None:
         super().test_run_forever_raises_projection_error()
+
         # Resume...
-        runner = ProjectionRunner(
+        with ProjectionRunner(
             application_class=Application,
             projection_class=EventCountersProjection,
             view_class=self.view_class,
             env=self.env,
-        )
+        ) as runner:
 
-        # Construct separate instance of "write model".
-        write_model = Application(self.env)
+            # Construct separate instance of "write model".
+            write_model = Application(self.env)
 
-        # Construct separate instance of "read model".
-        read_model = InfrastructureFactory.construct(
-            env=Environment(name=EventCountersProjection.name, env=self.env)
-        ).tracking_recorder(self.view_class)
+            # Construct separate instance of "read model".
+            read_model = InfrastructureFactory.construct(
+                env=Environment(name=EventCountersProjection.name, env=self.env)
+            ).tracking_recorder(self.view_class)
 
-        # Still terminates with projection error.
-        with self.assertRaises(SpannerThrownError):
-            runner.run_forever()
+            # Still terminates with projection error.
+            with self.assertRaises(SpannerThrownError):
+                runner.run_forever(timeout=5)
 
-        # Wait times out (event has not been processed).
-        with self.assertRaises(TimeoutError):
-            read_model.wait(
-                write_model.name, write_model.recorder.max_notification_id()
-            )
+            # Wait times out (event has not been processed).
+            with self.assertRaises(TimeoutError):
+                read_model.wait(
+                    application_name=write_model.name,
+                    notification_id=write_model.recorder.max_notification_id(),
+                    timeout=1,
+                )
 
     def setUp(self) -> None:
         super().setUp()
