@@ -135,9 +135,9 @@ Similarly, the ``PostgresEventCounters`` class, shown below, implements the abst
 It defines a database table for event counters, and statements that select and increment the value
 of counters in this table.
 
+The ``_select_counter()`` method is used to select the current value of an event counter.
 The ``_incr_counter()`` method of ``PostgresEventCounters``
 is used to increment a named event counter atomically in the same database transaction a tracking object is recorded.
-The ``_select_counter()`` method is used to select the current value of an event counter.
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: PostgresEventCounters
@@ -193,7 +193,7 @@ be processed by calling command methods on the projection's tracking recorder, a
 property.
 
 Counting events
-===============
+---------------
 
 For example, the ``EventCountersProjection`` class, shown below, processes events of an event-sourced application by
 calling methods of a concrete instance of ``EventCountersInterface``.

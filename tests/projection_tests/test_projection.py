@@ -102,6 +102,12 @@ class POPOEventCounters(POPOTrackingRecorder, EventCountersInterface):
         self._created_event_counter = 0
         self._subsequent_event_counter = 0
 
+    def get_created_event_counter(self) -> int:
+        return self._created_event_counter
+
+    def get_subsequent_event_counter(self) -> int:
+        return self._subsequent_event_counter
+
     def incr_created_event_counter(self, tracking: Tracking) -> None:
         with self._database_lock:
             self._assert_tracking_uniqueness(tracking)
@@ -113,12 +119,6 @@ class POPOEventCounters(POPOTrackingRecorder, EventCountersInterface):
             self._assert_tracking_uniqueness(tracking)
             self._insert_tracking(tracking)
             self._subsequent_event_counter += 1
-
-    def get_created_event_counter(self) -> int:
-        return self._created_event_counter
-
-    def get_subsequent_event_counter(self) -> int:
-        return self._subsequent_event_counter
 
 
 class TestPostgresEventCounters(EventCountersViewTestCase):
@@ -175,26 +175,17 @@ class PostgresEventCounters(PostgresTrackingRecorder, EventCountersInterface):
             f"SET counter = {self.counters_table_name}.counter + 1"
         )
 
-    def incr_created_event_counter(self, tracking: Tracking) -> None:
-        self._incr_counter(self._created_event_counter_name, tracking)
-
-    def incr_subsequent_event_counter(self, tracking: Tracking) -> None:
-        self._incr_counter(self._subsequent_event_counter_name, tracking)
-
-    def _incr_counter(self, name: str, tracking: Tracking) -> None:
-        with self.datastore.transaction(commit=True) as curs:
-            self._insert_tracking(curs, tracking)
-            curs.execute(
-                query=self.incr_counter_statement,
-                params=(name,),
-                prepare=True,
-            )
-
     def get_created_event_counter(self) -> int:
         return self._select_counter(self._created_event_counter_name)
 
     def get_subsequent_event_counter(self) -> int:
         return self._select_counter(self._subsequent_event_counter_name)
+
+    def incr_created_event_counter(self, tracking: Tracking) -> None:
+        self._incr_counter(self._created_event_counter_name, tracking)
+
+    def incr_subsequent_event_counter(self, tracking: Tracking) -> None:
+        self._incr_counter(self._subsequent_event_counter_name, tracking)
 
     def _select_counter(self, name: str) -> int:
         with self.datastore.transaction(commit=False) as curs:
@@ -205,6 +196,15 @@ class PostgresEventCounters(PostgresTrackingRecorder, EventCountersInterface):
             )
             fetchone = curs.fetchone()
             return fetchone["counter"] if fetchone else 0
+
+    def _incr_counter(self, name: str, tracking: Tracking) -> None:
+        with self.datastore.transaction(commit=True) as curs:
+            self._insert_tracking(curs, tracking)
+            curs.execute(
+                query=self.incr_counter_statement,
+                params=(name,),
+                prepare=True,
+            )
 
 
 class SpannerThrown(Aggregate.Event):
