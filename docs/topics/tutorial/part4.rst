@@ -193,6 +193,18 @@ The :class:`~eventsourcing.projection.Projection` class is an `abstract` class b
 be processed by calling command methods on the projection's tracking recorder, accessed via the :data:`~eventsourcing.projection.Projection.view`
 property.
 
+The :py:attr:`~eventsourcing.projection.Projection.name` attribute can be defined on subclasses. It is used by projection
+runners, when constructing a materialised view object, to select prefixed environment variables and in some cases
+to specify database table names. The value used by the projection runner defaults to the class name of the subclass.
+
+The :py:attr:`~eventsourcing.projection.Projection.topics` attribute can be defined on subclasses. It is used by projection
+runners, when subscribing to an application, so that events can be filtered in the application database, improving
+performance of the subscription and of the projection, by causing the subscription to return only stored events that
+have topics that are listed by this attribute, thereby reducing transport latency, and thereby also avoiding the work
+of reconstructing domain events from stored events that are not mentioned in the projection's
+:func:`~eventsourcing.projection.Projection.process_event` implementation.
+
+
 Counting events
 ---------------
 
@@ -208,6 +220,10 @@ class. The type argument of :class:`~eventsourcing.projection.Projection` is spe
 ``EventCountersInterface`` class, and so ``EventCountersProjection`` expects to be constructed with
 a view object that implements this interface, such as ``POPOEventCounters`` or ``PostgresEventCounters``.
 
+The ``EventCountersProjection`` class defines the :py:attr:`~eventsourcing.projection.Projection.name` attribute
+as ``'eventcounters'``, which is used to name an environment object for the projection. This attribute is used
+by projection runners to select prefixed environment variables and to specify database table names.
+
 The ``EventCountersProjection`` class implements the abstract method :func:`~eventsourcing.projection.Projection.process_event`
 of :class:`~eventsourcing.projection.Projection` by calling ``incr_created_event_counter()`` on its
 :data:`~eventsourcing.projection.Projection.view` if the given event is an
@@ -222,11 +238,16 @@ Let's consider how to run the projection, so events of an event-sourced applicat
 
 The library's :class:`~eventsourcing.projection.ProjectionRunner` class is provided for the purpose
 of running projections. A projection runner can be constructed with an application class, a projection
-class, a materialised view class, and an environment that specifies configuration of the event-sourced
-application and the materialised view.
+class, a materialised view class, and an optional environment :class:`Mapping` object that specifies run-time
+configuration of the event-sourced application and the materialised view.
 
 The projection runner will construct an instance of the given application class, and an instance of
-the given projection class with an instance of the given materialised view class.
+the given projection class with an instance of the given materialised view class. Any items in the
+given environment will be used to override any operating system environment variables, and the resulting
+environment variables will be used when the application object is constructed and when the materialised
+view class is constructed. The names of the application and of the projection are used to select prefixed
+environment variables before defaulting to unprefixed names. In this way, the event-sourced application
+can be configured separately from the materialised view.
 
 It will :ref:`subscribe to the application <Subscriptions>`, from the position indicated by the
 :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method of the projection's

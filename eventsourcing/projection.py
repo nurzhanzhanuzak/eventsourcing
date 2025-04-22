@@ -70,9 +70,14 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
 
 class Projection(ABC, Generic[TTrackingRecorder]):
     name: str = ""
-    """Name of projection, used to pick prefixed environment variables."""
+    """
+    Name of projection, used to pick prefixed environment
+    variables and define database table names.
+    """
     topics: Sequence[str] = ()
-    """Filter events in database when subscribing to an application."""
+    """
+    Filter events in database when subscribing to an application.
+    """
 
     def __init__(
         self,

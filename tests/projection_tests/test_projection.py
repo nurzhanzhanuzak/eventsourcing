@@ -21,7 +21,7 @@ from eventsourcing.postgres import (
 )
 from eventsourcing.projection import Projection, ProjectionRunner
 from eventsourcing.tests.postgres_utils import drop_postgres_table
-from eventsourcing.utils import Environment
+from eventsourcing.utils import Environment, get_topic
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -217,6 +217,11 @@ class SpannerThrownError(Exception):
 
 class EventCountersProjection(Projection[EventCountersInterface]):
     name = "eventcounters"
+    topics = [
+        get_topic(Aggregate.Created),
+        get_topic(Aggregate.Event),
+        get_topic(SpannerThrown),
+    ]
 
     @singledispatchmethod
     def process_event(self, _: DomainEventProtocol, tracking: Tracking) -> None:
