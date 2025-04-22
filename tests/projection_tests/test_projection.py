@@ -221,11 +221,11 @@ class SpannerThrownError(Exception):
 
 class EventCountersProjection(Projection[EventCountersInterface]):
     name = "eventcounters"
-    topics = [
+    topics: tuple[str, ...] = (
         get_topic(Aggregate.Created),
         get_topic(Aggregate.Event),
         get_topic(SpannerThrown),
-    ]
+    )
 
     @singledispatchmethod
     def process_event(self, _: DomainEventProtocol, tracking: Tracking) -> None:
