@@ -211,7 +211,7 @@ a view object that implements this interface, such as ``POPOEventCounters`` or `
 The ``EventCountersProjection`` class implements the abstract method :func:`~eventsourcing.projection.Projection.process_event`
 of :class:`~eventsourcing.projection.Projection` by calling ``incr_created_event_counter()`` on its
 :data:`~eventsourcing.projection.Projection.view` if the given event is an
-:class:`Aggregate.Created <eventsourcing.domain.Aggregate.Created>` event, or ``incr_subsequent_event_counter()`` if the
+:class:`Aggregate.Created <eventsourcing.domain.Aggregate.Created>` event, or by calling ``incr_subsequent_event_counter()`` if the
 given class is an :class:`Aggregate.Event <eventsourcing.domain.Aggregate.Event>`.
 
 
