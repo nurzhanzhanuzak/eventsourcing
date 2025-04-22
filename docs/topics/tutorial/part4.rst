@@ -79,11 +79,11 @@ integers. The values returned by the query methods are expected to be equal to t
 command methods were called.
 
 The test method calls command methods on the view object, to increment the counted number of "created" events, and to
-increment the counted number of subsequent events.
+increment the counted number of subsequent events. The command methods are called with unique
+:ref:`tracking objects <Tracking objects>`. The value returned by :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` is expected to reflect
+these tracking objects.
 
-The command methods are called with unique :ref:`tracking object <Tracking objects>`.
-The value returned by :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` is expected to reflect
-these tracking objects. The command methods are expected to raise an :class:`~eventsourcing.persistence.IntegrityError`
+The command methods are expected to raise an :class:`~eventsourcing.persistence.IntegrityError`
 when called more than once with the same tracking object. The counted numbers are expected not to change when an
 :class:`~eventsourcing.persistence.IntegrityError` is raised.
 
@@ -107,9 +107,10 @@ argument expected to be an instance of the library's :class:`~eventsourcing.pers
 In-memory view
 --------------
 
-The ``POPOEventCounters`` class, shown below, implements the abstract interface using "plain old Python objects" to
-count events in memory. It defines "private" attributes ``_created_event_counter`` and ``_subsequent_event_counter``,
-whose values can be returned by the query methods and incremented by the command methods.
+The ``POPOEventCounters`` class, shown below, implements the abstract interface using Python objects to hold
+the counted number of events in memory. It defines "private" attributes ``_created_event_counter`` and
+``_subsequent_event_counter``. The values of these attributes are Python `int` objects, initialised to be
+zero. The values of these attributes are returned by the query methods, and incremented by the command methods.
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: POPOEventCounters
