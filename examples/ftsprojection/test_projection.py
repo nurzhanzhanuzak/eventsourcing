@@ -9,7 +9,7 @@ from eventsourcing.projection import ProjectionRunner
 from eventsourcing.tests.postgres_utils import drop_postgres_table
 from examples.contentmanagement.application import ContentManagement
 from examples.contentmanagement.domainmodel import user_id_cvar
-from examples.ftsprojection.projection import FtsProjection, PostgresFtsTrackingRecorder
+from examples.ftsprojection.projection import FtsProjection, PostgresFtsView
 
 
 class TestFtsProjection(unittest.TestCase):
@@ -33,7 +33,7 @@ class TestFtsProjection(unittest.TestCase):
         write_model = ContentManagement(env=self.env)
 
         # Construct tracking recorder ("read model").
-        read_model = PostgresFtsTrackingRecorder(
+        read_model = PostgresFtsView(
             datastore=PostgresDatastore(
                 dbname="eventsourcing",
                 host="127.0.0.1",
@@ -68,7 +68,7 @@ class TestFtsProjection(unittest.TestCase):
         _ = ProjectionRunner(
             application_class=ContentManagement,
             projection_class=FtsProjection,
-            view_class=PostgresFtsTrackingRecorder,
+            view_class=PostgresFtsView,
             env=self.env,
         )
 

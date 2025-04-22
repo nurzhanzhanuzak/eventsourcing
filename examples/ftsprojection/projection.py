@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from eventsourcing.domain import DomainEventProtocol
 
 
-class FtsTrackingRecorder(FtsRecorder, TrackingRecorder, ABC):
+class FtsViewInterface(FtsRecorder, TrackingRecorder, ABC):
     @abstractmethod
     def insert_pages_with_tracking(
         self, pages: Sequence[PageInfo], tracking: Tracking
@@ -32,7 +32,7 @@ class FtsTrackingRecorder(FtsRecorder, TrackingRecorder, ABC):
         pass
 
 
-class FtsProjection(Projection[FtsTrackingRecorder]):
+class FtsProjection(Projection[FtsViewInterface]):
     @singledispatchmethod
     def process_event(
         self, domain_event: DomainEventProtocol, tracking: Tracking
@@ -62,9 +62,7 @@ class FtsProjection(Projection[FtsTrackingRecorder]):
         self.view.update_pages_with_tracking([new_page], tracking)
 
 
-class PostgresFtsTrackingRecorder(
-    PostgresFtsRecorder, PostgresTrackingRecorder, FtsTrackingRecorder
-):
+class PostgresFtsView(PostgresFtsRecorder, PostgresTrackingRecorder, FtsViewInterface):
     def insert_pages_with_tracking(
         self, pages: Sequence[PageInfo], tracking: Tracking
     ) -> None:

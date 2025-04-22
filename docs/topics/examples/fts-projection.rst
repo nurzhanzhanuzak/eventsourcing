@@ -26,16 +26,16 @@ Persistence
 
 Firstly, let's consider the "read model".
 
-The :class:`~examples.ftsprojection.projection.FtsTrackingRecorder` defines an abstract interface for
+The :class:`~examples.ftsprojection.projection.FtsViewInterface` defines an abstract interface for
 searching, inserting, and updating pages in a full text search index with tracking information. Abstract
 methods are defined so that a projection can be defined independently of a particular database.
 
-It defines abstract method signatures :func:`~examples.ftsprojection.projection.FtsTrackingRecorder.insert_pages_with_tracking`
-and :func:`~examples.ftsprojection.projection.FtsTrackingRecorder.update_pages_with_tracking` so that
+It defines abstract method signatures :func:`~examples.ftsprojection.projection.FtsViewInterface.insert_pages_with_tracking`
+and :func:`~examples.ftsprojection.projection.FtsViewInterface.update_pages_with_tracking` so that
 pages may be inserted and updated atomically in a full text search index along with tracking information.
 
 .. literalinclude:: ../../../examples/ftsprojection/projection.py
-    :pyobject: FtsTrackingRecorder
+    :pyobject: FtsViewInterface
 
 
 It extends both the abstract :class:`~examples.ftscontentmanagement.persistence.FtsRecorder` class
@@ -51,26 +51,26 @@ PostgreSQL
 
 Now let's consider how we might implement this "read model" interface to work with a PostgreSQL database.
 
-The :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder` implements the
-abstract :class:`~examples.ftsprojection.projection.FtsTrackingRecorder` by inheriting
+The :class:`~examples.ftsprojection.projection.PostgresFtsView` implements the
+abstract :class:`~examples.ftsprojection.projection.FtsViewInterface` by inheriting
 the :class:`~examples.ftscontentmanagement.postgres.PostgresFtsRecorder` class from example
 :doc:`/topics/examples/fts-content-management` and the library's
 :class:`~eventsourcing.postgres.PostgresTrackingRecorder` class.
 
-It implements the method :func:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder.insert_pages_with_tracking`
-required by :class:`~examples.ftsprojection.projection.FtsTrackingRecorder` by calling within a database transaction both
+It implements the method :func:`~examples.ftsprojection.projection.PostgresFtsView.insert_pages_with_tracking`
+required by :class:`~examples.ftsprojection.projection.FtsViewInterface` by calling within a database transaction both
 :func:`~examples.ftscontentmanagement.postgres.PostgresFtsRecorder._insert_pages` of :class:`~examples.ftscontentmanagement.postgres.PostgresFtsRecorder`
 and :func:`~eventsourcing.postgres.PostgresTrackingRecorder._insert_tracking` of :class:`~eventsourcing.postgres.PostgresTrackingRecorder`,
 so that new pages will be inserted in the full text search index atomically with tracking information.
 
-It implements the method :func:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder.update_pages_with_tracking`
-required by :class:`~examples.ftsprojection.projection.FtsTrackingRecorder` by calling within a database transaction both
+It implements the method :func:`~examples.ftsprojection.projection.PostgresFtsView.update_pages_with_tracking`
+required by :class:`~examples.ftsprojection.projection.FtsViewInterface` by calling within a database transaction both
 :func:`~examples.ftscontentmanagement.postgres.PostgresFtsRecorder._update_pages` of :class:`~examples.ftscontentmanagement.postgres.PostgresFtsRecorder`
 and :func:`~eventsourcing.postgres.PostgresTrackingRecorder._insert_tracking` of :class:`~eventsourcing.postgres.PostgresTrackingRecorder`,
 so that existing pages will be updated in the full text search index atomically with tracking information.
 
 .. literalinclude:: ../../../examples/ftsprojection/projection.py
-    :pyobject: PostgresFtsTrackingRecorder
+    :pyobject: PostgresFtsView
 
 Search method implementations are inherited from the :class:`~examples.ftscontentmanagement.postgres.PostgresFtsRecorder`  class.
 
@@ -92,21 +92,21 @@ process the :class:`Page.Created <examples.contentmanagement.domainmodel.Page.Cr
 events of the domain model in :doc:`/topics/examples/content-management`.
 
 When a :class:`Page.Created <examples.contentmanagement.domainmodel.Page.Created>` event is received,
-the method :func:`~examples.ftsprojection.projection.FtsTrackingRecorder.insert_pages_with_tracking`
-of an :class:`~examples.ftsprojection.projection.FtsTrackingRecorder` object is called.
+the method :func:`~examples.ftsprojection.projection.FtsViewInterface.insert_pages_with_tracking`
+of an :class:`~examples.ftsprojection.projection.FtsViewInterface` object is called.
 
 When a :class:`Page.BodyUpdated <examples.contentmanagement.domainmodel.Page.BodyUpdated>` event is received,
-the method :func:`~examples.ftsprojection.projection.FtsTrackingRecorder.update_pages_with_tracking`
-of an :class:`~examples.ftsprojection.projection.FtsTrackingRecorder` object is called.
+the method :func:`~examples.ftsprojection.projection.FtsViewInterface.update_pages_with_tracking`
+of an :class:`~examples.ftsprojection.projection.FtsViewInterface` object is called.
 
 .. literalinclude:: ../../../examples/ftsprojection/projection.py
     :pyobject: FtsProjection
 
 The :class:`~eventsourcing.projection.Projection` class is a generic class that requires one type variable, which
 is expected to be a subclass of :class:`~eventsourcing.persistence.TrackingRecorder`. In this case, the type variable
-is specified to be :class:`~examples.ftsprojection.projection.FtsTrackingRecorder`, which means the projection
-should be constructed with a subclass of :class:`~examples.ftsprojection.projection.FtsTrackingRecorder`,
-for example :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder`.
+is specified to be :class:`~examples.ftsprojection.projection.FtsViewInterface`, which means the projection
+should be constructed with a subclass of :class:`~examples.ftsprojection.projection.FtsViewInterface`,
+for example :class:`~examples.ftsprojection.projection.PostgresFtsView`.
 
 Test case
 ---------
@@ -128,7 +128,7 @@ page for 'minerals' is then created.
 A :class:`~eventsourcing.projection.ProjectionRunner` object is constructed with the
 application class :class:`~examples.contentmanagement.application.ContentManagement`,
 the projection class :class:`~examples.ftsprojection.projection.FtsProjection`, and the
-tracking recorder class :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder`.
+tracking recorder class :class:`~examples.ftsprojection.projection.PostgresFtsView`.
 
 An environment is specified that defines persistence infrastructure for the application and the tracking
 recorder.
@@ -136,7 +136,7 @@ recorder.
 Because the projection uses a subscription, the projection will follow events from every instance
 of the :class:`~examples.contentmanagement.application.ContentManagement` application "write model"
 that is configured to use the same database. And because the projection is recorded in the database,
-it can be queried from any instance of the :class:`~examples.ftsprojection.projection.PostgresFtsTrackingRecorder`
+it can be queried from any instance of the :class:`~examples.ftsprojection.projection.PostgresFtsView`
 recorder "read model" that is configured to use the same database. To demonstrate this, separate instances
 of the application and the recorder are used as the "write model" and "read model" interfaces. The projection
 runs independently.
