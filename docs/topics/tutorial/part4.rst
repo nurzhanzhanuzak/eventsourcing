@@ -222,15 +222,15 @@ Let's consider how to run the projection, so events of an event-sourced applicat
 
 The library's :class:`~eventsourcing.projection.ProjectionRunner` class is provided for the purpose
 of running projections. A projection runner can be constructed with an application class, a projection
-class, a materialised view class, and an environment that specifies the persistence modules
-to be used by the application and the tracking recorder.
+class, a materialised view class, and an environment that specifies configuration of the event-sourced
+application and the materialised view.
 
 The projection runner will construct an instance of the given application class, and an instance of
-the given projection class with an instance of the given tracking recorder class.
+the given projection class with an instance of the given materialised view class.
 
 It will :ref:`subscribe to the application <Subscriptions>`, from the position indicated by the
-:func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method of the  projection's
-tracking recorder, and then call the :func:`~eventsourcing.projection.Projection.process_event`
+:func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method of the projection's
+materialised view, and then call the :func:`~eventsourcing.projection.Projection.process_event`
 method of the projection for each domain event yielded by the application subscription.
 
 Because the projection runner starts a subscription to the application, it will first catch up by
@@ -242,13 +242,13 @@ method, which blocks until an optional timeout, or until an exception is raised 
 by the subscription, or until the projection runner is stopped by calling its :func:`~eventsourcing.projection.ProjectionRunner.stop` method.
 This allows an event processing component to be started and run independently as a
 separate operating system process for a controllable period of time, and then to terminate in a controlled
-way when there is an error. Exceptions raised whilst running the projection will be re-raised by the
+way when there is an error, or when it is interrupted. Exceptions raised whilst running the projection will be re-raised by the
 :func:`~eventsourcing.projection.ProjectionRunner.run_forever` method. Operators of the system can examine
 any errors and resume processing by reconstructing the runner. Some types of errors may be transient operational
 errors, such as database connectivity, in which case the processing could be resumed automatically. Some errors
 may be programming errors, and will require manual intervention before the event processing can continue.
 
-The :func:`~eventsourcing.persistence.TrackingRecorder.wait` method of tracking recorders can be used
+The :func:`~eventsourcing.persistence.TrackingRecorder.wait` method of materialised view objects can be used
 to wait until an event has been processed by the projection before calling a query method on the materialised view.
 
 
@@ -257,6 +257,9 @@ Counting events in memory
 
 For example, the ``TestEventCountersProjection`` class, shown below, tests the ``EventCountersProjection``
 projection class with the ``POPOEventCounters`` class.
+
+.. literalinclude:: ../../../tests/projection_tests/test_projection.py
+    :pyobject: TestEventCountersProjection
 
 The method ``test_event_counters_projection()`` constructs a runner, and from the runner gets references
 to an event-sourced application "write model" and a materialised view "read model".
@@ -276,15 +279,14 @@ representing this error is raised by the runner's :func:`~eventsourcing.projecti
 method, and the materialised view's :func:`~eventsourcing.persistence.TrackingRecorder.wait` method times out.
 
 
-.. literalinclude:: ../../../tests/projection_tests/test_projection.py
-    :pyobject: TestEventCountersProjection
-
-
 Counting events in PostgreSQL
 -----------------------------
 
-The ``TestEventCountersProjectionWithPostgres`` extends ``TestEventCountersProjection``. It runs
+The ``TestEventCountersProjectionWithPostgres`` extends ``TestEventCountersProjection`` and runs
 ``EventCountersProjection`` with the ``PostgresEventCounters`` class.
+
+.. literalinclude:: ../../../tests/projection_tests/test_projection.py
+    :pyobject: TestEventCountersProjectionWithPostgres
 
 Because this test case uses a durable database for both the event-sourced application and the materialised view,
 any instance of the application can be used to write events, and any instance of the materialised view can be used
@@ -295,10 +297,6 @@ being run independently as a separate operating system process.
 This is demonstrated by extending the test methods: to resume processing, to continue generating events, to
 expect the event counters correctly report the total numbers of events that have been generated, and to show
 that the event-processing error is still raised.
-
-
-.. literalinclude:: ../../../tests/projection_tests/test_projection.py
-    :pyobject: TestEventCountersProjectionWithPostgres
 
 The event-sourced application and the materialised view could, in this case, use separate databases. But in this
 example they are configured more simply to use different tables in the same database.
