@@ -445,6 +445,10 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
             statement += " notification_id <= %s"
 
         if topics:
+            # Check sequence and ensure list of strings.
+            assert isinstance(topics, (tuple, list)), topics
+            topics = list(topics) if isinstance(topics, tuple) else topics
+            assert all(isinstance(t, str) for t in topics), topics
             if not has_where:
                 statement += " WHERE"
             else:
