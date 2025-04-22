@@ -136,8 +136,8 @@ It defines a database table for event counters, and statements that select and i
 of counters in this table.
 
 The ``_select_counter()`` method is used to select the current value of an event counter.
-The ``_incr_counter()`` method of ``PostgresEventCounters``
-is used to increment a named event counter atomically in the same database transaction a tracking object is recorded.
+The ``_incr_counter()`` method of ``PostgresEventCounters`` is used to increment a named
+event counter atomically in the same database transaction as a tracking object is recorded.
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: PostgresEventCounters
