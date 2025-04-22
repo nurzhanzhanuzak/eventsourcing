@@ -169,7 +169,6 @@ class PostgresDatastore:
 
     @contextmanager
     def transaction(self, *, commit: bool = False) -> Iterator[Cursor[DictRow]]:
-        conn: Connection[DictRow]
         with self.get_connection() as conn, conn.transaction(force_rollback=not commit):
             yield conn.cursor()
 
@@ -258,7 +257,6 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
     def insert_events(
         self, stored_events: list[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
-        conn: Connection[DictRow]
         exc: Exception | None = None
         notification_ids: Sequence[int] | None = None
         with self.datastore.get_connection() as conn:
@@ -476,7 +474,6 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         """
         Returns the maximum notification ID.
         """
-        conn: Connection[DictRow]
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             curs.execute(self.max_notification_id_statement)
             fetchone = curs.fetchone()
@@ -609,7 +606,6 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_tracking(self, tracking: Tracking) -> None:
-        conn: Connection[DictRow]
         with (
             self.datastore.get_connection() as conn,
             conn.transaction(),
@@ -649,7 +645,6 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
     ) -> bool:
         if notification_id is None:
             return True
-        conn: Connection[DictRow]
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             curs.execute(
                 query=self.count_tracking_id_statement,
