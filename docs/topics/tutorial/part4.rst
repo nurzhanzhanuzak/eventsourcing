@@ -52,8 +52,8 @@ independently of any particular concrete implementation.
 
 We can develop concrete materialised views by implementing the abstract interface whilst also extending the
 library's concrete tracking recorder classes (:class:`~eventsourcing.popo.POPOTrackingRecorder`,
-:class:`~eventsourcing.sqlite.SQLiteTrackingRecorder`, :class:`~eventsourcing.postgres.PostgresTrackingRecorder`,
-etc.). Using these classes to implement concrete materialised views means command methods which support event
+:class:`~eventsourcing.sqlite.SQLiteTrackingRecorder`, :class:`~eventsourcing.postgres.PostgresTrackingRecorder`).
+Using these classes to implement concrete materialised views means command methods which support event
 tracking can be more easily implemented.
 
 To show how this can work, let's create a materialised view for counting events that can record and reveal the number
