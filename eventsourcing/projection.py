@@ -185,7 +185,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
                 )
 
             is_stopping.set()
-            subscription.subscription.stop()
+            subscription.stop()
 
     def run_forever(self, timeout: float | None = None) -> None:
         if self._is_stopping.wait(timeout=timeout) and self.thread_error is not None:

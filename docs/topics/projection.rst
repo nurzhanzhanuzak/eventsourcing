@@ -84,59 +84,72 @@ This module provides a generic abstract base class, :class:`~eventsourcing.proje
 which can be used to define how the domain events of an application will be processed.
 
 The :class:`~eventsourcing.projection.Projection` class is a generic class because it has one type variable,
-which is expected to be a type of tracking recorder.
+which is expected to be a type of tracking recorder that defines the interface of a "materialised view".
 
-The :class:`~eventsourcing.projection.Projection` class has one required constructor argument, :data:`tracking_recorder`,
-which is expected to be a tracking recorder object of the type specified by the type variable. The constructor argument
-is used to initialise an object attribute called :data:`tracking_recorder`.
+The :class:`~eventsourcing.projection.Projection` class has one required constructor argument, :func:`view <eventsourcing.projection.Projection.__init__>`,
+which is expected to be a concrete materialised view object of the type specified by the type variable. The constructor
+argument is used to initialise the property :py:attr:`~eventsourcing.projection.Projection.view`.
 
 The :class:`~eventsourcing.projection.Projection` class is an abstract class because it defines an abstract method,
 :func:`~eventsourcing.projection.Projection.process_event`, that must be implemented by subclasses.
 
 The intention of this class is that it will be subclassed, and that domain events of an application will be processed by
 calling an implementation of the :func:`~eventsourcing.projection.Projection.process_event`, which will call command
-methods on a tracking recorder object given as the constructor argument when the subclass is constructed.
+methods on :py:attr:`~eventsourcing.projection.Projection.view`.
 
 Subclasses of the :class:`~eventsourcing.projection.Projection` class can specify a
 :py:attr:`~eventsourcing.projection.Projection.name` attribute, so that environment variables
-used to construct the tracking recorder can be prefixed.
+used by projection runners to construct materialised view objects can be prefixed and (in some cases)
+so that database tables can be named after the projection.
 
 Subclasses of the :class:`~eventsourcing.projection.Projection` class can specify a
 :py:attr:`~eventsourcing.projection.Projection.topics` attribute, so that events can be
 filtered in the application's database by the application subscription.
 
+The examples below indicate how materialised views can be defined.
+
 .. code-block:: python
 
     from abc import ABC, abstractmethod
-    from eventsourcing.domain import DomainEventProtocol
-    from eventsourcing.dispatch import singledispatchmethod
     from eventsourcing.persistence import Tracking, TrackingRecorder
     from eventsourcing.popo import POPOTrackingRecorder
     from eventsourcing.postgres import PostgresTrackingRecorder
-    from eventsourcing.projection import Projection
     from eventsourcing.sqlite import SQLiteTrackingRecorder
 
-    class MyTrackingRecorderInterface(TrackingRecorder, ABC):
+    class MyMaterialisedViewInterface(TrackingRecorder, ABC):
         @abstractmethod
         def my_command(self, tracking: Tracking):
             """Updates materialised view"""
 
-    class MyPOPOTrackingRecorder(MyTrackingRecorderInterface, POPOTrackingRecorder):
+    class MyPOPOMaterialisedView(MyMaterialisedViewInterface, POPOTrackingRecorder):
         def my_command(self, tracking: Tracking):
             with self._datastore:
                 # Insert tracking record...
                 self._insert_tracking(tracking)
                 # ...and then update materialised view.
 
-    class MySQLiteTrackingRecorder(MyTrackingRecorderInterface, SQLiteTrackingRecorder):
+    class MySQLiteMaterialisedView(MyMaterialisedViewInterface, SQLiteTrackingRecorder):
         def my_command(self, tracking: Tracking):
             ...
 
-    class MyPostgresTrackingRecorder(MyTrackingRecorderInterface, PostgresTrackingRecorder):
+    class MyPostgresMaterialisedView(MyMaterialisedViewInterface, PostgresTrackingRecorder):
         def my_command(self, tracking: Tracking):
             ...
 
-    class MyProjection(Projection[MyTrackingRecorderInterface]):
+The example below indicates how a projection can be defined.
+
+.. code-block:: python
+
+    from abc import ABC, abstractmethod
+    from eventsourcing.domain import DomainEventProtocol
+    from eventsourcing.dispatch import singledispatchmethod
+    from eventsourcing.projection import Projection
+    from eventsourcing.utils import get_topic
+
+    class MyProjection(Projection[MyMaterialisedViewInterface]):
+        name = "myprojection"
+        topics = [get_topic(Aggregate.Event)]
+
         @singledispatchmethod
         def process_event(self, domain_event: DomainEventProtocol, tracking: Tracking) -> None:
             pass
@@ -165,24 +178,40 @@ The projection runner will iterate over the application subscription, calling th
 :func:`~eventsourcing.projection.Projection.process_event` method for each domain event
 and tracking object yielded by the application subscription.
 
-The projection runner has a method :func:`~eventsourcing.projection.Projection.run_forever` which will block
-until either the :func:`~eventsourcing.projection.Projection.process_event` method raises an error, or until
+The projection runner has a method :func:`~eventsourcing.projection.ProjectionRunner.run_forever` which will block
+until either :func:`~eventsourcing.projection.Projection.process_event` raises an error, or until
 the application subscription raises an error, or until the optional timeout is reached, or until the
-:func:`~eventsourcing.projection.Projection.stop` method is called.
+:func:`~eventsourcing.projection.ProjectionRunner.stop` method is called.
 
-Projection runner objects can be used as context managers.
+The example below shows how to run a projection. In this example, the projection runner is used as a context manager.
+The event-sourced application is an instance of :class:`~eventsourcing.application.Application` constructed with
+the default :mod:`eventsourcing.popo` persistence module. The projection runner's
+:func:`~eventsourcing.projection.ProjectionRunner.run_forever` method is called which keeps the projection running.
+The :func:`~eventsourcing.projection.ProjectionRunner.stop` method is called by a signal handler after the
+process is interrupted.
 
 .. code-block:: python
 
+    import signal
     from eventsourcing.projection import ProjectionRunner
 
+    # For demonstration purposes, interrupt process with SIGINT after 1s.
+    import os, threading, time
+    threading.Thread(target=lambda: time.sleep(1) or os.kill(os.getpid(), signal.SIGINT)).start()
+
+    # Run projection as a context manager.
     with ProjectionRunner(
         application_class=Application,
-        view_class=MyPOPOTrackingRecorder,
+        view_class=MyPOPOMaterialisedView,
         projection_class=MyProjection,
         env={},
     ) as runner:
-        runner.run_forever(timeout=1)
+
+        # Register signal handler.
+        signal.signal(signal.SIGINT, lambda *args: runner.stop())
+
+        # Run until interrupted.
+        runner.run_forever()
 
 
 See :doc:`Tutorial - Part 4 </topics/tutorial/part4>` for more guidance on using this module.

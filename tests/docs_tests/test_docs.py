@@ -286,8 +286,8 @@ class TestDocs(TestCase):
         err = err.replace(temp_path, doc_path)
         exit_status = p.wait()
 
-        print(out)
-        print(err)
+        # print(out)
+        # print(err)
 
         # Check for errors running the code.
         if exit_status:
