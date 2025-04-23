@@ -113,6 +113,15 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         view_class: type[TTrackingRecorder],
         env: EnvType | None = None,
     ):
+        """
+        Constructs application from given application class with given environment.
+        Also constructs a materialised view from given class using an infrastructure
+        factory constructed with an environment named after the projection. Also
+        constructs a projection with the constructed materialised view object.
+        Starts a subscription to application and, in a separate event-processing
+        thread, calls projection's process_event() method for each event and tracking
+        object pair received from the subscription.
+        """
         self.app: TApplication = application_class(env)
 
         self.view = (
@@ -157,6 +166,9 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         return Environment(name, _env)
 
     def stop(self) -> None:
+        """
+        Stops the application subscription, which will stop the event-processing thread.
+        """
         self._is_stopping.set()
         self.subscription.stop()
 
@@ -188,10 +200,18 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             subscription.stop()
 
     def run_forever(self, timeout: float | None = None) -> None:
+        """
+        Blocks until timeout, or until the runner is stopped or errors. Re-raises
+        any error otherwise exits normally
+        """
         if self._is_stopping.wait(timeout=timeout) and self.thread_error is not None:
             raise self.thread_error
 
     def wait(self, notification_id: int | None, timeout: float = 1.0) -> None:
+        """
+        Blocks until timeout, or until the materialised view has recorded a tracking
+        object that is greater than or equal to the given notification ID.
+        """
         try:
             self.projection.view.wait(
                 application_name=self.subscription.name,
@@ -207,8 +227,14 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         return self
 
     def __exit__(self, *args: object, **kwargs: Any) -> None:
+        """
+        Calls stop() and waits for the event-processing thread to exit.
+        """
         self.stop()
         self.processing_thread.join()
 
     def __del__(self) -> None:
+        """
+        Calls stop().
+        """
         self.stop()
