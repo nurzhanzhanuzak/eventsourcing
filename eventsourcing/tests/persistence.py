@@ -793,8 +793,16 @@ class TrackingRecorderTestCase(TestCase, ABC):
 
     def test_wait(self) -> None:
         tracking_recorder = self.create_recorder()
+
+        tracking_recorder.wait("upstream1", None)
+
+        with self.assertRaises(TimeoutError):
+            tracking_recorder.wait("upstream1", 21, timeout=0.1)
+
         tracking1 = Tracking(notification_id=21, application_name="upstream1")
         tracking_recorder.insert_tracking(tracking=tracking1)
+        tracking_recorder.wait("upstream1", None)
+        tracking_recorder.wait("upstream1", 10)
         tracking_recorder.wait("upstream1", 21)
         with self.assertRaises(TimeoutError):
             tracking_recorder.wait("upstream1", 22, timeout=0.1)

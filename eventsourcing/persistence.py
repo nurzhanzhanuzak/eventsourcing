@@ -517,10 +517,10 @@ class TrackingRecorder(Recorder, ABC):
         interrupt: Event | None = None,
     ) -> None:
         """
-        Block until a tracking object with the given application name and
-        notification ID has been recorded.
+        Block until a tracking object with the given application name and a
+        notification ID greater than equal to the given value has been recorded.
 
-        Polls has_tracking_id() with exponential backoff until the timeout
+        Polls max_tracking_id() with exponential backoff until the timeout
         is reached, or until the optional interrupt event is set.
 
         The timeout argument should be a floating point number specifying a
@@ -534,7 +534,10 @@ class TrackingRecorder(Recorder, ABC):
         deadline = monotonic() + timeout
         delay_ms = 1.0
         while True:
-            if self.has_tracking_id(application_name, notification_id):
+            max_tracking_id = self.max_tracking_id(application_name)
+            if notification_id is None or (
+                max_tracking_id is not None and max_tracking_id >= notification_id
+            ):
                 break
             if interrupt:
                 if interrupt.wait(timeout=delay_ms / 1000):
