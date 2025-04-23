@@ -40,32 +40,53 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
         gt: int | None = None,
         topics: Sequence[str] = (),
     ):
+        """
+        Starts subscription to application's stored events using application's recorder.
+        """
         self.name = app.name
         self.recorder = app.recorder
         self.mapper = app.mapper
         self.subscription = self.recorder.subscribe(gt=gt, topics=topics)
 
+    def stop(self) -> None:
+        """
+        Stops the stored event subscription.
+        """
+        self.subscription.stop()
+
     def __enter__(self) -> Self:
+        """
+        Calls __enter__ on the stored event subscription.
+        """
         self.subscription.__enter__()
         return self
 
     def __exit__(self, *args: object, **kwargs: Any) -> None:
+        """
+        Calls __exit__ on the stored event subscription.
+        """
         self.subscription.__exit__(*args, **kwargs)
 
     def __iter__(self) -> Self:
         return self
 
     def __next__(self) -> tuple[DomainEventProtocol, Tracking]:
+        """
+        Returns the next stored event from the stored event subscription.
+        Constructs a tracking object that identifies the position of
+        the event in the application sequence, and reconstructs a domain
+        event object from the stored event object.
+        """
         notification = next(self.subscription)
         tracking = Tracking(self.name, notification.id)
         domain_event = self.mapper.to_domain_event(notification)
         return domain_event, tracking
 
     def __del__(self) -> None:
+        """
+        Stops the stored event subscription.
+        """
         self.stop()
-
-    def stop(self) -> None:
-        self.subscription.stop()
 
 
 class Projection(ABC, Generic[TTrackingRecorder]):
