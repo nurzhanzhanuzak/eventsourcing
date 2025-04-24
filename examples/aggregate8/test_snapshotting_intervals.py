@@ -11,9 +11,9 @@ if TYPE_CHECKING:
 
 
 class SubDogSchool(DogSchool):
-    snapshotting_intervals: ClassVar[
-        dict[type[MutableOrImmutableAggregate], int] | None
-    ] = {Dog: 1}
+    snapshotting_intervals: ClassVar[dict[type[MutableOrImmutableAggregate], int]] = {
+        Dog: 1
+    }
 
 
 class TestDogSchool(TestCase):

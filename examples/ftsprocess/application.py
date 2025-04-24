@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar, cast
 
+from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.system import ProcessApplication
 from examples.contentmanagement.domainmodel import Page
 from examples.contentmanagement.utils import apply_diff
@@ -19,6 +20,7 @@ class FtsProcess(ProcessApplication):
         "COMPRESSOR_TOPIC": "gzip",
     }
 
+    @singledispatchmethod
     def policy(
         self,
         domain_event: DomainEventProtocol,

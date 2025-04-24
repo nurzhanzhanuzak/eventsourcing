@@ -18,16 +18,16 @@ class Trick(BaseModel):
     name: str
 
 
-class Dog(Aggregate):
+class Dog(Aggregate, frozen=True):
     name: str
     tricks: tuple[Trick, ...]
 
 
-class DogRegistered(DomainEvent):
+class DogRegistered(DomainEvent, frozen=True):
     name: str
 
 
-class TrickAdded(DomainEvent):
+class TrickAdded(DomainEvent, frozen=True):
     trick: Trick
 
 

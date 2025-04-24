@@ -22,11 +22,11 @@ if TYPE_CHECKING:
 class DogSchool(Application):
     is_snapshotting_enabled = True
     snapshot_class = Snapshot
-    snapshotting_intervals: ClassVar[
-        dict[type[MutableOrImmutableAggregate], int] | None
-    ] = {Dog: 5}
+    snapshotting_intervals: ClassVar[dict[type[MutableOrImmutableAggregate], int]] = {
+        Dog: 5
+    }
     snapshotting_projectors: ClassVar[
-        dict[type[MutableOrImmutableAggregate], ProjectorFunction[Any, Any]] | None
+        dict[type[MutableOrImmutableAggregate], ProjectorFunction[Any, Any]]
     ] = {Dog: project_dog}
 
     def register_dog(self, name: str) -> UUID:

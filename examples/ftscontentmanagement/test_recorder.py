@@ -100,8 +100,8 @@ class TestWithPostgres(FtsRecorderTestCase):
             "eventsourcing",
             "eventsourcing",  # ,
         ) as datastore:
-            drop_postgres_table(datastore, "public.searchablecontentapplication_events")
-            drop_postgres_table(datastore, "public.ftsprojection")
+            drop_postgres_table(datastore, "searchablecontentapplication_events")
+            drop_postgres_table(datastore, "ftsprojection")
 
     def construct_recorder(self) -> FtsRecorder:
         datastore = PostgresDatastore(

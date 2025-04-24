@@ -13,6 +13,8 @@ from unittest.mock import MagicMock
 
 from typing_extensions import TypeVar
 
+from eventsourcing.application import ProcessingEvent  # noqa: TCH001
+from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import Aggregate, AggregateEvent, DomainEventProtocol, event
 from eventsourcing.persistence import Notification, ProgrammingError, Tracking
 from eventsourcing.postgres import PostgresDatastore
@@ -43,8 +45,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
     from uuid import UUID
 
-    from eventsourcing.application import ProcessingEvent
-
 
 class EmailProcess2(EmailProcess):
     pass
@@ -55,6 +55,35 @@ TRunner = TypeVar(
     bound=Runner,
     default=Union[SingleThreadedRunner, NewSingleThreadedRunner],
 )
+
+
+class Command(Aggregate):
+    @dataclass(frozen=True)
+    class Created(Aggregate.Created):
+        text: str
+
+    def __init__(self, text: str):
+        self.text = text
+        self.output: str | None = None
+        self.error: str | None = None
+
+    @event
+    def done(self, output: str, error: str) -> None:
+        self.output = output
+        self.error = error
+
+
+class Result(Aggregate):
+    @dataclass(frozen=True)
+    class Created(Aggregate.Created):
+        command_id: UUID
+        output: str
+        error: str
+
+    def __init__(self, command_id: UUID, output: str, error: str):
+        self.command_id = command_id
+        self.output = output
+        self.error = error
 
 
 class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
@@ -160,76 +189,65 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
             self.assertEqual(len(section.items), 10)
 
     def test_system_with_processing_loop(self) -> None:
-        class Command(Aggregate):
-            @dataclass(frozen=True)
-            class Created(Aggregate.Created):
-                text: str
-
-            def __init__(self, text: str):
-                self.text = text
-                self.output: str | None = None
-                self.error: str | None = None
-
-            @event
-            def done(self, output: str, error: str) -> None:
-                self.output = output
-                self.error = error
-
-        class Result(Aggregate):
-            @dataclass(frozen=True)
-            class Created(Aggregate.Created):
-                command_id: UUID
-                output: str
-                error: str
-
-            def __init__(self, command_id: UUID, output: str, error: str):
-                self.command_id = command_id
-                self.output = output
-                self.error = error
-
         class Commands(ProcessApplication):
             def create_command(self, text: str) -> UUID:
                 command = Command(text=text)
                 self.save(command)
                 return command.id
 
+            @singledispatchmethod
             def policy(
                 self,
                 domain_event: DomainEventProtocol,
                 processing_event: ProcessingEvent,
             ) -> None:
-                if isinstance(domain_event, Result.Created):
-                    command: Command = self.repository.get(domain_event.command_id)
-                    command.done(
-                        output=domain_event.output,
-                        error=domain_event.error,
-                    )
-                    processing_event.collect_events(command)
+                pass
+
+            @policy.register
+            def result_created(
+                self,
+                domain_event: Result.Created,
+                processing_event: ProcessingEvent,
+            ) -> None:
+                command: Command = self.repository.get(domain_event.command_id)
+                command.done(
+                    output=domain_event.output,
+                    error=domain_event.error,
+                )
+                processing_event.collect_events(command)
 
             def get_result(self, command_id: UUID) -> tuple[str | None, str | None]:
                 command: Command = self.repository.get(command_id)
                 return command.output, command.error
 
         class Results(ProcessApplication):
+            @singledispatchmethod
             def policy(
                 self,
                 domain_event: DomainEventProtocol,
                 processing_event: ProcessingEvent,
             ) -> None:
-                if isinstance(domain_event, Command.Created):
-                    try:
-                        openargs = shlex.split(domain_event.text)
-                        output = subprocess.check_output(openargs)  # noqa: S603
-                        error = ""
-                    except Exception as e:
-                        error = str(e)
-                        output = b""
-                    result = Result(
-                        command_id=domain_event.originator_id,
-                        output=output.decode("utf8"),
-                        error=error,
-                    )
-                    processing_event.collect_events(result)
+                pass
+
+            @policy.register
+            def _(
+                self,
+                domain_event: Command.Created,
+                processing_event: ProcessingEvent,
+            ) -> None:
+                try:
+                    openargs = shlex.split(domain_event.text)
+                    output = subprocess.check_output(openargs)  # noqa: S603
+                    error = ""
+                except Exception as e:
+                    error = str(e)
+                    output = b""
+                result = Result(
+                    command_id=domain_event.originator_id,
+                    output=output.decode("utf8"),
+                    error=error,
+                )
+                processing_event.collect_events(result)
 
         system = System([[Commands, Results, Commands]])
         with self.construct_runner(system) as runner:
@@ -518,7 +536,9 @@ class TestMultiThreadedRunner(
             raise ProgrammingError(msg)
 
     class BrokenProcessing(EmailProcess):
-        def process_event(self, _: DomainEventProtocol, __: Tracking) -> None:
+        def process_event(
+            self, domain_event: DomainEventProtocol, tracking: Tracking
+        ) -> None:
             msg = "Just testing error handling when processing is broken"
             raise ProgrammingError(msg)
 

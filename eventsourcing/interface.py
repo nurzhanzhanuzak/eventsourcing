@@ -141,7 +141,7 @@ class NotificationLogJSONClient(NotificationLog):
         self,
         start: int | None,
         limit: int,
-        _: int | None = None,
+        stop: int | None = None,
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,

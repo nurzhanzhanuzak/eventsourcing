@@ -7,12 +7,11 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from queue import Full, Queue
 from types import FrameType, ModuleType
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Union, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
     from typing_extensions import Self
-    from eventsourcing.dispatch import singledispatchmethod
 
 from eventsourcing.application import (
     Application,
@@ -22,6 +21,7 @@ from eventsourcing.application import (
     Section,
     TApplication,
 )
+from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import DomainEventProtocol, MutableOrImmutableAggregate
 from eventsourcing.persistence import (
     IntegrityError,
@@ -198,11 +198,8 @@ class Follower(Application):
                 self.notify(processing_event.events)
                 self._notify(recordings)
 
-    policy: (
-        Callable[[DomainEventProtocol, ProcessingEvent], None] | singledispatchmethod
-    )
-
-    def policy(  # type: ignore[no-redef]
+    @singledispatchmethod
+    def policy(
         self,
         domain_event: DomainEventProtocol,
         processing_event: ProcessingEvent,

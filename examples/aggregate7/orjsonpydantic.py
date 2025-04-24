@@ -28,14 +28,14 @@ class PydanticMapper(Mapper):
             state=stored_state,
         )
 
-    def to_domain_event(self, stored: StoredEvent) -> DomainEventProtocol:
-        stored_state = stored.state
+    def to_domain_event(self, stored_event: StoredEvent) -> DomainEventProtocol:
+        stored_state = stored_event.state
         if self.cipher:
             stored_state = self.cipher.decrypt(stored_state)
         if self.compressor:
             stored_state = self.compressor.decompress(stored_state)
         event_state: dict[str, Any] = self.transcoder.decode(stored_state)
-        cls = resolve_topic(stored.topic)
+        cls = resolve_topic(stored_event.topic)
         return cls(**event_state)
 
 

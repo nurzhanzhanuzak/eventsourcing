@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib
 import sys
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping
 from functools import wraps
 from inspect import isfunction
 from random import random
@@ -129,7 +129,7 @@ def clear_topic_cache() -> None:
 
 
 def retry(
-    exc: type[Exception] | Sequence[type[Exception]] = Exception,
+    exc: type[Exception] | tuple[type[Exception], ...] = Exception,
     max_attempts: int = 1,
     wait: float = 0,
     stall: float = 0,
@@ -235,18 +235,23 @@ class Environment(dict[str, str]):
         super().__init__(env or {})
         self.name = name
 
-    @overload
-    def get(self, key: str) -> str | None: ...  # pragma: no cover
+    @overload  # type: ignore[override]
+    def get(self, __key: str) -> str | None: ...  # pragma: no cover
 
     @overload
-    def get(self, key: str, default: str | T) -> str | T: ...  # pragma: no cover
+    def get(self, __key: str, __default: str) -> str: ...  # pragma: no cover
 
-    def get(self, key: str, default: str | T | None = None) -> str | T | None:
-        for _key in self.create_keys(key):
+    @overload
+    def get(self, __key: str, __default: T) -> str | T: ...  # pragma: no cover
+
+    def get(  # pyright: ignore [reportIncompatibleMethodOverride]
+        self, __key: str, __default: str | T | None = None
+    ) -> str | T | None:
+        for _key in self.create_keys(__key):
             value = super().get(_key, None)
             if value is not None:
                 return value
-        return default
+        return __default
 
     def create_keys(self, key: str) -> list[str]:
         keys = []

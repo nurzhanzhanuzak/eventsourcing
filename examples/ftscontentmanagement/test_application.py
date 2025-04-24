@@ -106,8 +106,8 @@ class TestWithPostgres(SearchableContentApplicationTestCase):
             os.environ["POSTGRES_USER"],
             os.environ["POSTGRES_PASSWORD"],
         ) as datastore:
-            drop_postgres_table(datastore, "public.ftscontentmanagement_events")
-            drop_postgres_table(datastore, "public.ftsprojection")
+            drop_postgres_table(datastore, "ftscontentmanagement_events")
+            drop_postgres_table(datastore, "ftsprojection")
 
 
 del SearchableContentApplicationTestCase

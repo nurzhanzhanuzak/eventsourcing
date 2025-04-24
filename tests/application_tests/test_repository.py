@@ -12,7 +12,7 @@ from eventsourcing.application import (
     LRUCache,
     Repository,
 )
-from eventsourcing.domain import Aggregate, DomainEventProtocol, Snapshot
+from eventsourcing.domain import Aggregate, CanMutateAggregate, Snapshot
 from eventsourcing.persistence import (
     DatetimeAsISO,
     DecimalAsStr,
@@ -213,7 +213,7 @@ class TestRepository(TestCase):
 
     def test_with_alternative_mutator_function(self) -> None:
         def mutator(
-            initial: Aggregate | None, domain_events: Iterable[DomainEventProtocol]
+            initial: Aggregate | None, domain_events: Iterable[CanMutateAggregate]
         ) -> BankAccount:
             return cast(
                 BankAccount, reduce(lambda a, e: e.mutate(a), domain_events, initial)

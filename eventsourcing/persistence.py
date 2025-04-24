@@ -754,6 +754,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
             mapper_topic = self.env.get(self.MAPPER_TOPIC)
             mapper_class = resolve_topic(mapper_topic) if mapper_topic else Mapper
 
+        assert isinstance(mapper_class, type) and issubclass(mapper_class, Mapper)
         return mapper_class(
             transcoder=transcoder or self.transcoder(),
             cipher=self.cipher(),

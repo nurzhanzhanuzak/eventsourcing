@@ -88,20 +88,26 @@ class DomainEventProtocol(Protocol):
     kinds of domain event classes, such as Pydantic classes.
     """
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        pass  # pragma: no cover
+
     @property
     def originator_id(self) -> UUID:
         """
         UUID identifying an aggregate to which the event belongs.
         """
+        raise NotImplementedError  # pragma: no cover
 
     @property
     def originator_version(self) -> int:
         """
         Integer identifying the version of the aggregate when the event occurred.
         """
+        raise NotImplementedError  # pragma: no cover
 
 
 TDomainEvent = TypeVar("TDomainEvent", bound=DomainEventProtocol)
+SDomainEvent = TypeVar("SDomainEvent", bound=DomainEventProtocol)
 
 
 class MutableAggregateProtocol(Protocol):
@@ -120,18 +126,21 @@ class MutableAggregateProtocol(Protocol):
         """
         Mutable aggregates have a read-only ID that is a UUID.
         """
+        raise NotImplementedError  # pragma: no cover
 
     @property
     def version(self) -> int:
         """
         Mutable aggregates have a read-write version that is an int.
         """
+        raise NotImplementedError  # pragma: no cover
 
     @version.setter
     def version(self, value: int) -> None:
         """
         Mutable aggregates have a read-write version that is an int.
         """
+        raise NotImplementedError  # pragma: no cover
 
 
 class ImmutableAggregateProtocol(Protocol):
@@ -150,12 +159,14 @@ class ImmutableAggregateProtocol(Protocol):
         """
         Immutable aggregates have a read-only ID that is a UUID.
         """
+        raise NotImplementedError  # pragma: no cover
 
     @property
     def version(self) -> int:
         """
         Immutable aggregates have a read-only version that is an int.
         """
+        raise NotImplementedError  # pragma: no cover
 
 
 MutableOrImmutableAggregate = Union[
@@ -180,6 +191,7 @@ class CollectEventsProtocol(Protocol):
         """
         Returns a sequence of events.
         """
+        raise NotImplementedError  # pragma: no cover
 
 
 @runtime_checkable
@@ -233,7 +245,7 @@ class CanCreateTimestamp:
         return datetime_now_with_tzinfo()
 
 
-TAggregate = TypeVar("TAggregate", bound="Aggregate")
+TAggregate = TypeVar("TAggregate", bound="BaseAggregate")
 
 
 class HasOriginatorIDVersion:
@@ -300,7 +312,7 @@ class CanMutateAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
         # Return the mutated aggregate.
         return aggregate
 
-    def apply(self, aggregate: Aggregate) -> None:
+    def apply(self, aggregate: Any) -> None:
         """
         Applies the domain event to its aggregate.
 
@@ -934,9 +946,9 @@ def _raise_missing_names_type_error(missing_names: list[str], msg: str) -> None:
     raise TypeError(msg)
 
 
-_annotations_mention_id: set[type[Aggregate]] = set()
-_init_mentions_id: set[type[Aggregate]] = set()
-_create_id_param_names: dict[type[Aggregate], list[str]] = defaultdict(list)
+_annotations_mention_id: set[type[BaseAggregate]] = set()
+_init_mentions_id: set[type[BaseAggregate]] = set()
+_create_id_param_names: dict[type[BaseAggregate], list[str]] = defaultdict(list)
 
 
 class MetaAggregate(EventsourcingType, Generic[TAggregate], type):
@@ -1011,18 +1023,12 @@ class MetaAggregate(EventsourcingType, Generic[TAggregate], type):
     _created_event_class: type[CanInitAggregate]
 
 
-class Aggregate(metaclass=MetaAggregate):
+class BaseAggregate(metaclass=MetaAggregate):
     """
     Base class for aggregates.
     """
 
     INITIAL_VERSION = 1
-
-    class Event(AggregateEvent):
-        pass
-
-    class Created(Event, AggregateCreated):
-        pass
 
     @staticmethod
     def create_id(*_: Any, **__: Any) -> UUID:
@@ -1081,7 +1087,7 @@ class Aggregate(metaclass=MetaAggregate):
 
         assert agg is not None
         # Append the domain event to pending list.
-        agg.pending_events.append(created_event)
+        agg._pending_events.append(created_event)
         # Return the aggregate.
         return agg
 
@@ -1197,7 +1203,7 @@ class Aggregate(metaclass=MetaAggregate):
         return f"{type(self).__name__}({', '.join(attrs)})"
 
     def __init_subclass__(
-        cls: type[Aggregate], *, created_event_name: str | None = None
+        cls: type[BaseAggregate], *, created_event_name: str | None = None
     ) -> None:
         """
         Initialises aggregate subclass by defining __init__ method and event classes.
@@ -1211,8 +1217,10 @@ class Aggregate(metaclass=MetaAggregate):
         except KeyError:
             pass
 
-        if class_annotations or any(
-            dataclasses.is_dataclass(base) for base in cls.__bases__
+        if (
+            class_annotations
+            or cls in _annotations_mention_id
+            or any(dataclasses.is_dataclass(base) for base in cls.__bases__)
         ):
             dataclasses.dataclass(eq=False, repr=False)(cls)
 
@@ -1223,7 +1231,9 @@ class Aggregate(metaclass=MetaAggregate):
             base_event_cls = cls.__dict__[base_event_name]
         except KeyError:
             base_event_cls = cls._define_event_class(
-                base_event_name, (cls.Event,), None
+                name=base_event_name,
+                bases=(getattr(cls, base_event_name, AggregateEvent),),
+                apply_method=None,
             )
             setattr(cls, base_event_name, base_event_cls)
 
@@ -1482,9 +1492,12 @@ class Aggregate(metaclass=MetaAggregate):
                     setattr(cls, name, sub_class)
 
 
-# Special case for the Aggregate class because
-# it's not processed by Aggregate.__init_subclass__.
-_created_event_classes[Aggregate] = [Aggregate.Created]
+class Aggregate(BaseAggregate):
+    class Event(AggregateEvent):
+        pass
+
+    class Created(Event, AggregateCreated):
+        pass
 
 
 @overload
@@ -1578,6 +1591,7 @@ class SnapshotProtocol(DomainEventProtocol, Protocol):
         """
         Snapshots have a read-only 'state'.
         """
+        raise NotImplementedError  # pragma: no cover
 
     # TODO: Improve on this 'Any'.
     @classmethod
@@ -1593,6 +1607,16 @@ TCanSnapshotAggregate = TypeVar("TCanSnapshotAggregate", bound="CanSnapshotAggre
 class CanSnapshotAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
     topic: str
     state: Any
+
+    def __init__(
+        self,
+        originator_id: UUID,
+        originator_version: int,
+        timestamp: datetime,
+        topic: str,
+        state: Any,
+    ) -> None:
+        raise NotImplementedError  # pragma: no cover
 
     @classmethod
     def take(
@@ -1610,7 +1634,7 @@ class CanSnapshotAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
             aggregate_state.pop("_id")
             aggregate_state.pop("_version")
             aggregate_state.pop("_pending_events")
-        return cls(  # type: ignore
+        return cls(
             originator_id=aggregate.id,
             originator_version=aggregate.version,
             timestamp=cls.create_timestamp(),

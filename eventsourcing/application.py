@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Sequence
@@ -26,6 +27,7 @@ from eventsourcing.domain import (
     DomainEventProtocol,
     EventSourcingError,
     MutableOrImmutableAggregate,
+    SDomainEvent,
     Snapshot,
     SnapshotProtocol,
     TDomainEvent,
@@ -352,19 +354,18 @@ class Repository:
         return aggregate
 
     def _use_fastforward_lock(self, aggregate_id: UUID) -> Lock:
+        lock: Lock | None = None
         with self._fastforward_locks_lock:
-            try:
+            num_users = 0
+            with contextlib.suppress(KeyError):
                 lock, num_users = self._fastforward_locks_inuse[aggregate_id]
-            except KeyError:
-                try:
+            if lock is None:
+                with contextlib.suppress(KeyError):
                     lock = self._fastforward_locks_cache.get(aggregate_id, evict=True)
-                except KeyError:
-                    lock = Lock()
-                finally:
-                    num_users = 0
-            finally:
-                num_users += 1
-                self._fastforward_locks_inuse[aggregate_id] = (lock, num_users)
+            if lock is None:
+                lock = Lock()
+            num_users += 1
+            self._fastforward_locks_inuse[aggregate_id] = (lock, num_users)
             return lock
 
     def _disuse_fastforward_lock(self, aggregate_id: UUID) -> None:
@@ -610,12 +611,10 @@ class Application:
     name = "Application"
     env: ClassVar[dict[str, str]] = {}
     is_snapshotting_enabled: bool = False
-    snapshotting_intervals: ClassVar[
-        dict[type[MutableOrImmutableAggregate], int] | None
-    ] = None
+    snapshotting_intervals: ClassVar[dict[type[MutableOrImmutableAggregate], int]] = {}
     snapshotting_projectors: ClassVar[
-        dict[type[MutableOrImmutableAggregate], ProjectorFunction[Any, Any]] | None
-    ] = None
+        dict[type[MutableOrImmutableAggregate], ProjectorFunction[Any, Any]]
+    ] = {}
     snapshot_class: type[SnapshotProtocol] = Snapshot
     log_section_size = 10
     notify_topics: Sequence[str] = []
@@ -817,12 +816,9 @@ class Application:
                     continue
                 interval = self.snapshotting_intervals.get(type(aggregate))
                 if interval is not None and event.originator_version % interval == 0:
-                    if (
-                        self.snapshotting_projectors
-                        and type(aggregate) in self.snapshotting_projectors
-                    ):
+                    try:
                         projector_func = self.snapshotting_projectors[type(aggregate)]
-                    else:
+                    except KeyError:
                         projector_func = project_aggregate
                     if projector_func is project_aggregate and not isinstance(
                         event, CanMutateProtocol
@@ -947,10 +943,10 @@ class EventSourcedLog(Generic[TDomainEvent]):
 
     def _trigger_event(
         self,
-        logged_cls: type[T] | None,
+        logged_cls: type[SDomainEvent],
         next_originator_version: int | None = None,
         **kwargs: Any,
-    ) -> T:
+    ) -> SDomainEvent:
         """
         Constructs and returns a new log event.
         """
@@ -961,7 +957,7 @@ class EventSourcedLog(Generic[TDomainEvent]):
             else:
                 next_originator_version = last_logged.originator_version + 1
 
-        return logged_cls(  # type: ignore
+        return logged_cls(
             originator_id=self.originator_id,
             originator_version=next_originator_version,
             timestamp=datetime_now_with_tzinfo(),

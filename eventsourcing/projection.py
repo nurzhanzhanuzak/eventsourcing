@@ -95,7 +95,7 @@ class Projection(ABC, Generic[TTrackingRecorder]):
     Name of projection, used to pick prefixed environment
     variables and define database table names.
     """
-    topics: Sequence[str] = ()
+    topics: tuple[str, ...] = ()
     """
     Filter events in database when subscribing to an application.
     """
@@ -143,6 +143,8 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         thread, calls projection's process_event() method for each event and tracking
         object pair received from the subscription.
         """
+        self._is_stopping = Event()
+
         self.app: TApplication = application_class(env)
 
         self.view = (
@@ -163,7 +165,6 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             gt=self.view.max_tracking_id(self.app.name),
             topics=self.projection.topics,
         )
-        self._is_stopping = Event()
         self.thread_error: BaseException | None = None
         self.processing_thread = Thread(
             target=self._process_events_loop,

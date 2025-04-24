@@ -83,12 +83,8 @@ class WithPostgreSQL(SearchableTimestampsTestCase):
             os.environ["POSTGRES_USER"],
             os.environ["POSTGRES_PASSWORD"],
         ) as datastore:
-            drop_postgres_table(
-                datastore, "public.searchabletimestampsapplication_events"
-            )
-            drop_postgres_table(
-                datastore, "public.searchabletimestampsapplication_timestamps"
-            )
+            drop_postgres_table(datastore, "searchabletimestampsapplication_events")
+            drop_postgres_table(datastore, "searchabletimestampsapplication_timestamps")
 
 
 del SearchableTimestampsTestCase

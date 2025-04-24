@@ -170,10 +170,10 @@ class TestWithPostgres(ContentManagementSystemTestCase):
             self.env["POSTGRES_USER"],
             self.env["POSTGRES_PASSWORD"],
         ) as datastore:
-            drop_postgres_table(datastore, "public.contentmanagement_events")
-            drop_postgres_table(datastore, "public.ftsprojection")
-            # drop_postgres_table(datastore, "public.ftsprocess_events")
-            drop_postgres_table(datastore, "public.ftsprocess_tracking")
+            drop_postgres_table(datastore, "contentmanagement_events")
+            drop_postgres_table(datastore, "ftsprojection")
+            # drop_postgres_table(datastore, "ftsprocess_events")
+            drop_postgres_table(datastore, "ftsprocess_tracking")
 
     def test_system(self) -> None:
         super().test_system()

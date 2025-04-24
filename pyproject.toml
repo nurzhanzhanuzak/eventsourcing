@@ -59,6 +59,7 @@ mypy = "*"
 ruff = "^0.1.14"
 psycopg = { version = "<=3.2.99999", extras = ["pool"] }
 psycopg-binary = "*"
+pyright = "*"
 
 [tool.poetry.group.docs.dependencies]
 Sphinx = { version = "*"}
@@ -240,3 +241,12 @@ line-ending = "auto"
 
 [tool.ruff.pydocstyle]
 convention = "google"
+
+[tool.pyright]
+include = [
+    "eventsourcing",
+    "examples",
+    "tests",
+]
+pythonVersion = "3.9"
+typeCheckingMode = "standard"

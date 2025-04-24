@@ -176,7 +176,7 @@ class TestLeader(TestCase):
             def __init__(self) -> None:
                 self.num_received = 0
 
-            def receive_recording_event(self, _: RecordingEvent) -> None:
+            def receive_recording_event(self, recording_event: RecordingEvent) -> None:
                 self.num_received += 1
 
         # Test fixture is working.
@@ -275,6 +275,7 @@ class TestFollower(TestCase):
         class MyFollower(Follower):
             follow_topics: ClassVar[Sequence[str]] = []
 
+            @singledispatchmethod
             def policy(self, *args: Any, **kwargs: Any) -> None:
                 pass
 

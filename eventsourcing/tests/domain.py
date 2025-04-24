@@ -69,11 +69,11 @@ class BankAccount(Aggregate):
 
         amount: Decimal
 
-        def apply(self, account: Aggregate) -> None:
+        def apply(self, aggregate: Aggregate) -> None:
             """
             Increments the account balance.
             """
-            cast(BankAccount, account).balance += self.amount
+            cast(BankAccount, aggregate).balance += self.amount
 
     def set_overdraft_limit(self, overdraft_limit: Decimal) -> None:
         """
@@ -95,8 +95,8 @@ class BankAccount(Aggregate):
 
         overdraft_limit: Decimal
 
-        def apply(self, account: Aggregate) -> None:
-            cast(BankAccount, account).overdraft_limit = self.overdraft_limit
+        def apply(self, aggregate: Aggregate) -> None:
+            cast(BankAccount, aggregate).overdraft_limit = self.overdraft_limit
 
     def close(self) -> None:
         """
@@ -109,8 +109,8 @@ class BankAccount(Aggregate):
         Domain event for when account is closed.
         """
 
-        def apply(self, account: Aggregate) -> None:
-            cast(BankAccount, account).is_closed = True
+        def apply(self, aggregate: Aggregate) -> None:
+            cast(BankAccount, aggregate).is_closed = True
 
 
 class AccountClosedError(Exception):

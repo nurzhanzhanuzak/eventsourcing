@@ -13,9 +13,9 @@ from eventsourcing.domain import (
     Aggregate,
     AggregateCreated,
     AggregateEvent,
+    BaseAggregate,
     OriginatorIDError,
     OriginatorVersionError,
-    TAggregate,
 )
 from eventsourcing.tests.domain import (
     AccountClosedError,
@@ -676,10 +676,10 @@ class TestAggregateCreation(TestCase):
                 pass
 
         class MyAggregate1(MyBaseAggregate):
-            class Started(AggregateCreated):
+            class Started(AggregateCreated):  # pyright: ignore
                 pass
 
-            class Opened(AggregateCreated):
+            class Opened(AggregateCreated):  # pyright: ignore
                 pass
 
         # This is okay.
@@ -698,7 +698,7 @@ class TestAggregateCreation(TestCase):
         )
 
     def test_uses_defined_created_event_when_given_name_matches(self) -> None:
-        class Order(Aggregate, created_event_name="Started"):
+        class Order(BaseAggregate, created_event_name="Started"):
             def __init__(self, name: str) -> None:
                 self.name = name
                 self.confirmed_at = None
@@ -715,7 +715,7 @@ class TestAggregateCreation(TestCase):
         self.assertEqual(type(pending[0]).__name__, "Started")
 
     def test_defines_created_event_when_given_name_does_not_match(self) -> None:
-        class Order(Aggregate, created_event_name="Started"):
+        class Order(BaseAggregate, created_event_name="Started"):
             def __init__(self, name: str) -> None:
                 self.name = name
                 self.confirmed_at = None
@@ -750,7 +750,7 @@ class TestAggregateCreation(TestCase):
 
         @dataclass
         class Index(Aggregate):
-            id: UUID
+            id: UUID  # pyright: ignore
             name: str
 
             @staticmethod
@@ -881,7 +881,7 @@ class TestSubsequentEvents(TestCase):
 
     def test_eq(self) -> None:
         class MyAggregate1(Aggregate):
-            id: UUID
+            id: UUID  # pyright: ignore
 
         id_a = uuid4()
         id_b = uuid4()
@@ -903,9 +903,9 @@ class TestSubsequentEvents(TestCase):
         a1.collect_events()
         self.assertNotEqual(a1, a1_copy)
 
-        @dataclass(eq=False)
+        @dataclass
         class MyAggregate2(Aggregate):
-            id: UUID
+            id: UUID  # pyright: ignore
 
         id_a = uuid4()
         id_b = uuid4()
@@ -957,7 +957,7 @@ class TestSubsequentEvents(TestCase):
             class ValueAssigned(AggregateEvent):
                 b: int
 
-                def apply(self, aggregate: TAggregate) -> None:
+                def apply(self, aggregate: MyAggregate1) -> None:
                     aggregate.b = self.b  # type: ignore
 
         a1 = MyAggregate1(a=1)  # type: ignore

@@ -2,6 +2,7 @@ from typing import cast
 from unittest import TestCase
 
 import eventsourcing
+import eventsourcing.domain
 from eventsourcing.domain import Aggregate
 from eventsourcing.utils import (
     TopicError,

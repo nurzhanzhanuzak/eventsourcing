@@ -135,6 +135,6 @@ class TestFtsProjection(unittest.TestCase):
             "eventsourcing",
             "eventsourcing",
         )
-        drop_postgres_table(datastore, "public.contentmanagement_events")
-        drop_postgres_table(datastore, "public.ftsprojection")
-        drop_postgres_table(datastore, "public.ftsprojection_tracking")
+        drop_postgres_table(datastore, "contentmanagement_events")
+        drop_postgres_table(datastore, "ftsprojection")
+        drop_postgres_table(datastore, "ftsprojection_tracking")

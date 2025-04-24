@@ -34,7 +34,7 @@ class TestAggregateDecorator(TestCase):
         self.assertEqual(MyAgg.__annotations__, {"a": "int"})
 
         agg = MyAgg(a=1)  # type: ignore[call-arg]
-        self.assertEqual(agg.a, 1)
+        self.assertEqual(agg.a, 1)  # pyright: ignore
         self.assertEqual(len(agg.pending_events), 1)  # type: ignore[attr-defined]
         self.assertIsInstance(agg, Aggregate)
         self.assertIsInstance(agg, MyAgg)
@@ -58,7 +58,7 @@ class TestAggregateDecorator(TestCase):
         self.assertEqual(MyAgg.__annotations__, {"a": "int"})
 
         agg = MyAgg(a=1)  # type: ignore[call-arg]
-        self.assertEqual(agg.a, 1)
+        self.assertEqual(agg.a, 1)  # pyright: ignore
         self.assertEqual(len(agg.pending_events), 1)  # type: ignore[attr-defined]
         self.assertIsInstance(agg, Aggregate)
         self.assertIsInstance(agg, MyAgg)
@@ -87,7 +87,7 @@ class TestAggregateDecorator(TestCase):
         self.assertEqual(MyAgg.__annotations__, {"a": "int"})
 
         agg = MyAgg(a=1)  # type: ignore[call-arg]
-        self.assertEqual(agg.a, 1)
+        self.assertEqual(agg.a, 1)  # pyright: ignore
         self.assertEqual(len(agg.pending_events), 1)  # type: ignore[attr-defined]
         self.assertIsInstance(agg, Aggregate)
         self.assertIsInstance(agg, MyAgg)
@@ -111,7 +111,7 @@ class TestAggregateDecorator(TestCase):
 
         a = MyAgg(1)
         self.assertIsInstance(a, MyAgg)
-        self.assertEqual(a.value, 1)
+        self.assertEqual(a.value, 1)  # pyright: ignore
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 1)  # type: ignore[attr-defined]
 
@@ -123,7 +123,7 @@ class TestAggregateDecorator(TestCase):
 
         a = MyAgg(1)
         self.assertIsInstance(a, MyAgg)
-        self.assertEqual(a.value, 1)
+        self.assertEqual(a.value, 1)  # pyright: ignore
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 1)  # type: ignore[attr-defined]
 
@@ -134,7 +134,7 @@ class TestAggregateDecorator(TestCase):
 
         a = MyAgg(1)  # type: ignore[call-arg]
         self.assertIsInstance(a, MyAgg)
-        self.assertEqual(a.value, 1)
+        self.assertEqual(a.value, 1)  # pyright: ignore
         self.assertIsInstance(a, Aggregate)
         self.assertEqual(len(a.pending_events), 1)  # type: ignore[attr-defined]
         self.assertEqual(type(a.pending_events[0]).__name__, "Started")  # type: ignore[attr-defined]
@@ -1015,15 +1015,15 @@ class TestEventDecorator(TestCase):
 
         order = Order()
 
-        order.confirm(AggregateEvent.create_timestamp())
-        self.assertIsInstance(order.confirmed_at, datetime)
+        order.confirm(AggregateEvent.create_timestamp())  # pyright: ignore
+        self.assertIsInstance(order.confirmed_at, datetime)  # pyright: ignore
 
         app: Application = Application()
         app.save(order)  # type: ignore[arg-type]
 
         copy: Order = app.repository.get(order.id)  # type: ignore[attr-defined]
 
-        self.assertEqual(copy.confirmed_at, order.confirmed_at)
+        self.assertEqual(copy.confirmed_at, order.confirmed_at)  # pyright: ignore
 
         self.assertIsInstance(order, Aggregate)
         self.assertIsInstance(order, Order)

@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import psycopg
 from psycopg import Connection
+from psycopg.sql import SQL
 from psycopg_pool import ConnectionPool
 
 from eventsourcing.persistence import (
@@ -305,7 +306,7 @@ _check_identifier_is_max_len(EVENTS_TABLE_NAME)
 
 
 class SetupPostgresDatastore(TestCase):
-    schema = ""
+    schema = "public"
     pool_size = 1
     max_overflow = 0
     max_waiting = 0
@@ -331,10 +332,7 @@ class SetupPostgresDatastore(TestCase):
         self.datastore.close()
 
     def drop_tables(self) -> None:
-        events_table_name = EVENTS_TABLE_NAME
-        if self.datastore.schema:
-            events_table_name = f"{self.datastore.schema}.{events_table_name}"
-        drop_postgres_table(self.datastore, events_table_name)
+        drop_postgres_table(self.datastore, EVENTS_TABLE_NAME)
 
 
 class WithSchema(SetupPostgresDatastore):
@@ -346,8 +344,6 @@ class WithSchema(SetupPostgresDatastore):
 
 class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTestCase):
     def create_recorder(self, table_name: str = EVENTS_TABLE_NAME) -> AggregateRecorder:
-        if self.datastore.schema:
-            table_name = f"{self.datastore.schema}.{table_name}"
         recorder = PostgresAggregateRecorder(
             datastore=self.datastore, events_table_name=table_name
         )
@@ -419,7 +415,7 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         recorder = self.create_recorder()
 
         # Mess up the statement.
-        recorder.create_table_statements = ["BLAH"]
+        recorder.create_table_statements = [SQL("BLAH").format()]
         with self.assertRaises(ProgrammingError):
             recorder.create_table()
 
@@ -447,7 +443,7 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         recorder.create_table()
 
         # Write a stored event with broken statement.
-        recorder.insert_events_statement = "BLAH"
+        recorder.insert_events_statement = SQL("BLAH").format()
         stored_event1 = StoredEvent(
             originator_id=uuid4(),
             originator_version=0,
@@ -476,7 +472,7 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         recorder.create_table()
 
         # Select events with broken statement.
-        recorder.select_events_statement = "BLAH"
+        recorder.select_events_statement = SQL("BLAH").format()
         originator_id = uuid4()
         with self.assertRaises(ProgrammingError):
             recorder.select_events(originator_id=originator_id)
@@ -506,8 +502,6 @@ class TestPostgresApplicationRecorder(
     def create_recorder(
         self, table_name: str = EVENTS_TABLE_NAME
     ) -> PostgresApplicationRecorder:
-        if self.datastore.schema:
-            table_name = f"{self.datastore.schema}.{table_name}"
         recorder = PostgresApplicationRecorder(
             self.datastore, events_table_name=table_name
         )
@@ -783,9 +777,11 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder = PostgresApplicationRecorder(
                 datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
             )
-            recorder.insert_events_statement = (
-                recorder.insert_events_statement.partition("RETURNING")[0]
-            )
+            original = recorder.insert_events_statement
+            without_returning = original.as_string().partition("RETURNING")[0]
+            recorder.insert_events_statement = SQL(
+                without_returning  # pyright: ignore
+            ).format()
             recorder.create_table()
             recorder.insert_events(make_events())
 
@@ -797,15 +793,10 @@ _check_identifier_is_max_len(TRACKING_TABLE_NAME)
 class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestCase):
     def drop_tables(self) -> None:
         super().drop_tables()
-        tracking_table_name = TRACKING_TABLE_NAME
-        if self.datastore.schema:
-            tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
-        drop_postgres_table(self.datastore, tracking_table_name)
+        drop_postgres_table(self.datastore, TRACKING_TABLE_NAME)
 
     def create_recorder(self) -> TrackingRecorder:
         tracking_table_name = TRACKING_TABLE_NAME
-        if self.datastore.schema:
-            tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
         recorder = PostgresTrackingRecorder(
             datastore=self.datastore,
             tracking_table_name=tracking_table_name,
@@ -828,18 +819,11 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
 class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCase):
     def drop_tables(self) -> None:
         super().drop_tables()
-        tracking_table_name = TRACKING_TABLE_NAME
-        if self.datastore.schema:
-            tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
-        drop_postgres_table(self.datastore, tracking_table_name)
+        drop_postgres_table(self.datastore, TRACKING_TABLE_NAME)
 
     def create_recorder(self) -> ProcessRecorder:
         events_table_name = EVENTS_TABLE_NAME
         tracking_table_name = TRACKING_TABLE_NAME
-        if self.datastore.schema:
-            events_table_name = f"{self.datastore.schema}.{events_table_name}"
-        if self.datastore.schema:
-            tracking_table_name = f"{self.datastore.schema}.{tracking_table_name}"
         recorder = PostgresProcessRecorder(
             datastore=self.datastore,
             events_table_name=events_table_name,
@@ -955,7 +939,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
         super().test_create_tracking_recorder()
         self.factory.datastore.schema = "myschema"
         recorder = self.factory.tracking_recorder()
-        self.assertTrue(recorder.tracking_table_name.startswith("myschema."))
+        self.assertIn('"myschema".', recorder.create_table_statements[0].as_string())
 
     def expected_process_recorder_class(self) -> type[ProcessRecorder]:
         return PostgresProcessRecorder
@@ -984,6 +968,11 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
             "eventsourcing",
         ) as datastore:
             drop_postgres_table(datastore, "testcase_events")
+            drop_postgres_table(datastore, "testcase_snapshots")
+            drop_postgres_table(datastore, "testcase_tracking")
+            datastore.schema = "myschema"
+            drop_postgres_table(datastore, "testcase_events")
+            drop_postgres_table(datastore, "testcase_snapshots")
             drop_postgres_table(datastore, "testcase_tracking")
 
     def test_close(self) -> None:
@@ -1232,12 +1221,12 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
     def test_schema_set_to_empty_string(self) -> None:
         self.env[PostgresFactory.POSTGRES_SCHEMA] = ""
         factory = PostgresFactory(self.env)
-        self.assertEqual(factory.datastore.schema, "")
+        self.assertEqual(factory.datastore.schema, "public")
 
     def test_schema_set_to_whitespace(self) -> None:
         self.env[PostgresFactory.POSTGRES_SCHEMA] = " "
         factory = PostgresFactory(self.env)
-        self.assertEqual(factory.datastore.schema, "")
+        self.assertEqual(factory.datastore.schema, "public")
 
     def test_scheme_adjusts_table_names_on_aggregate_recorder(self) -> None:
         factory = PostgresFactory(self.env)
@@ -1246,26 +1235,42 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
         recorder = factory.aggregate_recorder("events")
         assert isinstance(recorder, PostgresAggregateRecorder)
         self.assertEqual(recorder.events_table_name, "testcase_events")
+        self.assertIn(
+            '"public"."testcase_events"',
+            recorder.create_table_statements[0].as_string(),
+        )
 
         # Check by default the table name is not qualified.
         recorder = factory.aggregate_recorder("snapshots")
         assert isinstance(recorder, PostgresAggregateRecorder)
         self.assertEqual(recorder.events_table_name, "testcase_snapshots")
+        self.assertIn(
+            '"public"."testcase_snapshots"',
+            recorder.create_table_statements[0].as_string(),
+        )
 
         # Set schema in environment.
-        self.env[PostgresFactory.POSTGRES_SCHEMA] = "public"
+        self.env[PostgresFactory.POSTGRES_SCHEMA] = "myschema"
         factory = PostgresFactory(self.env)
-        self.assertEqual(factory.datastore.schema, "public")
+        self.assertEqual(factory.datastore.schema, "myschema")
 
         # Check by default the table name is qualified.
         recorder = factory.aggregate_recorder("events")
         assert isinstance(recorder, PostgresAggregateRecorder)
-        self.assertEqual(recorder.events_table_name, "public.testcase_events")
+        self.assertEqual(recorder.events_table_name, "testcase_events")
+        self.assertIn(
+            '"myschema"."testcase_events"',
+            recorder.create_table_statements[0].as_string(),
+        )
 
         # Check by default the table name is qualified.
         recorder = factory.aggregate_recorder("snapshots")
         assert isinstance(recorder, PostgresAggregateRecorder)
-        self.assertEqual(recorder.events_table_name, "public.testcase_snapshots")
+        self.assertEqual(recorder.events_table_name, "testcase_snapshots")
+        self.assertIn(
+            '"myschema"."testcase_snapshots"',
+            recorder.create_table_statements[0].as_string(),
+        )
 
     def test_scheme_adjusts_table_name_on_application_recorder(self) -> None:
         factory = PostgresFactory(self.env)
@@ -1273,17 +1278,33 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
         # Check by default the table name is not qualified.
         recorder = factory.application_recorder()
         assert isinstance(recorder, PostgresApplicationRecorder)
+        self.assertEqual(factory.datastore.schema, "public")
         self.assertEqual(recorder.events_table_name, "testcase_events")
+        self.assertIn(
+            '"public"."testcase_events"',
+            recorder.create_table_statements[0].as_string(),
+        )
+        self.assertIn(
+            '"public"."testcase_events"',
+            recorder.create_table_statements[1].as_string(),
+        )
 
         # Set schema in environment.
-        self.env[PostgresFactory.POSTGRES_SCHEMA] = "public"
+        self.env[PostgresFactory.POSTGRES_SCHEMA] = "myschema"
         factory = PostgresFactory(self.env)
-        self.assertEqual(factory.datastore.schema, "public")
+        self.assertEqual(factory.datastore.schema, "myschema")
 
         # Check by default the table name is qualified.
         recorder = factory.application_recorder()
         assert isinstance(recorder, PostgresApplicationRecorder)
-        self.assertEqual(recorder.events_table_name, "public.testcase_events")
+        self.assertIn(
+            '"myschema"."testcase_events"',
+            recorder.create_table_statements[0].as_string(),
+        )
+        self.assertIn(
+            '"myschema"."testcase_events"',
+            recorder.create_table_statements[1].as_string(),
+        )
 
     def test_scheme_adjusts_table_names_on_process_recorder(self) -> None:
         factory = PostgresFactory(self.env)
@@ -1293,17 +1314,41 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
         assert isinstance(recorder, PostgresProcessRecorder)
         self.assertEqual(recorder.events_table_name, "testcase_events")
         self.assertEqual(recorder.tracking_table_name, "testcase_tracking")
+        self.assertIn(
+            '"public"."testcase_events"',
+            recorder.create_table_statements[0].as_string(),
+        )
+        self.assertIn(
+            '"public"."testcase_events"',
+            recorder.create_table_statements[1].as_string(),
+        )
+        self.assertIn(
+            '"public"."testcase_tracking"',
+            recorder.create_table_statements[2].as_string(),
+        )
 
         # Set schema in environment.
-        self.env[PostgresFactory.POSTGRES_SCHEMA] = "public"
+        self.env[PostgresFactory.POSTGRES_SCHEMA] = "myschema"
         factory = PostgresFactory(self.env)
-        self.assertEqual(factory.datastore.schema, "public")
+        self.assertEqual(factory.datastore.schema, "myschema")
 
         # Check by default the table name is qualified.
         recorder = factory.process_recorder()
         assert isinstance(recorder, PostgresProcessRecorder)
-        self.assertEqual(recorder.events_table_name, "public.testcase_events")
-        self.assertEqual(recorder.tracking_table_name, "public.testcase_tracking")
+        self.assertEqual(recorder.events_table_name, "testcase_events")
+        self.assertEqual(recorder.tracking_table_name, "testcase_tracking")
+        self.assertIn(
+            '"myschema"."testcase_events"',
+            recorder.create_table_statements[0].as_string(),
+        )
+        self.assertIn(
+            '"myschema"."testcase_events"',
+            recorder.create_table_statements[1].as_string(),
+        )
+        self.assertIn(
+            '"myschema"."testcase_tracking"',
+            recorder.create_table_statements[2].as_string(),
+        )
 
 
 del AggregateRecorderTestCase

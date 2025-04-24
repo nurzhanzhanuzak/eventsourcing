@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import Any, ClassVar, cast
 from unittest import TestCase
+
+from psycopg.sql import SQL, Identifier
 
 from eventsourcing.application import Application
 from eventsourcing.dispatch import singledispatchmethod
@@ -22,9 +24,6 @@ from eventsourcing.postgres import (
 from eventsourcing.projection import Projection, ProjectionRunner
 from eventsourcing.tests.postgres_utils import drop_postgres_table
 from eventsourcing.utils import Environment, get_topic
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
 
 
 class EventCountersInterface(TrackingRecorder):
@@ -162,22 +161,24 @@ class PostgresEventCounters(PostgresTrackingRecorder, EventCountersInterface):
         self.counters_table_name = self.tracking_table_name.replace("_tracking", "")
         self.check_table_name_length(self.counters_table_name)
         self.create_table_statements.append(
-            "CREATE TABLE IF NOT EXISTS "
-            f"{self.counters_table_name} ("
-            "counter_name text, "
-            "counter bigint, "
-            "PRIMARY KEY "
-            "(counter_name))"
-        )
-        self.select_counter_statement = (
-            f"SELECT counter FROM {self.counters_table_name} WHERE counter_name=%s"
+            SQL(
+                "CREATE TABLE IF NOT EXISTS {0} ("
+                "counter_name text, "
+                "counter bigint, "
+                "PRIMARY KEY "
+                "(counter_name))"
+            ).format(Identifier(self.counters_table_name))
         )
 
-        self.incr_counter_statement = (
-            f"INSERT INTO {self.counters_table_name} VALUES (%s, 1) "
-            f"ON CONFLICT (counter_name) DO UPDATE "
-            f"SET counter = {self.counters_table_name}.counter + 1"
-        )
+        self.select_counter_statement = SQL(
+            "SELECT counter FROM {0} WHERE counter_name=%s"
+        ).format(Identifier(self.counters_table_name))
+
+        self.incr_counter_statement = SQL(
+            "INSERT INTO {0} VALUES (%s, 1) "
+            "ON CONFLICT (counter_name) DO UPDATE "
+            "SET counter = {0}.counter + 1"
+        ).format(Identifier(self.counters_table_name))
 
     def get_created_event_counter(self) -> int:
         return self._select_counter(self._created_event_counter_name)
@@ -247,7 +248,7 @@ class EventCountersProjection(Projection[EventCountersInterface]):
 
 class TestEventCountersProjection(TestCase, ABC):
     view_class: type[EventCountersInterface] = POPOEventCounters
-    env: ClassVar[Mapping[str, str]] = {}
+    env: ClassVar[dict[str, str]] = {}
 
     def test_event_counters_projection(self) -> None:
         # Construct runner with application, projection, and recorder.

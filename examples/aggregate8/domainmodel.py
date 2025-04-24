@@ -10,13 +10,13 @@ class Trick(BaseModel):
     name: str
 
 
-class DogSnapshotState(SnapshotState):
+class DogSnapshotState(SnapshotState, frozen=True):
     name: str
     tricks: list[Trick]
 
 
 class Dog(Aggregate):
-    class Snapshot(AggregateSnapshot):
+    class Snapshot(AggregateSnapshot, frozen=True):
         state: DogSnapshotState
 
     @event("Registered")

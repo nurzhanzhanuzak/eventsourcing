@@ -36,7 +36,7 @@ update-lockfile:
 update-packages: update-lockfile install-packages
 
 .PHONY: lint
-lint: lint-black lint-ruff lint-isort lint-mypy #lint-dockerfile
+lint: lint-black lint-ruff lint-isort lint-pyright lint-mypy #lint-dockerfile
 
 .PHONY: lint-black
 lint-black:
@@ -53,6 +53,10 @@ lint-ruff:
 .PHONY: lint-isort
 lint-isort:
 	$(POETRY) run isort --check-only --diff eventsourcing tests examples
+
+.PHONY: lint-pyright
+lint-pyright:
+	$(POETRY) run pyright eventsourcing tests examples
 
 .PHONY: lint-mypy
 lint-mypy:

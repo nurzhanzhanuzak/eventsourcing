@@ -5,7 +5,9 @@ from base64 import b64decode, b64encode
 from typing import TYPE_CHECKING
 
 from Crypto.Cipher import AES
-from Crypto.Cipher._mode_gcm import GcmMode
+from Crypto.Cipher._mode_gcm import (
+    GcmMode,  # pyright: ignore [reportPrivateImportUsage]
+)
 from Crypto.Cipher.AES import key_size
 
 from eventsourcing.persistence import Cipher

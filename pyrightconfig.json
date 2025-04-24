@@ -1,8 +1,0 @@
-{
-  "include": [
-    "eventsourcing"
-  ],
-  "exclude": [
-    "eventsourcing/tests"
-  ]
-}

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from eventsourcing.dispatch import singledispatchmethod
+from eventsourcing.domain import ProgrammingError
 from examples.aggregate5.baseclasses import Aggregate, DomainEvent
 
 
@@ -28,18 +29,20 @@ class Dog(Aggregate):
             timestamp=DomainEvent.create_timestamp(),
             name=name,
         )
-        dog: Dog = Dog.mutate(event, None)
+        dog = Dog.mutate(event, None)
         return dog, event
 
     def add_trick(self, trick: str) -> tuple[Dog, DomainEvent]:
         event = self.trigger_event(Dog.TrickAdded, trick=trick)
-        dog: Dog = Dog.mutate(event, self)
+        dog = Dog.mutate(event, self)
         return dog, event
 
-    @singledispatchmethod
+    @singledispatchmethod["Dog"]
     @staticmethod
-    def mutate(event: DomainEvent, aggregate: Dog | None) -> Dog | None:
+    def mutate(event: DomainEvent, aggregate: Dog | None) -> Dog:  # noqa: ARG004
         """Mutates aggregate with event."""
+        msg = f"Event type not supported: {type(event)}"
+        raise ProgrammingError(msg)
 
     @mutate.register
     @staticmethod

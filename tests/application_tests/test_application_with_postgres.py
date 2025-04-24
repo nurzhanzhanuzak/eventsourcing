@@ -33,9 +33,9 @@ class WithPostgres(TestCase):
             os.environ["POSTGRES_USER"],
             os.environ["POSTGRES_PASSWORD"],
         )
-        drop_postgres_table(db, "public.bankaccounts_events")
-        drop_postgres_table(db, "public.bankaccounts_snapshots")
-        drop_postgres_table(db, "public.application_events")
+        drop_postgres_table(db, "bankaccounts_events")
+        drop_postgres_table(db, "bankaccounts_snapshots")
+        drop_postgres_table(db, "application_events")
         # drop_postgres_table(db, "public.app_snapshots")
         db.close()
 
@@ -47,8 +47,8 @@ class WithPostgres(TestCase):
             os.environ["POSTGRES_USER"],
             os.environ["POSTGRES_PASSWORD"],
         )
-        drop_postgres_table(db, "public.bankaccounts_events")
-        drop_postgres_table(db, "public.bankaccounts_snapshots")
+        drop_postgres_table(db, "bankaccounts_events")
+        drop_postgres_table(db, "bankaccounts_snapshots")
 
         del os.environ["PERSISTENCE_MODULE"]
         del os.environ["CREATE_TABLE"]

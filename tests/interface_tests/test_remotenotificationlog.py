@@ -145,8 +145,8 @@ class BankAccountsJSONService(
     BankAccountsInterface,
     NotificationLogJSONService[BankAccounts],
 ):
-    def open_account(self, request: str) -> str:
-        kwargs = json.loads(request)
+    def open_account(self, body: str) -> str:
+        kwargs = json.loads(body)
         account_id = self.app.open_account(**kwargs)
         return json.dumps({"account_id": account_id.hex})
 

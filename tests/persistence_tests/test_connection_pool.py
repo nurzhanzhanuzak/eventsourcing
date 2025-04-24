@@ -14,6 +14,7 @@ from eventsourcing.persistence import (
     ConnectionPoolClosedError,
     ConnectionUnavailableError,
     Cursor,
+    Params,
     PersistenceError,
     ProgrammingError,
 )
@@ -24,7 +25,7 @@ class DummyCursor(Cursor):
         self._closed = False
         self._results: list[list[int]] | None = None
 
-    def execute(self, statement: str | bytes, _: Any = None) -> None:
+    def execute(self, statement: str | bytes, params: Params | None = None) -> None:
         if self._closed:
             raise PersistenceError
         assert statement == "SELECT 1"

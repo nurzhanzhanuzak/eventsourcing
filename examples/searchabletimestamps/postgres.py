@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
+from psycopg.sql import SQL, Identifier
+
 from eventsourcing.postgres import (
     PostgresApplicationRecorder,
     PostgresDatastore,
@@ -30,25 +32,29 @@ class SearchableTimestampsApplicationRecorder(
         super().__init__(datastore, events_table_name=events_table_name)
         self.check_table_name_length(event_timestamps_table_name)
         self.event_timestamps_table_name = event_timestamps_table_name
+
         self.create_table_statements.append(
-            "CREATE TABLE IF NOT EXISTS "
-            f"{self.event_timestamps_table_name} ("
-            "originator_id uuid NOT NULL, "
-            "timestamp timestamp with time zone, "
-            "originator_version bigint NOT NULL, "
-            "PRIMARY KEY "
-            "(originator_id, timestamp))"
+            SQL(
+                "CREATE TABLE IF NOT EXISTS {0} ("
+                "originator_id uuid NOT NULL, "
+                "timestamp timestamp with time zone, "
+                "originator_version bigint NOT NULL, "
+                "PRIMARY KEY "
+                "(originator_id, timestamp))"
+            ).format(Identifier(self.event_timestamps_table_name))
         )
-        self.insert_event_timestamp_statement = (
-            f"INSERT INTO {self.event_timestamps_table_name} VALUES (%s, %s, %s)"
-        )
-        self.select_event_timestamp_statement = (
-            f"SELECT originator_version FROM {self.event_timestamps_table_name} WHERE "
+
+        self.insert_event_timestamp_statement = SQL(
+            "INSERT INTO {0} VALUES (%s, %s, %s)"
+        ).format(Identifier(self.event_timestamps_table_name))
+
+        self.select_event_timestamp_statement = SQL(
+            "SELECT originator_version FROM {0} WHERE "
             "originator_id = %s AND "
             "timestamp <= %s "
             "ORDER BY originator_version DESC "
             "LIMIT 1"
-        )
+        ).format(Identifier(self.event_timestamps_table_name))
 
     def _insert_events(
         self,
@@ -84,8 +90,7 @@ class SearchableTimestampsApplicationRecorder(
 
 class SearchableTimestampsInfrastructureFactory(PostgresFactory):
     def application_recorder(self) -> ApplicationRecorder:
-        prefix = (self.datastore.schema + ".") if self.datastore.schema else ""
-        prefix += self.env.name.lower() or "stored"
+        prefix = self.env.name.lower() or "stored"
         events_table_name = prefix + "_events"
         event_timestamps_table_name = prefix + "_timestamps"
         recorder = SearchableTimestampsApplicationRecorder(

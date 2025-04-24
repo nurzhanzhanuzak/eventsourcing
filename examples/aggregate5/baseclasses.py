@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -56,9 +55,8 @@ class Aggregate:
             aggregate = cls.mutate(event, aggregate)
         return aggregate
 
-    @singledispatchmethod
+    @singledispatchmethod[Any]
     @staticmethod
-    @abstractmethod
     def mutate(event: DomainEvent, aggregate: TAggregate | None) -> TAggregate | None:
         """Mutates aggregate with event."""
 
