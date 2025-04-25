@@ -23,6 +23,39 @@ the underlying principles are the same, and so conversion of
 code and stored events is very possible.
 
 
+Version 9.4.0 (released TBD)
+----------------------------
+
+* Factored out tracking recorder classes to support arbitrary non-event-sourced
+  materialised views.
+* Added subscription() method to ApplicationRecorder, implemented in popo and postgres modules,
+  allowing event-processing components to subscribe directly to an event store database.
+* Added projections module, with new tutorial part and module documentation, improving support for CQRS.
+* Added AESCipher that uses the Python cryptography package (in a way that is
+  compatible and interoperable with the AESCipher that uses the pycrytodome
+  package). Should work as a drop-in replacement.
+* Ensured dataclass is idempotent for aggregate and event classes, because processing
+  a class twice can break things such as fields with defaults and non-init fields.
+* Adjusted dependency on psycopg to follow package recommendation for libraries
+  to depend only on psycopg and not on psycopg-c or psycopg-binary, leaving this
+  choice to developers of final applications.
+* Fixed circular reference in eventsourcing.postgres ('after_connect' function), which was
+  preventing non-daemon threads threads from exiting in some circumstances.
+* Renamed POPOFactory, SQLiteFactory, and PostgresFactory (were all called 'Factory').
+* Implemented support for application configuration environment variables: MAPPER_TOPIC,
+  TRANSCODER_TOPIC, APPLICATION_RECORDER_TOPIC, TRACKING_RECORDER_TOPIC, and PROCESS_RECORDER_TOPIC.
+* Moved methods and attributes specific to JSONTranscoder down from Transcoder class, eliminating
+  "refused bequest" for other subclasses of Transcoder. Adjusted signature of Application.register_transcodings()
+  and behaviour of Application.construct_transcoder() to call Application.register_transcodings() conditionally.
+* Improved aggregate examples with better code and better explanations.
+* Moved Pydantic mapper, Orjson transcoder, and base classes for mutable and immutable aggregate
+  models that use Pydantic into own modules.
+* Extended linting with mypy and ruff to cover tests and examples, and fixed issues, to improve developer experience.
+* Added linting with pyright to cover library, tests and examples, and fixed issues, to improve developer experience.
+* Dropped support for Python 3.8 (EOL).
+* Removed deprecated AggregateNotFound class (AggregateNotFoundError was introduced in a previous version).
+* Improved readthedocs config to build epub and PDF versions of the documentation.
+
 Version 9.3.5 (released 8 November 2024)
 ----------------------------------------
 
