@@ -395,7 +395,7 @@ class Recorder:
     pass
 
 
-class AggregateRecorder(ABC):
+class AggregateRecorder(Recorder, ABC):
     """
     Abstract base class for inserting and selecting stored events.
     """
