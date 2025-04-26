@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import weakref
 from abc import ABC, abstractmethod
@@ -22,6 +23,8 @@ from eventsourcing.persistence import (
 from eventsourcing.utils import Environment, EnvType
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from typing_extensions import Self
 
 
@@ -143,7 +146,8 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         thread, calls projection's process_event() method for each event and tracking
         object pair received from the subscription.
         """
-        self._is_stopping = Event()
+        self._is_interrupted = Event()
+        self._has_called_stop = False
 
         self.app: TApplication = application_class(env)
 
@@ -165,17 +169,29 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             gt=self.view.max_tracking_id(self.app.name),
             topics=self.projection.topics,
         )
-        self.thread_error: BaseException | None = None
-        self.processing_thread = Thread(
+        self._thread_error: BaseException | None = None
+        self._stop_thread = Thread(
+            target=self._stop_subscription_when_stopping,
+            kwargs={
+                "subscription": self.subscription,
+                "is_stopping": self._is_interrupted,
+            },
+        )
+        self._stop_thread.start()
+        self._processing_thread = Thread(
             target=self._process_events_loop,
             kwargs={
                 "subscription": self.subscription,
                 "projection": self.projection,
-                "is_stopping": self._is_stopping,
+                "is_stopping": self._is_interrupted,
                 "runner": weakref.ref(self),
             },
         )
-        self.processing_thread.start()
+        self._processing_thread.start()
+
+    @property
+    def is_interrupted(self) -> Event:
+        return self._is_interrupted
 
     def _construct_env(self, name: str, env: EnvType | None = None) -> Environment:
         """
@@ -189,10 +205,24 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
 
     def stop(self) -> None:
         """
+        Sets the "interrupted" event.
+        """
+        self._has_called_stop = True
+        self._is_interrupted.set()
+
+    @staticmethod
+    def _stop_subscription_when_stopping(
+        subscription: ApplicationSubscription,
+        is_stopping: Event,
+    ) -> None:
+        """
         Stops the application subscription, which will stop the event-processing thread.
         """
-        self._is_stopping.set()
-        self.subscription.stop()
+        try:
+            is_stopping.wait()
+        finally:
+            is_stopping.set()
+            subscription.stop()
 
     @staticmethod
     def _process_events_loop(
@@ -208,7 +238,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         except BaseException as e:
             _runner = runner()  # get reference from weakref
             if _runner is not None:
-                _runner.thread_error = e
+                _runner._thread_error = e
             else:
                 msg = "ProjectionRunner was deleted before error could be assigned:\n"
                 msg += format_exc()
@@ -217,17 +247,21 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
                     RuntimeWarning,
                     stacklevel=2,
                 )
-
+        finally:
             is_stopping.set()
-            subscription.stop()
 
     def run_forever(self, timeout: float | None = None) -> None:
         """
         Blocks until timeout, or until the runner is stopped or errors. Re-raises
         any error otherwise exits normally
         """
-        if self._is_stopping.wait(timeout=timeout) and self.thread_error is not None:
-            raise self.thread_error
+        if (
+            self._is_interrupted.wait(timeout=timeout)
+            and self._thread_error is not None
+        ):
+            error = self._thread_error
+            self._thread_error = None
+            raise error
 
     def wait(self, notification_id: int | None, timeout: float = 1.0) -> None:
         """
@@ -239,24 +273,40 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
                 application_name=self.subscription.name,
                 notification_id=notification_id,
                 timeout=timeout,
-                interrupt=self._is_stopping,
+                interrupt=self._is_interrupted,
             )
         except WaitInterruptedError:
-            if self.thread_error is not None:
-                raise self.thread_error from None
+            if self._thread_error:
+                error = self._thread_error
+                self._thread_error = None
+                raise error from None
+            if self._has_called_stop:
+                return
+            raise
 
     def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *args: object, **kwargs: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """
         Calls stop() and waits for the event-processing thread to exit.
         """
         self.stop()
-        self.processing_thread.join()
+        self._stop_thread.join()
+        self._processing_thread.join()
+        if self._thread_error:
+            error = self._thread_error
+            self._thread_error = None
+            raise error
 
     def __del__(self) -> None:
         """
         Calls stop().
         """
-        self.stop()
+        with contextlib.suppress(AttributeError):
+            self.stop()
