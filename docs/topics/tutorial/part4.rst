@@ -193,17 +193,19 @@ The :class:`~eventsourcing.projection.Projection` class is an `abstract` class b
 be processed by calling command methods on the projection's materialised view, accessed via the
 :py:attr:`~eventsourcing.projection.Projection.view` property.
 
-The :py:attr:`~eventsourcing.projection.Projection.name` attribute can be defined on subclasses. It is used by projection
-runners, when constructing a materialised view object, to select prefixed environment variables and in some cases
-to specify database table names. The value used by the projection runner defaults to the class name of the subclass.
+The :py:attr:`~eventsourcing.projection.Projection.name` attribute can be defined on subclasses. It is expected to
+be a Python :class:`str`. It is used by projection runners, when constructing a materialised view object, to select
+prefixed environment variables and in some cases to specify database table names. The value used by the projection
+runner defaults to the class name of the subclass.
 
-The :py:attr:`~eventsourcing.projection.Projection.topics` attribute can be defined on subclasses. It is used by projection
-runners, when subscribing to an application, so that events can be filtered in the application database, improving
-performance of the subscription and of the projection, by causing the subscription to return only stored events that
-have topics that are listed by this attribute, thereby reducing transport latency, and thereby also avoiding the work
-of reconstructing domain events from stored events that are not mentioned in the projection's
-:func:`~eventsourcing.projection.Projection.process_event` implementation.
-
+The :py:attr:`~eventsourcing.projection.Projection.topics` attribute can be defined on subclasses. It is expected to
+be a Python `tuple` of `str` objects. Unless empty or undefined, projection runners will use these topics when
+subscribing to an application, so that events can be filtered in the application database by their topic. The
+subscription will then yield only events that have topics mentioned by this attribute. In many cases this will
+improve performance when running a projection, by avoiding the cost of transporting and reconstructing events
+that will be ignored by the projection. In some cases, filtering events by topic in this way will be necessary
+to avoid errors attempting to reconstruct events that have been recorded in the database which either your code,
+or the library code, is not capable of reconstructing into domain event objects.
 
 Counting events
 ---------------
