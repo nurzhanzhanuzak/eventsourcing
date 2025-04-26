@@ -10,7 +10,7 @@ from decimal import Decimal
 from threading import Event, get_ident
 from time import sleep
 from timeit import timeit
-from typing import ClassVar
+from typing import Any, ClassVar
 from unittest import TestCase
 from uuid import UUID, uuid4
 
@@ -23,7 +23,7 @@ from eventsourcing.persistence import (
     Transcoding,
 )
 from eventsourcing.tests.domain import BankAccount, EmailAddress
-from eventsourcing.utils import get_topic
+from eventsourcing.utils import EnvType, get_topic
 
 TIMEIT_FACTOR = int(os.environ.get("TEST_TIMEIT_FACTOR", default=10))
 
@@ -344,95 +344,130 @@ class ApplicationTestCase(TestCase):
         app.repository.get(aggregate.id)
         self.assertEqual(aggregate, app.repository.cache.get(aggregate.id))
 
-    def test_application_fastforward_skipping_during_contention(self) -> None:
-        app = Application(
+    def test_check_aggregate_fastforwarding_nonblocking(self) -> None:
+        self._check_aggregate_fastforwarding_during_contention(
             env={
                 "AGGREGATE_CACHE_MAXSIZE": "10",
                 "AGGREGATE_CACHE_FASTFORWARD_SKIPPING": "y",
             }
         )
 
-        aggregate = Aggregate()
-        aggregate_id = aggregate.id
-        app.save(aggregate)
-
-        stopped = Event()
-
-        # Trigger, save, get, check.
-        def trigger_save_get_check() -> None:
-            while not stopped.is_set():
-                try:
-                    aggregate: Aggregate = app.repository.get(aggregate_id)
-                    aggregate.trigger_event(Aggregate.Event)
-                    saved_version = aggregate.version
-                    try:
-                        app.save(aggregate)
-                    except IntegrityError:
-                        continue
-                    cached: Aggregate = app.repository.get(aggregate_id)
-                    if saved_version > cached.version:
-                        print(f"Skipped fast-forwarding at version {saved_version}")
-                        stopped.set()
-                    if aggregate.version % 1000 == 0:
-                        print("Version:", aggregate.version, get_ident())
-                    sleep(0.00)
-                except BaseException:
-                    print(traceback.format_exc())
-                    raise
-
-        executor = ThreadPoolExecutor(max_workers=100)
-        for _ in range(100):
-            executor.submit(trigger_save_get_check)
-
-        if not stopped.wait(timeout=100):
-            stopped.set()
-            self.fail("Didn't skip fast forwarding before test timed out...")
-        executor.shutdown()
-
-    def test_application_fastforward_blocking_during_contention(self) -> None:
-        app = Application(
-            env={
-                "AGGREGATE_CACHE_MAXSIZE": "10",
-            }
+    def test_check_aggregate_fastforwarding_blocking(self) -> None:
+        self._check_aggregate_fastforwarding_during_contention(
+            env={"AGGREGATE_CACHE_MAXSIZE": "10"}
         )
 
-        aggregate = Aggregate()
-        aggregate_id = aggregate.id
-        app.save(aggregate)
+    def _check_aggregate_fastforwarding_during_contention(self, env: EnvType) -> None:
+        app = Application(env=env)
+
+        self.assertEqual(len(app.repository._fastforward_locks_inuse), 0)
+
+        # Create one aggregate.
+        original_aggregate = Aggregate()
+        app.save(original_aggregate)
+        obj_ids = set()
+
+        # Prime the cache.
+        app.repository.get(original_aggregate.id)
+
+        # Remember the aggregate ID.
+        aggregate_id = original_aggregate.id
 
         stopped = Event()
+        errors: list[BaseException] = []
+        successful_thread_ids = set()
 
-        # Trigger, save, get, check.
         def trigger_save_get_check() -> None:
             while not stopped.is_set():
                 try:
+                    # Get the aggregate.
                     aggregate: Aggregate = app.repository.get(aggregate_id)
+                    original_version = aggregate.version
+
+                    # Try to record a new event.
                     aggregate.trigger_event(Aggregate.Event)
-                    saved_version = aggregate.version
+                    # Give other threads a chance.
                     try:
                         app.save(aggregate)
                     except IntegrityError:
+                        # Start again if we didn't record a new event.
+                        # print("Got integrity error")
+                        sleep(0.001)
                         continue
-                    cached: Aggregate = app.repository.get(aggregate_id)
-                    if saved_version > cached.version:
-                        print(f"Skipped fast-forwarding at version {saved_version}")
+
+                    # Get the aggregate from the cache.
+                    assert app.repository.cache is not None
+                    cached: Any = app.repository.cache.get(aggregate_id)
+                    obj_ids.add(id(cached))
+
+                    if len(obj_ids) > 1:
                         stopped.set()
-                    if aggregate.version % 1000 == 0:
-                        print("Version:", aggregate.version, get_ident())
-                    sleep(0.00)
-                except BaseException:
+                        continue
+
+                    # Fast-forward the cached aggregate.
+                    fastforwarded: Aggregate = app.repository.get(aggregate_id)
+
+                    # Check cached aggregate was fast-forwarded with recorded event.
+                    if fastforwarded.version < original_version:
+                        try:
+                            self.fail(
+                                f"Failed to fast-forward at version {original_version}"
+                            )
+                        except AssertionError as e:
+                            errors.append(e)
+                            stopped.set()
+                            continue
+
+                    # Monitor number of threads getting involved.
+                    thread_id = get_ident()
+                    successful_thread_ids.add(thread_id)
+
+                    # print("Version:", aggregate.version, thread_id)
+
+                    # See if we have done enough.
+                    if len(successful_thread_ids) > 10 and aggregate.version >= 25:
+                        stopped.set()
+                        continue
+
+                    sleep(0.0001)
+                    # sleep(0.001)
+                except BaseException as e:
+                    errors.append(e)
+                    stopped.set()
                     print(traceback.format_exc())
                     raise
 
         executor = ThreadPoolExecutor(max_workers=100)
+        futures = []
         for _ in range(100):
-            executor.submit(trigger_save_get_check)
+            f = executor.submit(trigger_save_get_check)
+            futures.append(f)
 
-        if not stopped.wait(timeout=3):
-            stopped.set()
-        else:
-            self.fail("Wrongly skipped fast forwarding")
+        # Run for three seconds.
+        stopped.wait(timeout=10)
+        for f in futures:
+            f.result()
+        # print("Got all results, shutting down executor")
         executor.shutdown()
+
+        try:
+            if errors:
+                raise errors[0]
+            if len(obj_ids) > 1:
+                self.fail(f"More than one instance used in the cache: {len(obj_ids)}")
+            if len(successful_thread_ids) < 3:
+                self.fail("Insufficient sharing across contentious threads")
+
+            final_aggregate: Aggregate = app.repository.get(aggregate_id)
+            # print("Final aggregate version:", final_aggregate.version)
+            if final_aggregate.version < 25:
+                self.fail(f"Insufficient version increment: {final_aggregate.version}")
+
+            self.assertEqual(len(app.repository._fastforward_locks_inuse), 0)
+
+        finally:
+            # print("Closing application")
+            app.close()
 
     def test_application_with_cached_aggregates_not_fastforward(self) -> None:
         app = Application(
@@ -441,13 +476,37 @@ class ApplicationTestCase(TestCase):
                 "AGGREGATE_CACHE_FASTFORWARD": "f",
             }
         )
-        aggregate = Aggregate()
-        app.save(aggregate)
+        aggregate1 = Aggregate()
+        app.save(aggregate1)
+        aggregate_id = aggregate1.id
+
         # Should put the aggregate in the cache.
         assert app.repository.cache is not None  # for mypy
-        self.assertEqual(aggregate, app.repository.cache.get(aggregate.id))
-        app.repository.get(aggregate.id)
-        self.assertEqual(aggregate, app.repository.cache.get(aggregate.id))
+        self.assertEqual(aggregate1, app.repository.cache.get(aggregate_id))
+        app.repository.get(aggregate_id)
+        self.assertEqual(aggregate1, app.repository.cache.get(aggregate_id))
+
+        aggregate2 = Aggregate()
+        aggregate2._id = aggregate_id
+        aggregate2.trigger_event(Aggregate.Event)
+
+        # This will replace object in cache.
+        app.save(aggregate2)
+
+        self.assertEqual(aggregate2.version, aggregate1.version + 1)
+        aggregate3: Aggregate = app.repository.get(aggregate_id)
+        self.assertEqual(aggregate3.version, aggregate3.version)
+        self.assertEqual(id(aggregate3.version), id(aggregate3.version))
+
+        # This will mess things up because the cache has a stale aggregate.
+        aggregate3.trigger_event(Aggregate.Event)
+        app.events.put(aggregate3.collect_events())
+
+        # And so using the aggregate to record new events will cause an IntegrityError.
+        aggregate4: Aggregate = app.repository.get(aggregate_id)
+        aggregate4.trigger_event(Aggregate.Event)
+        with self.assertRaises(IntegrityError):
+            app.save(aggregate4)
 
     def test_application_with_deepcopy_from_cache_arg(self) -> None:
         app = Application(
