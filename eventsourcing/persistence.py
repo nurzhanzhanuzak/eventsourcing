@@ -61,6 +61,12 @@ class Transcoder(ABC):
         """Decodes obj from bytes."""
 
 
+class TranscodingNotRegisteredError(EventSourcingError, TypeError):
+    """
+    Raised when a transcoding isn't registered with JSONTranscoder.
+    """
+
+
 class JSONTranscoder(Transcoder):
     """
     Extensible transcoder that uses the Python :mod:`json` module.
@@ -104,7 +110,7 @@ class JSONTranscoder(Transcoder):
                 "serializable. Please define and register "
                 "a custom transcoding for this type."
             )
-            raise TypeError(msg) from None
+            raise TranscodingNotRegisteredError(msg) from None
         else:
             return {
                 "_type_": transcoding.name,
@@ -131,7 +137,7 @@ class JSONTranscoder(Transcoder):
                             "deserializable. Please register a "
                             "custom transcoding for this type."
                         )
-                        raise TypeError(msg) from e
+                        raise TranscodingNotRegisteredError(msg) from e
                     else:
                         return transcoding.decode(_data_)
         else:
@@ -245,6 +251,12 @@ class Cipher(ABC):
         """
 
 
+class MapperDeserialisationError(EventSourcingError, ValueError):
+    """
+    Raised when deserialization fails in a Mapper.
+    """
+
+
 class Mapper:
     """
     Converts between domain event objects and :class:`StoredEvent` objects.
@@ -290,11 +302,21 @@ class Mapper:
         Converts the given :class:`StoredEvent` to a domain event object.
         """
         stored_state = stored_event.state
-        if self.cipher:
-            stored_state = self.cipher.decrypt(stored_state)
-        if self.compressor:
-            stored_state = self.compressor.decompress(stored_state)
-        event_state: dict[str, Any] = self.transcoder.decode(stored_state)
+        try:
+            if self.cipher:
+                stored_state = self.cipher.decrypt(stored_state)
+            if self.compressor:
+                stored_state = self.compressor.decompress(stored_state)
+            event_state: dict[str, Any] = self.transcoder.decode(stored_state)
+        except Exception as e:
+            msg = (
+                f"Failed to deserialise state of stored event with "
+                f"topic '{stored_event.topic}', "
+                f"originator_id '{stored_event.originator_id}' and "
+                f"originator_version {stored_event.originator_version}: {e}"
+            )
+            raise MapperDeserialisationError(msg) from e
+
         event_state["originator_id"] = stored_event.originator_id
         event_state["originator_version"] = stored_event.originator_version
         cls = resolve_topic(stored_event.topic)
