@@ -136,18 +136,18 @@ Similarly, the ``PostgresEventCounters`` class, shown below, implements the abst
 It defines a database table for event counters, and statements that select and increment the value
 of counters in this table.
 
-The ``_select_counter()`` method is used to select the current value of an event counter.
-The ``_incr_counter()`` method of ``PostgresEventCounters`` is used to increment a named
-event counter atomically in the same database transaction as a tracking object is recorded.
-
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: PostgresEventCounters
+
+The ``_select_counter()`` method is used to select the current value of an event counter.
+The ``_incr_counter()`` method is used to increment a named event counter atomically in the
+same database transaction as a tracking object is recorded.
 
 It inherits and extends the :class:`~eventsourcing.postgres.PostgresTrackingRecorder` class, using the
 :func:`~eventsourcing.postgres.PostgresDatastore.transaction` method of its datastore so that the data
 integrity of the counters is preserved.
 
-It uses the "private" :func:`_insert_tracking <eventsourcing.postgres.PostgresTrackingRecorder>` method of
+It uses the "private" :func:`_insert_tracking() <eventsourcing.postgres.PostgresTrackingRecorder>` method of
 :class:`~eventsourcing.postgres.PostgresTrackingRecorder` to avoid any event being counted more than once,
 whilst keeping track of which events have been processed so that
 event-processing can be resumed correctly.
@@ -199,20 +199,19 @@ prefixed environment variables and in some cases to specify database table names
 runner defaults to the class name of the subclass.
 
 The :py:attr:`~eventsourcing.projection.Projection.topics` attribute can be defined on subclasses. It is expected to
-be a Python `tuple` of `str` objects. Unless empty or undefined, projection runners will use these topics when
+be a Python :class:`tuple` of :class:`str` objects. Unless empty or undefined, projection runners will use these topics when
 subscribing to an application, so that events can be filtered in the application database by their topic. The
 subscription will then yield only events that have topics mentioned by this attribute. In many cases this will
 improve performance when running a projection, by avoiding the cost of transporting and reconstructing events
 that will be ignored by the projection. In some cases, filtering events by topic in this way will be necessary
-to avoid errors attempting to reconstruct events that have been recorded in the database which either your code,
-or the library code, is not capable of reconstructing into domain event objects.
+to avoid errors caused by attempting to reconstruct domain event objects that have been recorded in the database
+which either your code or the library code is not capable of reconstructing.
 
 Counting events
 ---------------
 
 For example, the ``EventCountersProjection`` class, shown below, processes events of an event-sourced application by
 calling methods of a concrete instance of ``EventCountersInterface``.
-
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: EventCountersProjection
