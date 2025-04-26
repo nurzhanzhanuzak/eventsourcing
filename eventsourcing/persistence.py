@@ -532,7 +532,8 @@ class TrackingRecorder(Recorder, ABC):
         Raises WaitInterruptError if the `interrupt` is set before `timeout` is reached.
         """
         deadline = monotonic() + timeout
-        delay_ms = 1.0
+        sleep_interval_ms = 100.0
+        max_sleep_interval_ms = 800.0
         while True:
             max_tracking_id = self.max_tracking_id(application_name)
             if notification_id is None or (
@@ -540,11 +541,10 @@ class TrackingRecorder(Recorder, ABC):
             ):
                 break
             if interrupt:
-                if interrupt.wait(timeout=delay_ms / 1000):
+                if interrupt.wait(timeout=sleep_interval_ms / 1000):
                     raise WaitInterruptedError
             else:
-                sleep(delay_ms / 1000)
-            delay_ms *= 2
+                sleep(sleep_interval_ms / 1000)
             remaining = deadline - monotonic()
             if remaining < 0:
                 msg = (
@@ -552,7 +552,9 @@ class TrackingRecorder(Recorder, ABC):
                     f"from application '{application_name}' to be processed"
                 )
                 raise TimeoutError(msg)
-            delay_ms = min(delay_ms, remaining * 1000)
+            sleep_interval_ms = min(
+                sleep_interval_ms * 2, remaining * 1000, max_sleep_interval_ms
+            )
 
 
 class ProcessRecorder(TrackingRecorder, ApplicationRecorder, ABC):
