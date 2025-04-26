@@ -82,7 +82,7 @@ class TestContentManagement(TestCase):
 
         # Check we are on version 4.
         page_id = cast(
-            Slug, app.repository.get(Slug.create_id("welcome-visitors"))
+            "Slug", app.repository.get(Slug.create_id("welcome-visitors"))
         ).page_id
         assert page_id is not None
         page_aggregate_v4: Page = app.repository.get(page_id)

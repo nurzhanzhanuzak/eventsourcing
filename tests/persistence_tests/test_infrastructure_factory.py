@@ -5,6 +5,7 @@ from eventsourcing.persistence import (
     ApplicationRecorder,
     EventStore,
     InfrastructureFactory,
+    InfrastructureFactoryError,
     JSONTranscoder,
     Mapper,
 )
@@ -21,14 +22,14 @@ class TestInfrastructureFactory(TestCase):
     def test_construct_raises_exception_when_persistence_module_is_invalid(
         self,
     ) -> None:
-        with self.assertRaises(EnvironmentError):
+        with self.assertRaises(InfrastructureFactoryError):
             InfrastructureFactory.construct(
                 Environment(
                     env={InfrastructureFactory.PERSISTENCE_MODULE: "invalid topic"}
                 )
             )
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(InfrastructureFactoryError):
             InfrastructureFactory.construct(
                 Environment(
                     env={InfrastructureFactory.PERSISTENCE_MODULE: get_topic(object)}

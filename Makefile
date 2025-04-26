@@ -28,12 +28,12 @@ install:
 install-packages:
 	$(POETRY) sync --no-root --extras "crypto cryptography" --with "docs" -vv $(opts)
 
-.PHONY: update-lockfile
-update-lockfile:
+.PHONY: poetry-update
+poetry-update:
 	$(POETRY) lock
 
-.PHONY: update-packages
-update-packages: update-lockfile install-packages
+.PHONY: update
+update: poetry-update install
 
 .PHONY: lint
 lint: lint-black lint-ruff lint-isort lint-pyright lint-mypy #lint-dockerfile
@@ -69,11 +69,11 @@ lint-mypy:
 #
 
 .PHONY: fmt
-fmt: fmt-isort fmt-black fmt-ruff
+fmt: fmt-isort fmt-black
 
 .PHONY: fmt-ruff
 fmt-ruff:
-	$(POETRY) run ruff --fix eventsourcing tests examples
+	$(POETRY) run ruff check --fix eventsourcing tests examples
 
 .PHONY: fmt-ruff-unsafe
 fmt-ruff-unsafe:

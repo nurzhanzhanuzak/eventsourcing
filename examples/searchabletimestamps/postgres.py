@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
-from uuid import UUID
 
 from psycopg.sql import SQL, Identifier
 
@@ -14,6 +12,9 @@ from eventsourcing.postgres import (
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
 if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
+
     from psycopg import Cursor
     from psycopg.rows import DictRow
 
@@ -64,7 +65,7 @@ class SearchableTimestampsApplicationRecorder(
     ) -> None:
         # Insert event timestamps.
         event_timestamps_data = cast(
-            list[tuple[UUID, datetime, int]], kwargs.get("event_timestamps_data")
+            "list[tuple[UUID, datetime, int]]", kwargs.get("event_timestamps_data")
         )
         for event_timestamp_data in event_timestamps_data:
             curs.execute(

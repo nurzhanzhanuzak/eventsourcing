@@ -31,9 +31,7 @@ if TYPE_CHECKING:
 
 
 class Transcoding(ABC):
-    """
-    Abstract base class for custom transcodings.
-    """
+    """Abstract base class for custom transcodings."""
 
     type: type
     name: str
@@ -48,9 +46,7 @@ class Transcoding(ABC):
 
 
 class Transcoder(ABC):
-    """
-    Abstract base class for transcoders.
-    """
+    """Abstract base class for transcoders."""
 
     @abstractmethod
     def encode(self, obj: Any) -> bytes:
@@ -62,15 +58,11 @@ class Transcoder(ABC):
 
 
 class TranscodingNotRegisteredError(EventSourcingError, TypeError):
-    """
-    Raised when a transcoding isn't registered with JSONTranscoder.
-    """
+    """Raised when a transcoding isn't registered with JSONTranscoder."""
 
 
 class JSONTranscoder(Transcoder):
-    """
-    Extensible transcoder that uses the Python :mod:`json` module.
-    """
+    """Extensible transcoder that uses the Python :mod:`json` module."""
 
     def __init__(self) -> None:
         self.types: dict[type, Transcoding] = {}
@@ -83,22 +75,16 @@ class JSONTranscoder(Transcoder):
         self.decoder = json.JSONDecoder(object_hook=self._decode_obj)
 
     def register(self, transcoding: Transcoding) -> None:
-        """
-        Registers given transcoding with the transcoder.
-        """
+        """Registers given transcoding with the transcoder."""
         self.types[transcoding.type] = transcoding
         self.names[transcoding.name] = transcoding
 
     def encode(self, obj: Any) -> bytes:
-        """
-        Encodes given object as a bytes array.
-        """
+        """Encodes given object as a bytes array."""
         return self.encoder.encode(obj).encode("utf8")
 
     def decode(self, data: bytes) -> Any:
-        """
-        Decodes bytes array as previously encoded object.
-        """
+        """Decodes bytes array as previously encoded object."""
         return self.decoder.decode(data.decode("utf8"))
 
     def _encode_obj(self, o: Any) -> dict[str, Any]:
@@ -130,10 +116,10 @@ class JSONTranscoder(Transcoder):
                     return d
                 else:
                     try:
-                        transcoding = self.names[cast(str, _type_)]
+                        transcoding = self.names[cast("str", _type_)]
                     except KeyError as e:
                         msg = (
-                            f"Data serialized with name '{cast(str, _type_)}' is not "
+                            f"Data serialized with name '{cast('str', _type_)}' is not "
                             "deserializable. Please register a "
                             "custom transcoding for this type."
                         )
@@ -145,9 +131,7 @@ class JSONTranscoder(Transcoder):
 
 
 class UUIDAsHex(Transcoding):
-    """
-    Transcoding that represents :class:`UUID` objects as hex values.
-    """
+    """Transcoding that represents :class:`UUID` objects as hex values."""
 
     type = UUID
     name = "uuid_hex"
@@ -161,9 +145,7 @@ class UUIDAsHex(Transcoding):
 
 
 class DecimalAsStr(Transcoding):
-    """
-    Transcoding that represents :class:`Decimal` objects as strings.
-    """
+    """Transcoding that represents :class:`Decimal` objects as strings."""
 
     type = Decimal
     name = "decimal_str"
@@ -176,9 +158,7 @@ class DecimalAsStr(Transcoding):
 
 
 class DatetimeAsISO(Transcoding):
-    """
-    Transcoding that represents :class:`datetime` objects as ISO strings.
-    """
+    """Transcoding that represents :class:`datetime` objects as ISO strings."""
 
     type = datetime
     name = "datetime_iso"
@@ -193,8 +173,7 @@ class DatetimeAsISO(Transcoding):
 
 @dataclass(frozen=True)
 class StoredEvent:
-    """
-    Frozen dataclass that represents :class:`~eventsourcing.domain.DomainEvent`
+    """Frozen dataclass that represents :class:`~eventsourcing.domain.DomainEvent`
     objects, such as aggregate :class:`~eventsourcing.domain.Aggregate.Event`
     objects and :class:`~eventsourcing.domain.Snapshot` objects.
     """
@@ -210,56 +189,39 @@ class StoredEvent:
 
 
 class Compressor(ABC):
-    """
-    Base class for compressors.
-    """
+    """Base class for compressors."""
 
     @abstractmethod
     def compress(self, data: bytes) -> bytes:
-        """
-        Compress bytes.
-        """
+        """Compress bytes."""
 
     @abstractmethod
     def decompress(self, data: bytes) -> bytes:
-        """
-        Decompress bytes.
-        """
+        """Decompress bytes."""
 
 
 class Cipher(ABC):
-    """
-    Base class for ciphers.
-    """
+    """Base class for ciphers."""
 
     @abstractmethod
     def __init__(self, environment: Environment):
-        """
-        Initialises cipher with given environment.
-        """
+        """Initialises cipher with given environment."""
 
     @abstractmethod
     def encrypt(self, plaintext: bytes) -> bytes:
-        """
-        Return ciphertext for given plaintext.
-        """
+        """Return ciphertext for given plaintext."""
 
     @abstractmethod
     def decrypt(self, ciphertext: bytes) -> bytes:
-        """
-        Return plaintext for given ciphertext.
-        """
+        """Return plaintext for given ciphertext."""
 
 
 class MapperDeserialisationError(EventSourcingError, ValueError):
-    """
-    Raised when deserialization fails in a Mapper.
-    """
+    """Raised when deserialization fails in a Mapper."""
 
 
 class Mapper:
-    """
-    Converts between domain event objects and :class:`StoredEvent` objects.
+    """Converts between domain event objects and :class:`StoredEvent` objects.
 
     Uses a :class:`Transcoder`, and optionally a cryptographic cipher and compressor.
     """
@@ -275,9 +237,7 @@ class Mapper:
         self.cipher = cipher
 
     def to_stored_event(self, domain_event: DomainEventProtocol) -> StoredEvent:
-        """
-        Converts the given domain event to a :class:`StoredEvent` object.
-        """
+        """Converts the given domain event to a :class:`StoredEvent` object."""
         topic = get_topic(domain_event.__class__)
         event_state = domain_event.__dict__.copy()
         originator_id = event_state.pop("originator_id")
@@ -298,9 +258,7 @@ class Mapper:
         )
 
     def to_domain_event(self, stored_event: StoredEvent) -> DomainEventProtocol:
-        """
-        Converts the given :class:`StoredEvent` to a domain event object.
-        """
+        """Converts the given :class:`StoredEvent` to a domain event object."""
         stored_state = stored_event.state
         try:
             if self.cipher:
@@ -332,42 +290,34 @@ class Mapper:
 
 
 class RecordConflictError(EventSourcingError):
-    """
-    Legacy exception, replaced with IntegrityError.
-    """
+    """Legacy exception, replaced with IntegrityError."""
 
 
 class PersistenceError(EventSourcingError):
-    """
-    The base class of the other exceptions in this module.
+    """The base class of the other exceptions in this module.
 
     Exception class names follow https://www.python.org/dev/peps/pep-0249/#exceptions
     """
 
 
 class InterfaceError(PersistenceError):
-    """
-    Exception raised for errors that are related to the database
+    """Exception raised for errors that are related to the database
     interface rather than the database itself.
     """
 
 
 class DatabaseError(PersistenceError):
-    """
-    Exception raised for errors that are related to the database.
-    """
+    """Exception raised for errors that are related to the database."""
 
 
 class DataError(DatabaseError):
-    """
-    Exception raised for errors that are due to problems with the
+    """Exception raised for errors that are due to problems with the
     processed data like division by zero, numeric value out of range, etc.
     """
 
 
 class OperationalError(DatabaseError):
-    """
-    Exception raised for errors that are related to the database's
+    """Exception raised for errors that are related to the database's
     operation and not necessarily under the control of the programmer,
     e.g. an unexpected disconnect occurs, the data source name is not
     found, a transaction could not be processed, a memory allocation
@@ -376,31 +326,27 @@ class OperationalError(DatabaseError):
 
 
 class IntegrityError(DatabaseError, RecordConflictError):
-    """
-    Exception raised when the relational integrity of the
+    """Exception raised when the relational integrity of the
     database is affected, e.g. a foreign key check fails.
     """
 
 
 class InternalError(DatabaseError):
-    """
-    Exception raised when the database encounters an internal
+    """Exception raised when the database encounters an internal
     error, e.g. the cursor is not valid anymore, the transaction
     is out of sync, etc.
     """
 
 
 class ProgrammingError(DatabaseError):
-    """
-    Exception raised for database programming errors, e.g. table
+    """Exception raised for database programming errors, e.g. table
     not found or already exists, syntax error in the SQL statement,
     wrong number of parameters specified, etc.
     """
 
 
 class NotSupportedError(DatabaseError):
-    """
-    Exception raised in case a method or database API was used
+    """Exception raised in case a method or database API was used
     which is not supported by the database, e.g. calling the
     rollback() method on a connection that does not support
     transaction or has transactions turned off.
@@ -408,9 +354,7 @@ class NotSupportedError(DatabaseError):
 
 
 class WaitInterruptedError(PersistenceError):
-    """
-    Raised when waiting for a tracking record is interrupted.
-    """
+    """Raised when waiting for a tracking record is interrupted."""
 
 
 class Recorder:
@@ -418,17 +362,13 @@ class Recorder:
 
 
 class AggregateRecorder(Recorder, ABC):
-    """
-    Abstract base class for inserting and selecting stored events.
-    """
+    """Abstract base class for inserting and selecting stored events."""
 
     @abstractmethod
     def insert_events(
         self, stored_events: list[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
-        """
-        Writes stored events into database.
-        """
+        """Writes stored events into database."""
 
     @abstractmethod
     def select_events(
@@ -440,24 +380,19 @@ class AggregateRecorder(Recorder, ABC):
         desc: bool = False,
         limit: int | None = None,
     ) -> list[StoredEvent]:
-        """
-        Reads stored events from database.
-        """
+        """Reads stored events from database."""
 
 
 @dataclass(frozen=True)
 class Notification(StoredEvent):
-    """
-    Frozen dataclass that represents domain event notifications.
-    """
+    """Frozen dataclass that represents domain event notifications."""
 
     id: int
     """Position in an application sequence."""
 
 
 class ApplicationRecorder(AggregateRecorder):
-    """
-    Abstract base class for recording events in both aggregate
+    """Abstract base class for recording events in both aggregate
     and application sequences.
     """
 
@@ -471,8 +406,7 @@ class ApplicationRecorder(AggregateRecorder):
         *,
         inclusive_of_start: bool = True,
     ) -> list[Notification]:
-        """
-        Returns a list of Notification objects representing events from an
+        """Returns a list of Notification objects representing events from an
         application sequence. If `inclusive_of_start` is True (the default),
         the returned Notification objects will have IDs greater than or equal
         to `start` and less than or equal to `stop`. If `inclusive_of_start`
@@ -482,8 +416,7 @@ class ApplicationRecorder(AggregateRecorder):
 
     @abstractmethod
     def max_notification_id(self) -> int | None:
-        """
-        Returns the largest notification ID in an application sequence,
+        """Returns the largest notification ID in an application sequence,
         or None if no stored events have been recorded.
         """
 
@@ -491,8 +424,7 @@ class ApplicationRecorder(AggregateRecorder):
     def subscribe(
         self, gt: int | None = None, topics: Sequence[str] = ()
     ) -> Subscription[ApplicationRecorder]:
-        """
-        Returns an iterator of Notification objects representing events from an
+        """Returns an iterator of Notification objects representing events from an
         application sequence.
 
         The iterator will block after the last recorded event has been yielded, but
@@ -503,21 +435,17 @@ class ApplicationRecorder(AggregateRecorder):
 
 
 class TrackingRecorder(Recorder, ABC):
-    """
-    Abstract base class for recorders that record tracking
+    """Abstract base class for recorders that record tracking
     objects atomically with other state.
     """
 
     @abstractmethod
     def insert_tracking(self, tracking: Tracking) -> None:
-        """
-        Records a tracking object.
-        """
+        """Records a tracking object."""
 
     @abstractmethod
     def max_tracking_id(self, application_name: str) -> int | None:
-        """
-        Returns the largest notification ID across all recorded tracking objects
+        """Returns the largest notification ID across all recorded tracking objects
         for the named application, or None if no tracking objects have been recorded.
         """
 
@@ -525,8 +453,7 @@ class TrackingRecorder(Recorder, ABC):
     def has_tracking_id(
         self, application_name: str, notification_id: int | None
     ) -> bool:
-        """
-        Returns True if a tracking object with the given application name
+        """Returns True if a tracking object with the given application name
         and notification ID has been recorded, and True if given notification_id is
         None, otherwise returns False.
         """
@@ -538,8 +465,7 @@ class TrackingRecorder(Recorder, ABC):
         timeout: float = 1.0,
         interrupt: Event | None = None,
     ) -> None:
-        """
-        Block until a tracking object with the given application name and a
+        """Block until a tracking object with the given application name and a
         notification ID greater than equal to the given value has been recorded.
 
         Polls max_tracking_id() with exponential backoff until the timeout
@@ -594,9 +520,7 @@ class Recording:
 
 
 class EventStore:
-    """
-    Stores and retrieves domain events.
-    """
+    """Stores and retrieves domain events."""
 
     def __init__(
         self,
@@ -609,9 +533,7 @@ class EventStore:
     def put(
         self, domain_events: Sequence[DomainEventProtocol], **kwargs: Any
     ) -> list[Recording]:
-        """
-        Stores domain events in aggregate sequence.
-        """
+        """Stores domain events in aggregate sequence."""
         stored_events = list(map(self.mapper.to_stored_event, domain_events))
         recordings = []
         notification_ids = self.recorder.insert_events(stored_events, **kwargs)
@@ -641,9 +563,7 @@ class EventStore:
         desc: bool = False,
         limit: int | None = None,
     ) -> Iterator[DomainEventProtocol]:
-        """
-        Retrieves domain events from aggregate sequence.
-        """
+        """Retrieves domain events from aggregate sequence."""
         return map(
             self.mapper.to_domain_event,
             self.recorder.select_events(
@@ -661,10 +581,12 @@ TTrackingRecorder = TypeVar(
 )
 
 
+class InfrastructureFactoryError(EventSourcingError):
+    """Raised when an infrastructure factory cannot be created."""
+
+
 class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
-    """
-    Abstract base class for infrastructure factories.
-    """
+    """Abstract base class for infrastructure factories."""
 
     PERSISTENCE_MODULE = "PERSISTENCE_MODULE"
     TRANSCODER_TOPIC = "TRANSCODER_TOPIC"
@@ -681,8 +603,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
         cls: type[InfrastructureFactory[TTrackingRecorder]],
         env: Environment | None = None,
     ) -> InfrastructureFactory[TTrackingRecorder]:
-        """
-        Constructs concrete infrastructure factory for given
+        """Constructs concrete infrastructure factory for given
         named application. Reads and resolves persistence
         topic from environment variable 'PERSISTENCE_MODULE'.
         """
@@ -714,7 +635,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
                 f"'{topic}' from environment "
                 f"variable '{cls.PERSISTENCE_MODULE}'"
             )
-            raise OSError(msg) from e
+            raise InfrastructureFactoryError(msg) from e
 
         if isinstance(obj, ModuleType):
             # Find the factory in the module.
@@ -739,26 +660,25 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
                     f"Found {len(factory_classes)} infrastructure factory classes in"
                     f" '{topic}', expected 1."
                 )
-                raise AssertionError(msg)
+                raise InfrastructureFactoryError(msg)
         elif isinstance(obj, type) and issubclass(obj, InfrastructureFactory):
             factory_cls = obj
         else:
-            msg = f"Not an infrastructure factory class or module: {topic}"
-            raise AssertionError(msg)
+            msg = (
+                f"Topic '{topic}' didn't resolve to a persistence module "
+                f"or infrastructure factory class: {obj}"
+            )
+            raise InfrastructureFactoryError(msg)
         return factory_cls(env=env)
 
     def __init__(self, env: Environment):
-        """
-        Initialises infrastructure factory object with given application name.
-        """
+        """Initialises infrastructure factory object with given application name."""
         self.env = env
 
     def transcoder(
         self,
     ) -> Transcoder:
-        """
-        Constructs a transcoder.
-        """
+        """Constructs a transcoder."""
         transcoder_topic = self.env.get(self.TRANSCODER_TOPIC)
         if transcoder_topic:
             transcoder_class: type[Transcoder] = resolve_topic(transcoder_topic)
@@ -771,9 +691,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
         transcoder: Transcoder | None = None,
         mapper_class: type[Mapper] | None = None,
     ) -> Mapper:
-        """
-        Constructs a mapper.
-        """
+        """Constructs a mapper."""
         if mapper_class is None:
             mapper_topic = self.env.get(self.MAPPER_TOPIC)
             mapper_class = resolve_topic(mapper_topic) if mapper_topic else Mapper
@@ -786,8 +704,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
         )
 
     def cipher(self) -> Cipher | None:
-        """
-        Reads environment variables 'CIPHER_TOPIC'
+        """Reads environment variables 'CIPHER_TOPIC'
         and 'CIPHER_KEY' to decide whether or not
         to construct a cipher.
         """
@@ -804,8 +721,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
         return cipher
 
     def compressor(self) -> Compressor | None:
-        """
-        Reads environment variable 'COMPRESSOR_TOPIC' to
+        """Reads environment variable 'COMPRESSOR_TOPIC' to
         decide whether or not to construct a compressor.
         """
         compressor: Compressor | None = None
@@ -825,9 +741,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
         mapper: Mapper | None = None,
         recorder: AggregateRecorder | None = None,
     ) -> EventStore:
-        """
-        Constructs an event store.
-        """
+        """Constructs an event store."""
         return EventStore(
             mapper=mapper or self.mapper(),
             recorder=recorder or self.application_recorder(),
@@ -835,48 +749,36 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
     @abstractmethod
     def aggregate_recorder(self, purpose: str = "events") -> AggregateRecorder:
-        """
-        Constructs an aggregate recorder.
-        """
+        """Constructs an aggregate recorder."""
 
     @abstractmethod
     def application_recorder(self) -> ApplicationRecorder:
-        """
-        Constructs an application recorder.
-        """
+        """Constructs an application recorder."""
 
     @abstractmethod
     def tracking_recorder(
         self, tracking_recorder_class: type[TTrackingRecorder] | None = None
     ) -> TTrackingRecorder:
-        """
-        Constructs a tracking recorder.
-        """
+        """Constructs a tracking recorder."""
 
     @abstractmethod
     def process_recorder(self) -> ProcessRecorder:
-        """
-        Constructs a process recorder.
-        """
+        """Constructs a process recorder."""
 
     def is_snapshotting_enabled(self) -> bool:
-        """
-        Decides whether or not snapshotting is enabled by
+        """Decides whether or not snapshotting is enabled by
         reading environment variable 'IS_SNAPSHOTTING_ENABLED'.
         Snapshotting is not enabled by default.
         """
         return strtobool(self.env.get(self.IS_SNAPSHOTTING_ENABLED, "no"))
 
     def close(self) -> None:
-        """
-        Closes any database connections, and anything else that needs closing.
-        """
+        """Closes any database connections, and anything else that needs closing."""
 
 
 @dataclass(frozen=True)
 class Tracking:
-    """
-    Frozen dataclass representing the position of a domain
+    """Frozen dataclass representing the position of a domain
     event :class:`Notification` in an application's notification log.
     """
 
@@ -963,20 +865,15 @@ TConnection = TypeVar("TConnection", bound=Connection[Any])
 
 
 class ConnectionPoolClosedError(EventSourcingError):
-    """
-    Raised when using a connection pool that is already closed.
-    """
+    """Raised when using a connection pool that is already closed."""
 
 
 class ConnectionNotFromPoolError(EventSourcingError):
-    """
-    Raised when putting a connection in the wrong pool.
-    """
+    """Raised when putting a connection in the wrong pool."""
 
 
 class ConnectionUnavailableError(OperationalError, TimeoutError):
-    """
-    Raised when a request to get a connection from a
+    """Raised when a request to get a connection from a
     connection pool times out.
     """
 
@@ -992,8 +889,7 @@ class ConnectionPool(ABC, Generic[TConnection]):
         pre_ping: bool = False,
         mutually_exclusive_read_write: bool = False,
     ) -> None:
-        """
-        Initialises a new connection pool.
+        """Initialises a new connection pool.
 
         The 'pool_size' argument specifies the maximum number of connections
         that will be put into the pool when connections are returned. The
@@ -1044,9 +940,7 @@ class ConnectionPool(ABC, Generic[TConnection]):
 
     @property
     def num_in_use(self) -> int:
-        """
-        Indicates the total number of connections currently in use.
-        """
+        """Indicates the total number of connections currently in use."""
         with self._put_condition:
             return self._num_in_use
 
@@ -1056,9 +950,7 @@ class ConnectionPool(ABC, Generic[TConnection]):
 
     @property
     def num_in_pool(self) -> int:
-        """
-        Indicates the number of connections currently in the pool.
-        """
+        """Indicates the number of connections currently in the pool."""
         with self._put_condition:
             return self._num_in_pool
 
@@ -1077,8 +969,7 @@ class ConnectionPool(ABC, Generic[TConnection]):
     def get_connection(
         self, timeout: float | None = None, is_writer: bool | None = None
     ) -> TConnection:
-        """
-        Issues connections, or raises ConnectionPoolExhausted error.
+        """Issues connections, or raises ConnectionPoolExhausted error.
         Provides "fairness" on attempts to get connections, meaning that
         connections are issued in the same order as they are requested.
 
@@ -1162,8 +1053,7 @@ class ConnectionPool(ABC, Generic[TConnection]):
             raise ConnectionUnavailableError(msg)
 
     def _get_connection(self, timeout: float = 0.0) -> TConnection:
-        """
-        Gets or creates connections from pool within given
+        """Gets or creates connections from pool within given
         time, otherwise raises a "pool exhausted" error.
 
         Waits for connections to be returned if the pool
@@ -1230,8 +1120,7 @@ class ConnectionPool(ABC, Generic[TConnection]):
             return conn
 
     def put_connection(self, conn: TConnection) -> None:
-        """
-        Returns connections to the pool, or closes connection
+        """Returns connections to the pool, or closes connection
         if the pool is full.
 
         Unlocks write lock after writer has returned, and
@@ -1240,7 +1129,6 @@ class ConnectionPool(ABC, Generic[TConnection]):
         Notifies waiters when connections have been returned,
         and when there are no longer any readers.
         """
-
         # Start forgetting if this connection was for reading or writing.
         is_writer, conn.is_writer = conn.is_writer, None
 
@@ -1287,8 +1175,7 @@ class ConnectionPool(ABC, Generic[TConnection]):
 
     @abstractmethod
     def _create_connection(self) -> TConnection:
-        """
-        Create a new connection.
+        """Create a new connection.
 
         Subclasses should implement this method by
         creating a database connection of the type
@@ -1296,9 +1183,7 @@ class ConnectionPool(ABC, Generic[TConnection]):
         """
 
     def close(self) -> None:
-        """
-        Close the connection pool.
-        """
+        """Close the connection pool."""
         with self._put_condition:
             if self._closed:
                 return
@@ -1353,9 +1238,7 @@ class Subscription(Iterator[Notification], Generic[TApplicationRecorder_co]):
         self.stop()
 
     def stop(self) -> None:
-        """
-        Stops the subscription.
-        """
+        """Stops the subscription."""
         self._has_been_stopped = True
 
     def __iter__(self) -> Self:
@@ -1363,9 +1246,7 @@ class Subscription(Iterator[Notification], Generic[TApplicationRecorder_co]):
 
     @abstractmethod
     def __next__(self) -> Notification:
-        """
-        Returns the next Notification object in the application sequence.
-        """
+        """Returns the next Notification object in the application sequence."""
 
 
 class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
@@ -1390,9 +1271,7 @@ class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
         self._pull_thread.join()
 
     def stop(self) -> None:
-        """
-        Stops the subscription.
-        """
+        """Stops the subscription."""
         super().stop()
         self._notifications_queue.put([])
         self._has_been_notified.set()

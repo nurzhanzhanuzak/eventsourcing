@@ -176,6 +176,6 @@ class TestInvoice(TestCase):
         snapshots = list(app.snapshots.get(invoice.id))
         self.assertEqual(len(snapshots), 1)
 
-        snapshot = cast(Snapshot, snapshots[0])
-        copy2 = cast(Invoice, snapshot.mutate(None))
+        snapshot = cast("Snapshot", snapshots[0])
+        copy2 = cast("Invoice", snapshot.mutate(None))
         self.assertEqual(invoice, copy2)

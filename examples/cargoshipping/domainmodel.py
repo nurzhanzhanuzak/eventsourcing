@@ -10,9 +10,7 @@ from eventsourcing.domain import Aggregate
 
 
 class Location(Enum):
-    """
-    Locations in the world.
-    """
+    """Locations in the world."""
 
     HAMBURG = "HAMBURG"
     HONGKONG = "HONGKONG"
@@ -26,9 +24,7 @@ class Location(Enum):
 
 
 class Leg:
-    """
-    Leg of an itinerary.
-    """
+    """Leg of an itinerary."""
 
     def __init__(
         self,
@@ -42,9 +38,7 @@ class Leg:
 
 
 class Itinerary:
-    """
-    An itinerary along which cargo is shipped.
-    """
+    """An itinerary along which cargo is shipped."""
 
     def __init__(
         self,
@@ -114,8 +108,7 @@ REGISTERED_ROUTES = {
 
 
 class Cargo(Aggregate):
-    """
-    The Cargo aggregate is an event-sourced domain model aggregate that
+    """The Cargo aggregate is an event-sourced domain model aggregate that
     specifies the routing from origin to destination, and can track what
     happens to the cargo after it has been booked.
     """
@@ -206,13 +199,11 @@ class Cargo(Aggregate):
 
     class Event(Aggregate.Event):
         def apply(self, aggregate: Aggregate) -> None:
-            cast(Cargo, aggregate).when(self)
+            cast("Cargo", aggregate).when(self)
 
     @singledispatchmethod
     def when(self, event: Event) -> None:
-        """
-        Default method to apply an aggregate event to the aggregate object.
-        """
+        """Default method to apply an aggregate event to the aggregate object."""
 
     def change_destination(self, destination: Location) -> None:
         self.trigger_event(
@@ -290,11 +281,11 @@ class Cargo(Aggregate):
                     )
                     break
             else:
-                msg = "Can't find leg with origin={} and voyage_number={}".format(
-                    event.location,
-                    event.voyage_number,
+                msg = (
+                    f"Can't find leg with origin={event.location} "
+                    f"and voyage_number={event.voyage_number}"
                 )
-                raise Exception(msg)
+                raise ValueError(msg)
 
         elif event.handling_activity == HandlingActivity.UNLOAD:
             self._current_voyage_number = None
@@ -326,5 +317,5 @@ class Cargo(Aggregate):
             self._transport_status = "CLAIMED"
 
         else:
-            msg = f"Unsupported handling event: {event.handling_activity}"
-            raise Exception(msg)
+            msg = f"Unsupported handling activity: {event.handling_activity}"
+            raise ValueError(msg)

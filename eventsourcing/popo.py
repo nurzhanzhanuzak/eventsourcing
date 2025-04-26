@@ -235,7 +235,7 @@ class POPOProcessRecorder(
         self, stored_events: list[StoredEvent], **kwargs: Any
     ) -> None:
         super()._assert_uniqueness(stored_events, **kwargs)
-        t: Tracking | None = kwargs.get("tracking", None)
+        t: Tracking | None = kwargs.get("tracking")
         if t:
             self._assert_tracking_uniqueness(t)
 
@@ -243,7 +243,7 @@ class POPOProcessRecorder(
         self, stored_events: list[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
         notification_ids = super()._update_table(stored_events, **kwargs)
-        t: Tracking | None = kwargs.get("tracking", None)
+        t: Tracking | None = kwargs.get("tracking")
         if t:
             self._insert_tracking(t)
         return notification_ids

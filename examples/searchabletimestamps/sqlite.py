@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
-from uuid import UUID
 
 from eventsourcing.sqlite import (
     SQLiteApplicationRecorder,
@@ -14,6 +12,8 @@ from examples.searchabletimestamps.persistence import SearchableTimestampsRecord
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from datetime import datetime
+    from uuid import UUID
 
     from eventsourcing.persistence import ApplicationRecorder, StoredEvent
 
@@ -63,7 +63,7 @@ class SearchableTimestampsApplicationRecorder(
 
         # Insert event timestamps.
         event_timestamps_data = cast(
-            list[tuple[UUID, datetime, int]], kwargs["event_timestamps_data"]
+            "list[tuple[UUID, datetime, int]]", kwargs["event_timestamps_data"]
         )
         for originator_id, timestamp, originator_version in event_timestamps_data:
             c.execute(

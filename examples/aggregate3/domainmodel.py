@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from typing import cast
-
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import Aggregate
 
 
 class Dog(Aggregate):
     class Event(Aggregate.Event):
-        def apply(self, aggregate: Aggregate) -> None:
-            cast(Dog, aggregate).apply(self)
+        def apply(self, aggregate: Dog) -> None:
+            aggregate.apply(self)
 
     class Registered(Event, Aggregate.Created):
         name: str

@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
     from uuid import UUID
 
+    from typing_extensions import Self
+
 
 @dataclass(frozen=True)
 class DomainEvent:
@@ -47,10 +49,10 @@ class Aggregate:
 
     @classmethod
     def projector(
-        cls: type[TAggregate],
-        aggregate: TAggregate | None,
+        cls,
+        aggregate: Self | None,
         events: Iterable[DomainEvent],
-    ) -> TAggregate | None:
+    ) -> Self | None:
         for event in events:
             aggregate = cls.mutate(event, aggregate)
         return aggregate

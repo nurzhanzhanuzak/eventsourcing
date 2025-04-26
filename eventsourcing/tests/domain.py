@@ -14,9 +14,7 @@ class EmailAddress:
 
 
 class BankAccount(Aggregate):
-    """
-    Aggregate root for bank accounts.
-    """
+    """Aggregate root for bank accounts."""
 
     def __init__(self, full_name: str, email_address: EmailAddress):
         self.full_name = full_name
@@ -27,9 +25,7 @@ class BankAccount(Aggregate):
 
     @classmethod
     def open(cls, full_name: str, email_address: str) -> BankAccount:
-        """
-        Creates new bank account object.
-        """
+        """Creates new bank account object."""
         return cls._create(
             cls.Opened,
             id=uuid4(),
@@ -42,9 +38,7 @@ class BankAccount(Aggregate):
         email_address: str
 
     def append_transaction(self, amount: Decimal) -> None:
-        """
-        Appends given amount as transaction on account.
-        """
+        """Appends given amount as transaction on account."""
         self.check_account_is_not_closed()
         self.check_has_sufficient_funds(amount)
         self.trigger_event(
@@ -62,23 +56,18 @@ class BankAccount(Aggregate):
 
     @dataclass(frozen=True)
     class TransactionAppended(AggregateEvent):
-        """
-        Domain event for when transaction
+        """Domain event for when transaction
         is appended to bank account.
         """
 
         amount: Decimal
 
         def apply(self, aggregate: Aggregate) -> None:
-            """
-            Increments the account balance.
-            """
-            cast(BankAccount, aggregate).balance += self.amount
+            """Increments the account balance."""
+            cast("BankAccount", aggregate).balance += self.amount
 
     def set_overdraft_limit(self, overdraft_limit: Decimal) -> None:
-        """
-        Sets the overdraft limit.
-        """
+        """Sets the overdraft limit."""
         # Check the limit is not a negative value.
         assert overdraft_limit >= Decimal("0.00")
         self.check_account_is_not_closed()
@@ -88,38 +77,29 @@ class BankAccount(Aggregate):
         )
 
     class OverdraftLimitSet(AggregateEvent):
-        """
-        Domain event for when overdraft
+        """Domain event for when overdraft
         limit is set.
         """
 
         overdraft_limit: Decimal
 
         def apply(self, aggregate: Aggregate) -> None:
-            cast(BankAccount, aggregate).overdraft_limit = self.overdraft_limit
+            cast("BankAccount", aggregate).overdraft_limit = self.overdraft_limit
 
     def close(self) -> None:
-        """
-        Closes the bank account.
-        """
+        """Closes the bank account."""
         self.trigger_event(self.Closed)
 
     class Closed(AggregateEvent):
-        """
-        Domain event for when account is closed.
-        """
+        """Domain event for when account is closed."""
 
         def apply(self, aggregate: Aggregate) -> None:
-            cast(BankAccount, aggregate).is_closed = True
+            cast("BankAccount", aggregate).is_closed = True
 
 
 class AccountClosedError(Exception):
-    """
-    Raised when attempting to operate a closed account.
-    """
+    """Raised when attempting to operate a closed account."""
 
 
 class InsufficientFundsError(Exception):
-    """
-    Raised when attempting to go past overdraft limit.
-    """
+    """Raised when attempting to go past overdraft limit."""

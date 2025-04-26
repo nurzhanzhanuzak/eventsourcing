@@ -18,12 +18,12 @@ class DogSchool(Application):
         return dog.id
 
     def add_trick(self, dog_id: UUID, trick: str) -> None:
-        dog = self.repository.get(dog_id, projector_func=Dog.projector)
+        dog: Dog = self.repository.get(dog_id, projector_func=Dog.project_events)
         dog.add_trick(trick)
         self.save(dog)
 
     def get_dog(self, dog_id: UUID) -> dict[str, Any]:
-        dog = self.repository.get(dog_id, projector_func=Dog.projector)
+        dog: Dog = self.repository.get(dog_id, projector_func=Dog.project_events)
         return {
             "name": dog.name,
             "tricks": tuple(dog.tricks),

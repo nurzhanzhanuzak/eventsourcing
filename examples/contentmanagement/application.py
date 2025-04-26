@@ -113,12 +113,8 @@ class ContentManagement(Application):
 
 
 class PageNotFoundError(Exception):
-    """
-    Raised when a page is not found.
-    """
+    """Raised when a page is not found."""
 
 
 class SlugConflictError(Exception):
-    """
-    Raised when updating a page to a slug used by another page.
-    """
+    """Raised when updating a page to a slug used by another page."""

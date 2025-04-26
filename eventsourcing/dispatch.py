@@ -62,7 +62,7 @@ class singledispatchmethod(_singledispatchmethod[_T]):  # noqa: N801
                 # cls.__wrapped__ = cls.__func__
 
         try:
-            return self.dispatcher.register(cast(type[Any], cls), func=method)
+            return self.dispatcher.register(cast("type[Any]", cls), func=method)
         except NameError:
             self.deferred_registrations.append(
                 (cls, method)  # pyright: ignore [reportArgumentType]
@@ -73,7 +73,7 @@ class singledispatchmethod(_singledispatchmethod[_T]):  # noqa: N801
     def __get__(self, obj: _S, cls: type[_S] | None = None) -> Callable[..., _T]:
         for registered_cls, registered_method in self.deferred_registrations:
             self.dispatcher.register(
-                cast(type[Any], registered_cls), func=registered_method
+                cast("type[Any]", registered_cls), func=registered_method
             )
         self.deferred_registrations = []
         return super().__get__(obj, cls=cls)

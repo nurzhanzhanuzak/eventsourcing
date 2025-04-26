@@ -176,7 +176,9 @@ class TestLeader(TestCase):
             def __init__(self) -> None:
                 self.num_received = 0
 
-            def receive_recording_event(self, recording_event: RecordingEvent) -> None:
+            def receive_recording_event(
+                self, new_recording_event: RecordingEvent
+            ) -> None:
                 self.num_received += 1
 
         # Test fixture is working.

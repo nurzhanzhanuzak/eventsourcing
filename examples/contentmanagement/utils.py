@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from tempfile import TemporaryDirectory
 
 
@@ -14,13 +15,13 @@ def apply_diff(old: str, diff: str) -> str:
 
 def run(cmd: str, a: str, b: str) -> str:
     with TemporaryDirectory() as td:
-        a_path = os.path.join(td, "a")
-        b_path = os.path.join(td, "b")
-        c_path = os.path.join(td, "c")
-        with open(a_path, "w") as a_file:
+        a_path = Path(td) / "a"
+        b_path = Path(td) / "b"
+        c_path = Path(td) / "c"
+        with a_path.open("w") as a_file:
             a_file.write(a)
-        with open(b_path, "w") as b_file:
+        with b_path.open("w") as b_file:
             b_file.write(b)
         os.system(cmd % (a_path, b_path, c_path))  # noqa: S605
-        with open(c_path) as c_file:
+        with c_path.open() as c_file:
             return c_file.read()

@@ -22,8 +22,7 @@ CargoDetails = dict[
 
 
 class BookingService:
-    """
-    Presents an application interface that uses
+    """Presents an application interface that uses
     simple types of object (str, bool, datetime).
     """
 
@@ -63,7 +62,7 @@ class BookingService:
             )
         else:
             msg = f"Invalid next expected activity: {cargo.next_expected_activity}"
-            raise Exception(msg)
+            raise ValueError(msg)
 
         # Present 'last_known_location'.
         if cargo.last_known_location is None:

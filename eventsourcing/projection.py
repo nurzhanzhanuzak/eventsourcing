@@ -29,8 +29,7 @@ if TYPE_CHECKING:
 
 
 class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
-    """
-    An iterator that yields all domain events recorded in an application
+    """An iterator that yields all domain events recorded in an application
     sequence that have notification IDs greater than a given value. The iterator
     will block when all recorded domain events have been yielded, and then
     continue when new events are recorded. Domain events are returned along
@@ -52,30 +51,23 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
         self.subscription = self.recorder.subscribe(gt=gt, topics=topics)
 
     def stop(self) -> None:
-        """
-        Stops the stored event subscription.
-        """
+        """Stops the stored event subscription."""
         self.subscription.stop()
 
     def __enter__(self) -> Self:
-        """
-        Calls __enter__ on the stored event subscription.
-        """
+        """Calls __enter__ on the stored event subscription."""
         self.subscription.__enter__()
         return self
 
     def __exit__(self, *args: object, **kwargs: Any) -> None:
-        """
-        Calls __exit__ on the stored event subscription.
-        """
+        """Calls __exit__ on the stored event subscription."""
         self.subscription.__exit__(*args, **kwargs)
 
     def __iter__(self) -> Self:
         return self
 
     def __next__(self) -> tuple[DomainEventProtocol, Tracking]:
-        """
-        Returns the next stored event from the stored event subscription.
+        """Returns the next stored event from the stored event subscription.
         Constructs a tracking object that identifies the position of
         the event in the application sequence, and reconstructs a domain
         event object from the stored event object.
@@ -86,9 +78,7 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
         return domain_event, tracking
 
     def __del__(self) -> None:
-        """
-        Stops the stored event subscription.
-        """
+        """Stops the stored event subscription."""
         self.stop()
 
 
@@ -120,9 +110,7 @@ class Projection(ABC, Generic[TTrackingRecorder]):
     def process_event(
         self, domain_event: DomainEventProtocol, tracking: Tracking
     ) -> None:
-        """
-        Process a domain event and track it.
-        """
+        """Process a domain event and track it."""
 
 
 TApplication = TypeVar("TApplication", bound=Application)
@@ -137,8 +125,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         view_class: type[TTrackingRecorder],
         env: EnvType | None = None,
     ):
-        """
-        Constructs application from given application class with given environment.
+        """Constructs application from given application class with given environment.
         Also constructs a materialised view from given class using an infrastructure
         factory constructed with an environment named after the projection. Also
         constructs a projection with the constructed materialised view object.
@@ -194,9 +181,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         return self._is_interrupted
 
     def _construct_env(self, name: str, env: EnvType | None = None) -> Environment:
-        """
-        Constructs environment from which projection will be configured.
-        """
+        """Constructs environment from which projection will be configured."""
         _env: dict[str, str] = {}
         _env.update(os.environ)
         if env is not None:
@@ -204,9 +189,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         return Environment(name, _env)
 
     def stop(self) -> None:
-        """
-        Sets the "interrupted" event.
-        """
+        """Sets the "interrupted" event."""
         self._has_called_stop = True
         self._is_interrupted.set()
 
@@ -215,8 +198,8 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         subscription: ApplicationSubscription,
         is_stopping: Event,
     ) -> None:
-        """
-        Stops the application subscription, which will stop the event-processing thread.
+        """Stops the application subscription, which
+        will stop the event-processing thread.
         """
         try:
             is_stopping.wait()
@@ -238,7 +221,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         except BaseException as e:
             _runner = runner()  # get reference from weakref
             if _runner is not None:
-                _runner._thread_error = e
+                _runner._thread_error = e  # noqa: SLF001
             else:
                 msg = "ProjectionRunner was deleted before error could be assigned:\n"
                 msg += format_exc()
@@ -251,8 +234,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             is_stopping.set()
 
     def run_forever(self, timeout: float | None = None) -> None:
-        """
-        Blocks until timeout, or until the runner is stopped or errors. Re-raises
+        """Blocks until timeout, or until the runner is stopped or errors. Re-raises
         any error otherwise exits normally
         """
         if (
@@ -264,8 +246,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             raise error
 
     def wait(self, notification_id: int | None, timeout: float = 1.0) -> None:
-        """
-        Blocks until timeout, or until the materialised view has recorded a tracking
+        """Blocks until timeout, or until the materialised view has recorded a tracking
         object that is greater than or equal to the given notification ID.
         """
         try:
@@ -293,9 +274,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """
-        Calls stop() and waits for the event-processing thread to exit.
-        """
+        """Calls stop() and waits for the event-processing thread to exit."""
         self.stop()
         self._stop_thread.join()
         self._processing_thread.join()
@@ -305,8 +284,6 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             raise error
 
     def __del__(self) -> None:
-        """
-        Calls stop().
-        """
+        """Calls stop()."""
         with contextlib.suppress(AttributeError):
             self.stop()

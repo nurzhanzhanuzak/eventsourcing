@@ -148,7 +148,7 @@ class TestStrtobool(TestCase):
     def test_raises_type_error(self) -> None:
         for x in (None, True, False, 1, 2, 3):
             with self.assertRaises(TypeError):
-                strtobool(cast(str, x))
+                strtobool(cast("str", x))
 
 
 class TestTopics(TestCase):

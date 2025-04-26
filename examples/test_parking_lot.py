@@ -1,6 +1,4 @@
-"""
-After Ed Blackburn's https://github.com/edblackburn/parking-lot/.
-"""
+"""After Ed Blackburn's https://github.com/edblackburn/parking-lot/."""
 
 from __future__ import annotations
 
@@ -110,7 +108,7 @@ class ParkingLot(Application):
 
     def get_vehicle(self, licence_plate: LicencePlate) -> Vehicle:
         return cast(
-            Vehicle, self.repository.get(Vehicle.create_id(licence_plate.number))
+            "Vehicle", self.repository.get(Vehicle.create_id(licence_plate.number))
         )
 
 

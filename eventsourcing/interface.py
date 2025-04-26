@@ -14,15 +14,13 @@ if TYPE_CHECKING:
 
 
 class NotificationLogInterface(ABC):
-    """
-    Abstract base class for obtaining serialised
+    """Abstract base class for obtaining serialised
     sections of a notification log.
     """
 
     @abstractmethod
     def get_log_section(self, section_id: str) -> str:
-        """
-        Returns a serialised :class:`~eventsourcing.application.Section`
+        """Returns a serialised :class:`~eventsourcing.application.Section`
         from a notification log.
         """
 
@@ -35,26 +33,20 @@ class NotificationLogInterface(ABC):
         *,
         inclusive_of_start: bool = True,
     ) -> str:
-        """
-        Returns a serialised list of :class:`~eventsourcing.persistence.Notification`
+        """Returns a serialised list of :class:`~eventsourcing.persistence.Notification`
         objects from a notification log.
         """
 
 
 class NotificationLogJSONService(NotificationLogInterface, Generic[TApplication]):
-    """
-    Presents serialised sections of a notification log.
-    """
+    """Presents serialised sections of a notification log."""
 
     def __init__(self, app: TApplication):
-        """
-        Initialises service with given application.
-        """
+        """Initialises service with given application."""
         self.app = app
 
     def get_log_section(self, section_id: str) -> str:
-        """
-        Returns JSON serialised :class:`~eventsourcing.application.Section`
+        """Returns JSON serialised :class:`~eventsourcing.application.Section`
         from a notification log.
         """
         section = self.app.notification_log[section_id]
@@ -104,19 +96,14 @@ class NotificationLogJSONService(NotificationLogInterface, Generic[TApplication]
 
 
 class NotificationLogJSONClient(NotificationLog):
-    """
-    Presents deserialized sections of a notification log.
-    """
+    """Presents deserialized sections of a notification log."""
 
     def __init__(self, interface: NotificationLogInterface):
-        """
-        Initialises log with a given interface.
-        """
+        """Initialises log with a given interface."""
         self.interface = interface
 
     def __getitem__(self, section_id: str) -> Section:
-        """
-        Returns a :class:`Section` of
+        """Returns a :class:`Section` of
         :class:`~eventsourcing.persistence.Notification` objects
         from the notification log.
         """
@@ -146,8 +133,7 @@ class NotificationLogJSONClient(NotificationLog):
         *,
         inclusive_of_start: bool = True,
     ) -> list[Notification]:
-        """
-        Returns a selection of
+        """Returns a selection of
         :class:`~eventsourcing.persistence.Notification` objects
         from the notification log.
         """

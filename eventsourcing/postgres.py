@@ -75,7 +75,7 @@ class ConnectionPool(psycopg_pool.ConnectionPool[Any]):
 
 
 class PostgresDatastore:
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         dbname: str,
         host: str,
@@ -440,11 +440,9 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         *,
         inclusive_of_start: bool = True,
     ) -> list[Notification]:
-        """
-        Returns a list of event notifications
+        """Returns a list of event notifications
         from 'start', limited by 'limit'.
         """
-
         params: list[int | str | Sequence[str]] = []
         statement = SQL("SELECT * FROM {0}.{1}").format(
             Identifier(self.datastore.schema),
@@ -501,9 +499,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def max_notification_id(self) -> int | None:
-        """
-        Returns the maximum notification ID.
-        """
+        """Returns the maximum notification ID."""
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             curs.execute(self.max_notification_id_statement)
             fetchone = curs.fetchone()
@@ -553,7 +549,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
                     notification_ids.append(row["notification_id"])
             if len(notification_ids) != len(stored_events):
                 msg = "Couldn't get all notification IDs "
-                msg += f"(got {len(notification_ids)}, expected {len(stored_events)}"
+                msg += f"(got {len(notification_ids)}, expected {len(stored_events)})"
                 raise ProgrammingError(msg)
         return notification_ids
 
@@ -730,7 +726,7 @@ class PostgresProcessRecorder(
         stored_events: list[StoredEvent],
         **kwargs: Any,
     ) -> None:
-        tracking: Tracking | None = kwargs.get("tracking", None)
+        tracking: Tracking | None = kwargs.get("tracking")
         if tracking is not None:
             self._insert_tracking(curs, tracking=tracking)
         super()._insert_events(curs, stored_events, **kwargs)
@@ -974,7 +970,8 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
                 tracking_recorder_class = resolve_topic(tracking_recorder_topic)
             else:
                 tracking_recorder_class = cast(
-                    type[TPostgresTrackingRecorder], type(self).tracking_recorder_class
+                    "type[TPostgresTrackingRecorder]",
+                    type(self).tracking_recorder_class,
                 )
         assert tracking_recorder_class is not None
         assert issubclass(tracking_recorder_class, PostgresTrackingRecorder)

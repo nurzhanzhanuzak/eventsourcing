@@ -3,19 +3,20 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 import orjson
-from pydantic import BaseModel
 
 from eventsourcing.persistence import Mapper, StoredEvent, Transcoder
 from eventsourcing.utils import get_topic, resolve_topic
 
 if TYPE_CHECKING:
+    from pydantic import BaseModel
+
     from eventsourcing.domain import DomainEventProtocol
 
 
 class PydanticMapper(Mapper):
     def to_stored_event(self, domain_event: DomainEventProtocol) -> StoredEvent:
         topic = get_topic(domain_event.__class__)
-        event_state = cast(BaseModel, domain_event).model_dump()
+        event_state = cast("BaseModel", domain_event).model_dump()
         stored_state = self.transcoder.encode(event_state)
         if self.compressor:
             stored_state = self.compressor.compress(stored_state)

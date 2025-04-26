@@ -32,7 +32,7 @@ class FtsContentManagement(ContentManagement):
 
     def search(self, query: str) -> list[PageDetailsType]:
         pages = []
-        recorder = cast(FtsRecorder, self.recorder)
+        recorder = cast("FtsRecorder", self.recorder)
         for page_id in recorder.search_pages(query):
             page = self.get_page_by_id(page_id)
             pages.append(page)

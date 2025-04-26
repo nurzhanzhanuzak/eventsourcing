@@ -7,7 +7,7 @@ from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.persistence import Tracking, TrackingRecorder
 from eventsourcing.postgres import PostgresTrackingRecorder
 from eventsourcing.projection import Projection
-from examples.contentmanagement.domainmodel import Page  # noqa: TCH001
+from examples.contentmanagement.domainmodel import Page  # noqa: TC001
 from examples.contentmanagement.utils import apply_diff
 from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 from examples.ftscontentmanagement.postgres import PostgresFtsRecorder

@@ -22,27 +22,19 @@ class PageInfo:
 class FtsRecorder(Recorder, ABC):
     @abstractmethod
     def insert_pages(self, pages: Sequence[PageInfo]) -> None:
-        """
-        Insert a sequence of pages (id, slug, title, body).
-        """
+        """Insert a sequence of pages (id, slug, title, body)."""
 
     @abstractmethod
     def update_pages(self, pages: Sequence[PageInfo]) -> None:
-        """
-        Update a sequence of pages (id, slug, title, body).
-        """
+        """Update a sequence of pages (id, slug, title, body)."""
 
     @abstractmethod
     def search_pages(self, query: str) -> list[UUID]:
-        """
-        Returns IDs for pages that match query.
-        """
+        """Returns IDs for pages that match query."""
 
     @abstractmethod
     def select_page(self, page_id: UUID) -> PageInfo:
-        """
-        Returns slug, title and body for given ID.
-        """
+        """Returns slug, title and body for given ID."""
 
     def search(self, query: str) -> Sequence[PageInfo]:
         pages = []

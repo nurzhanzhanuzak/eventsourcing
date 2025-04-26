@@ -676,10 +676,14 @@ class TestAggregateCreation(TestCase):
                 pass
 
         class MyAggregate1(MyBaseAggregate):
-            class Started(AggregateCreated):  # pyright: ignore
+            class Started(  # pyright: ignore [reportIncompatibleVariableOverride]
+                AggregateCreated
+            ):
                 pass
 
-            class Opened(AggregateCreated):  # pyright: ignore
+            class Opened(  # pyright: ignore [reportIncompatibleVariableOverride]
+                AggregateCreated
+            ):
                 pass
 
         # This is okay.
@@ -750,7 +754,7 @@ class TestAggregateCreation(TestCase):
 
         @dataclass
         class Index(Aggregate):
-            id: UUID  # pyright: ignore
+            id: UUID  # pyright: ignore [reportIncompatibleMethodOverride]
             name: str
 
             @staticmethod
@@ -759,7 +763,7 @@ class TestAggregateCreation(TestCase):
 
         def assert_id_dataclass_style(cls: type[MyDataclass | Index]) -> None:
             with self.assertRaises(TypeError) as cm:
-                cls()  # type: ignore
+                cls()  # type: ignore[call-arg]
             self.assertEqual(
                 cm.exception.args[0],
                 f"{get_method_name(cls.__init__)}() missing 2 "
@@ -776,7 +780,7 @@ class TestAggregateCreation(TestCase):
         assert_id_dataclass_style(MyDataclass)
         assert_id_dataclass_style(Index)
 
-    def test_init_has_id_explicitly(self) -> None:
+    def test_init_has_id_arg(self) -> None:
         class Index(Aggregate):
             def __init__(self, id: UUID, name: str):  # noqa: A002
                 self._id = id
@@ -881,17 +885,17 @@ class TestSubsequentEvents(TestCase):
 
     def test_eq(self) -> None:
         class MyAggregate1(Aggregate):
-            id: UUID  # pyright: ignore
+            id: UUID  # pyright: ignore [reportIncompatibleMethodOverride]
 
         id_a = uuid4()
         id_b = uuid4()
-        a1 = MyAggregate1(id=id_a)  # type: ignore
+        a1 = MyAggregate1(id=id_a)  # type: ignore[call-arg]
         self.assertEqual(a1, a1)
 
-        b1 = MyAggregate1(id=id_b)  # type: ignore
+        b1 = MyAggregate1(id=id_b)  # type: ignore[call-arg]
         self.assertNotEqual(a1, b1)
 
-        c1 = MyAggregate1(id=id_a)  # type: ignore
+        c1 = MyAggregate1(id=id_a)  # type: ignore[call-arg]
         self.assertNotEqual(a1, c1)
 
         a1_copy = a1.collect_events()[0].mutate(None)
@@ -905,7 +909,7 @@ class TestSubsequentEvents(TestCase):
 
         @dataclass
         class MyAggregate2(Aggregate):
-            id: UUID  # pyright: ignore
+            id: UUID  # pyright: ignore [reportIncompatibleMethodOverride]
 
         id_a = uuid4()
         id_b = uuid4()
@@ -958,9 +962,9 @@ class TestSubsequentEvents(TestCase):
                 b: int
 
                 def apply(self, aggregate: MyAggregate1) -> None:
-                    aggregate.b = self.b  # type: ignore
+                    aggregate.b = self.b  # type: ignore[attr-defined]
 
-        a1 = MyAggregate1(a=1)  # type: ignore
+        a1 = MyAggregate1(a=1)  # type: ignore[call-arg]
         expect = (
             f"MyAggregate1(id={a1.id!r}, "
             "version=1, "
@@ -992,7 +996,7 @@ class TestSubsequentEvents(TestCase):
                 b: int
 
                 def apply(self, aggregate: Aggregate) -> None:
-                    cast(MyAggregate2, aggregate).b = self.b  # type: ignore
+                    cast("MyAggregate2", aggregate).b = self.b  # type: ignore[attr-defined]
 
         a2 = MyAggregate2(a=1)
         expect = (
@@ -1185,7 +1189,7 @@ class TestAggregateSubclass(TestCase):
             pass
 
         with self.assertRaises(TypeError):
-            B()  # type: ignore
+            B()  # type: ignore[call-arg]
 
         B(a=1)
 
@@ -1207,17 +1211,17 @@ class TestAggregateSubclassWithFieldInitFalse(TestCase):
         class C(B):
             c: str
 
-        a = A(a=1)  # type: ignore
+        a = A(a=1)  # type: ignore[call-arg]
         self.assertEqual(a.a, 1)
 
-        b = B(a=1)  # type: ignore
+        b = B(a=1)  # type: ignore[call-arg]
         self.assertEqual(b.a, 1)
         self.assertEqual(b.b, False)
 
         b.set_b()
         self.assertEqual(b.b, True)
 
-        c = C(a=1, c="c")  # type: ignore
+        c = C(a=1, c="c")  # type: ignore[call-arg]
         self.assertEqual(c.a, 1)
         self.assertEqual(c.b, False)
         self.assertEqual(c.c, "c")
@@ -1237,17 +1241,17 @@ class TestAggregateSubclassWithFieldInitFalse(TestCase):
         class C(B):
             c: str
 
-        a = A(a=1)  # type: ignore
+        a = A(a=1)  # type: ignore[call-arg]
         self.assertEqual(a.a, 1)
 
-        b = B(a=1)  # type: ignore
+        b = B(a=1)  # type: ignore[call-arg]
         self.assertEqual(b.a, 1)
         self.assertEqual(b.b, False)
 
         b.set_b()
         self.assertEqual(b.b, True)
 
-        c = C(a=1, c="c")  # type: ignore
+        c = C(a=1, c="c")  # type: ignore[call-arg]
         self.assertEqual(c.a, 1)
         self.assertEqual(c.b, False)
         self.assertEqual(c.c, "c")

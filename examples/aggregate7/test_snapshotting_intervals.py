@@ -33,7 +33,7 @@ class SubDogSchool(DogSchool):
     def add_trick(self, dog_id: UUID, trick: str) -> None:
         dog = self.repository.get(dog_id, projector_func=project_dog)
         event = add_trick(dog, Trick(name=trick))
-        dog = cast(Dog, project_dog(dog, [event]))
+        dog = cast("Dog", project_dog(dog, [event]))
         self.save(dog, event)
 
 

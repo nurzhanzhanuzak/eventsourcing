@@ -72,8 +72,7 @@ def project_aggregate(
     aggregate: TMutableOrImmutableAggregate | None,
     domain_events: Iterable[DomainEventProtocol],
 ) -> TMutableOrImmutableAggregate | None:
-    """
-    Projector function for aggregate projections, which works
+    """Projector function for aggregate projections, which works
     by successively calling aggregate mutator function mutate()
     on each of the given list of domain events in turn.
     """
@@ -102,8 +101,7 @@ class Cache(Generic[S, T]):
 
 
 class LRUCache(Cache[S, T]):
-    """
-    Size limited caching that tracks accesses by recency.
+    """Size limited caching that tracks accesses by recency.
 
     This is basically copied from functools.lru_cache. But
     we need to know when there was a cache hit, so we can
@@ -205,7 +203,8 @@ class Repository:
     """Reconstructs aggregates from events in an
     :class:`~eventsourcing.persistence.EventStore`,
     possibly using snapshot store to avoid replaying
-    all events."""
+    all events.
+    """
 
     FASTFORWARD_LOCKS_CACHE_MAXSIZE = 50
 
@@ -219,8 +218,7 @@ class Repository:
         fastforward_skipping: bool = False,
         deepcopy_from_cache: bool = True,
     ):
-        """
-        Initialises repository with given event store (an
+        """Initialises repository with given event store (an
         :class:`~eventsourcing.persistence.EventStore` for aggregate
         :class:`~eventsourcing.domain.AggregateEvent` objects)
         and optionally a snapshot store (an
@@ -258,15 +256,14 @@ class Repository:
         fastforward_skipping: bool = False,
         deepcopy_from_cache: bool = True,
     ) -> TMutableOrImmutableAggregate:
-        """
-        Reconstructs an :class:`~eventsourcing.domain.Aggregate` for a
+        """Reconstructs an :class:`~eventsourcing.domain.Aggregate` for a
         given ID from stored events, optionally at a particular version.
         """
         if self.cache and version is None:
             try:
                 # Look for aggregate in the cache.
                 aggregate = cast(
-                    TMutableOrImmutableAggregate, self.cache.get(aggregate_id)
+                    "TMutableOrImmutableAggregate", self.cache.get(aggregate_id)
                 )
             except KeyError:
                 # Reconstruct aggregate from stored events.
@@ -287,7 +284,11 @@ class Repository:
                                     originator_id=aggregate_id, gt=aggregate.version
                                 )
                                 _aggregate = projector_func(
-                                    aggregate, cast(Iterable[TDomainEvent], new_events)
+                                    aggregate,
+                                    cast(
+                                        "Iterable[TDomainEvent]",
+                                        new_events,
+                                    ),
                                 )
                                 if _aggregate is None:
                                     raise AggregateNotFoundError(aggregate_id)
@@ -342,8 +343,8 @@ class Repository:
         aggregate = projector_func(
             initial,
             chain(
-                cast(Iterable[TDomainEvent], snapshots),
-                cast(Iterable[TDomainEvent], aggregate_events),
+                cast("Iterable[TDomainEvent]", snapshots),
+                cast("Iterable[TDomainEvent]", aggregate_events),
             ),
         )
 
@@ -379,9 +380,7 @@ class Repository:
                 self._fastforward_locks_inuse[aggregate_id] = (lock_, num_users)
 
     def __contains__(self, item: UUID) -> bool:
-        """
-        Tests to see if an aggregate exists in the repository.
-        """
+        """Tests to see if an aggregate exists in the repository."""
         try:
             self.get(aggregate_id=item)
         except AggregateNotFoundError:
@@ -392,8 +391,7 @@ class Repository:
 
 @dataclass(frozen=True)
 class Section:
-    """
-    Frozen dataclass that represents a section from a :class:`NotificationLog`.
+    """Frozen dataclass that represents a section from a :class:`NotificationLog`.
     The :data:`items` attribute contains a list of
     :class:`~eventsourcing.persistence.Notification` objects.
     The :data:`id` attribute is the section ID, two integers
@@ -416,14 +414,11 @@ class Section:
 
 
 class NotificationLog(ABC):
-    """
-    Abstract base class for notification logs.
-    """
+    """Abstract base class for notification logs."""
 
     @abstractmethod
     def __getitem__(self, section_id: str) -> Section:
-        """
-        Returns a :class:`Section` of
+        """Returns a :class:`Section` of
         :class:`~eventsourcing.persistence.Notification` objects
         from the notification log.
         """
@@ -438,16 +433,14 @@ class NotificationLog(ABC):
         *,
         inclusive_of_start: bool = True,
     ) -> list[Notification]:
-        """
-        Returns a selection of
+        """Returns a selection of
         :class:`~eventsourcing.persistence.Notification` objects
         from the notification log.
         """
 
 
 class LocalNotificationLog(NotificationLog):
-    """
-    Notification log that presents sections of event notifications
+    """Notification log that presents sections of event notifications
     retrieved from an :class:`~eventsourcing.persistence.ApplicationRecorder`.
     """
 
@@ -458,8 +451,7 @@ class LocalNotificationLog(NotificationLog):
         recorder: ApplicationRecorder,
         section_size: int = DEFAULT_SECTION_SIZE,
     ):
-        """
-        Initialises a local notification object with given
+        """Initialises a local notification object with given
         :class:`~eventsourcing.persistence.ApplicationRecorder`
         and an optional section size.
 
@@ -474,8 +466,7 @@ class LocalNotificationLog(NotificationLog):
         self.section_size = section_size
 
     def __getitem__(self, requested_section_id: str) -> Section:
-        """
-        Returns a :class:`Section` of event notifications
+        """Returns a :class:`Section` of event notifications
         based on the requested section ID. The section ID of
         the returned section will describe the event
         notifications that are actually contained in
@@ -528,8 +519,7 @@ class LocalNotificationLog(NotificationLog):
         *,
         inclusive_of_start: bool = True,
     ) -> list[Notification]:
-        """
-        Returns a selection of
+        """Returns a selection of
         :class:`~eventsourcing.persistence.Notification` objects
         from the notification log.
         """
@@ -552,17 +542,14 @@ class LocalNotificationLog(NotificationLog):
 
 
 class ProcessingEvent:
-    """
-    Keeps together a :class:`~eventsourcing.persistence.Tracking`
+    """Keeps together a :class:`~eventsourcing.persistence.Tracking`
     object, which represents the position of a domain event notification
     in the notification log of a particular application, and the
     new domain events that result from processing that notification.
     """
 
     def __init__(self, tracking: Tracking | None = None):
-        """
-        Initialises the process event with the given tracking object.
-        """
+        """Initialises the process event with the given tracking object."""
         self.tracking = tracking
         self.events: list[DomainEventProtocol] = []
         self.aggregates: dict[UUID, MutableOrImmutableAggregate] = {}
@@ -573,9 +560,7 @@ class ProcessingEvent:
         *objs: MutableOrImmutableAggregate | DomainEventProtocol | None,
         **kwargs: Any,
     ) -> None:
-        """
-        Collects pending domain events from the given aggregate.
-        """
+        """Collects pending domain events from the given aggregate."""
         for obj in objs:
             if obj is None:
                 continue
@@ -604,9 +589,7 @@ class ProcessingEvent:
 
 
 class Application:
-    """
-    Base class for event-sourced applications.
-    """
+    """Base class for event-sourced applications."""
 
     name = "Application"
     env: ClassVar[dict[str, str]] = {}
@@ -629,8 +612,7 @@ class Application:
             cls.name = cls.__name__
 
     def __init__(self, env: EnvType | None = None) -> None:
-        """
-        Initialises an application with an
+        """Initialises an application with an
         :class:`~eventsourcing.persistence.InfrastructureFactory`,
         a :class:`~eventsourcing.persistence.Mapper`,
         an :class:`~eventsourcing.persistence.ApplicationRecorder`,
@@ -652,15 +634,12 @@ class Application:
 
     @property
     def repository(self) -> Repository:
-        """
-        An application's repository reconstructs aggregates from stored events.
-        """
+        """An application's repository reconstructs aggregates from stored events."""
         return self._repository
 
     @property
     def notification_log(self) -> LocalNotificationLog:
-        """
-        An application's notification log presents all the aggregate events
+        """An application's notification log presents all the aggregate events
         of an application in the order they were recorded as a sequence of event
         notifications.
         """
@@ -676,9 +655,7 @@ class Application:
         return self._notification_log
 
     def construct_env(self, name: str, env: EnvType | None = None) -> Environment:
-        """
-        Constructs environment from which application will be configured.
-        """
+        """Constructs environment from which application will be configured."""
         _env = dict(type(self).env)
         if type(self).is_snapshotting_enabled or type(self).snapshotting_intervals:
             _env["IS_SNAPSHOTTING_ENABLED"] = "y"
@@ -688,22 +665,19 @@ class Application:
         return Environment(name, _env)
 
     def construct_factory(self, env: Environment) -> InfrastructureFactory:
-        """
-        Constructs an :class:`~eventsourcing.persistence.InfrastructureFactory`
+        """Constructs an :class:`~eventsourcing.persistence.InfrastructureFactory`
         for use by the application.
         """
         return InfrastructureFactory.construct(env)
 
     def construct_mapper(self) -> Mapper:
-        """
-        Constructs a :class:`~eventsourcing.persistence.Mapper`
+        """Constructs a :class:`~eventsourcing.persistence.Mapper`
         for use by the application.
         """
         return self.factory.mapper(transcoder=self.construct_transcoder())
 
     def construct_transcoder(self) -> Transcoder:
-        """
-        Constructs a :class:`~eventsourcing.persistence.Transcoder`
+        """Constructs a :class:`~eventsourcing.persistence.Transcoder`
         for use by the application.
         """
         transcoder = self.factory.transcoder()
@@ -712,8 +686,7 @@ class Application:
         return transcoder
 
     def register_transcodings(self, transcoder: JSONTranscoder) -> None:
-        """
-        Registers :class:`~eventsourcing.persistence.Transcoding`
+        """Registers :class:`~eventsourcing.persistence.Transcoding`
         objects on given :class:`~eventsourcing.persistence.JSONTranscoder`.
         """
         transcoder.register(UUIDAsHex())
@@ -721,15 +694,13 @@ class Application:
         transcoder.register(DatetimeAsISO())
 
     def construct_recorder(self) -> ApplicationRecorder:
-        """
-        Constructs an :class:`~eventsourcing.persistence.ApplicationRecorder`
+        """Constructs an :class:`~eventsourcing.persistence.ApplicationRecorder`
         for use by the application.
         """
         return self.factory.application_recorder()
 
     def construct_event_store(self) -> EventStore:
-        """
-        Constructs an :class:`~eventsourcing.persistence.EventStore`
+        """Constructs an :class:`~eventsourcing.persistence.EventStore`
         for use by the application to store and retrieve aggregate
         :class:`~eventsourcing.domain.AggregateEvent` objects.
         """
@@ -739,8 +710,7 @@ class Application:
         )
 
     def construct_snapshot_store(self) -> EventStore:
-        """
-        Constructs an :class:`~eventsourcing.persistence.EventStore`
+        """Constructs an :class:`~eventsourcing.persistence.EventStore`
         for use by the application to store and retrieve aggregate
         :class:`~eventsourcing.domain.Snapshot` objects.
         """
@@ -751,9 +721,7 @@ class Application:
         )
 
     def construct_repository(self) -> Repository:
-        """
-        Constructs a :class:`Repository` for use by the application.
-        """
+        """Constructs a :class:`Repository` for use by the application."""
         cache_maxsize_envvar = self.env.get(self.AGGREGATE_CACHE_MAXSIZE)
         cache_maxsize = int(cache_maxsize_envvar) if cache_maxsize_envvar else None
         return Repository(
@@ -770,9 +738,7 @@ class Application:
         )
 
     def construct_notification_log(self) -> LocalNotificationLog:
-        """
-        Constructs a :class:`LocalNotificationLog` for use by the application.
-        """
+        """Constructs a :class:`LocalNotificationLog` for use by the application."""
         return LocalNotificationLog(self.recorder, section_size=self.log_section_size)
 
     def save(
@@ -780,8 +746,7 @@ class Application:
         *objs: MutableOrImmutableAggregate | DomainEventProtocol | None,
         **kwargs: Any,
     ) -> list[Recording]:
-        """
-        Collects pending events from given aggregates and
+        """Collects pending events from given aggregates and
         puts them in the application's event store.
         """
         processing_event = ProcessingEvent()
@@ -793,9 +758,7 @@ class Application:
         return recordings
 
     def _record(self, processing_event: ProcessingEvent) -> list[Recording]:
-        """
-        Records given process event in the application's recorder.
-        """
+        """Records given process event in the application's recorder."""
         recordings = self.events.put(
             processing_event.events,
             tracking=processing_event.tracking,
@@ -849,8 +812,7 @@ class Application:
             TMutableOrImmutableAggregate, TDomainEvent
         ] = project_aggregate,
     ) -> None:
-        """
-        Takes a snapshot of the recorded state of the aggregate,
+        """Takes a snapshot of the recorded state of the aggregate,
         and puts the snapshot in the snapshot store.
         """
         if self.snapshots is None:
@@ -870,8 +832,7 @@ class Application:
         self.snapshots.put([snapshot])
 
     def notify(self, new_events: list[DomainEventProtocol]) -> None:
-        """
-        Deprecated.
+        """Deprecated.
 
         Called after new aggregate events have been saved. This
         method on this class doesn't actually do anything,
@@ -880,8 +841,7 @@ class Application:
         """
 
     def _notify(self, recordings: list[Recording]) -> None:
-        """
-        Called after new aggregate events have been saved. This
+        """Called after new aggregate events have been saved. This
         method on this class doesn't actually do anything,
         but this method may be implemented by subclasses that
         need to take action when new domain events have been saved.
@@ -896,15 +856,13 @@ TApplication = TypeVar("TApplication", bound=Application)
 
 
 class AggregateNotFoundError(EventSourcingError):
-    """
-    Raised when an :class:`~eventsourcing.domain.Aggregate`
+    """Raised when an :class:`~eventsourcing.domain.Aggregate`
     object is not found in a :class:`Repository`.
     """
 
 
 class EventSourcedLog(Generic[TDomainEvent]):
-    """
-    Constructs a sequence of domain events, like an aggregate.
+    """Constructs a sequence of domain events, like an aggregate.
     But unlike an aggregate the events can be triggered
     and selected for use in an application without
     reconstructing a current state from all the events.
@@ -932,9 +890,7 @@ class EventSourcedLog(Generic[TDomainEvent]):
         next_originator_version: int | None = None,
         **kwargs: Any,
     ) -> TDomainEvent:
-        """
-        Constructs and returns a new log event.
-        """
+        """Constructs and returns a new log event."""
         return self._trigger_event(
             logged_cls=self.logged_cls,
             next_originator_version=next_originator_version,
@@ -947,9 +903,7 @@ class EventSourcedLog(Generic[TDomainEvent]):
         next_originator_version: int | None = None,
         **kwargs: Any,
     ) -> SDomainEvent:
-        """
-        Constructs and returns a new log event.
-        """
+        """Constructs and returns a new log event."""
         if next_originator_version is None:
             last_logged = self.get_last()
             if last_logged is None:
@@ -965,18 +919,14 @@ class EventSourcedLog(Generic[TDomainEvent]):
         )
 
     def get_first(self) -> TDomainEvent | None:
-        """
-        Selects the first logged event.
-        """
+        """Selects the first logged event."""
         try:
             return next(self.get(limit=1))
         except StopIteration:
             return None
 
     def get_last(self) -> TDomainEvent | None:
-        """
-        Selects the last logged event.
-        """
+        """Selects the last logged event."""
         try:
             return next(self.get(desc=True, limit=1))
         except StopIteration:
@@ -990,12 +940,11 @@ class EventSourcedLog(Generic[TDomainEvent]):
         desc: bool = False,
         limit: int | None = None,
     ) -> Iterator[TDomainEvent]:
-        """
-        Selects a range of logged events with limit,
+        """Selects a range of logged events with limit,
         with ascending or descending order.
         """
         return cast(
-            Iterator[TDomainEvent],
+            "Iterator[TDomainEvent]",
             self.events.get(
                 originator_id=self.originator_id,
                 gt=gt,

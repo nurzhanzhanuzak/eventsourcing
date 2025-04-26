@@ -1,7 +1,7 @@
 import contextlib
 import os
 import sys
-from os.path import dirname, join
+from pathlib import Path
 from subprocess import PIPE, Popen
 from tempfile import NamedTemporaryFile
 from unittest.case import TestCase
@@ -12,7 +12,7 @@ from eventsourcing.tests.persistence import tmpfile_uris
 from eventsourcing.tests.postgres_utils import drop_postgres_table
 from eventsourcing.utils import clear_topic_cache
 
-base_dir = dirname(dirname(os.path.abspath(eventsourcing.__file__)))
+base_dir = Path(eventsourcing.__file__).resolve().parent.parent
 
 
 class TestDocs(TestCase):
@@ -73,14 +73,14 @@ class TestDocs(TestCase):
     def test_readme(self) -> None:
         self._out = ""
 
-        path = join(base_dir, "README.md")
-        if not os.path.exists(path):
+        path = base_dir / "README.md"
+        if not Path.exists(path):
             self.skipTest(f"Skipped test, README file not found: {path}")
 
         try:
             self.check_code_snippets_in_file(path)
         finally:
-            os.remove("dog-school.db")
+            Path("dog-school.db").unlink()
 
         # path = join(base_dir, "README_example_with_axon.md")
         # if not os.path.exists(path):
@@ -94,9 +94,9 @@ class TestDocs(TestCase):
         ]
 
         self._out = ""
-        docs_path = os.path.join(base_dir, "docs")
+        docs_path = base_dir / "docs"
 
-        if not os.path.exists(docs_path):
+        if not Path.exists(docs_path):
             self.skipTest(f"Skipped test, docs folder not found: {docs_path}")
 
         file_paths = []
@@ -123,7 +123,7 @@ class TestDocs(TestCase):
                     # if name.endswith('projections.rst'):
                     # if name.endswith('deployment.rst'):
                     # if name.endswith('process.rst'):
-                    file_paths.append(os.path.join(docs_path, dirpath, name))
+                    file_paths.append(docs_path / dirpath / name)
 
         file_paths = sorted(file_paths)
         failures = []
@@ -132,7 +132,7 @@ class TestDocs(TestCase):
         print("Testing code snippets in docs:")
         for path in file_paths:
             print(path)
-        print("")
+        print()
         for path in file_paths:
             # print("Testing code snippets in file: {}".format(path))
             try:
@@ -142,11 +142,11 @@ class TestDocs(TestCase):
                 failed.append(path)
                 print(str(e).strip("\n"))
                 print("FAIL")
-                print("")
+                print()
             else:
                 passed.append(path)
                 print("PASS")
-                print("")
+                print()
             finally:
                 self.clean_env()
 
@@ -155,7 +155,7 @@ class TestDocs(TestCase):
         if failures:
             raise failures[0]
 
-    def check_code_snippets_in_file(self, doc_path: str) -> None:
+    def check_code_snippets_in_file(self, doc_path: Path) -> None:
         # Extract lines of Python code from the README.md file.
 
         lines = []
@@ -167,7 +167,7 @@ class TestDocs(TestCase):
         last_line = ""
         is_literalinclude = False
         module = ""
-        with open(doc_path) as doc_file:
+        with doc_path.open() as doc_file:
             for line_index, orig_line in enumerate(doc_file):
                 # print("Line index:", line_index)
                 # print("Orig line:", orig_line)
@@ -245,9 +245,7 @@ class TestDocs(TestCase):
                     if is_rst and len(line.strip()):
                         if not line.startswith("    "):
                             self.fail(
-                                "Code line needs 4-char indent: {}: {}".format(
-                                    repr(line), doc_path
-                                )
+                                f"Code line needs 4-char indent: {line!r}: {doc_path}"
                             )
                         # Strip four chars of indentation.
                         line = line[4:]
@@ -266,24 +264,24 @@ class TestDocs(TestCase):
         source = "\n".join(lines) + "\n"
 
         # Write the code into a temp file.
-        tempfile = NamedTemporaryFile("w+")
-        temp_path = tempfile.name
-        tempfile.writelines(source)
-        tempfile.flush()
+        with NamedTemporaryFile("w+") as tempfile:
+            temp_path = tempfile.name
+            tempfile.writelines(source)
+            tempfile.flush()
 
-        # Run the code and catch errors.
-        p = Popen(
-            [sys.executable, temp_path],  # noqa: S603
-            stdout=PIPE,
-            stderr=PIPE,
-            env={"PYTHONPATH": base_dir},
-            encoding="utf-8",
-        )
-        out, err = p.communicate()
+            # Run the code and catch errors.
+            p = Popen(  # noqa: S603
+                [sys.executable, temp_path],
+                stdout=PIPE,
+                stderr=PIPE,
+                env={"PYTHONPATH": base_dir},
+                encoding="utf-8",
+            )
+            out, err = p.communicate()
         # out = out.decode("utf8")
         # err = err.decode("utf8")
-        out = out.replace(temp_path, doc_path)
-        err = err.replace(temp_path, doc_path)
+        out = out.replace(temp_path, str(doc_path))
+        err = err.replace(temp_path, str(doc_path))
         exit_status = p.wait()
 
         # print(out)
@@ -292,6 +290,3 @@ class TestDocs(TestCase):
         # Check for errors running the code.
         if exit_status:
             self.fail(out + err)
-
-        # Close (deletes) the tempfile.
-        tempfile.close()

@@ -101,8 +101,8 @@ class PromptForwarder(RecordingEventReceiver):
     def __init__(self, application: Follower):
         self.application = application
 
-    def receive_recording_event(self, recording_event: RecordingEvent) -> None:
+    def receive_recording_event(self, new_recording_event: RecordingEvent) -> None:
         self.application.pull_and_process(
-            leader_name=recording_event.application_name,
+            leader_name=new_recording_event.application_name,
             # start=recording_event.recordings[0].notification.id,
         )

@@ -15,6 +15,4 @@ class SearchableTimestampsRecorder(ApplicationRecorder):
     def get_version_at_timestamp(
         self, originator_id: UUID, timestamp: datetime
     ) -> int | None:
-        """
-        Returns originator version at timestamp for given originator ID.
-        """
+        """Returns originator version at timestamp for given originator ID."""

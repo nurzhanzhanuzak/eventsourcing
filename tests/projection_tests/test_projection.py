@@ -123,7 +123,7 @@ class POPOEventCounters(POPOTrackingRecorder, EventCountersInterface):
 class TestPostgresEventCounters(EventCountersViewTestCase):
     def setUp(self) -> None:
         self.factory = cast(
-            PostgresFactory,
+            "PostgresFactory",
             InfrastructureFactory.construct(
                 env=Environment(
                     name="eventcounters",

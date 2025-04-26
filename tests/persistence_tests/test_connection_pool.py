@@ -50,7 +50,7 @@ class DummyCursor(Cursor):
 
 
 class DummyConnection(Connection[DummyCursor]):
-    def __init__(self, max_age: float | None = None):
+    def __init__(self, max_age: float | None = None) -> None:
         super().__init__(max_age=max_age)
         self._cursors: list[DummyCursor] = []
         self._closed_on_server = False

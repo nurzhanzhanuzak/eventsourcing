@@ -412,8 +412,7 @@ class SQLiteApplicationRecorder(
         *,
         inclusive_of_start: bool = True,
     ) -> list[Notification]:
-        """
-        Returns a list of event notifications
+        """Returns a list of event notifications
         from 'start', limited by 'limit'.
         """
         params: list[int | str] = []
@@ -443,7 +442,7 @@ class SQLiteApplicationRecorder(
             else:
                 statement += "AND "
             params += list(topics)
-            statement += "topic IN (%s) " % ",".join("?" * len(topics))
+            statement += f"topic IN ({','.join('?' * len(topics))}) "
 
         params.append(limit)
         statement += "ORDER BY rowid LIMIT ?"
@@ -462,9 +461,7 @@ class SQLiteApplicationRecorder(
             ]
 
     def max_notification_id(self) -> int:
-        """
-        Returns the maximum notification ID.
-        """
+        """Returns the maximum notification ID."""
         with self.datastore.transaction(commit=False) as c:
             return self._max_notification_id(c)
 
@@ -561,7 +558,7 @@ class SQLiteProcessRecorder(
         **kwargs: Any,
     ) -> Sequence[int] | None:
         returning = super()._insert_events(c, stored_events, **kwargs)
-        tracking: Tracking | None = kwargs.get("tracking", None)
+        tracking: Tracking | None = kwargs.get("tracking")
         if tracking is not None:
             self._insert_tracking(c, tracking)
         return returning

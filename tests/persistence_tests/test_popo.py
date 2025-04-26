@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from concurrent.futures.thread import ThreadPoolExecutor
-from datetime import datetime
 from unittest import TestCase
 from unittest.mock import Mock
 from uuid import uuid4
 
+from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.persistence import (
     AggregateRecorder,
     ApplicationRecorder,
@@ -83,14 +83,14 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase[POPOApplicationRec
         num_events = num_batches * batch_size
 
         def read(last_notification_id: int | None) -> None:
-            start = datetime.now()
+            start = datetime_now_with_tzinfo()
             with recorder.subscribe(last_notification_id) as subscription:
                 for i, notification in enumerate(subscription):
                     # print("Read", i+1, "notifications")
                     last_notification_id = notification.id
                     if i + 1 == num_events:
                         break
-            duration = datetime.now() - start
+            duration = datetime_now_with_tzinfo() - start
             print(
                 "Finished reading",
                 num_events,
@@ -100,7 +100,7 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase[POPOApplicationRec
             )
 
         def write() -> None:
-            start = datetime.now()
+            start = datetime_now_with_tzinfo()
             for _ in range(num_batches):
                 events = []
                 for _ in range(batch_size):
@@ -113,7 +113,7 @@ class TestPOPOApplicationRecorder(ApplicationRecorderTestCase[POPOApplicationRec
                     events.append(stored_event)
                 recorder.insert_events(events)
                 # print("Wrote", i + 1, "notifications")
-            duration = datetime.now() - start
+            duration = datetime_now_with_tzinfo() - start
             print(
                 "Finished writing",
                 num_events,

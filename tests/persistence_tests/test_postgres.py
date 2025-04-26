@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 from concurrent.futures.thread import ThreadPoolExecutor
-from datetime import datetime
 from threading import Event, Thread
 from time import sleep
 from typing import TYPE_CHECKING
@@ -12,9 +11,10 @@ from uuid import uuid4
 
 import psycopg
 from psycopg import Connection
-from psycopg.sql import SQL
+from psycopg.sql import SQL, Identifier
 from psycopg_pool import ConnectionPool
 
+from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.persistence import (
     AggregateRecorder,
     ApplicationRecorder,
@@ -524,14 +524,14 @@ class TestPostgresApplicationRecorder(
         num_events = num_batches * batch_size
 
         def read(last_notification_id: int) -> None:
-            start = datetime.now()
+            start = datetime_now_with_tzinfo()
             with recorder.subscribe(last_notification_id) as subscription:
                 for i, notification in enumerate(subscription):
                     # print("Read", i+1, "notifications")
                     last_notification_id = notification.id
                     if i + 1 == num_events:
                         break
-            duration = datetime.now() - start
+            duration = datetime_now_with_tzinfo() - start
             print(
                 "Finished reading",
                 num_events,
@@ -541,7 +541,7 @@ class TestPostgresApplicationRecorder(
             )
 
         def write() -> None:
-            start = datetime.now()
+            start = datetime_now_with_tzinfo()
             for _ in range(num_batches):
                 events = []
                 for _ in range(batch_size):
@@ -554,7 +554,7 @@ class TestPostgresApplicationRecorder(
                     events.append(stored_event)
                 recorder.insert_events(events)
                 # print("Wrote", i + 1, "notifications")
-            duration = datetime.now() - start
+            duration = datetime_now_with_tzinfo() - start
             print(
                 "Finished writing",
                 num_events,
@@ -772,17 +772,19 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
         self.assertEqual(len(notification_ids), 1)
         self.assertEqual(1, notification_ids[0])
 
-        # Insert statement has no RETURNING clause.
+        # Check error handling for incorrect number of returned notification IDs:
+        #  - break insert statement so it has no RETURNING clause.
+        recorder = PostgresApplicationRecorder(
+            datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
+        )
+        recorder.insert_events_statement = SQL(
+            "INSERT INTO {0}.{1} VALUES (%s, %s, %s, %s)"
+        ).format(
+            Identifier(recorder.datastore.schema),
+            Identifier(recorder.events_table_name),
+        )
+        recorder.create_table()
         with self.assertRaises(ProgrammingError):
-            recorder = PostgresApplicationRecorder(
-                datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
-            )
-            original = recorder.insert_events_statement
-            without_returning = original.as_string().partition("RETURNING")[0]
-            recorder.insert_events_statement = SQL(
-                without_returning  # pyright: ignore
-            ).format()
-            recorder.create_table()
             recorder.insert_events(make_events())
 
 

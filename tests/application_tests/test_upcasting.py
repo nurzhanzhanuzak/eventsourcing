@@ -446,7 +446,7 @@ class TestUpcasting(TestCase):
             d: Decimal
 
             def apply(self, aggregate: Aggregate) -> None:
-                cast(TestUpcasting.UpcastFixtureV4, aggregate).d = self.d
+                cast("TestUpcasting.UpcastFixtureV4", aggregate).d = self.d
 
         class_version = 4
 

@@ -34,7 +34,7 @@ class TestDogSchool(TestCase):
         assert len(notifications) == 3
 
         # Take snapshot.
-        school.take_snapshot(dog_id, version=3, projector_func=Dog.projector)
+        school.take_snapshot(dog_id, version=3, projector_func=Dog.project_events)
         dog = school.get_dog(dog_id)
         assert dog["name"] == "Fido"
         assert dog["tricks"] == ("roll over", "play dead")

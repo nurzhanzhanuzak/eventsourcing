@@ -16,9 +16,7 @@ if TYPE_CHECKING:
 
 
 class TopicError(Exception):
-    """
-    Raised when topic doesn't resolve.
-    """
+    """Raised when topic doesn't resolve."""
 
 
 SupportsTopic = Union[type, Callable[..., Any], ModuleType]
@@ -29,8 +27,7 @@ _topic_cache_lock = Lock()
 
 
 def get_topic(obj: SupportsTopic, /) -> str:
-    """
-    Returns a "topic string" that locates the given class
+    """Returns a "topic string" that locates the given class
     in its module. The string is formed by joining the
     module name and the class qualname separated by the
     colon character.
@@ -45,8 +42,7 @@ def get_topic(obj: SupportsTopic, /) -> str:
 
 
 def resolve_topic(topic: str) -> Any:
-    """
-    Returns an object located by the given topic.
+    """Returns an object located by the given topic.
 
     This function can be (is) used to locate domain
     event classes and aggregate classes from the
@@ -101,8 +97,7 @@ def resolve_topic(topic: str) -> Any:
 
 
 def register_topic(topic: str, obj: SupportsTopic) -> None:
-    """
-    Registers a topic with an object, so the object will be
+    """Registers a topic with an object, so the object will be
     returned whenever the topic is resolved.
 
     This function can be used to cache the topic of a class, so
@@ -134,8 +129,7 @@ def retry(
     wait: float = 0,
     stall: float = 0,
 ) -> Callable[[Any], Any]:
-    """
-    Retry decorator.
+    """Retry decorator.
 
     :param exc: List of exceptions that will cause the call to be retried if raised.
     :param max_attempts: Maximum number of attempts to try.
@@ -145,9 +139,9 @@ def retry(
     """
 
     @no_type_check
-    def _retry(func):
+    def _retry(func: Callable) -> Callable:
         @wraps(func)
-        def retry_decorator(*args, **kwargs):
+        def retry_decorator(*args: Any, **kwargs: Any) -> Any:
             if stall:
                 sleep(stall)
             attempts = 0
@@ -236,16 +230,16 @@ class Environment(dict[str, str]):
         self.name = name
 
     @overload  # type: ignore[override]
-    def get(self, __key: str) -> str | None: ...  # pragma: no cover
+    def get(self, __key: str, /) -> str | None: ...  # pragma: no cover
 
     @overload
-    def get(self, __key: str, __default: str) -> str: ...  # pragma: no cover
+    def get(self, __key: str, /, __default: str) -> str: ...  # pragma: no cover
 
     @overload
-    def get(self, __key: str, __default: T) -> str | T: ...  # pragma: no cover
+    def get(self, __key: str, /, __default: T) -> str | T: ...  # pragma: no cover
 
     def get(  # pyright: ignore [reportIncompatibleMethodOverride]
-        self, __key: str, __default: str | T | None = None
+        self, __key: str, /, __default: str | T | None = None
     ) -> str | T | None:
         for _key in self.create_keys(__key):
             value = super().get(_key, None)

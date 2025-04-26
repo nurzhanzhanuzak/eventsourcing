@@ -32,11 +32,10 @@ class Page(Aggregate):
         user_id: UUID | None = field(default_factory=user_id_cvar.get, init=False)
 
         def apply(self, aggregate: Aggregate) -> None:
-            """
-            Sets the aggregate's `modified_by` attribute to the
+            """Sets the aggregate's `modified_by` attribute to the
             value of the event's `user_id` attribute.
             """
-            cast(Page, aggregate).modified_by = self.user_id
+            cast("Page", aggregate).modified_by = self.user_id
 
     @event("SlugUpdated")
     def update_slug(self, slug: str) -> None:

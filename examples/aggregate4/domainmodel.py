@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
 from uuid import uuid4
 
 from eventsourcing.dispatch import singledispatchmethod
@@ -30,18 +29,18 @@ class Dog(Aggregate):
             timestamp=datetime_now_with_tzinfo(),
             name=name,
         )
-        dog = cast(Dog, cls.projector(None, [event]))
-        dog._pending_events.append(event)
+        dog = cls.project_events(None, [event])
+        dog.append_event(event)
         return dog
 
     def add_trick(self, trick: str) -> None:
         self.trigger_event(self.TrickAdded, trick=trick)
 
     @singledispatchmethod
-    def apply(self, event: DomainEvent) -> None:
-        super().apply(event)
+    def apply_event(self, event: DomainEvent) -> None:
+        super().apply_event(event)
 
-    @apply.register(Registered)
+    @apply_event.register(Registered)
     def _(self, event: Registered) -> None:
         self.id = event.originator_id
         self.version = event.originator_version
@@ -50,7 +49,7 @@ class Dog(Aggregate):
         self.name = event.name
         self.tricks = []
 
-    @apply.register(TrickAdded)
+    @apply_event.register(TrickAdded)
     def _(self, event: TrickAdded) -> None:
         self.tricks.append(event.trick)
         self.version = event.originator_version

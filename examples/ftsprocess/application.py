@@ -38,7 +38,7 @@ class FtsProcess(ProcessApplication):
                 ]
             )
         elif isinstance(domain_event, Page.BodyUpdated):
-            recorder = cast(FtsRecorder, self.recorder)
+            recorder = cast("FtsRecorder", self.recorder)
             page_id = domain_event.originator_id
             page = recorder.select_page(page_id)
             page_body = apply_diff(page.body, domain_event.diff)
@@ -54,5 +54,5 @@ class FtsProcess(ProcessApplication):
             )
 
     def search(self, query: str) -> list[UUID]:
-        recorder = cast(FtsRecorder, self.recorder)
+        recorder = cast("FtsRecorder", self.recorder)
         return recorder.search_pages(query)

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import os
 import traceback
 import zlib
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Event, Thread, get_ident
 from time import sleep
@@ -18,7 +17,7 @@ from typing_extensions import TypeVar
 
 from eventsourcing.cipher import AESCipher
 from eventsourcing.compressor import ZlibCompressor
-from eventsourcing.domain import DomainEvent
+from eventsourcing.domain import DomainEvent, datetime_now_with_tzinfo
 from eventsourcing.persistence import (
     AggregateRecorder,
     ApplicationRecorder,
@@ -476,7 +475,7 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
                 )
                 for i in range(num_events_per_write)
             ]
-            started = datetime.now()
+            started = datetime_now_with_tzinfo()
             # print(f"Thread {thread_num} write beginning #{count + 1}")
             try:
                 recorder.insert_events(stored_events)
@@ -484,16 +483,15 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
             except Exception as e:  # pragma: no cover
                 if errors:
                     return
-                ended = datetime.now()
+                ended = datetime_now_with_tzinfo()
                 duration = (ended - started).total_seconds()
                 print(f"Error after starting {duration}", e)
                 errors.append(e)
             else:
-                ended = datetime.now()
+                ended = datetime_now_with_tzinfo()
                 duration = (ended - started).total_seconds()
                 counts[thread_id] += 1
-                if duration > durations[thread_id]:
-                    durations[thread_id] = duration
+                durations[thread_id] = max(durations[thread_id], duration)
                 sleep(writer_sleep)
 
         stop_reading = Event()
@@ -584,7 +582,7 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
 
         # Run.
         with ThreadPoolExecutor(max_workers=num_workers) as executor:
-            started = datetime.now()
+            started = datetime_now_with_tzinfo()
             futures = []
             for _ in range(num_jobs):
                 future = executor.submit(insert_events)
@@ -593,7 +591,7 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
                 future.result()
 
         self.assertFalse(errors_happened.is_set(), "There were errors (see above)")
-        ended = datetime.now()
+        ended = datetime_now_with_tzinfo()
         rate = num_jobs * num_events_per_job / (ended - started).total_seconds()
         print(f"Rate: {rate:.0f} inserts per second")
 
@@ -1099,7 +1097,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactor
 
     def setUp(self) -> None:
         self.factory = cast(
-            _TInfrastrutureFactory, InfrastructureFactory.construct(self.env)
+            "_TInfrastrutureFactory", InfrastructureFactory.construct(self.env)
         )
         self.assertIsInstance(self.factory, self.expected_factory_class())
         self.transcoder = JSONTranscoder()
@@ -1279,14 +1277,17 @@ class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactor
 
 def tmpfile_uris() -> Iterator[str]:
     tmp_files = []
-    ram_disk_path = "/Volumes/RAM DISK/"
-    prefix = None
-    if os.path.exists(ram_disk_path):
-        prefix = ram_disk_path
+    ram_disk_path = Path("/Volumes/RAM DISK/")
+    prefix: str | None = None
+    if ram_disk_path.exists():
+        prefix = str(ram_disk_path)
     while True:
-        tmp_file = NamedTemporaryFile(prefix=prefix, suffix="_eventsourcing_test.db")
-        tmp_files.append(tmp_file)
-        yield "file:" + tmp_file.name
+        with NamedTemporaryFile(
+            prefix=prefix,
+            suffix="_eventsourcing_test.db",
+        ) as tmp_file:
+            tmp_files.append(tmp_file)
+            yield "file:" + tmp_file.name
 
 
 class CustomType1:
@@ -1329,6 +1330,8 @@ class MyList(list[_T]):
 
 
 class MyStr(str):
+    __slots__ = ()
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({super().__repr__()})"
 

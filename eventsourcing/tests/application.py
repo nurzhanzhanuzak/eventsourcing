@@ -5,19 +5,19 @@ import sys
 import traceback
 import warnings
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from decimal import Decimal
 from threading import Event, get_ident
 from time import sleep
 from timeit import timeit
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 from unittest import TestCase
 from uuid import UUID, uuid4
 
 from eventsourcing.application import AggregateNotFoundError, Application
-from eventsourcing.domain import Aggregate
+from eventsourcing.domain import Aggregate, datetime_now_with_tzinfo
 from eventsourcing.persistence import (
     InfrastructureFactory,
+    InfrastructureFactoryError,
     IntegrityError,
     JSONTranscoder,
     Transcoding,
@@ -25,7 +25,10 @@ from eventsourcing.persistence import (
 from eventsourcing.tests.domain import BankAccount, EmailAddress
 from eventsourcing.utils import EnvType, get_topic
 
-TIMEIT_FACTOR = int(os.environ.get("TEST_TIMEIT_FACTOR", default=10))
+if TYPE_CHECKING:
+    from datetime import datetime
+
+TIMEIT_FACTOR = int(os.environ.get("TEST_TIMEIT_FACTOR", default="10"))
 
 
 class ExampleApplicationTestCase(TestCase):
@@ -163,7 +166,7 @@ class ExampleApplicationTestCase(TestCase):
     def print_time(self, test_label: str, duration: float) -> None:
         cls = type(self)
         if cls not in self.started_ats:
-            self.started_ats[cls] = datetime.now()
+            self.started_ats[cls] = datetime_now_with_tzinfo()
             print(f"{cls.__name__: <29} timeit number: {cls.timeit_number}")
             self.counts[cls] = 1
         else:
@@ -178,7 +181,7 @@ class ExampleApplicationTestCase(TestCase):
         )
 
         if self.counts[cls] == 3:
-            cls_duration = datetime.now() - cls.started_ats[cls]
+            cls_duration = datetime_now_with_tzinfo() - cls.started_ats[cls]
             print(f"{cls.__name__: <29} timeit duration: {cls_duration}")
             sys.stdout.flush()
 
@@ -263,7 +266,7 @@ class ApplicationTestCase(TestCase):
         self.assertIsInstance(app.factory, InfrastructureFactory)
 
         # Check exceptions.
-        with self.assertRaises(AssertionError) as cm:
+        with self.assertRaises(InfrastructureFactoryError) as cm:
             Application(env={"PERSISTENCE_MODULE": "eventsourcing.application"})
         self.assertEqual(
             cm.exception.args[0],
@@ -271,14 +274,15 @@ class ApplicationTestCase(TestCase):
             "'eventsourcing.application', expected 1.",
         )
 
-        with self.assertRaises(AssertionError) as cm:
+        with self.assertRaises(InfrastructureFactoryError) as cm:
             Application(
                 env={"PERSISTENCE_MODULE": "eventsourcing.application:Application"}
             )
         self.assertEqual(
+            "Topic 'eventsourcing.application:Application' didn't "
+            "resolve to a persistence module or infrastructure factory class: "
+            "<class 'eventsourcing.application.Application'>",
             cm.exception.args[0],
-            "Not an infrastructure factory class or module: "
-            "eventsourcing.application:Application",
         )
 
     def test_save_returns_recording_event(self) -> None:

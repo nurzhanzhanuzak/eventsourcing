@@ -216,7 +216,7 @@ class TestRepository(TestCase):
             initial: Aggregate | None, domain_events: Iterable[CanMutateAggregate]
         ) -> BankAccount:
             return cast(
-                BankAccount, reduce(lambda a, e: e.mutate(a), domain_events, initial)
+                "BankAccount", reduce(lambda a, e: e.mutate(a), domain_events, initial)
             )
 
         transcoder = JSONTranscoder()

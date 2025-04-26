@@ -12,6 +12,8 @@ if TYPE_CHECKING:
     from datetime import datetime
     from uuid import UUID
 
+    from typing_extensions import Self
+
 TAggregate = TypeVar("TAggregate", bound="Aggregate")
 
 
@@ -62,30 +64,37 @@ class Aggregate:
             timestamp=datetime_now_with_tzinfo(),
         )
         new_event = event_class(**kwargs)
-        self.apply(new_event)
-        self._pending_events.append(new_event)
+        self.apply_event(new_event)
+        self.append_event(new_event)
+
+    def append_event(self, *events: DomainEvent) -> None:
+        self._pending_events.extend(events)
 
     def collect_events(self) -> list[DomainEvent]:
         events, self._pending_events = self._pending_events, []
         return events
 
     @singledispatchmethod
-    def apply(self, event: DomainEvent) -> None:
+    def apply_event(self, event: DomainEvent) -> None:
         msg = f"For {type(event).__qualname__}"
         raise NotImplementedError(msg)
 
-    @apply.register(Snapshot)
+    @apply_event.register(Snapshot)
     def _(self, event: Snapshot) -> None:
         self.__dict__.update(event.state)
 
     @classmethod
-    def projector(
-        cls: type[TAggregate],
-        _: TAggregate | None,
+    def project_events(
+        cls,
+        _: Self | None,
         events: Iterable[DomainEvent],
-    ) -> TAggregate | None:
-        aggregate: TAggregate = object.__new__(cls)
-        aggregate._pending_events = []
+    ) -> Self:
+        aggregate: Self = Aggregate.__new__(cls)
         for event in events:
-            aggregate.apply(event)
+            aggregate.apply_event(event)
+        return aggregate
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
+        aggregate = super().__new__(cls, *args, **kwargs)
+        aggregate._pending_events = []
         return aggregate

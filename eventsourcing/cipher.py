@@ -17,8 +17,7 @@ if TYPE_CHECKING:
 
 
 class AESCipher(Cipher):
-    """
-    Cipher strategy that uses AES cipher (in GCM mode)
+    """Cipher strategy that uses AES cipher (in GCM mode)
     from the Python pycryptodome package.
     """
 
@@ -27,8 +26,7 @@ class AESCipher(Cipher):
 
     @staticmethod
     def create_key(num_bytes: int) -> str:
-        """
-        Creates AES cipher key, with length num_bytes.
+        """Creates AES cipher key, with length num_bytes.
 
         :param num_bytes: An int value, either 16, 24, or 32.
 
@@ -47,8 +45,7 @@ class AESCipher(Cipher):
         return os.urandom(num_bytes)
 
     def __init__(self, environment: Environment):
-        """
-        Initialises AES cipher with ``cipher_key``.
+        """Initialises AES cipher with ``cipher_key``.
 
         :param str cipher_key: 16, 24, or 32 bytes encoded as base64
         """
@@ -62,7 +59,6 @@ class AESCipher(Cipher):
 
     def encrypt(self, plaintext: bytes) -> bytes:
         """Return ciphertext for given plaintext."""
-
         # Construct AES-GCM cipher, with 96-bit nonce.
         nonce = AESCipher.random_bytes(12)
         cipher = self.construct_cipher(nonce)
@@ -87,7 +83,6 @@ class AESCipher(Cipher):
 
     def decrypt(self, ciphertext: bytes) -> bytes:
         """Return plaintext for given ciphertext."""
-
         # Split out the nonce, tag, and encrypted data.
         nonce = ciphertext[:12]
         if len(nonce) != 12:

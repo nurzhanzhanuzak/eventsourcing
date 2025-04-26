@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 from typing_extensions import TypeVar
 
-from eventsourcing.application import ProcessingEvent  # noqa: TCH001
+from eventsourcing.application import ProcessingEvent  # noqa: TC001
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import Aggregate, AggregateEvent, DomainEventProtocol, event
 from eventsourcing.persistence import Notification, ProgrammingError, Tracking
@@ -88,7 +88,7 @@ class Result(Aggregate):
 
 class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
     def construct_runner(self, system: System, env: EnvType | None = None) -> TRunner:
-        return cast(TRunner, SingleThreadedRunner(system, env))
+        return cast("TRunner", SingleThreadedRunner(system, env))
 
     def wait_for_runner(self, runner: TRunner) -> None:
         pass
@@ -521,26 +521,26 @@ class TestMultiThreadedRunner(
         # notice of attribute previous_max_notification_id.
         pass
 
+    class DeliberateError(Exception):
+        pass
+
     def wait_for_runner(
         self, runner: MultiThreadedRunner | NewMultiThreadedRunner
     ) -> None:
         sleep(0.3)
-        try:
-            runner.reraise_thread_errors()
-        except Exception as e:
-            raise Exception("Runner errored: " + str(e)) from e
+        runner.reraise_thread_errors()
 
     class BrokenInitialisation(EmailProcess):
         def __init__(self, *_: Any, **__: Any) -> None:
             msg = "Just testing error handling when initialisation is broken"
-            raise ProgrammingError(msg)
+            raise TestMultiThreadedRunner.DeliberateError(msg)
 
     class BrokenProcessing(EmailProcess):
         def process_event(
             self, domain_event: DomainEventProtocol, tracking: Tracking
         ) -> None:
             msg = "Just testing error handling when processing is broken"
-            raise ProgrammingError(msg)
+            raise TestMultiThreadedRunner.DeliberateError(msg)
 
     def test_stops_if_app_initialisation_is_broken(self) -> None:
         system = System(
@@ -552,7 +552,7 @@ class TestMultiThreadedRunner(
             ]
         )
 
-        with self.assertRaises(Exception) as cm:
+        with self.assertRaises(TestMultiThreadedRunner.DeliberateError) as cm:
             self.construct_runner(system)
 
         self.assertEqual(
