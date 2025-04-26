@@ -109,7 +109,7 @@ In-memory view
 
 The ``POPOEventCounters`` class, shown below, implements the abstract interface using Python objects to hold
 the counted number of events in memory. It defines "private" attributes ``_created_event_counter`` and
-``_subsequent_event_counter``. The values of these attributes are Python `int` objects, initialised to be
+``_subsequent_event_counter``. The values of these attributes are Python :class:`int` objects, initialised to be
 zero. The values of these attributes are returned by the query methods, and incremented by the command methods.
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
