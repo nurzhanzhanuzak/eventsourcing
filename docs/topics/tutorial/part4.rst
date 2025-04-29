@@ -2,7 +2,7 @@
 Tutorial - Part 4 - Projections
 ===============================
 
-This part of the tutorial shows how the state of an event-sourced applications can be projected
+This part of the tutorial shows how the state of an event-sourced application can be projected
 into a `materialised view <https://en.wikipedia.org/wiki/Materialized_view>`_ that supports arbitrary queries.
 
 As we saw in :doc:`Part 3 </topics/tutorial/part3>`, we can use the library's
