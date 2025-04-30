@@ -450,8 +450,8 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         num_writers = 10
         num_writes_per_writer = 100
         num_events_per_write = 100
-        reader_sleep = 0.0
-        writer_sleep = 0.0
+        reader_sleep = 0.0001
+        writer_sleep = 0.0001
 
         def insert_events() -> None:
             thread_id = get_ident()
