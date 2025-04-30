@@ -91,14 +91,18 @@ class Projection(ABC, Generic[TTrackingRecorder]):
     """
     topics: tuple[str, ...] = ()
     """
-    Filter events in database when subscribing to an application.
+    Event topics, used to filter events in database when subscribing to an application.
     """
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        if "name" not in cls.__dict__:
+            cls.name = cls.__name__
 
     def __init__(
         self,
         view: TTrackingRecorder,
     ):
-        """Initialises a projection instance."""
+        """Initialises the view property with the given view argument."""
         self._view = view
 
     @property
@@ -137,26 +141,27 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         self._is_interrupted = Event()
         self._has_called_stop = False
 
+        # Construct the application.
         self.app: TApplication = application_class(env)
 
+        # Construct the materialised view using an infrastructure factory.
         self.view = (
             InfrastructureFactory[TTrackingRecorder]
-            .construct(
-                env=self._construct_env(
-                    name=projection_class.name or projection_class.__name__, env=env
-                )
-            )
+            .construct(env=self._construct_env(name=projection_class.name, env=env))
             .tracking_recorder(view_class)
         )
 
-        self.projection = projection_class(
-            view=self.view,
-        )
+        # Construct the projection using the materialised view.
+        self.projection = projection_class(view=self.view)
+
+        # Subscribe to the application.
         self.subscription = ApplicationSubscription(
             app=self.app,
             gt=self.view.max_tracking_id(self.app.name),
             topics=self.projection.topics,
         )
+
+        # Start a thread to stop the subscription when the runner is interrupted.
         self._thread_error: BaseException | None = None
         self._stop_thread = Thread(
             target=self._stop_subscription_when_stopping,
@@ -166,6 +171,8 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
             },
         )
         self._stop_thread.start()
+
+        # Start a thread to iterate over the subscription.
         self._processing_thread = Thread(
             target=self._process_events_loop,
             kwargs={
@@ -215,6 +222,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         is_stopping: Event,
         runner: weakref.ReferenceType[ProjectionRunner[Application, TrackingRecorder]],
     ) -> None:
+        """Iterates over the subscription and calls process_event()."""
         try:
             with subscription:
                 for domain_event, tracking in subscription:

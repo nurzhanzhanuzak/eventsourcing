@@ -230,7 +230,7 @@ class EventCountersProjection(Projection[EventCountersInterface]):
 
     @singledispatchmethod
     def process_event(self, _: DomainEventProtocol, tracking: Tracking) -> None:
-        pass
+        self.view.insert_tracking(tracking)
 
     @process_event.register
     def aggregate_created(self, _: Aggregate.Created, tracking: Tracking) -> None:

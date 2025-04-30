@@ -12,84 +12,76 @@ each of which is positioned in one of many "aggregate sequences" and also in the
 "application sequence".
 
 We can reconstruct an aggregate by selecting events from an aggregate sequence, and we can propagate
-the state of an application by following its application sequence. But we can't query the current
-state of an event-sourced application in an arbitrary way without firstly projecting the application
-state into a "read model" that is designed to support such a query.
+the state of an application by following its application sequence. But we can only query the current
+state of an event-sourced application in other ways by firstly projecting the application state
+into a "read model" that is designed to support such queries.
 
-So that such queries can be performed quickly, it is often useful to project the state of an event-sourced
-application into a "materialised view", a projection of the state of the application that is stored in a database.
-Such materialised views will be prepared and updated by processing the events of the event-sourced application,
-usually by following the application sequence.
+So that such queries can be performed quickly, it is useful to project the state of an event-sourced
+application into a projection that is stored in a database. Such "materialised views" are usually prepared
+and updated by processing the events of the event-sourced application in a separate event-processing component,
+which subscribes to the application sequence so that it can catch-up and then continue as further events
+are recorded.
 
 In the sections below we will explore how the events of event-sourced applications can be processed into
 materialised views that support queries that are not directly supported by event-sourced applications.
 
-Let's begin by firstly considering materialised views, and then return to the processing of events.
+Views
+=====
 
-Materialised views
-==================
+Materialised views are primarily designed to support queries of the state of an event-sourced application that are
+not directly supported by the event-sourced application itself. Therefore, every materialised view will need to have
+at least one query method. Materialised views will also need to be updated when events are processed, therefore each
+materialised view will also need at least one command method.
 
-Materialised views are designed to support queries of the state of an event-sourced application that are not
-directly supported by the event-sourced application itself. Therefore, every materialised view will need to have
-at least one query method.
+In order to ensure a materialised view is a reliable deterministic projection of the state of an event-sourced
+application, it will need to track which events have been processed. We will need it to record the positions of
+events that have been processed uniquely and atomically with the updating of the materialised view, so that effectively
+each event is never successfully processed more than once. We will also need the materialised view to report the position
+of the last event that has been processed, so that event processing can be stopped and resumed correctly. Because of the
+arbitrary nature of queries supported by materialised views, this is the only common aspect shared by all materialised
+views. In this sense, all materialised views are special kinds of :ref:`tracking recorders <Tracking recorder>`.
 
-Materialised views will also need to be updated when events are processed. Therefore, every materialised view will
-also need at least one command method.
-
-Additionally, in order to ensure a materialised view is a reliably deterministic projection of the state of
-an event-sourced application, it will need to track which events have been processed. This will be a common
-aspect of all its command methods. We will need the materialised view to report the position of the last event
-that has been processed, so that event processing can be stopped and resumed correctly. We will also need it
-to track events both uniquely and atomically with the updating of the materialised view, so that effectively each
-event is never successfully processed more than once. Because of the arbitrary nature of queries supported by
-materialised views, this is the only common aspect shared by them all. In this sense, all materialised views are
-special kinds of :ref:`tracking recorders <Tracking recorder>`.
-
-For this reason, the library's abstract base class :class:`~eventsourcing.persistence.TrackingRecorder` can be
-usefully extended, in arbitrary ways, to define an abstract interface for a materialised view. As we will see,
-defining an abstract interface will allow us to define how the events of an event-sourced application are processed,
-independently of any particular concrete implementation.
-
-We can develop concrete materialised views by implementing the abstract interface whilst also extending the
-library's concrete tracking recorder classes (:class:`~eventsourcing.popo.POPOTrackingRecorder`,
-:class:`~eventsourcing.sqlite.SQLiteTrackingRecorder`, :class:`~eventsourcing.postgres.PostgresTrackingRecorder`).
-Using these classes to implement concrete materialised views means command methods which support event
-tracking can be more easily implemented.
+We can define an interface for a materialised view using the libary's abstract :class:`~eventsourcing.persistence.TrackingRecorder`
+class and develop concrete implementations using library's concrete tracking recorder classes,
+:class:`~eventsourcing.popo.POPOTrackingRecorder`, :class:`~eventsourcing.sqlite.SQLiteTrackingRecorder`, and
+:class:`~eventsourcing.postgres.PostgresTrackingRecorder`. The interface will allow us define how the materialised
+view will be queried and how events will be processed independently of any concrete implementation. The concrete
+tracking recorders make it easier to correctly implement command methods that record the positions of events uniquely
+and atomically in a particular database.
 
 To show how this can work, let's create a materialised view for counting events that can record and reveal the number
 of :ref:`"created" events <Created events>` and the number of :ref:`subsequent events <Subsequent events>`
 that have been generated by an event-sourced application.
 
 View test case
---------------
+==============
 
-The ``EventCountersViewTestCase`` expresses requirements for recording and revealing the
-number of "created" events, and the number of subsequent events, generated by an event-sourced application.
+Let's begin by writing a test. The ``EventCountersViewTestCase`` shown below expresses requirements for recording and
+revealing the number events generated by an event-sourced application.
 
-.. literalinclude:: ../../../tests/projection_tests/test_projection.py
-    :pyobject: EventCountersViewTestCase
-
-It has a test method which begins by constructing an "event counters view" object. The view object is expected to be a
+It begins by constructing an "event counters view" object. The view object is expected to be a
 :class:`~eventsourcing.persistence.TrackingRecorder`, and therefore to have a
-:func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method.
+:func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method. This method will be called when
+starting or resuming to process events, so that event-processing can continue from the correct position
+in an application sequence.
 
-The test method calls query methods to get the counted number of "created" events, and to get the counted number of
-subsequent events, according to the current state of the materialised view. The query methods are expected to return
-integers. The values returned by the query methods are expected to be equal to the number of times the corresponding
-command methods were called.
+The test continues by calling query methods to get the counted number of "created" and subsequent events.
+The query methods are expected to return integers. The values returned by the query methods are expected
+to be equal to the number of times the corresponding command methods have been called.
 
-The test method calls command methods on the view object, to increment the counted number of "created" events, and to
-increment the counted number of subsequent events. The command methods are called with unique
-:ref:`tracking objects <Tracking objects>`. The value returned by :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` is expected to reflect
-these tracking objects.
-
-The command methods are expected to raise an :class:`~eventsourcing.persistence.IntegrityError`
+The command methods are called to increment the counted number of events. The command methods are called
+with a unique :ref:`tracking object <Tracking objects>`. The value returned by :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` is expected to reflect which tracking objects
+have been recorded by the command methods. The command methods are expected to raise an :class:`~eventsourcing.persistence.IntegrityError`
 when called more than once with the same tracking object. The counted numbers are expected not to change when an
 :class:`~eventsourcing.persistence.IntegrityError` is raised.
 
 
+.. literalinclude:: ../../../tests/projection_tests/test_projection.py
+    :pyobject: EventCountersViewTestCase
+
+
 View interface
---------------
+==============
 
 Towards satisfying this test, the ``EventCountersInterface`` class, shown below, extends the library's abstract base
 class :class:`~eventsourcing.persistence.TrackingRecorder` by defining abstract command and query methods with the
@@ -100,17 +92,18 @@ expected method names and method signatures.
 
 The query methods ``get_created_event_counter()`` and ``get_subsequent_event_counter()`` return integers and have no arguments.
 
-The command methods ``incr_created_event_counter()`` and ``incr_subsequent_event_counter()`` return ``None``, and have a ``tracking``
-argument expected to be an instance of the library's :class:`~eventsourcing.persistence.Tracking` class.
+The command methods ``incr_created_event_counter()`` and ``incr_subsequent_event_counter()`` have a ``tracking``
+argument expected to be an instance of the library's :class:`~eventsourcing.persistence.Tracking` class and return nothing.
 
 
 In-memory view
---------------
+==============
 
-The ``POPOEventCounters`` class, shown below, implements the abstract interface using Python objects to hold
-the counted number of events in memory. It defines "private" attributes ``_created_event_counter`` and
-``_subsequent_event_counter``. The values of these attributes are Python :class:`int` objects, initialised to be
-zero. The values of these attributes are returned by the query methods, and incremented by the command methods.
+We can implement the interface so that the counted numbers of events are held in memory. The ``POPOEventCounters`` class,
+shown below, implements the abstract interface using Python objects to hold the counted number of events in memory.
+It defines "private" attributes ``_created_event_counter`` and ``_subsequent_event_counter``. The values of these
+attributes are Python :class:`int` objects, initialised to be zero. The values of these attributes are returned by
+the query methods, and incremented by the command methods.
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: POPOEventCounters
@@ -129,12 +122,11 @@ requirements. Running this test shows that it does.
 
 
 PostgreSQL view
----------------
+===============
 
-Similarly, the ``PostgresEventCounters`` class, shown below, implements the abstract interface
-``EventCountersInterface`` using PostgreSQL.
-It defines a database table for event counters, and statements that select and increment the value
-of counters in this table.
+Similarly, we can implement the interface to store the counted numbers of events in PostgreSQL. The ``PostgresEventCounters``
+class, shown below, implements ``EventCountersInterface`` by defining a database table for event counters with SQL
+statements that select and increment event counters.
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: PostgresEventCounters
@@ -165,10 +157,10 @@ view objects is used internally by the library's projection runner class, which 
 part of the tutorial.
 
 
-Event-driven projections
-========================
+Projections
+===========
 
-Let’s now consider how the events of an event-sourced application can be projected into a materialised view.
+Let’s now consider how the events of an event-sourced application can be processed.
 
 The library's generic abstract base class :class:`~eventsourcing.projection.Projection` can be used to define how
 the domain events of an event-sourced application will be processed. It is intended to be subclassed by users.
@@ -176,66 +168,65 @@ the domain events of an event-sourced application will be processed. It is inten
 .. literalinclude:: ../../../eventsourcing/projection.py
     :pyobject: Projection
 
-The :class:`~eventsourcing.projection.Projection` class is a `generic` class because it has one type argument, which is
-expected to be the abstract interface of a materialised view that is also a subclass of
-:class:`~eventsourcing.persistence.TrackingRecorder`. The type argument should be specified by users when defining a subclass of
-:class:`~eventsourcing.projection.Projection`.
+The :class:`~eventsourcing.projection.Projection` class is a `generic` class because it has one type argument, expected
+to be the interface of a materialised view, a subclass of :class:`~eventsourcing.persistence.TrackingRecorder`. The type
+argument should be specified by users when defining a subclass of :class:`~eventsourcing.projection.Projection`, to
+inform IDE code insight, command completion, and static type checking.
 
 The :class:`~eventsourcing.projection.Projection` class has one required constructor argument,
-:func:`view <eventsourcing.projection.Projection.__init__>`. This argument's type is bound
-to the type argument of the class, and so should be a concrete instance of a materialised view.
-This constructor argument will be assigned as an attribute of the constructed projection
-object, and will be available to be used by subclass methods via the :data:`~eventsourcing.projection.Projection.view`
-property, which is also typed with the type argument of the class.
+:func:`view <eventsourcing.projection.Projection.__init__>`, and one property also called
+:data:`~eventsourcing.projection.Projection.view`. The constructor argument is used to initialise the property.
+The annotated type of both is bound to the type argument of :class:`~eventsourcing.projection.Projection`.
+The given value of the constructor argument, and therefore the value of the property, should be a concrete instance
+of a materialised view.
 
 The :class:`~eventsourcing.projection.Projection` class is an `abstract` class because it defines an abstract method
 :func:`~eventsourcing.projection.Projection.process_event` that must be implemented by subclasses. Events will typically
-be processed by calling command methods on the projection's materialised view, accessed via the
-:py:attr:`~eventsourcing.projection.Projection.view` property.
+be processed by calling methods on :data:`~eventsourcing.projection.Projection.view`.
 
-The :py:attr:`~eventsourcing.projection.Projection.name` attribute can be defined on subclasses. It is expected to
-be a Python :class:`str`. It is used by projection runners, when constructing a materialised view object, to select
-prefixed environment variables and in some cases to specify database table names. The value used by the projection
-runner defaults to the class name of the subclass.
+The  :class:`~eventsourcing.projection.Projection` class has a :py:attr:`~eventsourcing.projection.Projection.name`
+attribute, which can be set on subclasses. It is expected to be a Python :class:`str`. It is used by projection
+runners, when constructing a materialised view object, to select prefixed environment variables, and in some cases
+to specify database table names used by the materialised view. The value used by the projection runner defaults to
+the class name of the subclass.
 
-The :py:attr:`~eventsourcing.projection.Projection.topics` attribute can be defined on subclasses. It is expected to
-be a Python :class:`tuple` of :class:`str` objects. Unless empty or undefined, projection runners will use these topics when
-subscribing to an application, so that events can be filtered in the application database by their topic. The
-subscription will then yield only events that have topics mentioned by this attribute. In many cases this will
-improve performance when running a projection, by avoiding the cost of transporting and reconstructing events
-that will be ignored by the projection. In some cases, filtering events by topic in this way will be necessary
-to avoid errors caused by attempting to reconstruct domain event objects that have been recorded in the database
-which either your code or the library code is not capable of reconstructing.
+The  :class:`~eventsourcing.projection.Projection` class has a :py:attr:`~eventsourcing.projection.Projection.topics`
+attribute, which can be set on subclasses. It is expected to be a Python :class:`tuple` of :class:`str` objects,
+that contains domain events :ref:`topics <Topics>`. Unless empty or undefined, projection runners will use these topics
+when subscribing to an application, so that events can be filtered in the application database. The subscription will
+then only yield events that have topics mentioned by this attribute. In many cases this will improve performance when
+running a projection, by avoiding the cost of transporting and reconstructing events that will be ignored by the
+projection. In some cases, filtering events by topic in this way will be necessary to avoid errors caused by attempting
+to reconstruct domain event objects that have been recorded in the database which either your code or the library code
+is not capable of reconstructing.
 
-Counting events
----------------
+Example projection
+==================
 
 For example, the ``EventCountersProjection`` class, shown below, processes events of an event-sourced application by
-calling methods of a concrete instance of ``EventCountersInterface``.
+calling methods of a concrete instance of ``EventCountersInterface``. It inherits the :class:`~eventsourcing.projection.Projection`
+class, setting the type argument as ``EventCountersInterface`` class. It sets the :py:attr:`~eventsourcing.projection.Projection.name`
+attribute as ``'eventcounters'``. It sets the :py:attr:`~eventsourcing.projection.Projection.topics` attribute
+to mention the topics of the domain events processed by this projection.
+
+The ``EventCountersProjection`` class implements the :func:`~eventsourcing.projection.Projection.process_event`
+by calling the ``incr_created_event_counter()`` and ``incr_subsequent_event_counter()`` methods of ``EventCountersInterface``
+available on :data:`~eventsourcing.projection.Projection.view`.
+
+If the given event is an :class:`Aggregate.Created <eventsourcing.domain.Aggregate.Created>` event,
+then ``incr_created_event_counter()`` is called. Alternatively,  ``incr_subsequent_event_counter()`` is called
+if the given event is an :class:`Aggregate.Event <eventsourcing.domain.Aggregate.Event>`. An exception is raised
+if the given event is a ``SpannerThrown`` event, to demonstrate error handling in process runners. Other kinds
+of events can be handled by calling :func:`~eventsourcing.persistence.TrackingRecorder.insert_tracking` so that
+progress along an application sequence can be recorded, for example if large gaps are spanned by an application
+subscription returning checkpoints.
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: EventCountersProjection
 
-The ``EventCountersProjection`` class inherits the :class:`~eventsourcing.projection.Projection`
-class. The type argument of :class:`~eventsourcing.projection.Projection` is specified as the
-``EventCountersInterface`` class, and so ``EventCountersProjection`` expects to be constructed with
-a view object that implements this interface, such as ``POPOEventCounters`` or ``PostgresEventCounters``.
 
-The ``EventCountersProjection`` class defines the :py:attr:`~eventsourcing.projection.Projection.name` attribute
-as ``'eventcounters'``, which is used to name an environment object for the projection. This attribute is used
-by projection runners to select prefixed environment variables and to specify database table names.
-
-The ``EventCountersProjection`` class defines the :py:attr:`~eventsourcing.projection.Projection.topics` attribute
-to mention event topics that will be processed by this projection.
-
-The ``EventCountersProjection`` class implements the :func:`~eventsourcing.projection.Projection.process_event`
-by calling ``incr_created_event_counter()`` if the given event is an :class:`Aggregate.Created <eventsourcing.domain.Aggregate.Created>`
-event, or by calling ``incr_subsequent_event_counter()`` if the given class is an :class:`Aggregate.Event <eventsourcing.domain.Aggregate.Event>`.
-To demonstrate error handling in process runners, it raises an exception if the given event is a ``SpannerThrown`` event.
-
-
-Running the projection
-======================
+Runners
+=======
 
 Let's consider how to run the projection, so events of an event-sourced application can be counted.
 
@@ -277,7 +268,7 @@ to wait until an event has been processed by the projection before calling a que
 
 
 Counting events in memory
--------------------------
+=========================
 
 For example, the ``TestEventCountersProjection`` class, shown below, tests the ``EventCountersProjection``
 projection class with the ``POPOEventCounters`` class.
@@ -307,7 +298,7 @@ method will time out.
 
 
 Counting events in PostgreSQL
------------------------------
+=============================
 
 The ``TestEventCountersProjectionWithPostgres`` class extends ``TestEventCountersProjection`` and runs
 ``EventCountersProjection`` with the ``PostgresEventCounters`` class.
@@ -327,8 +318,6 @@ databases. But in this example they are configured more simply to use different 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: TestEventCountersProjectionWithPostgres
 
-See example :doc:`/topics/examples/fts-projection` for a more substantial example.
-
 
 Exercises
 =========
@@ -341,7 +330,6 @@ Exercises
 Next steps
 ==========
 
-* To continue this tutorial, please read :doc:`Part 5 </topics/tutorial/part5>`.
-* For more information about event-driven projections, please read
-  :doc:`the projection module documentation </topics/projection>`.
+* Read the :doc:`the projection module documentation </topics/projection>`.
 * See also the :ref:`Example projections`.
+* To continue this tutorial, please read :doc:`Part 5 </topics/tutorial/part5>`.
