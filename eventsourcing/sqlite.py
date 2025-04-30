@@ -472,6 +472,7 @@ class SQLiteApplicationRecorder(
     def subscribe(
         self, gt: int | None = None, topics: Sequence[str] = ()
     ) -> Subscription[ApplicationRecorder]:
+        """This method is not implemented on this class."""
         msg = f"The {type(self).__qualname__} recorder does not support subscriptions"
         raise NotImplementedError(msg)
 

@@ -64,16 +64,22 @@ class EventCountersViewTestCase(TestCase):
 
         # Increment the "created" event counter.
         view.incr_created_event_counter(Tracking("upstream", 1))
+
+        # Check the counted number of events.
         self.assertEqual(view.get_created_event_counter(), 1)
         self.assertEqual(view.get_subsequent_event_counter(), 0)
 
         # Increment the subsequent event counter.
         view.incr_subsequent_event_counter(Tracking("upstream", 2))
+
+        # Check the counted number of events.
         self.assertEqual(view.get_created_event_counter(), 1)
         self.assertEqual(view.get_subsequent_event_counter(), 1)
 
         # Increment the subsequent event counter again.
         view.incr_subsequent_event_counter(Tracking("upstream", 3))
+
+        # Check the counted number of events.
         self.assertEqual(view.get_created_event_counter(), 1)
         self.assertEqual(view.get_subsequent_event_counter(), 2)
 
@@ -83,11 +89,24 @@ class EventCountersViewTestCase(TestCase):
         # Check the tracking objects are recorded uniquely and atomically.
         with self.assertRaises(IntegrityError):
             view.incr_created_event_counter(Tracking("upstream", 3))
+
+        # Check the counted number of events.
         self.assertEqual(view.get_created_event_counter(), 1)
 
         with self.assertRaises(IntegrityError):
             view.incr_subsequent_event_counter(Tracking("upstream", 3))
+
+        # Check the counted number of events.
         self.assertEqual(view.get_subsequent_event_counter(), 2)
+
+        # Check the wait() method returns normally when
+        # we wait for a position that has been recorded.
+        view.wait("upstream", 3)
+
+        # Check the wait() method raises a TimeoutError when
+        # we wait for a postion that has not been recorded.
+        with self.assertRaises(TimeoutError):
+            view.wait("upstream", 4, timeout=0.5)
 
 
 class TestPOPOEventCounters(EventCountersViewTestCase):
@@ -162,23 +181,32 @@ class PostgresEventCounters(PostgresTrackingRecorder, EventCountersInterface):
         self.check_table_name_length(self.counters_table_name)
         self.create_table_statements.append(
             SQL(
-                "CREATE TABLE IF NOT EXISTS {0} ("
+                "CREATE TABLE IF NOT EXISTS {0}.{1} ("
                 "counter_name text, "
                 "counter bigint, "
                 "PRIMARY KEY "
                 "(counter_name))"
-            ).format(Identifier(self.counters_table_name))
+            ).format(
+                Identifier(self.datastore.schema),
+                Identifier(self.counters_table_name),
+            )
         )
 
         self.select_counter_statement = SQL(
-            "SELECT counter FROM {0} WHERE counter_name=%s"
-        ).format(Identifier(self.counters_table_name))
+            "SELECT counter FROM {0}.{1} WHERE counter_name=%s"
+        ).format(
+            Identifier(self.datastore.schema),
+            Identifier(self.counters_table_name),
+        )
 
         self.incr_counter_statement = SQL(
-            "INSERT INTO {0} VALUES (%s, 1) "
+            "INSERT INTO {0}.{1} VALUES (%s, 1) "
             "ON CONFLICT (counter_name) DO UPDATE "
-            "SET counter = {0}.counter + 1"
-        ).format(Identifier(self.counters_table_name))
+            "SET counter = {0}.{1}.counter + 1"
+        ).format(
+            Identifier(self.datastore.schema),
+            Identifier(self.counters_table_name),
+        )
 
     def get_created_event_counter(self) -> int:
         return self._select_counter(self._created_event_counter_name)
@@ -273,7 +301,6 @@ class TestEventCountersProjection(TestCase, ABC):
             read_model.wait(
                 application_name=write_model.name,
                 notification_id=recordings[-1].notification.id,
-                timeout=5,
             )
 
             # Query the read model.
@@ -290,7 +317,6 @@ class TestEventCountersProjection(TestCase, ABC):
             read_model.wait(
                 application_name=write_model.name,
                 notification_id=recordings[-1].notification.id,
-                timeout=5,
             )
 
             # Query the read model.
@@ -315,14 +341,13 @@ class TestEventCountersProjection(TestCase, ABC):
 
             # Projection runner terminates with projection error.
             with self.assertRaises(SpannerThrownError):
-                runner.run_forever(timeout=5)
+                runner.run_forever()
 
             # Wait times out (event has not been processed).
             with self.assertRaises(TimeoutError):
                 read_model.wait(
                     application_name=write_model.name,
                     notification_id=recordings[-1].notification.id,
-                    timeout=1,
                 )
 
 
@@ -376,7 +401,6 @@ class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
             read_model.wait(
                 application_name=write_model.name,
                 notification_id=recordings[-1].notification.id,
-                timeout=5,
             )
 
             # Query the read model.
@@ -393,7 +417,6 @@ class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
             read_model.wait(
                 application_name=write_model.name,
                 notification_id=recordings[-1].notification.id,
-                timeout=5,
             )
 
             # Query the read model.
@@ -421,14 +444,13 @@ class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
 
             # Still terminates with projection error.
             with self.assertRaises(SpannerThrownError):
-                runner.run_forever(timeout=5)
+                runner.run_forever()
 
             # Wait times out (event has not been processed).
             with self.assertRaises(TimeoutError):
                 read_model.wait(
                     application_name=write_model.name,
                     notification_id=write_model.recorder.max_notification_id(),
-                    timeout=1,
                 )
 
     def setUp(self) -> None:

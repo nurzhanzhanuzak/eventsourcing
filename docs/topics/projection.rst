@@ -28,34 +28,53 @@ Application subscriptions
 This module provides an :class:`~eventsourcing.projection.ApplicationSubscription` class, which can
 be used to "subscribe" to the domain events of an application.
 
-Application subscriptions are conveniently used by event-processing components that project the state of
-an event-sourced application into a materialised view, because they both subscribe to an application
-sequence using the application's recorder and convert its stored events into domain event objects
-by using its mapper.
+Application subscription objects are iterators that return domain events from an application sequence.
+Each domain event is accompanied by a tracking object that identifies the position of the
+domain event in the application sequence. Iterating over an application subscription will block when
+all recorded domain events have been returned, and then continue when new events are recorded. Application
+subscriptions are conveniently used by event-processing components that project the state of an event-sourced
+application into a materialised view, because they continue running, because they return subsequently recorded events,
+they because they subscribe to an application sequence using the application's recorder, which subscribes to an
+event-sourced application's database rather than an application object, and because they convert the stored events
+returned by the application recorder into domain event objects by using the application's mapper. Encapsulating
+all of these concerns provides a convenient way to follow the domain events of an application sequence.
 
-Application subscription objects are iterators that yield all domain events recorded
-in an application sequence. Iterating over an application subscription will block when
-all recorded domain events have been yielded, and then continue when new events are recorded.
+The :class:`~eventsourcing.projection.ApplicationSubscription` class has three constructor arguments,
+:data:`app <eventsourcing.projection.ApplicationSubscription.__init__>`,
+:data:`gt <eventsourcing.projection.ApplicationSubscription.__init__>`, and
+:data:`topics <eventsourcing.projection.ApplicationSubscription.__init__>`.
 
-The :class:`~eventsourcing.projection.ApplicationSubscription` class has three constructor arguments.
-The constructor argument `app` is required, and is expected to be an event-sourced application object.
-The constructor argument `gt` is optional, and if given is expected to be either a Python `int`
-that indicates a position in the application's sequence (a notification ID) or `None`. The constructor
-argument `topics` is optional, and if given is expected to be a `tuple` of `str` objects that are the
-topics of domain events to be returned by the application subscription.
+The constructor argument :data:`app <eventsourcing.projection.ApplicationSubscription.__init__>` is required,
+and is expected to be an event-sourced application object.
 
-The application subscription will yield all domain events in the application sequence, except those which have notification
-IDs less than or equal to the position given by `gt`, and except those which do not have topics in the sequence given
-by `topics` (if any are given). The selection of events by notification ID and the filtering of events by topic will
+The constructor argument :data:`gt <eventsourcing.projection.ApplicationSubscription.__init__>` is optional,
+and if given is expected to be either a Python :class:`int` that indicates a position in the application's sequence
+(a notification ID) or ``None``. This matches the return type of the :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id`
+method of tracking recorders. The intention here is that the :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id`
+method of a downstream event-processing component's tracking recorder (or equivalent) can be called and the value used
+to start a subscription to an upstream event-sourced application from the correct position.
+
+The constructor argument :data:`topics <eventsourcing.projection.ApplicationSubscription.__init__>` is optional,
+and if given is expected to be a Python :class:`tuple` of :class:`str` objects that are the :ref:`topics <Topics>`
+of domain events to be returned by the application subscription. The purpose of this argument is to filter events
+within the event-sourced application's database, avoiding the cost of transporting and reconstructing events that
+will just be ignored by an event-processing component. If a non-empty sequence of topics is provided, only events
+that have topics mentioned in this collection will be returned by the subscription. An empty sequence of topics,
+which is the default value, will mean events will not be filtered by topic.
+
+An application subscription will return all domain events in the application sequence, except those which have notification
+IDs less than or equal to the position given by :data:`gt <eventsourcing.projection.ApplicationSubscription.__init__>`,
+and except those which do not have topics in the sequence given by :data:`topics <eventsourcing.projection.ApplicationSubscription.__init__>`
+if any are given. The selection of events by notification ID and the filtering of events by topic will
 usually be done in the application's database server.
 
 Application subscription objects usually open a database session, and either listen to the database for
 notifications and then select new event records, or otherwise directly stream records from a database. For
 this reason, application susbscription objects support the Python context manager protocol, so that database
-connection resources can be freed in a controlled way when the subscription is stopped or exits.
+connection resources can be freed in a controlled and convenient way when the subscription is stopped or exits.
 
-Each yielded domain event is accompanied by a tracking object that identifies the position of the
-domain event in the application sequence.
+Alternatively, application subscription objects have a :func:`~eventsourcing.projection.ApplicationSubscription.stop`
+method which can be used to stop the subscription to the application recorder in a controlled way.
 
 .. code-block:: python
 
@@ -76,14 +95,13 @@ domain event in the application sequence.
     with ApplicationSubscription(app, gt=max_tracking_id, topics=()) as subscription:
         for domain_event, tracking in subscription:
             # Process the event and record new state with tracking information.
-            break  # ...so we can continue with the examples
+            subscription.stop()  # ...so we can continue with the examples
 
-The tracking objects yielded by the application subscription can be recorded by an event-processing component
-atomically with new state that results from processing the domain event. If an event-processing component is using
-a :ref:`tracking recorder <Tracking recorder>` to record new state atomically with tracking objects,
-subscriptions can be started from the notification ID returned from the tracking recorder's
-:func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method.
 
+Please note, the :class:`~eventsourcing.popo.POPOApplicationRecorder` and
+:class:`~eventsourcing.postgres.PostgresApplicationRecorder` classes implement the
+required :func:`~eventsourcing.persistence.ApplicationRecorder.subscribe`
+method, but the :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder` class does not.
 
 .. _Projection:
 
@@ -192,7 +210,7 @@ a subscription to the application, from the position indicated by the tracking r
 :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` method. In a separate thread, the
 projection runner will iterate over the application subscription, calling the projection's
 :func:`~eventsourcing.projection.Projection.process_event` method for each domain event
-and tracking object yielded by the application subscription.
+and tracking object returned by the application subscription.
 
 Projection runner objects support the Python context manager protocol, so that database resourced used by
 the application subscription and the materialised view can be freed in a controlled way when the projection
@@ -235,6 +253,17 @@ signal after 1s.
         # Run until interrupted.
         runner.run_forever()
 
+
+The intention of a projection runner is to operate as a separate event-processing component,
+with potentially many instances of an upstream event-processing application, and many instances
+of a downstream materialised view, operating in different operating system processes. A user interface
+may transition from sending a command that results in new events being written to the "write model"
+over to presenting the results of querying the "read model". Since the "read model" is eventually-consistent,
+and so may not immediately have been updated by processing the new events, running the risk that the view
+presented to a user will appear to be stale by not reflecting their recent work, the notification IDs
+returned from calls to the event-sourced application's :func:`~eventsourcing.application.Application.save`
+method can be used by the user interface to :func:`~eventsourcing.persistence.TrackingRecorder.wait` until
+the "read model" has been updated.
 
 See :doc:`Tutorial - Part 4 </topics/tutorial/part4>` for more guidance on using this module.
 

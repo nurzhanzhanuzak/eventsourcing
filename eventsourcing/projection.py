@@ -43,7 +43,7 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
         topics: Sequence[str] = (),
     ):
         """
-        Starts subscription to application's stored events using application's recorder.
+        Starts a subscription to application's recorder.
         """
         self.name = app.name
         self.recorder = app.recorder
@@ -51,7 +51,7 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
         self.subscription = self.recorder.subscribe(gt=gt, topics=topics)
 
     def stop(self) -> None:
-        """Stops the stored event subscription."""
+        """Stops the subscription to the application's recorder."""
         self.subscription.stop()
 
     def __enter__(self) -> Self:
@@ -67,10 +67,11 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
         return self
 
     def __next__(self) -> tuple[DomainEventProtocol, Tracking]:
-        """Returns the next stored event from the stored event subscription.
-        Constructs a tracking object that identifies the position of
-        the event in the application sequence, and reconstructs a domain
-        event object from the stored event object.
+        """Obtains the next stored event from subscription to the application's
+        recorder. Constructs a tracking object that identifies the position of
+        the event in the application sequence. Reconstructs a domain event object
+        from the stored event object using the application's mapper. Returns a
+        tuple of the domain event object and the tracking object.
         """
         notification = next(self.subscription)
         tracking = Tracking(self.name, notification.id)

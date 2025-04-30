@@ -17,7 +17,7 @@ state of an event-sourced application in other ways by firstly projecting the ap
 into a "read model" that is designed to support such queries.
 
 So that such queries can be performed quickly, it is useful to project the state of an event-sourced
-application into a projection that is stored in a database. Such "materialised views" are usually prepared
+application into a read model that is stored in a database. Such "materialised views" are usually prepared
 and updated by processing the events of the event-sourced application in a separate event-processing component,
 which subscribes to the application sequence so that it can catch-up and then continue as further events
 are recorded.
@@ -73,8 +73,10 @@ The command methods are called to increment the counted number of events. The co
 with a unique :ref:`tracking object <Tracking objects>`. The value returned by :func:`~eventsourcing.persistence.TrackingRecorder.max_tracking_id` is expected to reflect which tracking objects
 have been recorded by the command methods. The command methods are expected to raise an :class:`~eventsourcing.persistence.IntegrityError`
 when called more than once with the same tracking object. The counted numbers are expected not to change when an
-:class:`~eventsourcing.persistence.IntegrityError` is raised.
-
+:class:`~eventsourcing.persistence.IntegrityError` is raised. The view's :func:`~eventsourcing.persistence.TrackingRecorder.wait`
+method is called with a position that has been recorded, expecting the method to return normally without raising
+an exception. The :func:`~eventsourcing.persistence.TrackingRecorder.wait` method is called with a position that
+has not been recorded, expecting that a ``TimeoutError`` will be raised.
 
 .. literalinclude:: ../../../tests/projection_tests/test_projection.py
     :pyobject: EventCountersViewTestCase
