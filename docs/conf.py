@@ -34,12 +34,12 @@ author = 'John Bywater'
 import examples.aggregate7.domainmodel
 import examples.aggregate8.domainmodel
 
-from importlib.metadata import version
+from importlib.metadata import version as get_version
 
-__version__ = version(project)
+__version__ = get_version(project)
 
 # The short X.Y version.
-version = __version__
+version = __version__ 
 # The full version, including alpha/beta/rc tags.
 release = __version__
 
