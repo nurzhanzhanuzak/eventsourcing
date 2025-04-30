@@ -79,7 +79,8 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
 
     def __del__(self) -> None:
         """Stops the stored event subscription."""
-        self.stop()
+        with contextlib.suppress(AttributeError):
+            self.stop()
 
 
 class Projection(ABC, Generic[TTrackingRecorder]):

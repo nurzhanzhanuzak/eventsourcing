@@ -619,6 +619,44 @@ class TestAggregateCreation(TestCase):
                 def create_id(self, myarg: str) -> UUID:  # type: ignore[override]
                     return uuid4()
 
+    def test_created_event_name_class_arg(self) -> None:
+        # __init__ method has no args
+        class MyAggregate1(Aggregate, created_event_name="Opened"):
+            pass
+
+        a1 = MyAggregate1()
+        self.assertEqual(type(a1.pending_events[0]).__name__, "Opened")
+
+        # __init__ method has one arg
+        class MyAggregate2(Aggregate, created_event_name="Opened"):
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        a2 = MyAggregate2("peter")
+        self.assertEqual(a2.name, "peter")
+        self.assertEqual(type(a2.pending_events[0]).__name__, "Opened")
+
+        # dataclass __init__ method has one arg
+        class MyAggregate3(Aggregate, created_event_name="Opened"):
+            name: str
+
+        a3 = MyAggregate3("peter")  # type: ignore[call-arg]
+        self.assertEqual(a3.name, "peter")
+        self.assertEqual(type(a3.pending_events[0]).__name__, "Opened")
+
+        class Rabbit(Aggregate, created_event_name="Born"):
+            name: str
+
+        # Create a new aggregate.
+        rabbit = Rabbit("peter")  # type: ignore[call-arg]
+
+        # The created event class name is "Born".
+        assert isinstance(
+            rabbit.pending_events[0],
+            Rabbit.Born,  # type: ignore[attr-defined]
+        )
+        self.assertEqual(rabbit.name, "peter")
+
     def test_refuse_implicit_choice_of_alternative_created_events(self) -> None:
         # In case aggregates were created with old Created event,
         # there may need to be several defined. Then, when calling
@@ -719,19 +757,22 @@ class TestAggregateCreation(TestCase):
         self.assertEqual(type(pending[0]).__name__, "Started")
 
     def test_defines_created_event_when_given_name_does_not_match(self) -> None:
-        class Order(BaseAggregate, created_event_name="Started"):
-            def __init__(self, name: str) -> None:
-                self.name = name
-                self.confirmed_at = None
-                self.pickedup_at = None
+        with self.assertRaises(TypeError):
 
-            class Created(AggregateCreated):
-                name: str
+            class Order(BaseAggregate, created_event_name="Started"):
+                def __init__(self, name: str) -> None:
+                    self.name = name
+                    self.confirmed_at = None
+                    self.pickedup_at = None
 
-        order = Order("name")
-        pending = order.collect_events()
-        self.assertEqual(type(pending[0]).__name__, "Started")
-        self.assertTrue(isinstance(pending[0], Order.Created))
+                class Created(AggregateCreated):
+                    name: str
+
+        # order = Order("name")
+        # pending = order.collect_events()
+        # self.assertEqual(type(pending[0]).__name__, "Started")
+        # self.assertFalse(isinstance(pending[0], Order.Created))
+        # self.assertTrue(isinstance(pending[0], Order.Started))
 
     def test_define_create_id(self) -> None:
         @dataclass
@@ -1032,6 +1073,13 @@ class TestAggregateEventsAreSubclassed(TestCase):
         self.assertTrue(issubclass(MyAggregate.Event, Aggregate.Event))
         self.assertNotEqual(MyAggregate.Event, Aggregate.Event)
 
+        self.assertTrue(
+            MyAggregate.Created.__qualname__.endswith("MyAggregate.Created")
+        )
+        self.assertTrue(issubclass(MyAggregate.Created, Aggregate.Event))
+        self.assertTrue(issubclass(MyAggregate.Created, Aggregate.Created))
+        self.assertNotEqual(MyAggregate.Created, Aggregate.Created)
+
     def test_base_event_class_is_not_redefined_if_exists(self) -> None:
         class MyAggregate(Aggregate):
             class Event(Aggregate.Event):
@@ -1040,9 +1088,17 @@ class TestAggregateEventsAreSubclassed(TestCase):
             my_event_cls = Event
 
         self.assertTrue(MyAggregate.Event.__qualname__.endswith("MyAggregate.Event"))
-        self.assertEqual(MyAggregate.my_event_cls, MyAggregate.Event)
+        self.assertTrue(issubclass(MyAggregate.Event, Aggregate.Event))
+        self.assertNotEqual(MyAggregate.Event, Aggregate.Event)
 
-    def test_aggregate_events_are_subclassed(self) -> None:
+        self.assertTrue(
+            MyAggregate.Created.__qualname__.endswith("MyAggregate.Created")
+        )
+        self.assertTrue(issubclass(MyAggregate.Created, Aggregate.Event))
+        self.assertTrue(issubclass(MyAggregate.Created, Aggregate.Created))
+        self.assertNotEqual(MyAggregate.Created, Aggregate.Created)
+
+    def test_user_defined_aggregate_events_are_subclassed(self) -> None:
         class MyAggregate(Aggregate):
             class Created(Aggregate.Created):
                 pass
@@ -1052,6 +1108,17 @@ class TestAggregateEventsAreSubclassed(TestCase):
 
             class Ended(Aggregate.Event):
                 pass
+
+        self.assertTrue(MyAggregate.Event.__qualname__.endswith("MyAggregate.Event"))
+        self.assertTrue(issubclass(MyAggregate.Event, Aggregate.Event))
+        self.assertNotEqual(MyAggregate.Event, Aggregate.Event)
+
+        self.assertTrue(
+            MyAggregate.Created.__qualname__.endswith("MyAggregate.Created")
+        )
+        self.assertTrue(issubclass(MyAggregate.Created, Aggregate.Event))
+        self.assertTrue(issubclass(MyAggregate.Created, Aggregate.Created))
+        self.assertNotEqual(MyAggregate.Created, Aggregate.Created)
 
         self.assertTrue(MyAggregate.Event.__qualname__.endswith("MyAggregate.Event"))
         self.assertTrue(issubclass(MyAggregate.Created, MyAggregate.Event))

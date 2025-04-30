@@ -261,6 +261,8 @@ class TestDocs(TestCase):
 
         print(f"{num_code_lines} lines of code in {doc_path}")
 
+        lines[0] = "from __future__ import annotations"
+
         source = "\n".join(lines) + "\n"
 
         # Write the code into a temp file.

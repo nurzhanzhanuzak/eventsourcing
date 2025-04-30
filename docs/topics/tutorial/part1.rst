@@ -107,6 +107,13 @@ objects are used to mutate aggregate objects.
 
 The changes are highlighted below.
 
+..
+    #include-when-testing
+..
+    from eventsourcing.utils import clear_topic_cache
+    clear_topic_cache()
+    del Dog
+
 .. code-block:: python
     :emphasize-lines: 1,2,7
 

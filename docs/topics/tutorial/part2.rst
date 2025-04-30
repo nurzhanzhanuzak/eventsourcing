@@ -113,8 +113,9 @@ The changes are highlighted below.
 ..
     #include-when-testing
 ..
-    import eventsourcing.utils
-    eventsourcing.utils._topic_cache.clear()
+    from eventsourcing.utils import clear_topic_cache
+    clear_topic_cache()
+    del Dog
 
 .. code-block:: python
   :emphasize-lines: 2
@@ -145,6 +146,12 @@ event is collected from the aggregate instance.
 Let's adjust the ``__init__()`` method to accept a ``name``
 argument, and to initialise a ``name`` attribute with the
 given value of the argument. The changes are highlighted below.
+
+..
+    #include-when-testing
+..
+    clear_topic_cache()
+    del Dog
 
 .. code-block:: python
   :emphasize-lines: 3-4
@@ -273,6 +280,12 @@ method body to change the state of the aggregate. The name of the event class
 is specified to be ``'TrickAdded'``. We also need to adjust the ``__init__()``
 method, to initialise a ``tricks`` attribute with an empty list. The changes are
 highlighted below.
+
+..
+    #include-when-testing
+..
+    clear_topic_cache()
+    del Dog
 
 .. code-block:: python
     :emphasize-lines: 5,7-9
@@ -406,6 +419,12 @@ attribute which matches the ``trick`` argument of the ``add_trick()`` method.
 
 The event class definitions are interpreted as `Python data classes <https://docs.python.org/3/library/dataclasses.html>`_.
 
+..
+    #include-when-testing
+..
+    clear_topic_cache()
+    del Dog
+
 .. code-block:: python
     :emphasize-lines: 2,3,5,10,11,13
 
@@ -434,12 +453,6 @@ The important things to remember are:
 * the event class attributes must match the decorated method arguments.
 
 We can use the aggregate class in the same way.
-
-..
-    #include-when-testing
-..
-    import eventsourcing.utils
-    eventsourcing.utils._topic_cache.clear()
 
 .. code-block:: python
 
@@ -483,6 +496,12 @@ method.
 
 The example below shows a ``Dog`` aggregate class with an undecorated "public"
 command method ``add_trick()`` that calls a decorated "private" method ``_add_trick()``.
+
+..
+    #include-when-testing
+..
+    clear_topic_cache()
+    del Dog
 
 .. code-block:: python
 

@@ -943,12 +943,20 @@ class MetaAggregate(EventsourcingType, Generic[TAggregate], type):
         }
 
         # Create the event class object.
-        return cast("type[CanMutateAggregate]", type(name, bases, event_cls_dict))
+        _new_class = type(name, bases, event_cls_dict)
+        return cast("type[CanMutateAggregate]", _new_class)
 
     def __call__(
         cls: MetaAggregate[TAggregate], *args: Any, **kwargs: Any
     ) -> TAggregate:
+        if cls is BaseAggregate:
+            msg = "BaseAggregate class cannot be instantiated directly"
+            raise TypeError(msg)
         created_event_classes = _created_event_classes[cls]
+        # Here, unlike when calling _create(), we don't have a given event class,
+        # so we need to check that there is one "created" event class to use here.
+        # We don't check this in __init_subclass__ to allow for alternatives that
+        # can be selected by developers by calling _create(event_class=...).
         if len(created_event_classes) > 1:
             msg = (
                 f"{cls.__qualname__} can't decide which of many "
@@ -975,9 +983,8 @@ class MetaAggregate(EventsourcingType, Generic[TAggregate], type):
         event_class: type[CanInitAggregate],
         **kwargs: Any,
     ) -> TAggregate:
+        # Just define method signature for the __call__() method.
         raise NotImplementedError  # pragma: no cover
-
-    _created_event_class: type[CanInitAggregate]
 
 
 class BaseAggregate(metaclass=MetaAggregate):
@@ -1141,13 +1148,22 @@ class BaseAggregate(metaclass=MetaAggregate):
         return f"{type(self).__name__}({', '.join(attrs)})"
 
     def __init_subclass__(
-        cls: type[BaseAggregate], *, created_event_name: str | None = None
+        cls: type[BaseAggregate], *, created_event_name: str = ""
     ) -> None:
         """
         Initialises aggregate subclass by defining __init__ method and event classes.
         """
         super().__init_subclass__()
 
+        # Ensure we aren't defining another instance of the same class,
+        # because annotations can get confused when using singledispatchmethod
+        # during class definition e.g. on an aggregate projector function.
+        _module = importlib.import_module(cls.__module__)
+        if cls.__name__ in _module.__dict__:
+            msg = f"Name '{cls.__name__}' already defined in '{cls.__module__}' module"
+            raise ProgrammingError(msg)
+
+        # Get the class annotations.
         class_annotations = cls.__dict__.get("__annotations__", {})
         try:
             class_annotations.pop("id")
@@ -1155,12 +1171,40 @@ class BaseAggregate(metaclass=MetaAggregate):
         except KeyError:
             pass
 
+        if "id" in cls.__dict__:
+            msg = f"Setting attribute 'id' on class '{cls.__name__}' is not allowed"
+            raise ProgrammingError(msg)
+
+        # Process the class as a dataclass, if there are annotations.
         if (
             class_annotations
             or cls in _annotations_mention_id
             or any(dataclasses.is_dataclass(base) for base in cls.__bases__)
         ):
             dataclasses.dataclass(eq=False, repr=False)(cls)
+
+        # Remember if __init__ mentions ID.
+        for param_name in inspect.signature(cls.__init__).parameters:
+            if param_name == "id":
+                _init_mentions_id.add(cls)
+                break
+
+        # Analyse __init__ attribute, to get __init__ method and @event decorator.
+        init_attr: FunctionType | CommandMethodDecorator | None = cls.__dict__.get(
+            "__init__"
+        )
+        if init_attr is None:
+            # No method, no decorator.
+            init_method: CallableType | None = None
+            init_decorator: CommandMethodDecorator | None = None
+        elif isinstance(init_attr, CommandMethodDecorator):
+            # Method decorated with @event.
+            init_method = init_attr.decorated_func
+            init_decorator = init_attr
+        else:
+            # Undecorated __init__ method.
+            init_decorator = None
+            init_method = init_attr
 
         # Identify or define a base event class for this aggregate.
         base_event_name = "Event"
@@ -1175,142 +1219,150 @@ class BaseAggregate(metaclass=MetaAggregate):
             )
             setattr(cls, base_event_name, base_event_cls)
 
-        # Make sure all events defined on aggregate subclass the base event class.
+        # Ensure all events defined on this class are subclasses of base event class.
+        created_event_classes: dict[str, type[CanInitAggregate]] = {}
         for name, value in tuple(cls.__dict__.items()):
             if name == base_event_name:
                 # Don't subclass the base event class again.
                 continue
             if name.lower() == name:
-                # Don't subclass lowercase named attributes that have classes.
+                # Don't subclass lowercase named attributes.
                 continue
-            if (
-                isinstance(value, type)
-                and issubclass(value, AggregateEvent)
-                and not issubclass(value, base_event_cls)
-            ):
-                sub_class = cls._define_event_class(name, (value, base_event_cls), None)
-                setattr(cls, name, sub_class)
-        created_event_classes: dict[str, type[CanInitAggregate]] = {
-            name: value
-            for name, value in cls.__dict__.items()
-            if isinstance(value, type) and issubclass(value, CanInitAggregate)
-        }
-        # Analyse the __init__ attribute.
-        init_attr: FunctionType | CommandMethodDecorator | None = cls.__dict__.get(
-            "__init__"
-        )
-        if init_attr is None:
-            init_decorator: CommandMethodDecorator | None = None
-            init_method: CallableType | None = None
-        elif isinstance(init_attr, CommandMethodDecorator):
-            init_decorator = init_attr
-            init_method = init_attr.decorated_func
-        else:
-            init_decorator = None
-            init_method = init_attr
+            if isinstance(value, type) and issubclass(value, CanMutateAggregate):
+                if not issubclass(value, base_event_cls):
+                    event_class = cls._define_event_class(
+                        name, (value, base_event_cls), None
+                    )
+                    setattr(cls, name, event_class)
+                else:
+                    event_class = value
+
+                # Remember all "created" event classes defined on this class.
+                if issubclass(event_class, CanInitAggregate):
+                    created_event_classes[name] = event_class
 
         # Identify or define the aggregate's "created" event class.
         created_event_class: type[CanInitAggregate] | None = None
 
-        # Does class have an init method decorated with a CommandMethodDecorator?
+        # Analyse __init__ method decorator.
         if init_decorator:
 
-            # Disallow using both 'created_event_name' and decorator on __init__.
-            if created_event_name:
-                msg = "Can't use both 'created_event_name' and decorator on __init__"
-                raise TypeError(msg)
-
-            # Does the decorator specify a "created" event class?
+            # Does the decorator specify an event class?
             if init_decorator.given_event_cls:
-                created_event_class = cast(
-                    "type[CanInitAggregate]", init_decorator.given_event_cls
-                )
 
-            # Does the decorator specify a "created" event name?
-            elif init_decorator.event_cls_name:
-                created_event_name = init_decorator.event_cls_name
-
-            # Disallow using decorator on __init__ without event spec.
-            else:
-                msg = "Decorator on __init__ has neither event name nor class"
-                raise TypeError(msg)
-
-        # Check if init mentions ID.
-        for param_name in inspect.signature(cls.__init__).parameters:
-            if param_name == "id":
-                _init_mentions_id.add(cls)
-                break
-
-        if created_event_class:
-            # Check specified "created" event class can init aggregate.
-            if not issubclass(created_event_class, CanInitAggregate):
-                msg = (
-                    f"{created_event_class} not subclass of {CanInitAggregate.__name__}"
-                )
-                raise TypeError(msg)
-
-            for sub_class in created_event_classes.values():
-                if issubclass(sub_class, created_event_class):
-                    # We just subclassed the created event class, so reassign it.
-                    created_event_class = sub_class
-
-        # Is a "created" event class already defined that matches the name?
-        elif created_event_name and created_event_name in created_event_classes:
-            created_event_class = created_event_classes[created_event_name]
-
-        # If there is only one class defined, then use it.
-        elif len(created_event_classes) == 1 and not created_event_name:
-            created_event_class = next(iter(created_event_classes.values()))
-
-        # If there are no "created" event classes already defined, or a name is
-        # specified that hasn't matched, then define a "created" event class.
-        elif len(created_event_classes) == 0 or created_event_name:
-
-            # Decide the base classes for the new "created" event class.
-            if created_event_name and len(created_event_classes) == 1:
-                base_created_event_cls = next(iter(created_event_classes.values()))
-            else:
-                # TODO: This could probably be improved.
-                # Look for first class in MRO that has one specified "created" class.
-                for base_cls in cls.__mro__:
-                    if (
-                        base_cls in _created_event_classes
-                        and len(_created_event_classes[base_cls]) == 1
-                    ):
-                        base_created_event_cls = _created_event_classes[base_cls][0]
-                        break
-                else:  # pragma: no cover
-                    # TODO: Write a test to cover this.
+                # Disallow conflicts between 'created_event_name' and given class.
+                if (
+                    created_event_name
+                    and created_event_name != init_decorator.given_event_cls.__name__
+                ):
                     msg = (
-                        "Can't find base aggregate class with "
-                        "a specified 'created' event class"
+                        "Given 'created_event_name' conflicts "
+                        "with decorator on __init__"
                     )
                     raise TypeError(msg)
 
-            if not created_event_name:
-                created_event_name = base_created_event_cls.__name__
+                # Check given event class can init aggregate.
+                if not issubclass(init_decorator.given_event_cls, CanInitAggregate):
+                    msg = (
+                        f"class '{init_decorator.given_event_cls.__name__}' "
+                        f'not a "created" event class'
+                    )
+                    raise TypeError(msg)
 
-            # Disallow init method from having variable params if
-            # we are using it to define a "created" event class.
-            if init_method:
-                _raise_type_error_if_func_has_variable_params(init_method)
+                # Have we already subclassed the given event class?
+                for sub_class in created_event_classes.values():
+                    if issubclass(sub_class, init_decorator.given_event_cls):
+                        created_event_class = sub_class
+                        break
+                else:
+                    created_event_class = init_decorator.given_event_cls
 
-            # Define a "created" event class for this aggregate.
-            if issubclass(base_created_event_cls, base_event_cls):
-                # Don't subclass from base event class twice.
-                bases: tuple[type[CanMutateAggregate], ...] = (base_created_event_cls,)
+            # Does the decorator specify an event name?
+            elif init_decorator.event_cls_name:
+                # Disallow conflicts between 'created_event_name' and given name.
+                if (
+                    created_event_name
+                    and created_event_name != init_decorator.event_cls_name
+                ):
+                    msg = (
+                        "Given 'created_event_name' conflicts "
+                        "with decorator on __init__"
+                    )
+                    raise TypeError(msg)
+
+                created_event_name = init_decorator.event_cls_name
+
+            # Disallow using decorator on __init__ without event name or class.
             else:
-                bases = (base_created_event_cls, base_event_cls)
-            created_event_class = cast(
-                "type[CanInitAggregate]",
-                cls._define_event_class(
-                    created_event_name,
-                    bases,
-                    init_method,
-                ),
-            )
-            # Set the event class as an attribute of the aggregate class.
-            setattr(cls, created_event_name, created_event_class)
+                msg = "@event decorator on __init__ has neither event name nor class"
+                raise TypeError(msg)
+
+        # Do we need to define a created event class?
+        if not created_event_class:
+            # If we have a "created" event class that matches the name, then use it.
+            if created_event_name in created_event_classes:
+                created_event_class = created_event_classes[created_event_name]
+            # Otherwise, if we have no name and only one class defined, then use it.
+            elif not created_event_name and len(created_event_classes) == 1:
+                created_event_class = next(iter(created_event_classes.values()))
+
+            # Otherwise, if there are no "created" events, or a name is
+            # specified that hasn't matched, then define a "created" event class.
+            elif len(created_event_classes) == 0 or created_event_name:
+                # Decide the base "created" event class.
+
+                try:
+                    # Look for a base class with the same name.
+                    base_created_event_cls = cast(
+                        "type[CanInitAggregate]",
+                        getattr(cls, created_event_name),
+                    )
+                except AttributeError:
+                    # Look for base class with one nominated "created" event.
+                    for base_cls in cls.__mro__:
+                        if (
+                            base_cls in _created_event_classes
+                            and len(_created_event_classes[base_cls]) == 1
+                        ):
+                            base_created_event_cls = _created_event_classes[base_cls][0]
+                            break
+                    else:
+                        msg = (
+                            "Can't identify suitable base class for "
+                            f"\"created\" event class on class '{cls.__name__}'"
+                        )
+                        raise TypeError(msg) from None
+
+                if not created_event_name:
+                    created_event_name = base_created_event_cls.__name__
+
+                # Disallow init method from having variable params, because
+                # we are using it to define a "created" event class.
+                if init_method:
+                    _raise_type_error_if_func_has_variable_params(init_method)
+
+                # Don't subclass from base event class twice.
+                assert isinstance(base_created_event_cls, type), base_created_event_cls
+                assert not issubclass(
+                    base_created_event_cls, base_event_cls
+                ), base_created_event_cls
+
+                # Define "created" event class.
+                assert created_event_name
+                assert issubclass(base_created_event_cls, CanInitAggregate)
+                created_event_class_bases = (base_created_event_cls, base_event_cls)
+                created_event_class = cast(
+                    "type[CanInitAggregate]",
+                    cls._define_event_class(
+                        created_event_name,
+                        created_event_class_bases,
+                        init_method,
+                    ),
+                )
+                # Set the event class as an attribute of the aggregate class.
+                setattr(cls, created_event_name, created_event_class)
+
+        assert created_event_class or len(created_event_classes) > 1
 
         if created_event_class:
             _created_event_classes[cls] = [created_event_class]
@@ -1318,16 +1370,18 @@ class BaseAggregate(metaclass=MetaAggregate):
             # Prepare to disallow ambiguity of choice between created event classes.
             _created_event_classes[cls] = list(created_event_classes.values())
 
-        # Prepare the subsequent event classes.
+        # Find and analyse any @event decorators.
         for attr_name, attr_value in tuple(cls.__dict__.items()):
             event_decorator: CommandMethodDecorator | None = None
 
-            if isinstance(attr_value, CommandMethodDecorator):
-                event_decorator = attr_value
-                if event_decorator.decorated_func.__name__ == "__init__":
-                    continue
+            # Ignore a decorator on the __init__ method.
+            if isinstance(attr_value, CommandMethodDecorator) and (
+                attr_value.decorated_func.__name__ == "__init__"
+            ):
+                continue
 
-            elif isinstance(attr_value, property) and isinstance(
+            # Handle @property.setter decorator on top of @event decorator.
+            if isinstance(attr_value, property) and isinstance(
                 attr_value.fset, CommandMethodDecorator
             ):
                 event_decorator = attr_value.fset
@@ -1354,6 +1408,9 @@ class BaseAggregate(metaclass=MetaAggregate):
                         "requires event name or class"
                     )
                     raise TypeError(msg)
+
+            elif isinstance(attr_value, CommandMethodDecorator):
+                event_decorator = attr_value
 
             if event_decorator is not None:
                 if event_decorator.given_event_cls:
@@ -1404,7 +1461,7 @@ class BaseAggregate(metaclass=MetaAggregate):
                     "type[DecoratorEvent]", event_cls
                 )
 
-        # Check any create_id method defined on this class is static or class method.
+        # Check any create_id() method defined on this class is static or class method.
         if "create_id" in cls.__dict__ and not isinstance(
             cls.__dict__["create_id"], (staticmethod, classmethod)
         ):
@@ -1419,7 +1476,7 @@ class BaseAggregate(metaclass=MetaAggregate):
             if param.kind in [param.KEYWORD_ONLY, param.POSITIONAL_OR_KEYWORD]:
                 _create_id_param_names[cls].append(name)
 
-        # Define event classes for all events on bases.
+        # Define event classes for all events on all bases if not defined on this class.
         for aggregate_base_class in cls.__bases__:
             for name, value in aggregate_base_class.__dict__.items():
                 if (
@@ -1428,10 +1485,10 @@ class BaseAggregate(metaclass=MetaAggregate):
                     and name not in cls.__dict__
                     and name.lower() != name
                 ):
-                    sub_class = cls._define_event_class(
+                    event_class = cls._define_event_class(
                         name, (base_event_cls, value), None
                     )
-                    setattr(cls, name, sub_class)
+                    setattr(cls, name, event_class)
 
 
 class Aggregate(BaseAggregate):

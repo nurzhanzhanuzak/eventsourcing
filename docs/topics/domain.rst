@@ -8,8 +8,8 @@ This module supports the development of event-sourced domain models.
 Following the terminology of *Domain-Driven Design*, an event-sourced domain
 model has many event-sourced :ref:`aggregates <Aggregates>`. The state of an
 event-sourced aggregate is determined by a sequence of :ref:`aggregate events
-<Aggregate events>`. The time needed to reconstruct an aggregate from its domain
-events can be reduced by using :ref:`snapshots <Snapshots>`.
+<Aggregate events>`. In extreme circumstances, the time needed to reconstruct
+an aggregate from its domain events can be reduced by using :ref:`snapshots <Snapshots>`.
 
 The classes in this module were first introduced merely as a way of showing
 how the :doc:`persistence module </topics/persistence>` can be used. The
@@ -1326,8 +1326,8 @@ particular type of event to the aggregate in a particular way.
 ..
     #include-when-testing
 ..
+    del Dog
     from eventsourcing.dispatch import singledispatchmethod
-    from examples.cargoshipping.domainmodel import Location
 
 
 .. code-block:: python
@@ -1351,14 +1351,15 @@ particular type of event to the aggregate in a particular way.
             trick: str
 
         def add_trick(self, trick):
+            print("Triggering event:", self.TrickAdded.__qualname__, id(self.TrickAdded), id(Dog.TrickAdded))
             self.trigger_event(self.TrickAdded, trick=trick)
 
         @singledispatchmethod
         def apply(self, event) -> None:
-            ...
+            print("Didn't process:", event)
 
         @apply.register
-        def trick_added(self, event: TrickAdded) -> None:
+        def trick_added(self, event: Dog.TrickAdded) -> None:
             self.tricks.append(event.trick)
 
 
@@ -1375,7 +1376,7 @@ An aggregate defined in this way can be used in the same way as in the :ref:`sim
 
     dog = Dog.create()
     dog.add_trick("roll over")
-    assert dog.tricks == ["roll over"]
+    assert dog.tricks == ["roll over"], dog.tricks
 
 
 
@@ -1450,23 +1451,23 @@ you may wish to express your project's ubiquitous language by doing so.
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class Task(Aggregate):
         class Started(Aggregate.Created):
             pass
 
 
     # Call the class directly.
-    agg = MyAggregate()
+    task = Task()
 
     # There is one pending event.
-    pending_events = agg.collect_events()
+    pending_events = task.collect_events()
     assert len(pending_events) == 1
-    assert isinstance(pending_events[0], MyAggregate.Started)
+    assert isinstance(pending_events[0], Task.Started)
 
     # The pending event can be used to reconstruct the aggregate.
     copy = pending_events[0].mutate(None)
-    assert copy.id == agg.id
-    assert copy.created_on == agg.created_on
+    assert copy.id == task.id
+    assert copy.created_on == task.created_on
 
 
 Using the init method to define the created event class
@@ -1486,35 +1487,35 @@ that has an attribute ``name``.
     #include-when-testing
 ..
     import eventsourcing.utils
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class Cat(Aggregate):
         def __init__(self, name):
             self.name = name
 
 
     # Call the class with a 'name' argument.
-    agg = MyAggregate(name="foo")
-    assert agg.name == "foo"
+    cat = Cat(name="oliver")
+    assert cat.name == "oliver"
 
     # There is one pending event.
-    pending_events = agg.collect_events()
+    pending_events = cat.collect_events()
     assert len(pending_events) == 1
 
     # The pending event is a "created" event.
-    assert isinstance(pending_events[0], MyAggregate.Created)
+    assert isinstance(pending_events[0], Cat.Created)
 
     # The "created" event is defined on the aggregate class.
-    assert type(pending_events[0]).__qualname__ == "MyAggregate.Created"
+    assert type(pending_events[0]).__qualname__ == "Cat.Created"
 
     # The "created" event has a 'name' attribute.
-    pending_events[0].name == "foo"
+    pending_events[0].name == "oliver"
 
     # The "created" event can be used to reconstruct the aggregate.
     copy = pending_events[0].mutate(None)
-    assert copy.name == agg.name
+    assert copy.name == cat.name
 
 
 Please note, by default the name "Created" will be used for an automatically
@@ -1533,26 +1534,26 @@ automatically defined from the automatically defined method.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
     from dataclasses import dataclass
 
     @dataclass
-    class MyAggregate(Aggregate):
+    class Horse(Aggregate):
         name: str
 
 
     # Create a new aggregate.
-    agg = MyAggregate(name="foo")
+    horse = Horse(name="clover")
 
     # The aggregate has a 'name' attribute
-    assert agg.name == "foo"
+    assert horse.name == "clover"
 
     # The created event has a 'name' attribute.
-    pending_events = agg.collect_events()
-    pending_events[0].name == "foo"
+    pending_events = horse.collect_events()
+    pending_events[0].name == "clover"
 
 
 Anything that works on a data class should work here too.
@@ -1562,22 +1563,22 @@ default values on the attribute definitions.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
     @dataclass
-    class MyAggregate(Aggregate):
-        name: str = "bar"
+    class Pig(Aggregate):
+        name: str = "unnamed"
 
 
     # Call the class without a name.
-    agg = MyAggregate()
-    assert agg.name == "bar"
+    pig = Pig()
+    assert pig.name == "unnamed"
 
     # Call the class with a name.
-    agg = MyAggregate("foo")
-    assert agg.name == "foo"
+    pig = Pig("snowball")
+    assert pig.name == "snowball"
 
 
 And you can define "non-init argument" attributes, attributes
@@ -1588,22 +1589,22 @@ feature of the dataclasses module.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
     from dataclasses import field
 
     @dataclass
-    class MyAggregate(Aggregate):
+    class Dolphin(Aggregate):
         tricks: list[str] = field(default_factory=list, init=False)
 
 
     # Create a new aggregate.
-    agg = MyAggregate()
+    dolphin = Dolphin()
 
     # The aggregate has a list.
-    assert agg.tricks == []
+    assert dolphin.tricks == []
 
 
 Please note, when using the dataclass-style for defining ``__init__()``
@@ -1625,41 +1626,44 @@ To give the "created" event class a particular name, use the class argument ``cr
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate, created_event_name="Started"):
+    class Rabbit(Aggregate, created_event_name="Born"):
         name: str
 
     # Create a new aggregate.
-    agg = MyAggregate("foo")
+    rabbit = Rabbit("peter")
 
-    # The created event class is called "Started".
-    pending_events = agg.collect_events()
-    assert isinstance(pending_events[0], MyAggregate.Started)
+    # The created event class name is "Born".
+    assert isinstance(rabbit.pending_events[0], Rabbit.Born)
+    assert rabbit.name == "peter"
 
 
-This is equivalent to declaring a "created" event class
+This is equivalent to declaring a suitable "created" event class
 on the aggregate class.
 
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    del Rabbit
+    clear_topic_cache()
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
-        class Started(Aggregate.Created):
-            pass
+    class Rabbit(Aggregate):
+        name: str
+
+        class Born(Aggregate.Created):
+            name: str
 
     # Create a new aggregate.
-    agg = MyAggregate()
+    rabbit = Rabbit("peter")
+    assert rabbit.name == "peter"
 
-    # The created event class is called "Started".
-    pending_events = agg.collect_events()
-    assert isinstance(pending_events[0], MyAggregate.Started)
+    # The created event class name is "Born".
+    assert isinstance(rabbit.pending_events[0], Rabbit.Born)
 
 
 If more than one "created" event class is defined on the aggregate class, perhaps
@@ -1671,11 +1675,12 @@ class is the one to use when creating new aggregate instances.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    del Task
+    clear_topic_cache()
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate, created_event_name="Started"):
+    class Task(Aggregate, created_event_name="Started"):
         class Created(Aggregate.Created):
             pass
 
@@ -1684,14 +1689,13 @@ class is the one to use when creating new aggregate instances.
 
 
     # Create a new aggregate.
-    agg = MyAggregate()
+    task = Task()
 
     # The created event class is called "Started".
-    pending_events = agg.collect_events()
-    assert isinstance(pending_events[0], MyAggregate.Started)
+    assert isinstance(task.pending_events[0], Task.Started)
 
 
-If ``created_event_name`` is used but the value does not match
+If a ``created_event_name`` argument is given, but the value does not match
 the name of any of the "created" event classes that are explicitly defined on the
 aggregate class, then an event class will be automatically defined, and it
 will be used when creating new aggregate instances.
@@ -1699,11 +1703,11 @@ will be used when creating new aggregate instances.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate, created_event_name="Opened"):
+    class Business(Aggregate, created_event_name="Established"):
         class Created(Aggregate.Created):
             pass
 
@@ -1712,11 +1716,10 @@ will be used when creating new aggregate instances.
 
 
     # Create a new aggregate.
-    agg = MyAggregate()
+    business = Business()
 
-    # The created event class is called "Opened".
-    pending_events = agg.collect_events()
-    assert isinstance(pending_events[0], MyAggregate.Opened)
+    # The "created" event class name is "Established".
+    assert isinstance(business. pending_events[0], Business.Established)
 
 
 Defining the aggregate ID
@@ -1730,31 +1733,30 @@ aggregate. You can do this by defining a ``create_id()`` method.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
-        name: str
+    class Invoice(Aggregate):
+        number: str
 
         @staticmethod
-        def create_id(name: str):
-            return uuid5(NAMESPACE_URL, f"/my_aggregates/{name}")
+        def create_id(number: str):
+            return uuid5(NAMESPACE_URL, f"/invoices/{number}")
 
 
     # Create a new aggregate.
-    agg = MyAggregate(name="foo")
-    assert agg.name == "foo"
+    invoice = Invoice(number="AZ0001")
+    assert invoice.number == "AZ0001"
 
     # The aggregate ID is a version-5 UUID.
-    assert agg.id == MyAggregate.create_id("foo")
+    assert invoice.id == Invoice.create_id("AZ0001")
 
 
 If a ``create_id()`` method is defined on the aggregate class, the base class
-method :func:`~eventsourcing.domain.MetaAggregate.create_id`
-will be overridden. The arguments used in this method must be a subset of the
-arguments used to create the aggregate. The base class method simply returns a
-version-4 UUID, which is the default behaviour for generating aggregate IDs.
+method :func:`~eventsourcing.domain.BaseAggregate.create_id`, which returns a
+version-4 UUID, will be overridden. The arguments used in this method must be a subset of the
+arguments used to create the aggregate.
 
 Alternatively, an ``id`` attribute can be declared on the aggregate
 class, and an ``id`` argument supplied when creating new aggregates.
@@ -1762,23 +1764,20 @@ class, and an ``id`` argument supplied when creating new aggregates.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
-    def create_id(name: str):
-        return uuid5(NAMESPACE_URL, f"/my_aggregates/{name}")
-
-    class MyAggregate(Aggregate):
+    class Book(Aggregate):
         id: UUID
 
 
     # Create an ID.
-    agg_id = create_id(name="foo")
+    book_id = uuid4()
 
     # Create an aggregate with the ID.
-    agg = MyAggregate(id=agg_id)
-    assert agg.id == agg_id
+    book = Book(id=book_id)
+    assert book.id == book_id
 
 
 When defining an explicit ``__init__()`` method, the ``id`` argument can
@@ -1789,18 +1788,19 @@ property on the base aggregate class.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class Film(Aggregate):
         def __init__(self, id: UUID):
             self._id = id
 
 
     # Create an aggregate with the ID.
-    agg = MyAggregate(id=agg_id)
-    assert agg.id == agg_id
+    film_id = uuid4()
+    film = Film(id=film_id)
+    assert film.id == film_id
 
 
 .. _Event decorator:
@@ -1826,13 +1826,13 @@ can be passed to the decorator as a Python :class:`str`.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
     from eventsourcing.domain import event
 
-    class MyAggregate(Aggregate):
+    class Shop(Aggregate):
         name: str
 
         @event("NameUpdated")
@@ -1841,23 +1841,23 @@ can be passed to the decorator as a Python :class:`str`.
 
 
     # Create an aggregate.
-    agg = MyAggregate(name="foo")
-    assert agg.name == "foo"
+    shop = Shop(name="Cool Cafe")
+    assert shop.name == "Cool Cafe"
 
     # Update the name.
-    agg.update_name("bar")
-    assert agg.name == "bar"
+    shop.update_name("Busy Bar")
+    assert shop.name == "Busy Bar"
 
     # There are two pending events.
-    pending_events = agg.collect_events()
+    pending_events = shop.collect_events()
     assert len(pending_events) == 2
-    assert pending_events[0].name == "foo"
+    assert pending_events[0].name == "Cool Cafe"
 
     # The second pending event is a 'NameUpdated' event.
-    assert isinstance(pending_events[1], MyAggregate.NameUpdated)
+    assert isinstance(pending_events[1], Shop.NameUpdated)
 
     # The second pending event has a 'name' attribute.
-    assert pending_events[1].name == "bar"
+    assert pending_events[1].name == "Busy Bar"
 
 Please also note, if an exception happens to be raised in the decorated method
 body, then the triggered event will not be appended to the internal list of
@@ -1874,32 +1874,32 @@ This decorator also works with the ``__init__()`` methods.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class Journey(Aggregate):
         @event("Started")
         def __init__(self, name):
             self.name = name
 
 
     # Call the class with a 'name' argument.
-    agg = MyAggregate(name="foo")
-    assert agg.name == "foo"
+    agg = Journey(name="My Holiday")
+    assert agg.name == "My Holiday"
 
     # There is one pending event.
     pending_events = agg.collect_events()
     assert len(pending_events) == 1
 
     # The pending event is a "created" event.
-    assert isinstance(pending_events[0], MyAggregate.Started)
+    assert isinstance(pending_events[0], Journey.Started)
 
     # The "created" event is defined on the aggregate class.
-    assert type(pending_events[0]).__qualname__ == "MyAggregate.Started"
+    assert type(pending_events[0]).__qualname__ == "Journey.Started"
 
     # The "created" event has a 'name' attribute.
-    pending_events[0].name == "foo"
+    pending_events[0].name == "My Holiday"
 
     # The "created" event can be used to reconstruct the aggregate.
     copy = pending_events[0].mutate(None)
@@ -1923,7 +1923,7 @@ and then by concatenating the capitalised parts to give an
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
@@ -1969,11 +1969,11 @@ it might be desirable to skip on having an event triggered.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class Ship(Aggregate):
         name: str
 
         def update_name(self, name):
@@ -1985,17 +1985,17 @@ it might be desirable to skip on having an event triggered.
             self.name = name
 
     # Create an aggregate.
-    agg = MyAggregate(name="foo")
-    assert agg.name == "foo"
+    agg = Ship(name="Invincible")
+    assert agg.name == "Invincible"
 
     # Update the name lots of times.
-    agg.update_name("foo")
-    agg.update_name("foo")
-    agg.update_name("foo")
-    agg.update_name("bar")
-    agg.update_name("bar")
-    agg.update_name("bar")
-    agg.update_name("bar")
+    agg.update_name("Invincible")
+    agg.update_name("Invincible")
+    agg.update_name("Invincible")
+    agg.update_name("Queen Mary")
+    agg.update_name("Queen Mary")
+    agg.update_name("Queen Mary")
+    agg.update_name("Queen Mary")
 
     # There are two pending events (not eight).
     pending_events = agg.collect_events()
@@ -2012,16 +2012,11 @@ can refer to the event class in the decorator, rather than using
 a string. The synonymous decorator :data:`@triggers` can be used
 instead of the :func:`@event<eventsourcing.domain.event>` decorator (it does the same thing).
 
-..
-    #include-when-testing
-..
-    eventsourcing.utils._topic_cache.clear()
-
 .. code-block:: python
 
     from eventsourcing.domain import triggers
 
-    class MyAggregate(Aggregate):
+    class Gallery(Aggregate):
         name: str
 
         class NameUpdated(Aggregate.Event):
@@ -2033,23 +2028,23 @@ instead of the :func:`@event<eventsourcing.domain.event>` decorator (it does the
 
 
     # Create an aggregate.
-    agg = MyAggregate(name="foo")
-    assert agg.name == "foo"
+    agg = Gallery(name="The Stone Age")
+    assert agg.name == "The Stone Age"
 
     # Update the name.
-    agg.update_name("bar")
-    assert agg.name == "bar"
+    agg.update_name("The Bronze Age")
+    assert agg.name == "The Bronze Age"
 
     # There are two pending events.
     pending_events = agg.collect_events()
     assert len(pending_events) == 2
-    assert pending_events[0].name == "foo"
+    assert pending_events[0].name == "The Stone Age"
 
     # The second pending event is a 'NameUpdated' event.
-    assert isinstance(pending_events[1], MyAggregate.NameUpdated)
+    assert isinstance(pending_events[1], Gallery.NameUpdated)
 
     # The second pending event has a 'name' attribute.
-    assert pending_events[1].name == "bar"
+    assert pending_events[1].name == "The Bronze Age"
 
 
 The Dog aggregate class revisited
@@ -2058,6 +2053,12 @@ The Dog aggregate class revisited
 Using the declarative syntax described above, the ``Dog`` aggregate in
 the :ref:`Simple example <Aggregate simple example>` above can be
 expressed more concisely in the following way.
+
+..
+    #include-when-testing
+..
+    clear_topic_cache()
+    del Dog
 
 .. code-block:: python
 
@@ -2121,6 +2122,13 @@ The Page and Index aggregates revisited
 The ``Page`` and ``Index`` aggregates defined in the above
 :ref:`discussion about namespaced IDs <Namespaced IDs>` can be expressed more
 concisely in the following way.
+
+..
+    #include-when-testing
+..
+    del Page
+    del Index
+    clear_topic_cache()
 
 .. code-block:: python
 
@@ -2279,6 +2287,11 @@ This ordinary Python class can be easily converted into an event-sourced aggrega
 by inheriting from :class:`~eventsourcing.domain.Aggregate` and using the
 :func:`@event<eventsourcing.domain.event>` decorator on the ``confirm()`` and ``_pickup()`` methods.
 
+..
+    #include-when-testing
+..
+    del Order
+
 .. code-block:: python
 
     class Order(Aggregate):
@@ -2386,6 +2399,13 @@ will differ from the recorded state. So if your method does change state and
 then raise an exception, make sure to obtain a fresh version of the aggregate
 before continuing to trigger events in your application.
 
+..
+    #include-when-testing
+..
+    del Order
+    clear_topic_cache()
+
+
 .. code-block:: python
 
     class Order(Aggregate):
@@ -2404,24 +2424,24 @@ before continuing to trigger events in your application.
                 raise AssertionError("Order is not confirmed")
             self.pickedup_at = at
 
-        # Creating the aggregate causes one pending event.
-        order = Order("name")
-        assert len(order.pending_events) == 1
+    # Creating the aggregate causes one pending event.
+    order = Order("name")
+    assert len(order.pending_events) == 1
 
-        # Call pickup() too early raises an exception.
-        try:
-            order.pickup(datetime.now())
-        except AssertionError as e:
-            assert e.args[0] == "Order is not confirmed"
-        else:
-            raise Exception("Shouldn't get here")
+    # Call pickup() too early raises an exception.
+    try:
+        order.pickup(datetime.now())
+    except AssertionError as e:
+        assert e.args[0] == "Order is not confirmed"
+    else:
+        raise Exception("Shouldn't get here")
 
-        # There is still only one pending event.
-        assert len(order.pending_events) == 1
+    # There is still only one pending event.
+    assert len(order.pending_events) == 1
 
-        # The state of the aggregate instance is unchanged.
-        assert order.confirmed_at is None
-        assert order.pickedup_at is None
+    # The state of the aggregate instance is unchanged.
+    assert order.confirmed_at is None
+    assert order.pickedup_at is None
 
 
 Recording command arguments and reprocessing them each time the aggregate is
@@ -2459,7 +2479,9 @@ class rather than using the ``@aggregate`` decorator so that full the
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    del Order
+    clear_topic_cache()
+
 
 .. code-block:: python
 
@@ -2549,14 +2571,14 @@ Initial version number
 By default, the aggregates have an initial version number of ``1``. Sometimes it may be
 desired, or indeed necessary, to use a different initial version number.
 
-In the example below, the initial version number of the class ``MyAggregate`` is defined to be ``0``.
+In the example below, the initial version number of the class ``Stream`` is defined to be ``0``.
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class Stream(Aggregate):
         INITIAL_VERSION = 0
 
-    aggregate = MyAggregate()
+    aggregate = Stream()
     assert aggregate.version == 0
 
 
@@ -2630,36 +2652,36 @@ See the examples below.
 ..
     #include-when-testing
 ..
-    eventsourcing.utils._topic_cache.clear()
+    clear_topic_cache()
 
 .. code-block:: python
 
     from eventsourcing.utils import register_topic
 
 
-    class MyAggregate(Aggregate):
+    class ServiceContract(Aggregate):
         class Started(Aggregate.Created):
             pass
 
 
     # Current topics resolve.
-    assert get_topic(MyAggregate) == "__main__:MyAggregate", get_topic(MyAggregate)
-    assert resolve_topic("__main__:MyAggregate") == MyAggregate
-    assert resolve_topic("__main__:MyAggregate.Started") == MyAggregate.Started
+    assert get_topic(ServiceContract) == "__main__:ServiceContract", get_topic(ServiceContract)
+    assert resolve_topic("__main__:ServiceContract") == ServiceContract
+    assert resolve_topic("__main__:ServiceContract.Started") == ServiceContract.Started
 
     # Aggregate class was renamed.
-    register_topic("__main__:OldName", MyAggregate)
-    assert resolve_topic("__main__:OldName") == MyAggregate
-    assert resolve_topic("__main__:OldName.Started") == MyAggregate.Started
+    register_topic("__main__:OldName", ServiceContract)
+    assert resolve_topic("__main__:OldName") == ServiceContract
+    assert resolve_topic("__main__:OldName.Started") == ServiceContract.Started
 
     # Nested event class was renamed.
-    register_topic("__main__:MyAggregate.Created", MyAggregate.Started)
-    assert resolve_topic("__main__:MyAggregate.Created") == MyAggregate.Started
+    register_topic("__main__:ServiceContract.Created", ServiceContract.Started)
+    assert resolve_topic("__main__:ServiceContract.Created") == ServiceContract.Started
 
     # Aggregate class was moved from another module.
-    register_topic("eventsourcing.domain:MyAggregate", MyAggregate)
-    assert resolve_topic("eventsourcing.domain:MyAggregate") == MyAggregate
-    assert resolve_topic("eventsourcing.domain:MyAggregate.Created") == MyAggregate.Created
+    register_topic("eventsourcing.domain:ServiceContract", ServiceContract)
+    assert resolve_topic("eventsourcing.domain:ServiceContract") == ServiceContract
+    assert resolve_topic("eventsourcing.domain:ServiceContract.Created") == ServiceContract.Created
     assert resolve_topic("eventsourcing.domain:Aggregate") == Aggregate
 
     # Module was renamed.
@@ -2675,9 +2697,9 @@ See the examples below.
     assert resolve_topic("old.domain:Aggregate.Created") == Aggregate.Created
 
     # Current topics still resolve okay.
-    assert get_topic(MyAggregate) == "__main__:MyAggregate"
-    assert resolve_topic("__main__:MyAggregate") == MyAggregate
-    assert resolve_topic("__main__:MyAggregate.Started") == MyAggregate.Started
+    assert get_topic(ServiceContract) == "__main__:ServiceContract"
+    assert resolve_topic("__main__:ServiceContract") == ServiceContract
+    assert resolve_topic("__main__:ServiceContract.Started") == ServiceContract.Started
     assert resolve_topic("eventsourcing.domain:Aggregate") == Aggregate
 
 
@@ -2704,7 +2726,7 @@ In the example below, version ``1`` of the class ``MyAggregate`` is defined with
 
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class EnergyPolicy(Aggregate):
         def __init__(self, a:str):
             self.a = a
 
@@ -2727,9 +2749,15 @@ on the ``Created`` event sets a default value for ``b`` in the given ``state``. 
 ``class_version`` is set to ``2``. The same treatment is given to the aggregate class as the domain
 event class, so that snapshots can be upcast.
 
+..
+    #include-when-testing
+..
+    del EnergyPolicy
+    clear_topic_cache()
+
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class EnergyPolicy(Aggregate):
         def __init__(self, a:str, b:int):
             self.a = a
             self.b = b
@@ -2765,9 +2793,15 @@ defined on the ``Created`` event sets a default value for ``c`` in the given ``s
 ``class_version`` is set to ``3``. The same treatment is given to the aggregate class as the domain event
 class, so that any snapshots will be upcast.
 
+..
+    #include-when-testing
+..
+    del EnergyPolicy
+    clear_topic_cache()
+
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class EnergyPolicy(Aggregate):
         def __init__(self, a:str, b:int, c:float):
             self.a = a
             self.b = b
@@ -2812,9 +2846,15 @@ In the example below, the new attribute ``d`` is initialised in the ``__init__()
 event which updates ``d`` is defined. Since the ``Created`` event class has not changed, it remains at
 version ``3``.
 
+..
+    #include-when-testing
+..
+    del EnergyPolicy
+    clear_topic_cache()
+
 .. code-block:: python
 
-    class MyAggregate(Aggregate):
+    class EnergyPolicy(Aggregate):
         def __init__(self, a:str, b:int, c:float):
             self.a = a
             self.b = b
