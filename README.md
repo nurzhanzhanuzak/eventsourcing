@@ -8,7 +8,12 @@
 
 # Event Sourcing in Python
 
-A library for event sourcing in Python.
+This project is a comprehensive Python library for implementing event sourcing, a design pattern where all
+changes to application state are stored as a sequence of events. This library provides a solid foundation
+for building event-sourced applications in Python, with a focus on reliability, performance, and developer
+experience. Please [read the docs](https://eventsourcing.readthedocs.io/). See also [extension projects](https://github.com/pyeventsourcing).
+
+
 
 *"totally amazing and a pleasure to use"*
 
@@ -16,7 +21,6 @@ A library for event sourcing in Python.
 
 *"a huge help and time saver"*
 
-Please [read the docs](https://eventsourcing.readthedocs.io/). See also [extension projects](https://github.com/pyeventsourcing).
 
 
 ## Installation
