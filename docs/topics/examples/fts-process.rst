@@ -3,7 +3,7 @@ System 1 - Content management system
 
 In this example, event notifications from the ``ContentManagement`` application described in
 :doc:`/topics/examples/content-management` are processed and projected into an
-eventually-consistent full text search index, a searchable "materialized view" of
+eventually-consistent full text search index, a searchable "materialised view" of
 the pages' body text just like :doc:`/topics/examples/fts-content-management`.
 
 This is an example of CQRS. By separating the search engine "read model" from the content management

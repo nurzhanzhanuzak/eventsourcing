@@ -772,7 +772,7 @@ And, by resuming event processing from the position indicated by the last record
 can ensure that domain events are processed "at most once". This constructs "exactly once" semantics,
 and solves the problem of "dual writing" in the consumption of event notifications
 that occurs when an event notification is consumed from a message queue with
-updates made to materialized view and then separately an acknowledgement is
+updates made to materialised view and then separately an acknowledgement is
 sent back to the message queue, a problem of reliability that may cause
 catastrophic inconsistencies in the state of a system.
 
@@ -1160,7 +1160,7 @@ PostgreSQL module
 -----------------
 
 The :mod:`eventsourcing.postgres` persistence module supports storing events in
-`PostgresSQL <https://www.postgresql.org/>`_ using the third party `Psycopg v3 <https://www.psycopg.org>`_
+`PostgreSQL <https://www.postgresql.org/>`_ using the third party `Psycopg v3 <https://www.psycopg.org>`_
 package. This code is tested with PostgreSQL versions 12, 13, 14, 15, 16, and 17.
 
 The :class:`~eventsourcing.postgres.PostgresDatastore` class encapsulates a Postgres database

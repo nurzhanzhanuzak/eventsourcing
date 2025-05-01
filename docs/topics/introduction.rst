@@ -188,7 +188,7 @@ optimistic concurrency controls in adapted database management systems.
 **Notifications and projections** — reliable propagation of application
 events with pull-based notifications allows the application state to be
 projected accurately into replicas, indexes, view models, and other applications.
-Supports materialized views and CQRS.
+Supports materialised views and CQRS.
 
 **Event-driven systems** — reliable event processing. Event-driven systems
 can be defined independently of particular persistence infrastructure and mode of
@@ -217,7 +217,7 @@ Design overview
 
 The design of the library follows the notion of a "layered" or "onion" or "hexagonal"
 architecture in that there are :doc:`separate modules  </topics/modules>` for :doc:`application </topics/application>`,
-:doc:`domain </topics/domain>`, :doc:`persistence </topics/domain>`, and :doc:`interface </topics/interface>`.
+:doc:`domain </topics/domain>`, :doc:`persistence </topics/persistence>`, and :doc:`interface </topics/interface>`.
 The interface module depends on the application module. The application module depends on the domain
 module and the persistence module. The persistence module depends on the domain module.
 The domain module does not depend on any of the other modules. All these modules depend
@@ -408,7 +408,7 @@ an application abstracts from the sequences of decisions that it makes. The fact
 that decisions do not change is a more solid foundation on which to build, compared
 to the more fluid situation of dealing primarily in terms of domain objects that change.
 
-Event-sourced aggregates is a generally applicable design for domain models because
+Event-sourced aggregates are a generally applicable design for domain models because
 the structure "many individual sequences of decisions" is a generally adequate form
 for analysis and design.
 
@@ -463,10 +463,10 @@ the software. So that users can issue meaningful commands, the state of the appl
 somehow be presented to the user. The state of an application is commonly presented to users
 in a set of "views". The state of the application is presented by the application through the
 interface to users by responding to queries that inform these views. For this reason, a test
-case will generally give a command to the application in the expectation that that application
+case will generally give a command to the application in the expectation that the application
 state will be changed in some particular kind of way, and then the test will check the expectation
 is satisfied by checking the result of a query. When developing software, consideration must
-therefore be given both to the commands and they way in which they will be handled (what decisions
+therefore be given both to the commands and the way in which they will be handled (what decisions
 the application will make) and also to the way in which the state of the application will need to
 be viewed and navigated by its users (what decisions the users will make).
 
@@ -491,7 +491,7 @@ support the queries. This is the reason for sometimes wanting a "command model" 
 model" with which the aggregates are presented and the aggregate's decisions are recorded
 that is separated from a "query model" or "read model" into which the state of the application
 is projected. This is the realm of "event processing", "event-driven systems", "CQRS", and
-"materialized views". In some cases there is no immediate need to develop separate command
+"materialised views". In some cases there is no immediate need to develop separate command
 and query models. The aggregates themselves may be sufficient to inform the views, and the
 user can then issue commands that will be handled by the aggregates. However, it is generally
 important to provide for the possibility to propagate and process the state of the application.

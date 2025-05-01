@@ -33,11 +33,10 @@ Each domain event is accompanied by a tracking object that identifies the positi
 domain event in the application sequence. Iterating over an application subscription will block when
 all recorded domain events have been returned, and then continue when new events are recorded. Application
 subscriptions are conveniently used by event-processing components that project the state of an event-sourced
-application into a materialised view, because they continue running, because they return subsequently recorded events,
-they because they subscribe to an application sequence using the application's recorder, which subscribes to an
-event-sourced application's database rather than an application object, and because they convert the stored events
-returned by the application recorder into domain event objects by using the application's mapper. Encapsulating
-all of these concerns provides a convenient way to follow the domain events of an application sequence.
+application into a materialised view, because they continue returning newly recorded events, because they subscribe
+to a database rather than an application object, and because they convert the stored events returned by an
+application recorder into domain event objects using the application's mapper. Encapsulating all of these concerns
+provides a convenient way to follow the domain events of an event-sourced application.
 
 The :class:`~eventsourcing.projection.ApplicationSubscription` class has three constructor arguments,
 :data:`app <eventsourcing.projection.ApplicationSubscription.__init__>`,
@@ -70,7 +69,7 @@ usually be done in the application's database server.
 
 Application subscription objects usually open a database session, and either listen to the database for
 notifications and then select new event records, or otherwise directly stream records from a database. For
-this reason, application susbscription objects support the Python context manager protocol, so that database
+this reason, application subscription objects support the Python context manager protocol, so that database
 connection resources can be freed in a controlled and convenient way when the subscription is stopped or exits.
 
 Alternatively, application subscription objects have a :func:`~eventsourcing.projection.ApplicationSubscription.stop`
@@ -212,7 +211,7 @@ projection runner will iterate over the application subscription, calling the pr
 :func:`~eventsourcing.projection.Projection.process_event` method for each domain event
 and tracking object returned by the application subscription.
 
-Projection runner objects support the Python context manager protocol, so that database resourced used by
+Projection runner objects support the Python context manager protocol, so that database resources used by
 the application subscription and the materialised view can be freed in a controlled way when the projection
 runner is stopped or exits.
 
@@ -227,7 +226,7 @@ The example below shows how to run a projection. In this example, the event-sour
 from the examples above. The projection runner is used as a context manager. The projection runner's
 :func:`~eventsourcing.projection.ProjectionRunner.run_forever` method is called which keeps the projection running.
 The :func:`~eventsourcing.projection.ProjectionRunner.stop` method is called by a signal handler when the
-operating system process receives an interupt signal. The example below starts a thread which sends the interupt
+operating system process receives an interrupt signal. The example below starts a thread which sends the interrupt
 signal after 1s.
 
 .. code-block:: python

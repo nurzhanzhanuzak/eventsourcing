@@ -2,7 +2,7 @@
 Tutorial - Part 1 - Getting started
 ===================================
 
-This part the :doc:`tutorial </topics/tutorial>` introduces the library's
+This part of the :doc:`tutorial </topics/tutorial>` introduces the library's
 :class:`~eventsourcing.domain.Aggregate` and :class:`~eventsourcing.application.Application`
 classes, showing and explaining how they can be used together to
 write an event-sourced application in Python.
@@ -74,7 +74,7 @@ attribute, and with one row for each aggregate. When a new aggregate is created,
 inserted. When an existing aggregate is changed, its row is updated. This approach is known
 as "concrete table inheritance".
 
-Event sourcing take this two steps further. Firstly, whenever an aggregate is created or updated,
+Event sourcing takes this two steps further. Firstly, whenever an aggregate is created or updated,
 a decision is encapsulated by an event object, and that event object is used to mutate an aggregate
 object. Secondly, rather than recording only the current state of aggregate objects, instead the
 event objects are recorded so that the recorded event objects can be used later to reconstruct
@@ -259,7 +259,7 @@ We can most easily define event-sourced applications by using the
     from eventsourcing.application import Application
 
 Using the :class:`~eventsourcing.application.Application` class, and
-the the ``Dog`` class, let's define a ``DogSchool`` application.
+the ``Dog`` class, let's define a ``DogSchool`` application.
 
 .. code-block:: python
 
@@ -409,7 +409,7 @@ projects <https://github.com/pyeventsourcing/cookiecutter-eventsourcing#readme>`
 Exercise
 ========
 
-Completing this exercises in this tutorial depends on:
+Please note, completing the exercises in this tutorial depends on:
 
 * having a working Python installation,
 * :doc:`installing the eventsourcing library </topics/installing>`, and

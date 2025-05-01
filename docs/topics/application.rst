@@ -178,7 +178,7 @@ Having define an application object, we can use it. Below, an instance of the
 ``DogSchool`` application is constructed. A new ``Dog`` aggregate is created
 by calling ``register_dog()``. Three items are added to its ``tricks`` by
 calling ``add_trick()`` three times. The recorded ``tricks`` of the aggregate
-is then obtained by calling ``get_tricks()`` method.
+are then obtained by calling ``get_tricks()`` method.
 
 .. code-block:: python
 
@@ -1082,7 +1082,7 @@ To enable application-level encryption, set the environment variable
 ``CIPHER_TOPIC`` to be the :ref:`topic <Topics>` of a cipher class.
 
 The library's older :class:`eventsourcing.cipher.AESCipher` class can
-be used to encrypt stored domain events. This class uses `Pycryptodome <https://pypi.org/project/pycryptodome/>`_.
+be used to encrypt stored events. This class uses `Pycryptodome <https://pypi.org/project/pycryptodome/>`_.
 When using the library's :class:`~eventsourcing.cipher.AESCipher`
 class, set environment variable ``CIPHER_KEY`` to be a valid encryption
 key. You can use the static method :func:`~eventsourcing.cipher.AESCipher.create_key`
@@ -1103,9 +1103,9 @@ on the :class:`eventsourcing.cipher.AESCipher` class to generate a valid encrypt
 
 
 Alternatively, the library's new :class:`eventsourcing.cryptography.AESCipher` class can
-be used to encrypt stored domain events. This class uses the newer "standard" Python
-`cryptography <https://pypi.org/project/cryptography/>`_ package. When using this
-:class:`~eventsourcing.cryptography.AESCipher` class, set environment variable ``CIPHER_KEY``
+be used to encrypt stored events. This class uses the newer "standard" Python
+`cryptography <https://pypi.org/project/cryptography/>`_ package. When using the
+:class:`eventsourcing.cryptography.AESCipher` class, set environment variable ``CIPHER_KEY``
 to be a valid encryption key. You can use the static method :func:`~eventsourcing.cryptography.AESCipher.create_key`
 on the :class:`eventsourcing.cryptography.AESCipher` class to generate a valid encryption key.
 

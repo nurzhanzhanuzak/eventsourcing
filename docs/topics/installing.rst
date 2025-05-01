@@ -82,10 +82,10 @@ The C optimization is recommended by the `Psycopg <https://www.psycopg.org>`_  d
 The pre-built binary option ``psycopg[binary]`` is a convenient alternative for development and testing, and
 for those unable to meet the prerequisites needed for building ``psycopg[c]``.
 
-This package now follows the recommendation that library's should depend only on the pure Python package, giving
+This package now follows the recommendation that libraries should depend only on the pure Python package, giving
 users the choice of either compiling the C optimization or using the pre-built binary or using the pure
 Python package. If you don't install either ``psycopg[c]`` or ``psycopg[binary]`` then you need to make sure
-the libpq is installed. The libpq is the client library used by psql, the PostgreSQL command line client. See
+libpq is installed (libpq is the client library used by psql, the PostgreSQL command line client). See
 the `Psycopg docs <https://www.psycopg.org/psycopg3/docs/basic/install.html#pure-python-installation>`_ for more
 information.
 
@@ -99,7 +99,7 @@ events in PostgreSQL.
 
 If you want to store cryptographically encrypted events,
 then install with the ``cryptography`` option. This simply installs
-the Python `cryptography <https://pypi.org/project/cryptography/>`_.
+the Python `cryptography <https://pypi.org/project/cryptography/>`_ package.
 Please note, you will need to :ref:`configure your application <Application configuration>`
 environment to enable encryption.
 
@@ -136,7 +136,7 @@ To start a new project with modern tooling, you can use the
 `template for Python eventsourcing projects <https://github.com/pyeventsourcing/cookiecutter-eventsourcing#readme>`_.
 
 The project template uses Cookiecutter to generate project files.
-It uses the build tool Poetry to create a Python virtual environments
+It uses the build tool Poetry to create Python virtual environments
 for your project, to manage project dependencies, and to create distributions.
 It uses popular development dependencies such as pytest, coverage, Black,
 isort, and mypy to help you develop and maintain your code. It has a GitHub
@@ -165,7 +165,7 @@ If you don't already have Poetry installed, run `make install-poetry`.
 
 
 Run `make install-packages` to create a new virtual environment and
-install packages that needed for development, such as Sphinx, Coverage.py, Black,
+install packages that are needed for development, such as Sphinx, Coverage.py, Black,
 mypy, ruff, and isort.
 
 ::
@@ -180,11 +180,11 @@ Once installed, check the project's test suite passes by running `make test`.
     $ make test
 
 
-Before the tests will pass, you will need setup PostgreSQL, with a database
+Before the tests will pass, you will need to set up PostgreSQL, with a database
 called 'eventsourcing' that can be accessed by a user called 'eventsourcing'
 that has password 'eventsourcing'.
 
-The following commands will install PostgreSQL on MacOS and setup the database and
+The following commands will install PostgreSQL on MacOS and set up the database and
 database user. If you already have PostgreSQL installed, just create the database
 and user. You may prefer to run PostgreSQL in a Docker container.
 

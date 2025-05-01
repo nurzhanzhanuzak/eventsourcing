@@ -77,7 +77,7 @@ the changes that result from a single command are `recorded atomically
 <https://en.wikipedia.org/wiki/Atomicity_(database_systems)>`_. These two notions
 of 'consistency' and 'boundary' are combined in the notion in *Domain-Driven
 Design* of 'consistency boundary'. Whilst we can recognise a cluster of software
-objects as basic object-orientated programming, and the use of command and query
+objects as basic object-oriented programming, and the use of command and query
 methods as the more refined pattern called CQS, the 'consistency boundary' notion
 gives aggregates of *Domain-Driven Design* their distinctive character.
 
@@ -1141,7 +1141,7 @@ attributes of an event-sourced aggregate. It isn't possible to change the ID of 
 existing aggregate, because the domain events will need to be stored together in a
 single sequence. And so, using an index aggregate that has an ID that can be recreated
 from a particular value of a mutable attribute of another aggregate to hold the
-ID of that aggregate with makes it possible to identify that aggregate from that
+ID of that aggregate which makes it possible to identify that aggregate from that
 particular value. Such index aggregates can be updated when the mutable
 attribute changes, or not.
 
@@ -1266,9 +1266,9 @@ its new name.
 We can drop the reference from the old index, so that it can
 be used to refer to a different page.
 
-.. code: python
+.. code-block: python
 
-    index.1.update_ref(None)
+    index1.update_ref(None)
 
 We can now use the new name to get the ID of the second index aggregate,
 and imagine using the second index aggregate to get the ID of the page.
@@ -1305,9 +1305,9 @@ the values given by method arguments, than it is to set values on the method arg
 values taken from ``self``.
 
 Secondly, it is perhaps illegitimate for the event to use "private" attributes of the
-aggregate, but if we support mutating the state of the aggregate with "public" attributes and
-methods, then we extend the "public interface" of the aggregate beyond that which genuine
-clients of the aggregate need.
+aggregate. However, if we were to support mutating the state of the aggregate with "public"
+attributes and methods, then we would need to extend the "public interface" of the aggregate
+beyond that which genuine clients of the aggregate need.
 
 Therefore, an alternative to defining :func:`~eventsourcing.domain.CanMutateAggregate.apply` methods
 on all the aggregate event classes is to define the aggregate mutator function on
@@ -1521,7 +1521,7 @@ that has an attribute ``name``.
 Please note, by default the name "Created" will be used for an automatically
 defined "created" event class. However, the name of the "created" class can be specified
 using the aggregate class argument ``created_event_name``, and it can be defined by using
-an :func:`@event<eventsourcing.domain.event>` decorator on the aggregate's ``__init__()`` method.
+an :func:`@event <eventsourcing.domain.event>` decorator on the aggregate's ``__init__()`` method.
 
 
 Dataclass-style init methods
@@ -2388,7 +2388,7 @@ used. It is also important to remember that if the body of a decorated method
 has conditional logic, this conditional logic will be executed each time the
 aggregate is reconstructed from stored events. Of course, this conditional
 logic may be usefully considered as validation of the projection of earlier
-events, for example checking the the ``Confirmed`` event is working properly.
+events, for example checking that the ``Confirmed`` event is working properly.
 
 If you wish to use this style, just make sure to raise an exception rather
 than returning early, and make sure not to change the state of the aggregate
@@ -2532,7 +2532,7 @@ You can localize date-time values by calling :data:`astimezone()` on a
     # Winter time in LA.
     domain_model_timestamp = datetime(2020, 1, 1, hour=12, tzinfo=timezone.utc)
     local_timestamp = localize(domain_model_timestamp, usa_user_timezone_setting)
-    assert local_timestamp.hour == 4  # Daylight saving time.
+    assert local_timestamp.hour == 4  # Standard time.
 
 
     china_user_timezone_setting = 'Asia/Shanghai'
@@ -2605,11 +2605,11 @@ The library's :mod:`~eventsourcing.utils` module contains the functions
 which are used in the library to resolve a given topic to a Python object, and to
 construct a topic for a given Python object.
 
-Topics are used when serialising domain events, to create references to domain event class
-objects. Topic strings are also used in "created" events, to identify an aggregate class object.
-Topics are also used to identify infrastructure factory class objects, and in other places too,
-such as identifying the cipher and compressor classes to be used by an application, and to identify
-the timezone object to be used when creating timestamps.
+Topics are used when serialising domain events, to identify a domain event class. Topics are
+used in "created" events, to identify an aggregate class. Topics are also used to identify
+infrastructure factory class objects, the recorder classes constructed by an infrastructure
+factory, the cipher and compressor classes used by an application, and the timezone object
+used when creating timezone-aware datetime objects.
 
 .. code-block:: python
 
@@ -3028,7 +3028,7 @@ the state is determined by a sequence of events. The events can function to dete
 the state of the aggregate by having a aggregate "topic" on the initial event, and by
 defining methods on the event classes, methods that project the state of the events into
 the state of the aggregate. These methods are as close as possible to the definition of the
-event data, and when developing the code we avoid having to scroll around the
+event data, and when developing the code we avoid having to scroll around
 to see how an event is applied to an aggregate. Indeed, Martin Fowler's 2005
 `event sourcing article <https://martinfowler.com/eaaDev/EventSourcing.html>`_
 has a UML diagram which shows exactly this design, with a method called 'process'
@@ -3042,9 +3042,9 @@ on the aggregate events, that is the way we settled on coding these things. The 
 impetus for coding things this way came from users of the library. The library
 documentation was initially written to suggest using a separate mutator function.
 However, that isn't the end of the story. There are three outstanding unsettled feelings.
-Firstly, by coding the aggregate project on methods of the aggregate, and passing
+Firstly, by coding the aggregate projector on methods of the aggregate, and passing
 in the aggregate to this method, there is a reversal of intuition in these methods,
-where `self` is the thing that has the data and doesn't change, and changes are
+where ``self`` is the thing that has the data and doesn't change, and changes are
 made to a method argument. Secondly, a tension arises between either rudely accessing the
 private members of the aggregate, or expanding its public interface that would
 be much better restricted to being only an expression of support for the application.
@@ -3058,17 +3058,17 @@ of saying everything three times, were resolved by the introduction of the :func
 decorator as a more :ref:`declarative syntax <Declarative syntax>`. One criticism
 of the declarative syntax design is that it is "command sourcing" and not "event sourcing",
 because it is the command method arguments that are being used as the attributes of the
-event. If may sometimes be "command sourcing" but then it is certainly also event
+event. It may sometimes be "command sourcing" but then it is certainly also event
 sourcing. Applications exist to support a domain, and in many cases applications support
-the domain by recording decisions that are made in the domain and received by the domain model.
-The :func:`@event<eventsourcing.domain.event>` decorator can also be used on "private" methods, methods that not part of the
-aggregate's "public" command and query interface that will be used by the application, called
-by "public" commands which are not so decorated, so do not trigger events that are simply
-comprised of the method arguments, so then there is event sourcing but no command
-sourcing. The important thing here is to separate out the work of the command if
-indeed there is any work (work that should happen only once) from the definition of
-and construction of an aggregate event object, and from the projection
-of the aggregate event into the aggregate state (which will happen many times).
+the domain by recording decisions that are made in the domain and registered by the domain model.
+The :func:`@event <eventsourcing.domain.event>` decorator can also be used on "private" methods,
+methods that are not part of the aggregate's "public" interface, but that will be
+called by undecorated "public" commands. In this case, events may not simply be
+comprised of the "public" method arguments, so there will be event sourcing but not
+command sourcing. The important thing here is to separate the work of the command
+(work that should happen only once) from the definition and construction of an aggregate
+event object, and from the projection of the aggregate event into the aggregate state
+(which will happen many times).
 
 Why mutate the aggregate state? Another question that may arise is about mutating the
 aggregate object, rather than reconstructing a copy of the aggregate that combines
@@ -3094,7 +3094,7 @@ of an application method.
 
 Another issue arises about the use of "absolute" topics to identify classes. The issue
 of moving and renaming classes can be resolved by setting the old paths to point to
-current classes, using the library's methods for doing this. However, it maybe useful
+current classes, using the library's methods for doing this. However, it may be useful
 to introduce support for "relative" topics, with the "base" topic left as application
 configurable.
 

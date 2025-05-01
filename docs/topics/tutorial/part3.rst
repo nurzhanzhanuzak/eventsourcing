@@ -74,7 +74,8 @@ aggregates. This means aggregate objects can be "saved" and later reconstructed
 by the application. If the persistence mechanism uses a durable database, the
 aggregate objects can be reconstructed even after the application object is
 reconstructed. If the persistence mechanism uses an in-memory database, the
-aggregates state will usually be lost when the application object is deleted.
+state of the application will be lost when the application object is deleted
+from memory.
 
 We can construct an application object class instance in the usual way,
 by calling the application class.
@@ -515,8 +516,8 @@ We can configure a "production" environment to use PostgreSQL. The example
 below shows how to store events in PostgreSQL that have been compressed and
 encrypted.
 
-We can use the library's :ref:`PostgresSQL persistence module <postgres-environment>`
-to store events in a PostgresSQL database. This persistence module
+We can use the library's :ref:`PostgreSQL persistence module <postgres-environment>`
+to store events in a PostgreSQL database. This persistence module
 uses `Psycopg v3 <https://www.psycopg.org>`_, along with its connection pool package,
 and either its C optimization package, or its pre-built binary package.
 

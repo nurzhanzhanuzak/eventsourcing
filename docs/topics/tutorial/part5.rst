@@ -70,7 +70,7 @@ The policy function defines how individual domain events will be processed. A po
 function has different responses for different types of domain events. The policy function
 may create changes to the state of the event processing application. These could be
 changes to an event-sourced domain model, or they could be updates to a non-event sourced
-materialized view. In this example, we will make changes to an event-sourced domain
+materialised view. In this example, we will make changes to an event-sourced domain
 model.
 
 In the example below, the ``Counters`` application counts the tricks added
@@ -214,7 +214,7 @@ to obtain the resulting state of the system.
 The ``test()`` function below shows how the abstract runner interface can be used to operate the dog school
 trick counting system.
 
-We will run the ``test()`` function firstly with the :class:`~eventsourcing.system.SingleThreadedRunner` and
+We will run the ``test()`` function first with the :class:`~eventsourcing.system.SingleThreadedRunner` and
 then the :class:`~eventsourcing.system.MultiThreadedRunner`. The applications will use the POPO persistence
 module by default. We will then run the test again, with the library's SQLite persistence module, and then
 with the PostgreSQL persistence module.

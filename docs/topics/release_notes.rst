@@ -53,7 +53,7 @@ Version 9.4.0 (released TBD)
   of the __init__ method, and these subclasses are decorated with the dataclass decorator to satisfy
   static type checkers and inform IDE code completion.
 * Fixed circular reference in eventsourcing.postgres ('after_connect' function), which was
-  preventing non-daemon threads threads from exiting in some circumstances.
+  preventing non-daemon threads from exiting in some circumstances.
 * Renamed POPOFactory, SQLiteFactory, and PostgresFactory (were all called 'Factory').
 * Implemented support for application configuration environment variables: MAPPER_TOPIC,
   TRANSCODER_TOPIC, APPLICATION_RECORDER_TOPIC, TRACKING_RECORDER_TOPIC, and PROCESS_RECORDER_TOPIC.
@@ -549,7 +549,7 @@ few years of learning and pathfinding.
 * The highlight is the new :ref:`declarative syntax <Declarative syntax>`
   for event-sourced domain models.
 
-* Dedicated persistence modules for SQLite and PostgresSQL have been
+* Dedicated persistence modules for SQLite and PostgreSQL have been
   introduced. Support for SQLAlchemy and Django, and other databases,
   has been removed. The plan is to support these in separate package
   distributions. The default "plain old Python object" infrastructure
@@ -622,7 +622,7 @@ few years of learning and pathfinding.
 
 * The core library now depends only on the PythonStandard Library, except for
   the optional extra dependencies on a cryptographic library (PyCryptodome)
-  and a PostgresSQL driver (psycopg2), and the dependencies of development tools.
+  and a PostgreSQL driver (psycopg2), and the dependencies of development tools.
 
 * The test suite is now much faster to run (several seconds rather than several
   minutes for the previous version). These changes make the build time on CI

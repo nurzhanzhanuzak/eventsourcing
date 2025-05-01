@@ -4,7 +4,7 @@ Projections 1 - Full text search
 In this example, a :ref:`projection <Projection>` is defined, using the :doc:`projection module </topics/projection>`,
 that processes events from example :doc:`/topics/examples/content-management`. The events
 are processed into an eventually-consistent full text search index, a searchable
-"materialized view" of the content of the application.
+"materialised view" of the content of the application.
 
 This is an example of CQRS. In this example, only the :data:`~examples.contentmanagement.domainmodel.Page.body`
 values of the :class:`~examples.contentmanagement.domainmodel.Page` aggregates are indexed in the search engine.

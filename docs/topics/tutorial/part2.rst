@@ -178,7 +178,7 @@ the ``name`` argument.
 When the aggregate class is called, a "created" event object is
 constructed and used to to construct an aggregate instance.
 The body of the ``__init__()`` method is used by the "created" event object
-to initialise the aggregate instance. The result is the aggregate instance's
+to initialise the aggregate instance. As a result, the aggregate instance's
 ``name`` attribute has the value given when calling the aggregate class.
 
 We can see the aggregate instance ``dog`` has an attribute ``name``, which
@@ -230,7 +230,7 @@ instance can be reconstructed in future from stored events.
 
 The "created" event object can be used to construct another object with the
 same state as the original aggregate object. That is, it can be used to
-reconstruct the initial current state of the aggregate.
+reconstruct the initial state of the aggregate.
 
 .. code-block:: python
 
@@ -239,7 +239,7 @@ reconstruct the initial current state of the aggregate.
     assert copy.id == dog.id
     assert copy.name == dog.name
 
-Note what's happening when we call :func:`~eventsourcing.domain.CanMutateAggregate.mutate`. We start with ``None`` and
+Note what happens when we call :func:`~eventsourcing.domain.CanMutateAggregate.mutate`. We start with ``None`` and
 end up with an instance of ``Dog`` that has the same state as the original
 ``dog`` object. Note also that ``dog`` and ``copy`` are different objects
 with the same type and state, not two references to the same Python object.
