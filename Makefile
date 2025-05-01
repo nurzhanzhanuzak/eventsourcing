@@ -30,10 +30,10 @@ install-packages:
 
 .PHONY: poetry-update
 poetry-update:
-	$(POETRY) lock
+	$(POETRY) update
 
 .PHONY: update
-update: poetry-update install
+update: poetry-update install-packages
 
 .PHONY: lint
 lint: lint-black lint-ruff lint-isort lint-pyright lint-mypy #lint-dockerfile

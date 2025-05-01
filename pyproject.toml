@@ -177,6 +177,7 @@ ignore = [
     "C901",  # is too complex
     "TD002",  # Missing author in TODO
     "TD003",  # Missing issue line for this TODO
+    "TC006",  # Add quotes to type expression in `typing.cast()`
     "PLR0915",  # Too many statements
     "PLR0912", # Too many branches
     "S101", # Use of `assert` detected
@@ -200,6 +201,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "*/sqlite.py" = [
     "S608",  # Possible SQL injection vector through string-based query construction
 ]
+
+
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
