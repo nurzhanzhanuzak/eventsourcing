@@ -13,14 +13,11 @@ changes to application state are stored as a sequence of events. This library pr
 for building event-sourced applications in Python, with a focus on reliability, performance, and developer
 experience. Please [read the docs](https://eventsourcing.readthedocs.io/). See also [extension projects](https://github.com/pyeventsourcing).
 
-
-
 *"totally amazing and a pleasure to use"*
 
 *"very clean and intuitive"*
 
 *"a huge help and time saver"*
-
 
 
 ## Installation
