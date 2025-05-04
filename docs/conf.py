@@ -33,6 +33,8 @@ author = 'John Bywater'
 # See https://github.com/pydantic/pydantic/discussions/7763 for workaround.
 import examples.aggregate7.domainmodel
 import examples.aggregate8.domainmodel
+import examples.shopstandard.domain
+import examples.shopvertical.events
 
 from importlib.metadata import version as get_version
 
