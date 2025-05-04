@@ -31,12 +31,12 @@ Domain model
 Exceptions
 ----------
 
-.. literalinclude:: ../../../examples/shopvertical/exceptions.py
+.. literalinclude:: ../../../examples/shopstandard/exceptions.py
 
 Test
 ----
 
-.. literalinclude:: ../../../examples/shopvertical/test.py
+.. literalinclude:: ../../../examples/shopstandard/test.py
     :pyobject: TestShop
 
 Code reference
@@ -62,4 +62,3 @@ Code reference
     :members:
     :undoc-members:
     :special-members: __init__
-
