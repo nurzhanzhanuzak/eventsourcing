@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from eventsourcing.application import Application
 from eventsourcing.utils import get_topic
+from examples.aggregate7.immutablemodel import Immutable
 from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
 from examples.shopvertical.events import DomainEvent
 
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
     from uuid import UUID
 
 
-class Command(ABC):
+class Command(Immutable, ABC):
     @abstractmethod
     def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
         pass  # pragma: no cover
@@ -22,7 +23,7 @@ class Command(ABC):
         pass  # pragma: no cover
 
 
-class Query(ABC):
+class Query(Immutable):
     @abstractmethod
     def execute(self) -> Any:
         pass  # pragma: no cover

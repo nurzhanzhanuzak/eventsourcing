@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003
 
 from examples.shopvertical.common import Command, get_events, put_events
 from examples.shopvertical.events import (
@@ -16,11 +15,7 @@ from examples.shopvertical.exceptions import (
     ProductNotInCartError,
 )
 
-if TYPE_CHECKING:
-    from uuid import UUID
 
-
-@dataclass(frozen=True)
 class RemoveItemFromCart(Command):
     cart_id: UUID
     product_id: UUID

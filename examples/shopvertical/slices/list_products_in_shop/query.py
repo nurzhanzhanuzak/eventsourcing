@@ -1,8 +1,8 @@
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from examples.aggregate7.immutablemodel import Immutable
 from examples.shopvertical.common import Query, get_all_events
 from examples.shopvertical.events import (
     AddedProductToShop,
@@ -11,8 +11,7 @@ from examples.shopvertical.events import (
 )
 
 
-@dataclass(frozen=True)
-class ProductDetails:
+class ProductDetails(Immutable):
     id: UUID
     name: str
     description: str

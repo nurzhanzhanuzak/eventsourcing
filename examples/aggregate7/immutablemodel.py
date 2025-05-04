@@ -13,24 +13,24 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 
-class DomainEvent(BaseModel, frozen=True):
-    model_config = ConfigDict(extra="forbid")
+class Immutable(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
+
+class DomainEvent(Immutable):
     originator_id: UUID
     originator_version: int
     timestamp: datetime
 
 
-class Aggregate(BaseModel, frozen=True):
-    model_config = ConfigDict(extra="forbid")
+class Aggregate(Immutable):
     id: UUID
-
     version: int
     created_on: datetime
     modified_on: datetime
 
 
-class Snapshot(DomainEvent, frozen=True):
+class Snapshot(DomainEvent):
     topic: str
     state: dict[str, Any]
 

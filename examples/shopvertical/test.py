@@ -120,7 +120,7 @@ class TestShop(TestCase):
 
         # Get cart items - should be 0.
         cart_id = uuid4()
-        cart_items = GetCartItems(cart_id).execute()
+        cart_items = GetCartItems(cart_id=cart_id).execute()
         self.assertEqual(len(cart_items), 0)
 
         # Add item to cart.
@@ -133,7 +133,7 @@ class TestShop(TestCase):
         ).execute()
 
         # Get cart items - should be 1.
-        cart_items = GetCartItems(cart_id).execute()
+        cart_items = GetCartItems(cart_id=cart_id).execute()
         self.assertEqual(len(cart_items), 1)
 
         # Check everything is getting serialised and deserialised correctly.
@@ -146,7 +146,7 @@ class TestShop(TestCase):
         ClearCart(cart_id=cart_id).execute()
 
         # Get cart items - should be 0.
-        cart_items = GetCartItems(cart_id).execute()
+        cart_items = GetCartItems(cart_id=cart_id).execute()
         self.assertEqual(len(cart_items), 0)
 
         # Add item to cart.
@@ -168,7 +168,7 @@ class TestShop(TestCase):
         ).execute()
 
         # Get cart items - should be 2.
-        cart_items = GetCartItems(cart_id).execute()
+        cart_items = GetCartItems(cart_id=cart_id).execute()
         self.assertEqual(len(cart_items), 2)
         self.assertEqual(cart_items[0].product_id, product_id1)
         self.assertEqual(cart_items[1].product_id, product_id2)
@@ -183,7 +183,7 @@ class TestShop(TestCase):
         ).execute()
 
         # Get cart items - should be 3.
-        cart_items = GetCartItems(cart_id).execute()
+        cart_items = GetCartItems(cart_id=cart_id).execute()
         self.assertEqual(len(cart_items), 3)
         self.assertEqual(cart_items[0].product_id, product_id1)
         self.assertEqual(cart_items[1].product_id, product_id2)
@@ -200,7 +200,7 @@ class TestShop(TestCase):
             ).execute()
 
         # Get cart items - should be 3.
-        cart_items = GetCartItems(cart_id).execute()
+        cart_items = GetCartItems(cart_id=cart_id).execute()
         self.assertEqual(len(cart_items), 3)
         self.assertEqual(cart_items[0].product_id, product_id1)
         self.assertEqual(cart_items[1].product_id, product_id2)
@@ -213,7 +213,7 @@ class TestShop(TestCase):
         ).execute()
 
         # Get cart items - should be 2.
-        cart_items = GetCartItems(cart_id).execute()
+        cart_items = GetCartItems(cart_id=cart_id).execute()
         self.assertEqual(len(cart_items), 2)
         self.assertEqual(cart_items[0].product_id, product_id1)
         self.assertEqual(cart_items[1].product_id, product_id3)
@@ -235,7 +235,7 @@ class TestShop(TestCase):
         ).execute()
 
         # Get cart items - should be 3.
-        cart_items = GetCartItems(cart_id).execute()
+        cart_items = GetCartItems(cart_id=cart_id).execute()
         self.assertEqual(len(cart_items), 3)
         self.assertEqual(cart_items[0].product_id, product_id1)
         self.assertEqual(cart_items[1].product_id, product_id3)

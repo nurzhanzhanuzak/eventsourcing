@@ -3,31 +3,30 @@ from __future__ import annotations
 from functools import singledispatch
 from uuid import uuid4
 
-from pydantic import BaseModel
-
 from eventsourcing.domain import datetime_now_with_tzinfo
 from examples.aggregate7.immutablemodel import (
     Aggregate,
     DomainEvent,
+    Immutable,
     Snapshot,
     aggregate_projector,
 )
 
 
-class Trick(BaseModel):
+class Trick(Immutable):
     name: str
 
 
-class Dog(Aggregate, frozen=True):
+class Dog(Aggregate):
     name: str
     tricks: tuple[Trick, ...]
 
 
-class DogRegistered(DomainEvent, frozen=True):
+class DogRegistered(DomainEvent):
     name: str
 
 
-class TrickAdded(DomainEvent, frozen=True):
+class TrickAdded(DomainEvent):
     trick: Trick
 
 

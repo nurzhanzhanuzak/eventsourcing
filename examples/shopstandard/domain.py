@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from decimal import Decimal
-from uuid import UUID
-
-from pydantic import BaseModel, ConfigDict
+from decimal import Decimal  # noqa: TC003
+from uuid import UUID  # noqa: TC003
 
 from eventsourcing.domain import event
+from examples.aggregate7.immutablemodel import Immutable
 from examples.aggregate8.mutablemodel import Aggregate
 from examples.shopstandard.exceptions import (
     CartAlreadySubmittedError,
@@ -15,9 +14,7 @@ from examples.shopstandard.exceptions import (
 )
 
 
-class ProductDetails(BaseModel, frozen=True):
-    model_config = ConfigDict(extra="forbid")
-
+class ProductDetails(Immutable):
     id: UUID
     name: str
     description: str
@@ -37,7 +34,7 @@ class Product(Aggregate):
     def create_id(product_id: UUID) -> UUID:
         return product_id
 
-    class InventoryAdjusted(Aggregate.Event, frozen=True):
+    class InventoryAdjusted(Aggregate.Event):
         adjustment: int
 
     @event(InventoryAdjusted)
@@ -45,9 +42,7 @@ class Product(Aggregate):
         self.inventory += adjustment
 
 
-class CartItem(BaseModel, frozen=True):
-    model_config = ConfigDict(extra="forbid")
-
+class CartItem(Immutable):
     product_id: UUID
     name: str
     description: str
@@ -64,19 +59,19 @@ class Cart(Aggregate):
     def create_id(cart_id: UUID) -> UUID:
         return cart_id
 
-    class ItemAdded(Aggregate.Event, frozen=True):
+    class ItemAdded(Aggregate.Event):
         product_id: UUID
         name: str
         description: str
         price: Decimal
 
-    class ItemRemoved(Aggregate.Event, frozen=True):
+    class ItemRemoved(Aggregate.Event):
         product_id: UUID
 
-    class Cleared(Aggregate.Event, frozen=True):
+    class Cleared(Aggregate.Event):
         pass
 
-    class Submitted(Aggregate.Event, frozen=True):
+    class Submitted(Aggregate.Event):
         pass
 
     @event(ItemAdded)

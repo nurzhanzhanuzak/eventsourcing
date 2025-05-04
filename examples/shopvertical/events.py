@@ -1,42 +1,40 @@
 from __future__ import annotations
 
-from decimal import Decimal
-from uuid import UUID
+from decimal import Decimal  # noqa: TC003
+from uuid import UUID  # noqa: TC003
 
-from pydantic import BaseModel, ConfigDict
+from examples.aggregate7.immutablemodel import Immutable
 
 
-class DomainEvent(BaseModel, frozen=True):
-    model_config = ConfigDict(extra="forbid")
-
+class DomainEvent(Immutable):
     originator_id: UUID
     originator_version: int
 
 
-class AddedProductToShop(DomainEvent, frozen=True):
+class AddedProductToShop(DomainEvent):
     name: str
     description: str
     price: Decimal
 
 
-class AdjustedProductInventory(DomainEvent, frozen=True):
+class AdjustedProductInventory(DomainEvent):
     adjustment: int
 
 
-class AddedItemToCart(DomainEvent, frozen=True):
+class AddedItemToCart(DomainEvent):
     product_id: UUID
     name: str
     description: str
     price: Decimal
 
 
-class RemovedItemFromCart(DomainEvent, frozen=True):
+class RemovedItemFromCart(DomainEvent):
     product_id: UUID
 
 
-class ClearedCart(DomainEvent, frozen=True):
+class ClearedCart(DomainEvent):
     pass
 
 
-class SubmittedCart(DomainEvent, frozen=True):
+class SubmittedCart(DomainEvent):
     pass

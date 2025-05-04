@@ -1,18 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from decimal import Decimal  # noqa: TC003
+from uuid import UUID  # noqa: TC003
 
 from examples.shopvertical.common import Command, get_events, put_events
 from examples.shopvertical.events import AddedProductToShop, DomainEvent
 from examples.shopvertical.exceptions import ProductAlreadyInShopError
 
-if TYPE_CHECKING:
-    from decimal import Decimal
-    from uuid import UUID
 
-
-@dataclass(frozen=True)
 class AddProductToShop(Command):
     product_id: UUID
     name: str

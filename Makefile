@@ -36,7 +36,7 @@ poetry-update:
 update: poetry-update install-packages
 
 .PHONY: lint
-lint: lint-black lint-ruff lint-isort lint-pyright lint-mypy #lint-dockerfile
+lint: lint-black lint-ruff lint-isort lint-mypy lint-pyright #lint-dockerfile
 
 .PHONY: lint-black
 lint-black:

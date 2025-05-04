@@ -1,7 +1,7 @@
-from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
+from examples.aggregate7.immutablemodel import Immutable
 from examples.shopvertical.common import Query, get_events
 from examples.shopvertical.events import (
     AddedItemToCart,
@@ -11,15 +11,13 @@ from examples.shopvertical.events import (
 )
 
 
-@dataclass(frozen=True)
-class CartItem:
+class CartItem(Immutable):
     product_id: UUID
     name: str
     description: str
     price: Decimal
 
 
-@dataclass(frozen=True)
 class GetCartItems(Query):
     cart_id: UUID
 

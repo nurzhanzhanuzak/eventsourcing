@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
-
 from eventsourcing.domain import event
+from examples.aggregate7.immutablemodel import Immutable
 from examples.aggregate8.mutablemodel import Aggregate, AggregateSnapshot, SnapshotState
 
 
-class Trick(BaseModel):
+class Trick(Immutable):
     name: str
 
 
-class DogSnapshotState(SnapshotState, frozen=True):
+class DogSnapshotState(SnapshotState):
     name: str
     tricks: list[Trick]
 
 
 class Dog(Aggregate):
-    class Snapshot(AggregateSnapshot, frozen=True):
+    class Snapshot(AggregateSnapshot):
         state: DogSnapshotState
 
     @event("Registered")
