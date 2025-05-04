@@ -1,13 +1,14 @@
+from collections.abc import Sequence
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
+from eventsourcing.utils import get_topic
 from examples.aggregate7.immutablemodel import Immutable
 from examples.shopvertical.common import Query, get_all_events
 from examples.shopvertical.events import (
     AddedProductToShop,
     AdjustedProductInventory,
-    DomainEvent,
+    DomainEvents,
 )
 
 
@@ -21,7 +22,7 @@ class ProductDetails(Immutable):
 
 class ListProductsInShop(Query):
     @staticmethod
-    def projection(events: tuple[DomainEvent, ...]) -> tuple[ProductDetails, ...]:
+    def projection(events: DomainEvents) -> Sequence[ProductDetails]:
         products: dict[UUID, ProductDetails] = {}
         for event in events:
             if isinstance(event, AddedProductToShop):
@@ -42,6 +43,13 @@ class ListProductsInShop(Query):
                 )
         return tuple(products.values())
 
-    def execute(self) -> Any:
+    def execute(self) -> Sequence[ProductDetails]:
         # TODO: Make this a materialised view.
-        return self.projection(get_all_events())
+        return self.projection(
+            get_all_events(
+                topics=(
+                    get_topic(AddedProductToShop),
+                    get_topic(AdjustedProductInventory),
+                )
+            )
+        )

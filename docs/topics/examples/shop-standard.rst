@@ -6,18 +6,6 @@ Application 6 - Shopping cart
 This example suggests how a shopping cart might be implemented.
 
 
-Domain model
-------------
-
-.. literalinclude:: ../../../examples/shopstandard/domain.py
-    :pyobject: Product
-
-.. literalinclude:: ../../../examples/shopstandard/domain.py
-    :pyobject: CartItem
-
-.. literalinclude:: ../../../examples/shopstandard/domain.py
-    :pyobject: Cart
-
 Application
 -----------
 
@@ -26,6 +14,18 @@ Application
 
 .. literalinclude:: ../../../examples/shopstandard/domain.py
     :pyobject: ProductDetails
+
+Domain model
+------------
+
+.. literalinclude:: ../../../examples/shopstandard/domain.py
+    :pyobject: Product
+
+.. literalinclude:: ../../../examples/shopstandard/domain.py
+    :pyobject: Cart
+
+.. literalinclude:: ../../../examples/shopstandard/domain.py
+    :pyobject: CartItem
 
 
 Exceptions
@@ -38,3 +38,28 @@ Test
 
 .. literalinclude:: ../../../examples/shopvertical/test.py
     :pyobject: TestShop
+
+Code reference
+--------------
+
+.. automodule:: examples.shopstandard.application
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopstandard.domain
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopstandard.exceptions
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+

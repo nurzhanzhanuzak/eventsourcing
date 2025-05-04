@@ -14,6 +14,7 @@ are defined using Pydantic. The main advantage of using Pydantic here is that an
 used in the domain model will be automatically serialised and deserialised, without needing also to
 define custom :ref:`transcoding<Transcodings>` classes.
 
+
 Pydantic model for mutable aggregate
 ------------------------------------
 
@@ -33,10 +34,8 @@ The code below shows how to define an aggregate using the Pydantic and the libra
 Application
 -----------
 
-The :class:`~examples.aggregate8.application.DogSchool` application in this example uses the library's
-:class:`~eventsourcing.application.Application` class. It also uses the
-:class:`~examples.aggregate7.orjsonpydantic.PydanticMapper` and
-:class:`~examples.aggregate7.orjsonpydantic.OrjsonTranscoder` classes
+The :class:`~examples.aggregate8.application.DogSchool` application in this example uses the
+:class:`~examples.aggregate7.orjsonpydantic.PydanticApplication` class
 from :doc:`example 7 </topics/examples/aggregate7>`.
 
 .. literalinclude:: ../../../examples/aggregate8/application.py

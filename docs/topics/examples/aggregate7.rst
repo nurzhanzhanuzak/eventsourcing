@@ -13,6 +13,7 @@ This is demonstrated in the example below with the :class:`~examples.aggregate7.
 which is used in both aggregate events and aggregate state, and which is reconstructed from serialised string
 values, representing only the name of the trick, from both recorded aggregate events and from recorded snapshots.
 
+
 Pydantic mapper and orjson transcoder
 -------------------------------------
 
@@ -32,6 +33,14 @@ available in Python.
 
 .. literalinclude:: ../../../examples/aggregate7/orjsonpydantic.py
     :pyobject: OrjsonTranscoder
+
+The :class:`~examples.aggregate7.orjsonpydantic.PydanticApplication` class is a
+subclass of the library's :class:`~eventsourcing.application.Application` class
+which is configured to use :class:`~examples.aggregate7.orjsonpydantic.PydanticMapper`
+and :class:`~examples.aggregate7.orjsonpydantic.OrjsonTranscoder`.
+
+.. literalinclude:: ../../../examples/aggregate7/orjsonpydantic.py
+    :pyobject: PydanticApplication
 
 
 Pydantic model for immutable aggregate
@@ -53,8 +62,8 @@ The code below shows how to define an immutable aggregate in a functional style,
 Application
 -----------
 
-The :class:`~examples.aggregate7.application.DogSchool` application in this example uses the library's
-:class:`~eventsourcing.application.Application` class. It must receive the new events that are returned
+The :class:`~examples.aggregate7.application.DogSchool` application in this example uses the
+:class:`~examples.aggregate7.orjsonpydantic.PydanticApplication`. It must receive the new events that are returned
 by the aggregate command methods, and pass them to its :func:`~eventsourcing.application.Application.save`
 method. The aggregate projector function must also be supplied when reconstructing an aggregate from the
 repository, and when taking snapshots.

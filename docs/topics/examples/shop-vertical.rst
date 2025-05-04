@@ -105,3 +105,84 @@ Integration test
 
 .. literalinclude:: ../../../examples/shopvertical/test.py
     :pyobject: TestShop
+
+Code reference
+--------------
+
+.. automodule:: examples.shopvertical.slices.add_product_to_shop.cmd
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.slices.adjust_product_inventory.cmd
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.slices.list_products_in_shop.query
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.slices.get_cart_items.query
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.slices.add_item_to_cart.cmd
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.slices.remove_item_from_cart.cmd
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.slices.clear_cart.cmd
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.slices.submit_cart.cmd
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.events
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.exceptions
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: examples.shopvertical.common
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+

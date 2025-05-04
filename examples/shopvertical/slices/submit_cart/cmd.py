@@ -8,7 +8,7 @@ from examples.shopvertical.events import (
     AddedItemToCart,
     AdjustedProductInventory,
     ClearedCart,
-    DomainEvent,
+    DomainEvents,
     RemovedItemFromCart,
     SubmittedCart,
 )
@@ -21,7 +21,7 @@ from examples.shopvertical.exceptions import (
 class SubmitCart(Command):
     cart_id: UUID
 
-    def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
+    def handle(self, events: DomainEvents) -> DomainEvents:
         requested_products: dict[UUID, int] = defaultdict(int)
         is_submitted = False
 

@@ -1,22 +1,22 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import orjson
+from pydantic import BaseModel
 
+from eventsourcing.application import Application
 from eventsourcing.persistence import Mapper, StoredEvent, Transcoder
 from eventsourcing.utils import get_topic, resolve_topic
 
 if TYPE_CHECKING:
-    from pydantic import BaseModel
-
     from eventsourcing.domain import DomainEventProtocol
 
 
 class PydanticMapper(Mapper):
     def to_stored_event(self, domain_event: DomainEventProtocol) -> StoredEvent:
         topic = get_topic(domain_event.__class__)
-        event_state = cast("BaseModel", domain_event).model_dump(mode="json")
+        event_state = cast(BaseModel, domain_event).model_dump(mode="json")
         stored_state = self.transcoder.encode(event_state)
         if self.compressor:
             stored_state = self.compressor.compress(stored_state)
@@ -46,3 +46,10 @@ class OrjsonTranscoder(Transcoder):
 
     def decode(self, data: bytes) -> Any:
         return orjson.loads(data)
+
+
+class PydanticApplication(Application):
+    env: ClassVar[dict[str, str]] = {
+        "TRANSCODER_TOPIC": get_topic(OrjsonTranscoder),
+        "MAPPER_TOPIC": get_topic(PydanticMapper),
+    }

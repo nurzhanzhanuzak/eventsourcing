@@ -3,14 +3,14 @@ from __future__ import annotations
 from uuid import UUID  # noqa: TC003
 
 from examples.shopvertical.common import Command, get_events, put_events
-from examples.shopvertical.events import ClearedCart, DomainEvent, SubmittedCart
+from examples.shopvertical.events import ClearedCart, DomainEvents, SubmittedCart
 from examples.shopvertical.exceptions import CartAlreadySubmittedError
 
 
 class ClearCart(Command):
     cart_id: UUID
 
-    def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
+    def handle(self, events: DomainEvents) -> DomainEvents:
         is_submitted = False
         for event in events:
             if isinstance(event, SubmittedCart):

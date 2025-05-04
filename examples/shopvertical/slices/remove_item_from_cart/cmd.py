@@ -6,7 +6,7 @@ from examples.shopvertical.common import Command, get_events, put_events
 from examples.shopvertical.events import (
     AddedItemToCart,
     ClearedCart,
-    DomainEvent,
+    DomainEvents,
     RemovedItemFromCart,
     SubmittedCart,
 )
@@ -20,7 +20,7 @@ class RemoveItemFromCart(Command):
     cart_id: UUID
     product_id: UUID
 
-    def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
+    def handle(self, events: DomainEvents) -> DomainEvents:
         product_ids = []
         is_submitted = False
 

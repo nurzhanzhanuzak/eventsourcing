@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from decimal import Decimal
 from uuid import UUID
 
@@ -6,7 +7,7 @@ from examples.shopvertical.common import Query, get_events
 from examples.shopvertical.events import (
     AddedItemToCart,
     ClearedCart,
-    DomainEvent,
+    DomainEvents,
     RemovedItemFromCart,
 )
 
@@ -22,7 +23,7 @@ class GetCartItems(Query):
     cart_id: UUID
 
     @staticmethod
-    def projection(events: tuple[DomainEvent, ...]) -> tuple[CartItem, ...]:
+    def projection(events: DomainEvents) -> Sequence[CartItem]:
         cart_items: list[CartItem] = []
         for event in events:
             if isinstance(event, AddedItemToCart):
@@ -43,5 +44,5 @@ class GetCartItems(Query):
                 cart_items.clear()
         return tuple(cart_items)
 
-    def execute(self) -> tuple[CartItem, ...]:
+    def execute(self) -> Sequence[CartItem]:
         return self.projection(get_events(self.cart_id))

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from typing import TYPE_CHECKING, ClassVar
+from collections import Counter
+from typing import TYPE_CHECKING, cast
 
-from eventsourcing.application import AggregateNotFoundError, Application
+from eventsourcing.application import AggregateNotFoundError
 from eventsourcing.persistence import IntegrityError
 from eventsourcing.utils import get_topic
-from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
+from examples.aggregate7.orjsonpydantic import PydanticApplication
 from examples.shopstandard.domain import Cart, CartItem, Product, ProductDetails
 from examples.shopstandard.exceptions import (
     InsufficientInventoryError,
@@ -15,27 +15,17 @@ from examples.shopstandard.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from decimal import Decimal
     from uuid import UUID
 
 
-class Shop(Application):
-    env: ClassVar[dict[str, str]] = {
-        "TRANSCODER_TOPIC": get_topic(OrjsonTranscoder),
-        "MAPPER_TOPIC": get_topic(PydanticMapper),
-    }
-
+class Shop(PydanticApplication):
     def add_product_to_shop(
         self, product_id: UUID, name: str, description: str, price: Decimal
     ) -> None:
-        product = Product(
-            product_id=product_id,
-            name=name,
-            description=description,
-            price=price,
-        )
         try:
-            self.save(product)
+            self.save(Product(product_id, name, description, price))
         except IntegrityError:
             raise ProductAlreadyInShopError from None
 
@@ -43,39 +33,31 @@ class Shop(Application):
         try:
             product: Product = self.repository.get(product_id)
         except AggregateNotFoundError:
-            msg = f"Product with ID {product_id} not found"
-            raise ProductNotFoundInShopError(msg) from None
+            raise ProductNotFoundInShopError from None
+        else:
+            product.adjust_inventory(adjustment)
+            self.save(product)
 
-        product.adjust_inventory(adjustment)
-        self.save(product)
-
-    def list_products_in_shop(self) -> list[ProductDetails]:
-        # Find all product IDs
-        product_ids: list[UUID] = [
-            n.originator_id
-            for n in self.recorder.select_notifications(start=0, limit=1000000)
-            if n.topic.startswith("examples.shopstandard.domain:Product.Created")
-        ]
-
-        # Get all products
-        products: list[ProductDetails] = []
-        for product_id in product_ids:
-            product: Product = self.repository.get(product_id)
-            products.append(
-                ProductDetails(
-                    id=product.id,
-                    name=product.name,
-                    description=product.description,
-                    price=product.price,
-                    inventory=product.inventory,
-                )
+    def list_products_in_shop(self) -> Sequence[ProductDetails]:
+        # TODO: Make this a materialised view.
+        return tuple(
+            ProductDetails(
+                id=product.id,
+                name=product.name,
+                description=product.description,
+                price=product.price,
+                inventory=product.inventory,
             )
+            for n in self.recorder.select_notifications(
+                start=None,
+                limit=1000000,
+                topics=[get_topic(Product.Created)],
+            )
+            if (product := cast(Product, self.repository.get(n.originator_id)))
+        )
 
-        return products
-
-    def get_cart_items(self, cart_id: UUID) -> tuple[CartItem, ...]:
-        cart = self._get_cart(cart_id)
-        return tuple(cart.items)
+    def get_cart_items(self, cart_id: UUID) -> Sequence[CartItem]:
+        return tuple(self._get_cart(cart_id).items)
 
     def add_item_to_cart(
         self,
@@ -103,10 +85,7 @@ class Shop(Application):
         cart = self._get_cart(cart_id)
 
         # Check inventory.
-        requested_products: dict[UUID, int] = defaultdict(int)
-        for item in cart.items:
-            requested_products[item.product_id] += 1
-
+        requested_products = Counter(i.product_id for i in cart.items)
         for product_id, requested_amount in requested_products.items():
             try:
                 product: Product = self.repository.get(product_id)
@@ -119,7 +98,6 @@ class Shop(Application):
                 msg = f"Insufficient inventory for product with ID {product_id}"
                 raise InsufficientInventoryError(msg)
 
-        # Submit cart
         cart.submit()
         self.save(cart)
 
@@ -127,4 +105,4 @@ class Shop(Application):
         try:
             return self.repository.get(cart_id)
         except AggregateNotFoundError:
-            return Cart(cart_id=cart_id)
+            return Cart(id=cart_id)

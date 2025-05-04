@@ -3,19 +3,18 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, cast
 
-from eventsourcing.application import Application
-from eventsourcing.utils import get_topic
 from examples.aggregate7.immutablemodel import Immutable
-from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
-from examples.shopvertical.events import DomainEvent
+from examples.aggregate7.orjsonpydantic import PydanticApplication
+from examples.shopvertical.events import DomainEvents
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from uuid import UUID
 
 
 class Command(Immutable, ABC):
     @abstractmethod
-    def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
+    def handle(self, events: DomainEvents) -> DomainEvents:
         pass  # pragma: no cover
 
     @abstractmethod
@@ -29,39 +28,34 @@ class Query(Immutable):
         pass  # pragma: no cover
 
 
-def construct_application() -> Application:
-    return Application(
-        env={
-            "TRANSCODER_TOPIC": get_topic(OrjsonTranscoder),
-            "MAPPER_TOPIC": get_topic(PydanticMapper),
-        }
-    )
-
-
 class _Globals:
-    app = construct_application()
+    app = PydanticApplication()
 
 
 def reset_application() -> None:
-    _Globals.app = construct_application()
+    _Globals.app = PydanticApplication()
 
 
-def get_events(originator_id: UUID) -> tuple[DomainEvent, ...]:
-    return cast(tuple[DomainEvent, ...], tuple(_Globals.app.events.get(originator_id)))
+def get_events(originator_id: UUID) -> DomainEvents:
+    return cast(DomainEvents, tuple(_Globals.app.events.get(originator_id)))
 
 
-def put_events(events: tuple[DomainEvent, ...]) -> int | None:
+def put_events(events: DomainEvents) -> int | None:
     recordings = _Globals.app.events.put(events)
     return recordings[-1].notification.id if recordings else None
 
 
-def get_all_events() -> tuple[DomainEvent, ...]:
+def get_all_events(topics: Sequence[str] = ()) -> DomainEvents:
     return cast(
-        tuple[DomainEvent, ...],
+        DomainEvents,
         tuple(
             map(
                 _Globals.app.mapper.to_domain_event,
-                _Globals.app.recorder.select_notifications(start=0, limit=1000000),
+                _Globals.app.recorder.select_notifications(
+                    start=None,
+                    limit=1000000,
+                    topics=topics,
+                ),
             )
         ),
     )

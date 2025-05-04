@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING
 from unittest import TestCase
 from uuid import UUID, uuid4
 
@@ -14,9 +13,6 @@ from examples.shopstandard.exceptions import (
     ProductNotFoundInShopError,
     ProductNotInCartError,
 )
-
-if TYPE_CHECKING:
-    from examples.shopstandard.domain import CartItem, ProductDetails
 
 
 class TestShop(TestCase):
@@ -80,7 +76,7 @@ class TestShop(TestCase):
         )
 
         # List products.
-        products: list[ProductDetails] = app.list_products_in_shop()
+        products = app.list_products_in_shop()
         self.assertEqual(len(products), 4)
         self.assertEqual(products[0].id, product_id1)
         self.assertEqual(products[0].name, "Coffee")
@@ -104,8 +100,8 @@ class TestShop(TestCase):
         self.assertEqual(products[3].inventory, 0)
 
         # Get cart items - should be 0.
-        cart_id: UUID = uuid4()
-        cart_items: tuple[CartItem, ...] = app.get_cart_items(cart_id)
+        cart_id = uuid4()
+        cart_items = app.get_cart_items(cart_id)
         self.assertEqual(len(cart_items), 0)
 
         # Add item to cart.

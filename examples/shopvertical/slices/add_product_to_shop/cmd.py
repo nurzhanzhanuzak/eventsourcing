@@ -4,7 +4,7 @@ from decimal import Decimal  # noqa: TC003
 from uuid import UUID  # noqa: TC003
 
 from examples.shopvertical.common import Command, get_events, put_events
-from examples.shopvertical.events import AddedProductToShop, DomainEvent
+from examples.shopvertical.events import AddedProductToShop, DomainEvents
 from examples.shopvertical.exceptions import ProductAlreadyInShopError
 
 
@@ -14,7 +14,7 @@ class AddProductToShop(Command):
     description: str
     price: Decimal
 
-    def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
+    def handle(self, events: DomainEvents) -> DomainEvents:
         if len(events):
             raise ProductAlreadyInShopError
         return (

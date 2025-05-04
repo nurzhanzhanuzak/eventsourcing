@@ -1,24 +1,18 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
-from eventsourcing.application import Application
-from eventsourcing.utils import get_topic
 from examples.aggregate7.domainmodel import Trick, add_trick, project_dog, register_dog
 from examples.aggregate7.immutablemodel import Snapshot
-from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
+from examples.aggregate7.orjsonpydantic import PydanticApplication
 
 if TYPE_CHECKING:
     from uuid import UUID
 
 
-class DogSchool(Application):
+class DogSchool(PydanticApplication):
     is_snapshotting_enabled = True
     snapshot_class = Snapshot
-    env: ClassVar[dict[str, str]] = {
-        "TRANSCODER_TOPIC": get_topic(OrjsonTranscoder),
-        "MAPPER_TOPIC": get_topic(PydanticMapper),
-    }
 
     def register_dog(self, name: str) -> UUID:
         event = register_dog(name)

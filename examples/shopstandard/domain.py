@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from decimal import Decimal  # noqa: TC003
 from uuid import UUID  # noqa: TC003
 
@@ -22,17 +21,13 @@ class ProductDetails(Immutable):
     inventory: int
 
 
-@dataclass
 class Product(Aggregate):
-    product_id: UUID
-    name: str
-    description: str
-    price: Decimal
-    inventory: int = 0
-
-    @staticmethod
-    def create_id(product_id: UUID) -> UUID:
-        return product_id
+    def __init__(self, id: UUID, name: str, description: str, price: Decimal):
+        self._id = id
+        self.name = name
+        self.description = description
+        self.price = price
+        self.inventory = 0
 
     class InventoryAdjusted(Aggregate.Event):
         adjustment: int
@@ -49,15 +44,11 @@ class CartItem(Immutable):
     price: Decimal
 
 
-@dataclass
 class Cart(Aggregate):
-    cart_id: UUID
-    items: list[CartItem] = field(default_factory=list, init=False)
-    is_submitted: bool = False
-
-    @staticmethod
-    def create_id(cart_id: UUID) -> UUID:
-        return cart_id
+    def __init__(self, id: UUID):
+        self._id = id
+        self.items: list[CartItem] = []
+        self.is_submitted = False
 
     class ItemAdded(Aggregate.Event):
         product_id: UUID
