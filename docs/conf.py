@@ -31,10 +31,21 @@ author = 'John Bywater'
 
 # Avoid sphinx - pydnatic mixup: "Field "model_fields" conflicts with member ... of protected namespace "model_"."
 # See https://github.com/pydantic/pydantic/discussions/7763 for workaround.
+
 import examples.aggregate7.domainmodel
 import examples.aggregate8.domainmodel
 import examples.shopstandard.domain
+import examples.shopstandard.application
 import examples.shopvertical.events
+import examples.shopvertical.common
+import examples.shopvertical.slices.add_product_to_shop.cmd
+import examples.shopvertical.slices.adjust_product_inventory.cmd
+import examples.shopvertical.slices.list_products_in_shop.query
+import examples.shopvertical.slices.get_cart_items.query
+import examples.shopvertical.slices.add_item_to_cart.cmd
+import examples.shopvertical.slices.remove_item_from_cart.cmd
+import examples.shopvertical.slices.clear_cart.cmd
+import examples.shopvertical.slices.submit_cart.cmd
 
 from importlib.metadata import version as get_version
 
