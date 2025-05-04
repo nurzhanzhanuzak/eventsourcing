@@ -43,6 +43,7 @@ Example applications
    examples/content-management
    examples/searchable-timestamps
    examples/fts-content-management
+   examples/shop-standard
    examples/shop-vertical
 
 .. _Example projections:
