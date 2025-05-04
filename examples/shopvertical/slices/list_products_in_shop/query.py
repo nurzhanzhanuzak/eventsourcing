@@ -12,7 +12,7 @@ from examples.shopvertical.events import (
 
 
 @dataclass(frozen=True)
-class Product:
+class ProductDetails:
     id: UUID
     name: str
     description: str
@@ -22,11 +22,11 @@ class Product:
 
 class ListProductsInShop(Query):
     @staticmethod
-    def projection(events: tuple[DomainEvent, ...]) -> tuple[Product, ...]:
-        products: dict[UUID, Product] = {}
+    def projection(events: tuple[DomainEvent, ...]) -> tuple[ProductDetails, ...]:
+        products: dict[UUID, ProductDetails] = {}
         for event in events:
             if isinstance(event, AddedProductToShop):
-                products[event.originator_id] = Product(
+                products[event.originator_id] = ProductDetails(
                     id=event.originator_id,
                     name=event.name,
                     description=event.description,
@@ -34,7 +34,7 @@ class ListProductsInShop(Query):
                 )
             elif isinstance(event, AdjustedProductInventory):
                 product = products[event.originator_id]
-                products[event.originator_id] = Product(
+                products[event.originator_id] = ProductDetails(
                     id=event.originator_id,
                     name=product.name,
                     description=product.description,

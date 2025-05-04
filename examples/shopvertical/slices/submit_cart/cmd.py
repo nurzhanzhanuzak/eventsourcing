@@ -13,7 +13,10 @@ from examples.shopvertical.events import (
     RemovedItemFromCart,
     SubmittedCart,
 )
-from examples.shopvertical.exceptions import InsufficientInventoryError
+from examples.shopvertical.exceptions import (
+    CartAlreadySubmittedError,
+    InsufficientInventoryError,
+)
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -25,6 +28,8 @@ class SubmitCart(Command):
 
     def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
         requested_products: dict[UUID, int] = defaultdict(int)
+        is_submitted = False
+
         for event in events:
             if isinstance(event, AddedItemToCart):
                 requested_products[event.product_id] += 1
@@ -32,6 +37,11 @@ class SubmitCart(Command):
                 requested_products[event.product_id] -= 1
             elif isinstance(event, ClearedCart):
                 requested_products.clear()
+            elif isinstance(event, SubmittedCart):
+                is_submitted = True
+
+        if is_submitted:
+            raise CartAlreadySubmittedError
 
         # Check inventory.
         for product_id, requested_amount in requested_products.items():
@@ -40,7 +50,8 @@ class SubmitCart(Command):
                 if isinstance(product_event, AdjustedProductInventory):
                     current_inventory += product_event.adjustment
             if current_inventory < requested_amount:
-                raise InsufficientInventoryError(product_id)
+                msg = f"Insufficient inventory for product with ID {product_id}"
+                raise InsufficientInventoryError(msg)
 
         return (
             SubmittedCart(

@@ -1,10 +1,11 @@
 .. _Vertical slices example:
 
-Application 6 - Vertical slices
+Application 7 - Vertical slices
 ===============================
 
 This example demonstrates how to do event sourcing with the "vertical slice architecture" advocated by the event
 modelling community.
+
 
 Add product to shop
 -------------------
@@ -28,10 +29,10 @@ List products in shop
 ---------------------
 
 .. literalinclude:: ../../../examples/shopvertical/slices/list_products_in_shop/query.py
-    :pyobject: Product
+    :pyobject: ListProductsInShop
 
 .. literalinclude:: ../../../examples/shopvertical/slices/list_products_in_shop/query.py
-    :pyobject: ListProductsInShop
+    :pyobject: ProductDetails
 
 .. literalinclude:: ../../../examples/shopvertical/slices/list_products_in_shop/test.py
     :pyobject: TestListProductsInShop
@@ -40,10 +41,10 @@ Get cart items
 --------------
 
 .. literalinclude:: ../../../examples/shopvertical/slices/get_cart_items/query.py
-    :pyobject: CartItem
+    :pyobject: GetCartItems
 
 .. literalinclude:: ../../../examples/shopvertical/slices/get_cart_items/query.py
-    :pyobject: GetCartItems
+    :pyobject: CartItem
 
 .. literalinclude:: ../../../examples/shopvertical/slices/get_cart_items/test.py
     :pyobject: TestGetCartItems

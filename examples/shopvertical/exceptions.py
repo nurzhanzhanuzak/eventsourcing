@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-
 class ProductNotFoundInShopError(Exception):
     pass
 
@@ -18,4 +15,8 @@ class ProductNotInCartError(Exception):
 
 
 class InsufficientInventoryError(Exception):
+    pass
+
+
+class CartAlreadySubmittedError(Exception):
     pass

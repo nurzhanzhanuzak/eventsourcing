@@ -8,8 +8,9 @@ from examples.shopvertical.events import (
     ClearedCart,
     DomainEvent,
     RemovedItemFromCart,
+    SubmittedCart,
 )
-from examples.shopvertical.exceptions import CartFullError
+from examples.shopvertical.exceptions import CartAlreadySubmittedError, CartFullError
 from examples.shopvertical.slices.add_item_to_cart.cmd import (
     AddItemToCart,
 )
@@ -162,3 +163,23 @@ class TestAddItemToCart(unittest.TestCase):
         )
 
         cmd.handle(cart_events)
+
+    def test_add_item_after_submitted_cart(self) -> None:
+        cart_id = uuid4()
+        cart_events: tuple[DomainEvent, ...] = (
+            SubmittedCart(
+                originator_id=cart_id,
+                originator_version=1,
+            ),
+        )
+
+        cmd = AddItemToCart(
+            cart_id=cart_id,
+            product_id=uuid4(),
+            name="Coffee",
+            description="A very special coffee",
+            price=Decimal("5.99"),
+        )
+
+        with self.assertRaises(CartAlreadySubmittedError):
+            cmd.handle(cart_events)

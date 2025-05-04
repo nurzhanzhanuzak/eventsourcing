@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from examples.shopvertical.common import Command, get_events, put_events
-from examples.shopvertical.events import ClearedCart, DomainEvent
+from examples.shopvertical.events import ClearedCart, DomainEvent, SubmittedCart
+from examples.shopvertical.exceptions import CartAlreadySubmittedError
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -15,6 +16,14 @@ class ClearCart(Command):
     cart_id: UUID
 
     def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
+        is_submitted = False
+        for event in events:
+            if isinstance(event, SubmittedCart):
+                is_submitted = True
+
+        if is_submitted:
+            raise CartAlreadySubmittedError
+
         return (
             ClearedCart(
                 originator_id=self.cart_id,

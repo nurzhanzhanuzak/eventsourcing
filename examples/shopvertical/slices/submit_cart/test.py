@@ -11,7 +11,10 @@ from examples.shopvertical.events import (
     RemovedItemFromCart,
     SubmittedCart,
 )
-from examples.shopvertical.exceptions import InsufficientInventoryError
+from examples.shopvertical.exceptions import (
+    CartAlreadySubmittedError,
+    InsufficientInventoryError,
+)
 from examples.shopvertical.slices.add_product_to_shop.cmd import AddProductToShop
 from examples.shopvertical.slices.adjust_product_inventory.cmd import (
     AdjustProductInventory,
@@ -226,3 +229,19 @@ class TestSubmitCart(unittest.TestCase):
         new_event = cast(SubmittedCart, new_events[0])
         self.assertEqual(new_event.originator_id, cart_id)
         self.assertEqual(new_event.originator_version, 3)
+
+    def test_submit_cart_after_submitted_cart(self) -> None:
+        cart_id = uuid4()
+        cart_events: tuple[DomainEvent, ...] = (
+            SubmittedCart(
+                originator_id=cart_id,
+                originator_version=1,
+            ),
+        )
+
+        cmd = SubmitCart(
+            cart_id=cart_id,
+        )
+
+        with self.assertRaises(CartAlreadySubmittedError):
+            cmd.handle(cart_events)

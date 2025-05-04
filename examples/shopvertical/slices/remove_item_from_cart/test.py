@@ -7,8 +7,12 @@ from examples.shopvertical.events import (
     ClearedCart,
     DomainEvent,
     RemovedItemFromCart,
+    SubmittedCart,
 )
-from examples.shopvertical.exceptions import ProductNotInCartError
+from examples.shopvertical.exceptions import (
+    CartAlreadySubmittedError,
+    ProductNotInCartError,
+)
 from examples.shopvertical.slices.remove_item_from_cart.cmd import (
     RemoveItemFromCart,
 )
@@ -92,4 +96,23 @@ class TestRemoveItemFromCart(unittest.TestCase):
             product_id=product_id,
         )
         with self.assertRaises(ProductNotInCartError):
+            cmd.handle(cart_events)
+
+    def test_remove_item_from_cart_after_submitted_cart(self) -> None:
+        cart_id = uuid4()
+        product_id = uuid4()
+        cart_events: tuple[DomainEvent, ...] = (
+            SubmittedCart(
+                originator_id=cart_id,
+                originator_version=1,
+            ),
+        )
+        cmd = RemoveItemFromCart(
+            cart_id=cart_id,
+            product_id=product_id,
+        )
+        with self.assertRaises(CartAlreadySubmittedError):
+            cmd.handle(cart_events)
+
+        with self.assertRaises(CartAlreadySubmittedError):
             cmd.handle(cart_events)

@@ -6,8 +6,10 @@ from uuid import uuid4
 
 from examples.shopvertical.common import reset_application
 from examples.shopvertical.exceptions import (
+    CartAlreadySubmittedError,
     CartFullError,
     InsufficientInventoryError,
+    ProductAlreadyInShopError,
     ProductNotFoundInShopError,
     ProductNotInCartError,
 )
@@ -40,6 +42,7 @@ class TestShop(TestCase):
         product_id2 = uuid4()
         product_id3 = uuid4()
         product_id4 = uuid4()
+        product_id5 = uuid4()
 
         # Add products to shop.
         AddProductToShop(
@@ -48,6 +51,15 @@ class TestShop(TestCase):
             description="A very nice coffee",
             price=Decimal("5.99"),
         ).execute()
+
+        with self.assertRaises(ProductAlreadyInShopError):
+            AddProductToShop(
+                product_id=product_id1,
+                name="Coffee",
+                description="A very nice coffee",
+                price=Decimal("5.99"),
+            ).execute()
+
         AddProductToShop(
             product_id=product_id2,
             name="Tea",
@@ -74,6 +86,7 @@ class TestShop(TestCase):
             description="A very nice sugar",
             price=Decimal("2.99"),
         ).execute()
+
         AddProductToShop(
             product_id=product_id4,
             name="Milk",
@@ -140,8 +153,8 @@ class TestShop(TestCase):
         AddItemToCart(
             cart_id=cart_id,
             product_id=product_id1,
-            name="",
-            description="",
+            name="Coffee",
+            description="A very nice coffee",
             price=Decimal("5.99"),
         ).execute()
 
@@ -149,9 +162,9 @@ class TestShop(TestCase):
         AddItemToCart(
             cart_id=cart_id,
             product_id=product_id2,
-            name="",
-            description="",
-            price=Decimal("5.99"),
+            name="Tea",
+            description="A very nice tea",
+            price=Decimal("3.99"),
         ).execute()
 
         # Get cart items - should be 2.
@@ -164,9 +177,9 @@ class TestShop(TestCase):
         AddItemToCart(
             cart_id=cart_id,
             product_id=product_id3,
-            name="",
-            description="",
-            price=Decimal("5.99"),
+            name="Sugar",
+            description="A very nice sugar",
+            price=Decimal("2.99"),
         ).execute()
 
         # Get cart items - should be 3.
@@ -181,9 +194,9 @@ class TestShop(TestCase):
             AddItemToCart(
                 cart_id=cart_id,
                 product_id=product_id4,
-                name="",
-                description="",
-                price=Decimal("5.99"),
+                name="Milk",
+                description="A very nice milk",
+                price=Decimal("1.99"),
             ).execute()
 
         # Get cart items - should be 3.
@@ -215,9 +228,9 @@ class TestShop(TestCase):
         # Add item to cart.
         AddItemToCart(
             cart_id=cart_id,
-            product_id=product_id4,
-            name="",
-            description="",
+            product_id=product_id5,
+            name="Spoon",
+            description="A very nice spoon",
             price=Decimal("5.99"),
         ).execute()
 
@@ -226,7 +239,7 @@ class TestShop(TestCase):
         self.assertEqual(len(cart_items), 3)
         self.assertEqual(cart_items[0].product_id, product_id1)
         self.assertEqual(cart_items[1].product_id, product_id3)
-        self.assertEqual(cart_items[2].product_id, product_id4)
+        self.assertEqual(cart_items[2].product_id, product_id5)
 
         # Insufficient inventory error.
         with self.assertRaises(InsufficientInventoryError):
@@ -238,11 +251,49 @@ class TestShop(TestCase):
             adjustment=3,
         ).execute()
 
+        # Insufficient inventory error.
+        with self.assertRaises(InsufficientInventoryError):
+            SubmitCart(cart_id=cart_id).execute()
+
+        # Add item to shop.
+        AddProductToShop(
+            product_id=product_id5,
+            name="Spoon",
+            description="A very nice spoon",
+            price=Decimal("0.99"),
+        ).execute()
+
         # Adjust product inventory.
         AdjustProductInventory(
-            product_id=product_id4,
+            product_id=product_id5,
             adjustment=3,
         ).execute()
 
         # Submit cart.
         SubmitCart(cart_id=cart_id).execute()
+
+        # Cart already submitted.
+        with self.assertRaises(CartAlreadySubmittedError):
+            AddItemToCart(
+                cart_id=cart_id,
+                product_id=product_id4,
+                name="Milk",
+                description="A very nice milk",
+                price=Decimal("1.99"),
+            ).execute()
+
+        with self.assertRaises(CartAlreadySubmittedError):
+            RemoveItemFromCart(
+                cart_id=cart_id,
+                product_id=product_id1,
+            ).execute()
+
+        with self.assertRaises(CartAlreadySubmittedError):
+            ClearCart(
+                cart_id=cart_id,
+            ).execute()
+
+        with self.assertRaises(CartAlreadySubmittedError):
+            SubmitCart(
+                cart_id=cart_id,
+            ).execute()

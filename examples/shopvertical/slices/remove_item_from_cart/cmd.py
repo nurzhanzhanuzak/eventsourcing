@@ -9,8 +9,12 @@ from examples.shopvertical.events import (
     ClearedCart,
     DomainEvent,
     RemovedItemFromCart,
+    SubmittedCart,
 )
-from examples.shopvertical.exceptions import ProductNotInCartError
+from examples.shopvertical.exceptions import (
+    CartAlreadySubmittedError,
+    ProductNotInCartError,
+)
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -23,6 +27,8 @@ class RemoveItemFromCart(Command):
 
     def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
         product_ids = []
+        is_submitted = False
+
         for event in events:
             if isinstance(event, AddedItemToCart):
                 product_ids.append(event.product_id)
@@ -30,6 +36,11 @@ class RemoveItemFromCart(Command):
                 product_ids.remove(event.product_id)
             elif isinstance(event, ClearedCart):
                 product_ids.clear()
+            elif isinstance(event, SubmittedCart):
+                is_submitted = True
+
+        if is_submitted:
+            raise CartAlreadySubmittedError
 
         if self.product_id not in product_ids:
             raise ProductNotInCartError

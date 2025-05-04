@@ -9,8 +9,9 @@ from examples.shopvertical.events import (
     ClearedCart,
     DomainEvent,
     RemovedItemFromCart,
+    SubmittedCart,
 )
-from examples.shopvertical.exceptions import CartFullError
+from examples.shopvertical.exceptions import CartAlreadySubmittedError, CartFullError
 
 if TYPE_CHECKING:
     from decimal import Decimal
@@ -27,6 +28,7 @@ class AddItemToCart(Command):
 
     def handle(self, events: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
         product_ids = []
+        is_submitted = False
         for event in events:
             if isinstance(event, AddedItemToCart):
                 product_ids.append(event.product_id)
@@ -34,6 +36,11 @@ class AddItemToCart(Command):
                 product_ids.remove(event.product_id)
             elif isinstance(event, ClearedCart):
                 product_ids.clear()
+            elif isinstance(event, SubmittedCart):
+                is_submitted = True
+
+        if is_submitted:
+            raise CartAlreadySubmittedError
 
         if len(product_ids) >= 3:
             raise CartFullError
