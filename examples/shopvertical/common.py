@@ -22,7 +22,7 @@ class Command(Immutable, ABC):
         pass  # pragma: no cover
 
 
-class Query(Immutable):
+class Query(Immutable, ABC):
     @abstractmethod
     def execute(self) -> Any:
         pass  # pragma: no cover
