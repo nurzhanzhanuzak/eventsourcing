@@ -40,9 +40,11 @@ point version number increments. You can use this expression in a ``pip install`
 
     $ pip install "eventsourcing>=9.4.0,<9.5.0"
 
-You can use the same expression in ``requirements.txt`` files, in a ``setup.py`` files, and
-in a ``pyproject.toml`` files. For example, if you are specifying the dependencies of your project
-in a ``pyproject.toml`` file, you can specify the dependency on this library in the following way.
+You can use the same expression in ``requirements.txt`` files, in ``setup.py`` files, and
+in ``pyproject.toml`` files.
+
+For example, if you are specifying the dependencies of your project in a ``pyproject.toml``
+file, you can specify the dependency on this library in the following way.
 
 ::
 
