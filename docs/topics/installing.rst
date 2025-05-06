@@ -157,20 +157,22 @@ fork and clone the GitHub repository.
 Once you have cloned the project's GitHub repository, change into the root folder,
 or open the project in an IDE. You should see a Makefile.
 
-If you don't already have Poetry installed, run `make install-poetry`.
+If you don't already have the required version of Poetry installed, running
+`make install-poetry` will install it with pipx, using a suffix to indicate
+the version e.g. 'poetry@2.1.2'.
 
 ::
 
     $ make install-poetry
 
 
-Run `make install-packages` to create a new virtual environment and
-install packages that are needed for development, such as Sphinx, Coverage.py, Black,
-mypy, ruff, and isort.
+Run `make install` to create a new virtual environment and install packages that
+are needed for development, such as sphinx, coverage, black, ruff, isort, mypy,
+and pyright.
 
 ::
 
-    $ make install-packages
+    $ make install
 
 
 Once installed, check the project's test suite passes by running `make test`.
@@ -200,13 +202,6 @@ and user. You may prefer to run PostgreSQL in a Docker container.
     postgres=# CREATE SCHEMA myschema AUTHORIZATION eventsourcing;
 
 
-Check the syntax and static types are correct by running `make lint`.
-
-::
-
-    $ make lint
-
-
 The code can be automatically reformatted using the following command
 (which uses isort and Black). Ruff and mypy errors will often need
 to be fixed by hand.
@@ -214,6 +209,13 @@ to be fixed by hand.
 ::
 
     $ make fmt
+
+
+Check the syntax and static types are correct by running `make lint`.
+
+::
+
+    $ make lint
 
 
 You can build the docs (and check they build) with `make docs`.
@@ -224,3 +226,7 @@ You can build the docs (and check they build) with `make docs`.
 
 Before submitting Pull Requests on GitHub, please make sure everything is working
 by running `make docs lint test`.
+
+::
+
+    $ make docs lint test

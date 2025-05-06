@@ -51,7 +51,7 @@ jobs:
       run: make install-poetry
 
     - name: Install packages
-      run: make install-packages
+      run: make install
 
     - name: Lint
       run: make lint

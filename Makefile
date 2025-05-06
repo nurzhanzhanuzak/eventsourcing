@@ -22,18 +22,35 @@ python-version:
 
 .PHONY: install
 install:
-	$(POETRY) sync --extras "crypto cryptography" --with "docs" -vv $(opts)
-
-.PHONY: install-packages
-install-packages:
-	$(POETRY) sync --no-root --extras "crypto cryptography" --with "docs" -vv $(opts)
-
-.PHONY: poetry-update
-poetry-update:
-	$(POETRY) update
+	$(POETRY) sync --all-extras --with "docs" $(opts)
 
 .PHONY: update
-update: poetry-update install-packages
+update: update-lock install
+
+.PHONY: update-lock
+update-lock:
+	$(POETRY) update --lock -v
+
+
+.PHONY: fmt
+fmt: fmt-isort fmt-black
+
+.PHONY: fmt-ruff
+fmt-ruff:
+	$(POETRY) run ruff check --fix eventsourcing tests examples
+
+.PHONY: fmt-ruff-unsafe
+fmt-ruff-unsafe:
+	$(POETRY) run ruff --fix --unsafe-fixes eventsourcing
+
+.PHONY: fmt-black
+fmt-black:
+	$(POETRY) run black eventsourcing tests examples
+
+.PHONY: fmt-isort
+fmt-isort:
+	$(POETRY) run isort eventsourcing tests examples
+
 
 .PHONY: lint
 lint: lint-black lint-ruff lint-isort lint-mypy lint-pyright #lint-dockerfile
@@ -67,26 +84,6 @@ lint-mypy:
 # lint-dockerfile:
 # 	@docker run --rm -i replicated/dockerfilelint:ad65813 < ./dev/Dockerfile_eventsourcing_requirements
 #
-
-.PHONY: fmt
-fmt: fmt-isort fmt-black
-
-.PHONY: fmt-ruff
-fmt-ruff:
-	$(POETRY) run ruff check --fix eventsourcing tests examples
-
-.PHONY: fmt-ruff-unsafe
-fmt-ruff-unsafe:
-	$(POETRY) run ruff --fix --unsafe-fixes eventsourcing
-
-.PHONY: fmt-black
-fmt-black:
-	$(POETRY) run black eventsourcing tests examples
-
-.PHONY: fmt-isort
-fmt-isort:
-	$(POETRY) run isort eventsourcing tests examples
-
 
 
 .PHONY: test
