@@ -63,10 +63,6 @@ lint-black:
 lint-ruff:
 	$(POETRY) run ruff check eventsourcing tests examples
 
-# .PHONY: lint-flake8
-# lint-flake8:
-# 	$(POETRY) run flake8 eventsourcing
-
 .PHONY: lint-isort
 lint-isort:
 	$(POETRY) run isort --check-only --diff eventsourcing tests examples

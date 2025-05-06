@@ -990,7 +990,7 @@ class MetaAggregate(EventsourcingType, Generic[TAggregate], type):
 class BaseAggregate(metaclass=MetaAggregate):
     """Base class for aggregates."""
 
-    INITIAL_VERSION = 1
+    INITIAL_VERSION: int = 1
 
     @staticmethod
     def create_id(*_: Any, **__: Any) -> UUID:

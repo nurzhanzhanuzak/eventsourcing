@@ -85,6 +85,25 @@ class TestMetaAggregate(TestCase):
         )
 
     def test_can_define_initial_version_number(self) -> None:
+        # Set on BaseAggregate class.
+        original_initial_version = BaseAggregate.INITIAL_VERSION
+        assert original_initial_version != 0
+        try:
+            BaseAggregate.INITIAL_VERSION = 0
+            self.assertEqual(Aggregate().version, 0)
+        finally:
+            BaseAggregate.INITIAL_VERSION = original_initial_version
+
+        # Set on Aggregate class.
+        original_initial_version = BaseAggregate.INITIAL_VERSION
+        assert "INITIAL_VERSION" not in Aggregate.__dict__
+        try:
+            Aggregate.INITIAL_VERSION = 0
+            self.assertEqual(Aggregate().version, 0)
+        finally:
+            del Aggregate.INITIAL_VERSION
+
+        # Set on subclass.
         class MyAggregate1(Aggregate):
             INITIAL_VERSION = 0
 
