@@ -939,9 +939,9 @@ an operating system setting will override a class attribute setting.
 
 .. code-block:: python
 
-    assert app.env["SETTING_A"] == "1"
-    assert app.env["SETTING_B"] == "2"
-    assert app.env["SETTING_C"] == "3"
+    assert app.env.get("SETTING_A") == "1"
+    assert app.env.get("SETTING_B") == "2"
+    assert app.env.get("SETTING_C") == "3"
 
 The resulting settings can be seen on the ``env`` attribute of the application object.
 In the example above, we can see that the settings from the construct argument have
@@ -950,6 +950,22 @@ the operating system environment have overridden the settings from the class att
 
 Please note, all values are expected to be strings, as would be the case if the values
 are set in the actual operating system process environment.
+
+Supported or required environment variable names can be prefixed with the uppercased name of
+the application, and will be selected in preference to unprefixed names by the application's
+:ref:`environment object <environment object>`.
+
+.. code-block:: python
+
+    env = {
+        "SETTING_A": "7",
+        "MYAPPLICATION_SETTING_A": "8",
+        "YOURAPPLICATION_SETTING_A": "9",
+    }
+
+    app = MyApplication(env=env)
+    assert app.env.get("SETTING_A") == "8"
+
 
 .. _Aggregate caching:
 

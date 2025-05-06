@@ -215,17 +215,17 @@ Projection runner objects support the Python context manager protocol, so that d
 the application subscription and the materialised view can be freed in a controlled way when the projection
 runner is stopped or exits.
 
-The projection runner has a method :func:`~eventsourcing.projection.ProjectionRunner.run_forever` which will block
+The projection runner method :func:`~eventsourcing.projection.BaseProjectionRunner.run_forever` will block
 until either :func:`~eventsourcing.projection.Projection.process_event` raises an error, or until
 the application subscription raises an error, or until the optional timeout is reached, or until the
-:func:`~eventsourcing.projection.ProjectionRunner.stop` method is called.
+:func:`~eventsourcing.projection.BaseProjectionRunner.stop` method is called.
 
 The example below shows how to run a projection. In this example, the event-sourced application class is
 :class:`~eventsourcing.application.Application`. It is constructed with the default
 :mod:`eventsourcing.popo` persistence module. The projection class and the materialised view class are taken
 from the examples above. The projection runner is used as a context manager. The projection runner's
-:func:`~eventsourcing.projection.ProjectionRunner.run_forever` method is called which keeps the projection running.
-The :func:`~eventsourcing.projection.ProjectionRunner.stop` method is called by a signal handler when the
+:func:`~eventsourcing.projection.BaseProjectionRunner.run_forever` method is called which keeps the projection running.
+The :func:`~eventsourcing.projection.BaseProjectionRunner.stop` method is called by a signal handler when the
 operating system process receives an interrupt signal. The example below starts a thread which sends the interrupt
 signal after 1s.
 
@@ -264,7 +264,97 @@ returned from calls to the event-sourced application's :func:`~eventsourcing.app
 method can be used by the user interface to :func:`~eventsourcing.persistence.TrackingRecorder.wait` until
 the "read model" has been updated.
 
-See :doc:`Tutorial - Part 4 </topics/tutorial/part4>` for more guidance on using this module.
+See :doc:`Tutorial - Part 4 </topics/tutorial/part4>` for more guidance and examples.
+
+
+.. _Event-sourced projection:
+
+Event-sourced projection
+========================
+
+The library's :class:`~eventsourcing.projection.EventSourcedProjection` class is an abstract base class
+that extends the library's :class:`~eventsourcing.application.Application` class by using a
+:ref:`process recorder<Process recorder>`, by introducing an abstract
+:class:`~eventsourcing.projection.EventSourcedProjection.policy` method.
+
+It can be used to define how the events of an event-sourced application will be processed into another
+event-sourced application.
+
+The abstract :class:`~eventsourcing.projection.EventSourcedProjection.policy`
+method should be implemented on subclasses. Implementations of this method should manipulate event-sourced
+aggregates and collect events onto the given :class:`~eventsourcing.application.ProcessingEvent` object,
+which will record the new domain events atomically with a tracking object that indicates the position of
+the event that has been processed in its application sequence.
+
+In the example below, the ``Counters`` application defines its ``policy()`` method
+to increment a ``Counter`` aggregate.
+
+.. literalinclude:: ../../tests/projection_tests/test_event_sourced_projection.py
+    :pyobject: Counters
+
+.. literalinclude:: ../../tests/projection_tests/test_event_sourced_projection.py
+    :pyobject: Counter
+
+
+.. _Event-sourced projection runner:
+
+Event-sourced projection runner
+===============================
+
+The library's :class:`~eventsourcing.projection.EventSourcedProjectionRunner` class can
+be used to run an event-sourced projection of an event-soured application. It works and can be used
+in a similar way to the :ref:`projection runner <Projection runner>` described above. The only difference is
+that the constructor has a :data:`projection_class <eventsourcing.projection.EventSourcedProjectionRunner.__init__>`
+argument which is expected to be a subclass of :class:`~eventsourcing.projection.EventSourcedProjection`
+and it does not accept a separate view class. Environment variables given with the
+:data:`env <eventsourcing.projection.EventSourcedProjectionRunner.__init__>` argument will be used to
+:ref:`configure the event-sourced applications <Application configuration>` when they are constructed
+from the given classes.
+
+The example below run the ``Counters`` projection with an instance of the library's
+:class:`~eventsourcing.application.Application` class. Four :class:`~eventsourcing.domain.Aggregate`
+objects are generated and a subsequent :class:`Aggregate.Event <eventsourcing.domain.Aggregate.Event>`
+is triggered on the fourth aggregate. The counted numbers of :class:`Aggregate.Created <eventsourcing.domain.Aggregate.Created>`
+and :class:`Aggregate.Event <eventsourcing.domain.Aggregate.Event>` are checked after waiting for the events to be processed.
+The :data:`env <eventsourcing.projection.EventSourcedProjectionRunner.__init__>` argument is used unnecessarily
+here, since the values given are the defaults, but it is included to show how the applications could easily be
+configured to use durable databases. Please note, the :ref:`SQLite persistence module <sqlite-module>` does not
+currently support application subscriptions.
+
+.. code-block:: python
+
+    from eventsourcing.projection import EventSourcedProjectionRunner
+
+    with EventSourcedProjectionRunner(
+        application_class=Application,
+        projection_class=Counters,
+        env={
+            "APPLICATION_PERSISTENCE_MODULE": "eventsourcing.popo",
+            "COUNTERS_PERSISTENCE_MODULE": "eventsourcing.popo",
+        },
+    ) as runner:
+        recordings = runner.app.save(Aggregate())
+        runner.wait(recordings[-1].notification.id)
+        assert runner.projection.get_count(Aggregate.Created) == 1
+        assert runner.projection.get_count(Aggregate.Event) == 0
+
+        recordings = runner.app.save(Aggregate())
+        runner.wait(recordings[-1].notification.id)
+        assert runner.projection.get_count(Aggregate.Created) == 2
+        assert runner.projection.get_count(Aggregate.Event) == 0
+
+        recordings = runner.app.save(Aggregate())
+        runner.wait(recordings[-1].notification.id)
+        assert runner.projection.get_count(Aggregate.Created) == 3
+        assert runner.projection.get_count(Aggregate.Event) == 0
+
+        aggregate = Aggregate()
+        aggregate.trigger_event(Aggregate.Event)
+        recordings = runner.app.save(aggregate)
+        runner.wait(recordings[-1].notification.id)
+        assert runner.projection.get_count(Aggregate.Created) == 4
+        assert runner.projection.get_count(Aggregate.Event) == 1
+
 
 Code reference
 ==============

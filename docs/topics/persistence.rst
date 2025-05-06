@@ -1539,6 +1539,7 @@ select alternative mappers and transcoders.
 Persistence modules use their own particular set of environment variables, of which
 some are required and some are optional.
 
+.. _Environment object:
 
 Environment object
 ------------------

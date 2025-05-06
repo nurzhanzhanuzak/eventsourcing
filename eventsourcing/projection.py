@@ -2,19 +2,22 @@ from __future__ import annotations
 
 import contextlib
 import os
+import threading
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Sequence
 from threading import Event, Thread
 from traceback import format_exc
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
 from warnings import warn
 
-from eventsourcing.application import Application
+from eventsourcing.application import Application, ProcessingEvent
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import DomainEventProtocol
 from eventsourcing.persistence import (
     InfrastructureFactory,
+    IntegrityError,
+    ProcessRecorder,
     Tracking,
     TrackingRecorder,
     TTrackingRecorder,
@@ -67,9 +70,9 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
         return self
 
     def __next__(self) -> tuple[DomainEventProtocol, Tracking]:
-        """Obtains the next stored event from subscription to the application's
+        """Returns the next stored event from subscription to the application's
         recorder. Constructs a tracking object that identifies the position of
-        the event in the application sequence. Reconstructs a domain event object
+        the event in the application sequence. Constructs a domain event object
         from the stored event object using the application's mapper. Returns a
         tuple of the domain event object and the tracking object.
         """
@@ -119,47 +122,111 @@ class Projection(ABC, Generic[TTrackingRecorder]):
         """Process a domain event and track it."""
 
 
+class EventSourcedProjection(Application, ABC):
+    """Extends the :py:class:`~eventsourcing.application.Application` class
+    by using a process recorder as its application recorder, and by
+    processing domain events through its :py:func:`policy` method.
+    """
+
+    topics: ClassVar[Sequence[str]] = ()
+
+    def __init__(self, env: EnvType | None = None) -> None:
+        super().__init__(env)
+        self.recorder: ProcessRecorder
+        self.processing_lock = threading.Lock()
+
+    def construct_recorder(self) -> ProcessRecorder:
+        """Constructs and returns a :class:`~eventsourcing.persistence.ProcessRecorder`
+        for the application to use as its application recorder.
+        """
+        return self.factory.process_recorder()
+
+    def process_event(
+        self, domain_event: DomainEventProtocol, tracking: Tracking
+    ) -> None:
+        """Calls :func:`~eventsourcing.system.Follower.policy` method with
+        the given :class:`~eventsourcing.domain.AggregateEvent` and a
+        new :class:`~eventsourcing.application.ProcessingEvent` created from
+        the given :class:`~eventsourcing.persistence.Tracking` object.
+
+        The policy will collect any new aggregate events on the process
+        event object.
+
+        After the policy method returns, the process event object will
+        then be recorded by calling
+        :func:`~eventsourcing.application.Application.record`, which
+        will return new notifications.
+
+        After calling
+        :func:`~eventsourcing.application.Application.take_snapshots`,
+        the new notifications are passed to the
+        :func:`~eventsourcing.application.Application.notify` method.
+        """
+        processing_event = ProcessingEvent(tracking=tracking)
+        self.policy(domain_event, processing_event)
+        try:
+            recordings = self._record(processing_event)
+        except IntegrityError:
+            if self.recorder.has_tracking_id(
+                tracking.application_name,
+                tracking.notification_id,
+            ):
+                pass
+            else:
+                raise
+        else:
+            self._take_snapshots(processing_event)
+            self.notify(processing_event.events)
+            self._notify(recordings)
+
+    @singledispatchmethod
+    def policy(
+        self,
+        domain_event: DomainEventProtocol,
+        processing_event: ProcessingEvent,
+    ) -> None:
+        """Abstract domain event processing policy method. Must be
+        implemented by event processing applications. When
+        processing the given domain event, event processing
+        applications must use the :func:`~ProcessingEvent.collect_events`
+        method of the given :py:class:`~ProcessingEvent` object (not
+        the application's :func:`~eventsourcing.application.Application.save`
+        method) so that the new domain events will be recorded atomically
+        and uniquely with tracking information about the position of the processed
+        event in its application sequence.
+        """
+
+
 TApplication = TypeVar("TApplication", bound=Application)
+TEventSourcedProjection = TypeVar(
+    "TEventSourcedProjection", bound=EventSourcedProjection
+)
 
 
-class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
+class BaseProjectionRunner(Generic[TApplication]):
     def __init__(
         self,
         *,
+        projection: EventSourcedProjection | Projection[Any],
         application_class: type[TApplication],
-        projection_class: type[Projection[TTrackingRecorder]],
-        view_class: type[TTrackingRecorder],
+        tracking_recorder: TrackingRecorder,
+        topics: Sequence[str],
         env: EnvType | None = None,
-    ):
-        """Constructs application from given application class with given environment.
-        Also constructs a materialised view from given class using an infrastructure
-        factory constructed with an environment named after the projection. Also
-        constructs a projection with the constructed materialised view object.
-        Starts a subscription to application and, in a separate event-processing
-        thread, calls projection's process_event() method for each event and tracking
-        object pair received from the subscription.
-        """
+    ) -> None:
+        self._projection = projection
         self._is_interrupted = Event()
         self._has_called_stop = False
 
         # Construct the application.
         self.app: TApplication = application_class(env)
 
-        # Construct the materialised view using an infrastructure factory.
-        self.view = (
-            InfrastructureFactory[TTrackingRecorder]
-            .construct(env=self._construct_env(name=projection_class.name, env=env))
-            .tracking_recorder(view_class)
-        )
-
-        # Construct the projection using the materialised view.
-        self.projection = projection_class(view=self.view)
+        self._tracking_recorder = tracking_recorder
 
         # Subscribe to the application.
-        self.subscription = ApplicationSubscription(
+        self._subscription = ApplicationSubscription(
             app=self.app,
-            gt=self.view.max_tracking_id(self.app.name),
-            topics=self.projection.topics,
+            gt=self._tracking_recorder.max_tracking_id(self.app.name),
+            topics=topics,
         )
 
         # Start a thread to stop the subscription when the runner is interrupted.
@@ -167,7 +234,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         self._stop_thread = Thread(
             target=self._stop_subscription_when_stopping,
             kwargs={
-                "subscription": self.subscription,
+                "subscription": self._subscription,
                 "is_stopping": self._is_interrupted,
             },
         )
@@ -177,8 +244,8 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         self._processing_thread = Thread(
             target=self._process_events_loop,
             kwargs={
-                "subscription": self.subscription,
-                "projection": self.projection,
+                "subscription": self._subscription,
+                "projection": self._projection,
                 "is_stopping": self._is_interrupted,
                 "runner": weakref.ref(self),
             },
@@ -189,7 +256,8 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
     def is_interrupted(self) -> Event:
         return self._is_interrupted
 
-    def _construct_env(self, name: str, env: EnvType | None = None) -> Environment:
+    @staticmethod
+    def _construct_env(name: str, env: EnvType | None = None) -> Environment:
         """Constructs environment from which projection will be configured."""
         _env: dict[str, str] = {}
         _env.update(os.environ)
@@ -219,7 +287,7 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
     @staticmethod
     def _process_events_loop(
         subscription: ApplicationSubscription,
-        projection: Projection[TrackingRecorder],
+        projection: EventSourcedProjection | Projection[Any],
         is_stopping: Event,
         runner: weakref.ReferenceType[ProjectionRunner[Application, TrackingRecorder]],
     ) -> None:
@@ -260,8 +328,8 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         object that is greater than or equal to the given notification ID.
         """
         try:
-            self.projection.view.wait(
-                application_name=self.subscription.name,
+            self._tracking_recorder.wait(
+                application_name=self.app.name,
                 notification_id=notification_id,
                 timeout=timeout,
                 interrupt=self._is_interrupted,
@@ -297,3 +365,64 @@ class ProjectionRunner(Generic[TApplication, TTrackingRecorder]):
         """Calls stop()."""
         with contextlib.suppress(AttributeError):
             self.stop()
+
+
+class ProjectionRunner(
+    BaseProjectionRunner[TApplication], Generic[TApplication, TTrackingRecorder]
+):
+    def __init__(
+        self,
+        *,
+        application_class: type[TApplication],
+        projection_class: type[Projection[TTrackingRecorder]],
+        view_class: type[TTrackingRecorder],
+        env: EnvType | None = None,
+    ):
+        """Constructs application from given application class with given environment.
+        Also constructs a materialised view from given class using an infrastructure
+        factory constructed with an environment named after the projection. Also
+        constructs a projection with the constructed materialised view object.
+        Starts a subscription to application and, in a separate event-processing
+        thread, calls projection's process_event() method for each event and tracking
+        object pair received from the subscription.
+        """
+        # Construct the materialised view using an infrastructure factory.
+        self.view = (
+            InfrastructureFactory[TTrackingRecorder]
+            .construct(env=self._construct_env(name=projection_class.name, env=env))
+            .tracking_recorder(view_class)
+        )
+
+        # Construct the projection using the materialised view.
+        self.projection = projection_class(view=self.view)
+
+        super().__init__(
+            projection=self.projection,
+            application_class=application_class,
+            tracking_recorder=self.view,
+            topics=self.projection.topics,
+            env=env,
+        )
+
+
+class EventSourcedProjectionRunner(
+    BaseProjectionRunner[TApplication], Generic[TApplication, TEventSourcedProjection]
+):
+    def __init__(
+        self,
+        *,
+        application_class: type[TApplication],
+        projection_class: type[TEventSourcedProjection],
+        env: EnvType | None = None,
+    ):
+        self.projection: TEventSourcedProjection = projection_class(
+            env=self._construct_env(name=projection_class.name, env=env)
+        )
+
+        super().__init__(
+            projection=self.projection,
+            application_class=application_class,
+            tracking_recorder=self.projection.recorder,
+            topics=self.projection.topics,
+            env=env,
+        )

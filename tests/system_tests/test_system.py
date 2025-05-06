@@ -275,7 +275,7 @@ class TestFollower(TestCase):
 
     def test_filter_received_notifications(self) -> None:
         class MyFollower(Follower):
-            follow_topics: ClassVar[Sequence[str]] = []
+            topics: ClassVar[Sequence[str]] = []
 
             @singledispatchmethod
             def policy(self, *args: Any, **kwargs: Any) -> None:
@@ -292,7 +292,7 @@ class TestFollower(TestCase):
             )
         ]
         self.assertEqual(len(follower.filter_received_notifications(notifications)), 1)
-        type(follower).follow_topics = ["topic1"]
+        type(follower).topics = ["topic1"]
         self.assertEqual(len(follower.filter_received_notifications(notifications)), 1)
-        type(follower).follow_topics = ["topic2"]
+        type(follower).topics = ["topic2"]
         self.assertEqual(len(follower.filter_received_notifications(notifications)), 0)

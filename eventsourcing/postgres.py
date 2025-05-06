@@ -766,6 +766,10 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
                 "in environment with key "
                 f"'{self.POSTGRES_DBNAME}'"
             )
+            # TODO: Indicate both keys here, also for other environment variables.
+            # ) + " or ".join(
+            #   [f"'{key}'" for key in self.env.create_keys(self.POSTGRES_DBNAME)]
+            # )
             raise OSError(msg)
 
         host = self.env.get(self.POSTGRES_HOST)

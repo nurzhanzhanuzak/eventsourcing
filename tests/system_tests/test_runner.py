@@ -314,9 +314,9 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
             self.wait_for_runner(runner)
             self.assertEqual(email_process1.recorder.max_tracking_id("BankAccounts"), 2)
 
-    def test_filters_notifications_by_follow_topics(self) -> None:
+    def test_filters_notifications_by_topics(self) -> None:
         class MyEmailProcess(EmailProcess):
-            follow_topics: ClassVar[Sequence[str]] = [
+            topics: ClassVar[Sequence[str]] = [
                 get_topic(AggregateEvent)
             ]  # follow nothing
 

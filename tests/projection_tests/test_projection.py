@@ -261,7 +261,7 @@ class EventCountersProjection(Projection[EventCountersInterface]):
         self.view.insert_tracking(tracking)
 
     @process_event.register
-    def aggregate_created(self, _: Aggregate.Created, tracking: Tracking) -> None:
+    def aggregate_created(self, event: Aggregate.Created, tracking: Tracking) -> None:
         self.view.incr_created_event_counter(tracking)
 
     @process_event.register

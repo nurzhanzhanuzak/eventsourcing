@@ -326,7 +326,10 @@ Exercises
 
 1. Replicate the code in this tutorial in your development environment.
 
-2. Develop a projection that counts dogs and tricks from a ``DogSchool`` application.
+2. Develop and run a projection that counts dogs and tricks from a ``DogSchool`` application.
+
+3. Develop and run an :ref:`event-sourced projection<event-sourced projection>` that counts dogs
+   and tricks from a ``DogSchool`` application.
 
 
 Next steps

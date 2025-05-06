@@ -6,26 +6,25 @@ import traceback
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from queue import Full, Queue
+from types import FrameType, ModuleType
 from typing import TYPE_CHECKING, Any, ClassVar, Optional, Union, cast
+
+from eventsourcing.projection import EventSourcedProjection
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
-    from types import FrameType, ModuleType
 
     from typing_extensions import Self
 
 from eventsourcing.application import (
     Application,
     NotificationLog,
-    ProcessingEvent,
     ProgrammingError,
     Section,
     TApplication,
 )
-from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import DomainEventProtocol, MutableOrImmutableAggregate
 from eventsourcing.persistence import (
-    IntegrityError,
     Mapper,
     Notification,
     ProcessRecorder,
@@ -52,29 +51,25 @@ class RecordingEvent:
 ConvertingJob = Optional[Union[RecordingEvent, list[Notification]]]
 
 
-class Follower(Application):
-    """Extends the :class:`~eventsourcing.application.Application` class
-    by using a process recorder as its application recorder, by keeping
-    track of the applications it is following, and pulling and processing
-    new domain event notifications through its :func:`policy` method.
+class Follower(EventSourcedProjection):
+    """Extends the :class:`~eventsourcing.projection.EventSourcedProjection` class
+    by pulling notification objects from its notification log readers, by converting
+    the notification objects to domain events and tracking objects and by processing
+    the reconstructed domain event objects.
     """
 
-    follow_topics: ClassVar[Sequence[str]] = []
     pull_section_size = 10
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # for backwards compatibility, set "topics" if has "follow_topics".
+        cls.topics = getattr(cls, "follow_topics", cls.topics)
 
     def __init__(self, env: EnvType | None = None) -> None:
         super().__init__(env)
         self.readers: dict[str, NotificationLogReader] = {}
         self.mappers: dict[str, Mapper] = {}
-        self.recorder: ProcessRecorder
         self.is_threading_enabled = False
-        self.processing_lock = threading.Lock()
-
-    def construct_recorder(self) -> ProcessRecorder:
-        """Constructs and returns a :class:`~eventsourcing.persistence.ProcessRecorder`
-        for the application to use as its application recorder.
-        """
-        return self.factory.process_recorder()
 
     def follow(self, name: str, log: NotificationLog) -> None:
         """Constructs a notification log reader and a mapper for
@@ -107,6 +102,12 @@ class Follower(Application):
             ):
                 self.process_event(domain_event, tracking)
 
+    def process_event(
+        self, domain_event: DomainEventProtocol, tracking: Tracking
+    ) -> None:
+        with self.processing_lock:
+            super().process_event(domain_event, tracking)
+
     def pull_notifications(
         self,
         leader_name: str,
@@ -121,15 +122,15 @@ class Follower(Application):
         return self.readers[leader_name].select(
             start=start,
             stop=stop,
-            topics=self.follow_topics,
+            topics=self.topics,
             inclusive_of_start=inclusive_of_start,
         )
 
     def filter_received_notifications(
         self, notifications: list[Notification]
     ) -> list[Notification]:
-        if self.follow_topics:
-            return [n for n in notifications if n.topic in self.follow_topics]
+        if self.topics:
+            return [n for n in notifications if n.topic in self.topics]
         return notifications
 
     def convert_notifications(
@@ -150,64 +151,6 @@ class Follower(Application):
             )
             processing_jobs.append((domain_event, tracking))
         return processing_jobs
-
-    # @retry(IntegrityError, max_attempts=50000, wait=0.01)
-    def process_event(
-        self, domain_event: DomainEventProtocol, tracking: Tracking
-    ) -> None:
-        """Calls :func:`~eventsourcing.system.Follower.policy` method with
-        the given :class:`~eventsourcing.domain.AggregateEvent` and a
-        new :class:`~eventsourcing.application.ProcessingEvent` created from
-        the given :class:`~eventsourcing.persistence.Tracking` object.
-
-        The policy will collect any new aggregate events on the process
-        event object.
-
-        After the policy method returns, the process event object will
-        then be recorded by calling
-        :func:`~eventsourcing.application.Application.record`, which
-        will return new notifications.
-
-        After calling
-        :func:`~eventsourcing.application.Application.take_snapshots`,
-        the new notifications are passed to the
-        :func:`~eventsourcing.application.Application.notify` method.
-        """
-        processing_event = ProcessingEvent(tracking=tracking)
-        with self.processing_lock:
-            self.policy(domain_event, processing_event)
-            try:
-                recordings = self._record(processing_event)
-            except IntegrityError:
-                if self.recorder.has_tracking_id(
-                    tracking.application_name,
-                    tracking.notification_id,
-                ):
-                    pass
-                else:
-                    raise
-            else:
-                self._take_snapshots(processing_event)
-                self.notify(processing_event.events)
-                self._notify(recordings)
-
-    @singledispatchmethod
-    def policy(
-        self,
-        domain_event: DomainEventProtocol,
-        processing_event: ProcessingEvent,
-    ) -> None:
-        """Abstract domain event processing policy method. Must be
-        implemented by event processing applications. When
-        processing the given domain event, event processing
-        applications must use the :func:`~ProcessingEvent.collect_events`
-        method of the given process event object (instead of
-        the application's :func:`~eventsourcing.application.Application.save`
-        method) to collect pending events from changed aggregates,
-        so that the new domain events will be recorded atomically
-        with tracking information about the position of the given
-        domain event's notification.
-        """
 
 
 class RecordingEventReceiver(ABC):
@@ -279,8 +222,8 @@ class System:
         pipes: Iterable[Iterable[type[Application]]],
     ):
         # Remember the caller frame's module, so that we might identify a topic.
-        caller_frame = cast("FrameType", inspect.currentframe()).f_back
-        module = cast("ModuleType", inspect.getmodule(caller_frame))
+        caller_frame = cast(FrameType, inspect.currentframe()).f_back
+        module = cast(ModuleType, inspect.getmodule(caller_frame))
         type(self).__caller_modules[id(self)] = module  # noqa: SLF001
 
         # Build nodes and edges.
@@ -629,9 +572,9 @@ class NewSingleThreadedRunner(Runner, RecordingEventReceiver):
                                 follower = self.apps[follower_name]
                                 assert isinstance(follower, Follower)
                                 if (
-                                    follower.follow_topics
+                                    follower.topics
                                     and recording.notification.topic
-                                    not in follower.follow_topics
+                                    not in follower.topics
                                 ):
                                     continue
                                 follower.process_event(
@@ -1076,9 +1019,8 @@ class ConvertingThread(threading.Thread):
                     recording_event = recording_event_or_notifications
                     for recording in recording_event.recordings:
                         if (
-                            self.follower.follow_topics
-                            and recording.notification.topic
-                            not in self.follower.follow_topics
+                            self.follower.topics
+                            and recording.notification.topic not in self.follower.topics
                         ):
                             continue
                         tracking = Tracking(
