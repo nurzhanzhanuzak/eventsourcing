@@ -43,6 +43,8 @@ nosetests.xml
 coverage.xml
 *,cover
 
+*dog-school*
+
 # Translations
 *.mo
 *.pot
@@ -69,3 +71,7 @@ venv
 .pydevproject
 .settings
 .dbeaver
+
+#VS Code IDE
+.vscode
+
