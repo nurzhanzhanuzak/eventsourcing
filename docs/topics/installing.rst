@@ -32,33 +32,34 @@ When including the library in a list of project dependencies, in order to
 avoid installing future incompatible releases, it is recommended to specify
 the major and minor version numbers.
 
-As an example, the expression ``eventsourcing<=9.3.99999`` would install the
-latest version of the 9.3 series, allowing future bug fixes released with
-point version number increments. You can use this expression in a ``pip install``
-command, in a ``requirements.txt`` file, or in a ``setup.py`` file.
+As an example, the expression ``eventsourcing>=9.4.0,<9.5.0`` would install the
+latest version of the 9.4 series, allowing future bug fixes released with
+point version number increments. You can use this expression in a ``pip install`` command.
 
 ::
 
-    $ pip install "eventsourcing<=9.4.99999"
+    $ pip install "eventsourcing>=9.4.0,<9.5.0"
 
-If you are specifying the dependencies of your project in a ``pyproject.toml``
-file, and for example using the Poetry build tool, you can specify the
-dependency on this library in the following way.
+You can use the same expression in ``requirements.txt`` files, in a ``setup.py`` files, and
+in a ``pyproject.toml`` files. For example, if you are specifying the dependencies of your project
+in a ``pyproject.toml`` file, you can specify the dependency on this library in the following way.
 
 ::
 
-    [tool.poetry.dependencies]
-    python = "^3.9"
-    eventsourcing = { version = "~9.4" }
+    [project]
+    requires-python = ">=3.9.2"
+    dependencies = [
+        "eventsourcing>=9.4.0,<9.5.0",
+    ]
 
 
-Specifying the major and minor version number in this way will avoid any
-potentially destabilising additional features introduced with minor version
-number increments, and also avoid all backward incompatible changes introduced
-with major version number increments.
+Requiring a specific major and minor version number in this way will avoid any
+potentially destabilising additional features with minor version increments, and
+also avoid all backward incompatible changes introduced with major version number
+increments.
 
 Upgrading to new minor versions is encouraged, but it is recommended to
-do this manually so that you are sure your project isn't inadvertently
+do this carefully so that you can be sure your project isn't inadvertently
 broken by changes in the library. Migrating to new major versions is
 also encouraged, but by definition this may involve your making changes
 to your project to adjust for the backward incompatibilities introduced
