@@ -274,7 +274,7 @@ Event-sourced projection
 
 The library's :class:`~eventsourcing.projection.EventSourcedProjection` class is an abstract base class
 that extends the library's :class:`~eventsourcing.application.Application` class by using a
-:ref:`process recorder<Process recorder>`, by introducing an abstract
+:ref:`process recorder<Process recorder>`, and by introducing an abstract
 :class:`~eventsourcing.projection.EventSourcedProjection.policy` method.
 
 It can be used to define how the events of an event-sourced application will be processed into another
