@@ -23,6 +23,16 @@ the underlying principles are the same, and so conversion of
 code and stored events is very possible.
 
 
+Version 9.4.2 (released 7 May 2025)
+-----------------------------------
+
+* Fixed pyright issue with assigning zero to Aggregate.INITIAL_VERSION.
+
+Version 9.4.1 (released 6 May 2025)
+-----------------------------------
+
+* Standardised pyproject.yaml and followed recommendation not to cap required Python version ('<4.0').
+
 Version 9.4.0 (released 6 May 2025)
 -----------------------------------
 
