@@ -23,8 +23,8 @@ the underlying principles are the same, and so conversion of
 code and stored events is very possible.
 
 
-Version 9.4.0 (released TBD)
-----------------------------
+Version 9.4.0 (released 6 May 2025)
+-----------------------------------
 
 * Added tracking recorder classes, to better support the development of arbitrary
   non-event-sourced materialised views. Implemented in the popo, sqlite, and postgres
@@ -38,6 +38,7 @@ Version 9.4.0 (released TBD)
 * Added projections module, with new tutorial part and module documentation, to support
   the development of event-processing components that project the state of event-sourced
   applications into materialised views.
+* Extracted EventSourcedProjection and added EventSourcedProjectionRunner to projections module.
 * Added new AESCipher class that uses the Python cryptography package in a way that is
   compatible and interoperable with the AESCipher class that uses the older PyCrytodome
   package. Should work as a drop-in replacement.
@@ -62,6 +63,7 @@ Version 9.4.0 (released TBD)
   Application.register_transcodings(), and the behaviour of Application.construct_transcoder()
   so that it only calls Application.register_transcodings() conditionally.
 * Improved aggregate examples with better code and better explanations.
+* Added "shopping cart" application examples, in "standard" style and "vertical slices" style.
 * Moved Pydantic mapper, Orjson transcoder, and base classes for mutable and immutable aggregate
   models that use Pydantic into own modules.
 * Extended linting with mypy and ruff to cover tests and examples, and fixed issues, to improve developer experience.
