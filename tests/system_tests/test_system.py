@@ -253,8 +253,9 @@ class TestFollower(TestCase):
             email_process.recorder.max_tracking_id(bank_accounts.name), notification.id
         )
 
-        # Process the event again, ignore tracking integrity error.
-        email_process.process_event(aggregate_event, tracking)
+        # Raises IntegrityError when attempting to process the event again.
+        with self.assertRaises(IntegrityError):
+            email_process.process_event(aggregate_event, tracking)
         self.assertEqual(
             email_process.recorder.max_tracking_id(bank_accounts.name), notification.id
         )

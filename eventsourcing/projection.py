@@ -16,7 +16,6 @@ from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import DomainEventProtocol
 from eventsourcing.persistence import (
     InfrastructureFactory,
-    IntegrityError,
     ProcessRecorder,
     Tracking,
     TrackingRecorder,
@@ -144,42 +143,27 @@ class EventSourcedProjection(Application, ABC):
     def process_event(
         self, domain_event: DomainEventProtocol, tracking: Tracking
     ) -> None:
-        """Calls :func:`~eventsourcing.system.Follower.policy` method with
-        the given :class:`~eventsourcing.domain.AggregateEvent` and a
-        new :class:`~eventsourcing.application.ProcessingEvent` created from
-        the given :class:`~eventsourcing.persistence.Tracking` object.
+        """Calls :func:`~eventsourcing.system.Follower.policy` method with the given
+        domain event and a new :class:`~eventsourcing.application.ProcessingEvent`
+        constructed with the given tracking object.
 
-        The policy will collect any new aggregate events on the process
+        The policy method should collect any new aggregate events on the process
         event object.
 
-        After the policy method returns, the process event object will
-        then be recorded by calling
-        :func:`~eventsourcing.application.Application.record`, which
-        will return new notifications.
+        After the policy method returns, the processing event object will be recorded
+        by calling :py:func:`~eventsourcing.application.Application._record`,
+        which then returns list of :py:class:`~eventsourcing.persistence.Recording`.
 
-        After calling
-        :func:`~eventsourcing.application.Application.take_snapshots`,
-        the new notifications are passed to the
-        :func:`~eventsourcing.application.Application.notify` method.
+        After calling :func:`~eventsourcing.application.Application._take_snapshots`,
+        the recordings are passed in a call to
+        :py:func:`~eventsourcing.application.Application._notify`.
         """
         processing_event = ProcessingEvent(tracking=tracking)
         self.policy(domain_event, processing_event)
-        try:
-            recordings = self._record(processing_event)
-        except IntegrityError:
-            if self.recorder.has_tracking_id(
-                tracking.application_name,
-                tracking.notification_id,
-            ):
-                # TODO: Maybe just don't catch the IntegrityError here.
-                #  - why should we ever get it if events are pulled correctly?
-                pass
-            else:
-                raise
-        else:
-            self._take_snapshots(processing_event)
-            self.notify(processing_event.events)
-            self._notify(recordings)
+        recordings = self._record(processing_event)
+        self._take_snapshots(processing_event)
+        self.notify(processing_event.events)
+        self._notify(recordings)
 
     @singledispatchmethod
     def policy(

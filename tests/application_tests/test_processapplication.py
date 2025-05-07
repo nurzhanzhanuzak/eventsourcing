@@ -3,7 +3,7 @@ from unittest.case import TestCase
 from eventsourcing.application import ProcessingEvent
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import DomainEventProtocol
-from eventsourcing.persistence import JSONTranscoder
+from eventsourcing.persistence import IntegrityError, JSONTranscoder
 from eventsourcing.system import (
     Follower,
     Leader,
@@ -44,8 +44,9 @@ class TestProcessApplication(TestCase):
         # Check we have processed the first event.
         self.assertEqual(email_process.recorder.max_tracking_id(BankAccounts.name), 1)
 
-        # Check reprocessing first event changes nothing (swallows IntegrityError).
-        email_process.pull_and_process(BankAccounts.name, start=0)
+        # Check reprocessing first event raises IntegrityError and changes nothing.
+        with self.assertRaises(IntegrityError):
+            email_process.pull_and_process(BankAccounts.name, start=0)
         self.assertEqual(email_process.recorder.max_tracking_id(BankAccounts.name), 1)
 
         # Check we can continue from the next position.
