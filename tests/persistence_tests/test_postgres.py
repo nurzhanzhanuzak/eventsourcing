@@ -797,13 +797,14 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
         super().drop_tables()
         drop_postgres_table(self.datastore, TRACKING_TABLE_NAME)
 
-    def create_recorder(self) -> TrackingRecorder:
+    def create_recorder(self, *, create_table: bool = True) -> PostgresTrackingRecorder:
         tracking_table_name = TRACKING_TABLE_NAME
         recorder = PostgresTrackingRecorder(
             datastore=self.datastore,
             tracking_table_name=tracking_table_name,
         )
-        recorder.create_table()
+        if create_table:
+            recorder.create_table()
         return recorder
 
     def test_insert_tracking(self) -> None:
@@ -816,6 +817,82 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
                 events_table_name=EVENTS_TABLE_NAME,
                 tracking_table_name="n" + TRACKING_TABLE_NAME,
             )
+
+    def test_initialise_single_row_tracking(self) -> None:
+        recorder = self.create_recorder()
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+        self.assertEqual(1, recorder.current_migration_version)
+
+    def test_raises_if_multi_row_tracking_with_single_row_table(self) -> None:
+        recorder = self.create_recorder()
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+        self.assertEqual(1, recorder.current_migration_version)
+
+        self.datastore.single_row_tracking = False
+        with self.assertRaises(OperationalError):
+            self.create_recorder()
+
+        recorder = self.create_recorder(create_table=False)
+        with self.assertRaises(ProgrammingError):
+            recorder.insert_tracking(Tracking("upstream1", 10))
+
+        with self.assertRaises(ProgrammingError):
+            recorder.insert_tracking(Tracking("upstream1", 10))
+
+    def test_migration_to_single_row_tracking(self) -> None:
+        # Insert tracking single-row tracking, no table..."
+        self.assertTrue(self.datastore.single_row_tracking)
+        recorder = self.create_recorder(create_table=False)
+        # Raises ProgrammingError because we haven't created the table.
+        with self.assertRaises(ProgrammingError):
+            recorder.insert_tracking(Tracking("upstream1", 1))
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+
+        # Insert tracking multi-row tracking, no table...
+        self.datastore.single_row_tracking = False
+        recorder = self.create_recorder(create_table=False)
+        # Raises ProgrammingError if we haven't created the table.
+        with self.assertRaises(ProgrammingError):
+            recorder.insert_tracking(Tracking("upstream1", 1))
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+
+        # Create table for multi-row tracking.
+        recorder.create_table()
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+
+        # Insert some tracking records.
+        recorder.insert_tracking(Tracking("upstream1", 1))
+        recorder.insert_tracking(Tracking("upstream1", 3))
+        recorder.insert_tracking(Tracking("upstream2", 1))
+        recorder.insert_tracking(Tracking("upstream2", 2))
+        recorder.insert_tracking(Tracking("upstream2", 3))
+        recorder.insert_tracking(Tracking("upstream2", 4))
+        self.assertEqual(3, recorder.max_tracking_id("upstream1"))
+        self.assertTrue(recorder.has_tracking_id("upstream1", 2))
+        self.assertEqual(4, recorder.max_tracking_id("upstream2"))
+
+        # Migrate table for multi-row tracking.
+        self.datastore.single_row_tracking = True
+        recorder = self.create_recorder(create_table=True)
+        self.assertTrue(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+        self.assertEqual(1, recorder.current_migration_version)
+
+        # Check records have been migrated.
+        self.assertEqual(3, recorder.max_tracking_id("upstream1"))
+        self.assertTrue(recorder.has_tracking_id("upstream1", 2))
+        self.assertEqual(4, recorder.max_tracking_id("upstream2"))
+
+        # Recreate table and check records have been migrated.
+        recorder = self.create_recorder(create_table=True)
+        self.assertTrue(recorder.found_pre_existing_table)
+        self.assertEqual(1, recorder.found_migration_version)
+        self.assertEqual(1, recorder.current_migration_version)
 
 
 class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCase):

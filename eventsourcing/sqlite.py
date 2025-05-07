@@ -212,6 +212,7 @@ class SQLiteDatastore:
         pool_timeout: float = 5.0,
         max_age: float | None = None,
         pre_ping: bool = False,
+        single_row_tracking: bool = True,
     ):
         self.pool = SQLiteConnectionPool(
             db_name=db_name,
@@ -222,6 +223,7 @@ class SQLiteDatastore:
             max_age=max_age,
             pre_ping=pre_ping,
         )
+        self.single_row_tracking = single_row_tracking
 
     @contextmanager
     def transaction(self, *, commit: bool) -> Iterator[SQLiteCursor]:
@@ -260,8 +262,11 @@ class SQLiteRecorder(Recorder):
 
     def create_table(self) -> None:
         with self.datastore.transaction(commit=True) as c:
-            for statement in self.create_table_statements:
-                c.execute(statement)
+            self._create_table(c)
+
+    def _create_table(self, c: SQLiteCursor) -> None:
+        for statement in self.create_table_statements:
+            c.execute(statement)
 
 
 class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
@@ -484,26 +489,103 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
         **kwargs: Any,
     ):
         super().__init__(datastore, **kwargs)
-        self.insert_tracking_statement = "INSERT INTO tracking VALUES (?,?)"
+        self.found_pre_existing_table: bool = False
+        self.found_migration_version: int | None = None
+        self.current_migration_version: int | None = None
+        self.table_migration_identifier = "__migration__"
+        self.has_checked_for_multi_row_tracking_table: bool = False
+        if self.datastore.single_row_tracking:
+            self.insert_tracking_statement = (
+                "INSERT INTO tracking "
+                "VALUES (:application_name, :notification_id) "
+                "ON CONFLICT (application_name) DO UPDATE "
+                "SET notification_id = :notification_id "
+                "WHERE tracking.notification_id < :notification_id "
+                "RETURNING notification_id"
+            )
+        else:
+            self.insert_tracking_statement = (
+                "INSERT INTO tracking VALUES (:application_name, :notification_id)"
+            )
         self.select_max_tracking_id_statement = (
             "SELECT MAX(notification_id) FROM tracking WHERE application_name=?"
-        )
-        self.count_tracking_id_statement = (
-            "SELECT COUNT(*) FROM tracking WHERE "
-            "application_name=? AND notification_id=?"
         )
 
     def construct_create_table_statements(self) -> list[str]:
         statements = super().construct_create_table_statements()
-        statements.append(
-            "CREATE TABLE IF NOT EXISTS tracking ("
-            "application_name TEXT, "
-            "notification_id INTEGER, "
-            "PRIMARY KEY "
-            "(application_name, notification_id)) "
-            "WITHOUT ROWID"
-        )
+        if self.datastore.single_row_tracking:
+            statements.append(
+                "CREATE TABLE IF NOT EXISTS tracking ("
+                "application_name TEXT, "
+                "notification_id INTEGER, "
+                "PRIMARY KEY "
+                "(application_name)) "
+                "WITHOUT ROWID"
+            )
+        else:
+            statements.append(
+                "CREATE TABLE IF NOT EXISTS tracking ("
+                "application_name TEXT, "
+                "notification_id INTEGER, "
+                "PRIMARY KEY "
+                "(application_name, notification_id)) "
+                "WITHOUT ROWID"
+            )
         return statements
+
+    def create_table(self) -> None:
+        # Get the migration version.
+        try:
+            self.current_migration_version = self.found_migration_version = (
+                self.max_tracking_id(self.table_migration_identifier)
+            )
+        except OperationalError:
+            pass
+        else:
+            self.found_pre_existing_table = True
+        super().create_table()
+        if (
+            not self.datastore.single_row_tracking
+            and self.current_migration_version is not None
+        ):
+            msg = "Can't do multi-row tracking with single-row tracking table"
+            raise OperationalError(msg)
+
+    def _create_table(self, c: SQLiteCursor) -> None:
+        max_tracking_ids: dict[str, int] = {}
+        if (
+            self.datastore.single_row_tracking
+            and self.found_pre_existing_table
+            and not self.found_migration_version
+        ):
+            # Migrate tracking to use single-row per application name.
+            # - Get all application names.
+            c.execute("SELECT DISTINCT application_name FROM tracking")
+            application_names: list[str] = [
+                select_row["application_name"] for select_row in c.fetchall()
+            ]
+
+            # - Get max tracking ID for each application name.
+            for application_name in application_names:
+                c.execute(self.select_max_tracking_id_statement, (application_name,))
+                max_tracking_id_row = c.fetchone()
+                assert max_tracking_id_row is not None
+                max_tracking_ids[application_name] = max_tracking_id_row[0]
+            # - Drop the table.
+            drop_table_statement = "DROP TABLE tracking"
+            c.execute(drop_table_statement)
+        # Create the table.
+        super()._create_table(c)
+        # - Maybe insert migration tracking record and application tracking records.
+        if self.datastore.single_row_tracking and (
+            not self.found_pre_existing_table
+            or (self.found_pre_existing_table and not self.found_migration_version)
+        ):
+            # - Assume we just created a table for single-row tracking.
+            self._insert_tracking(c, Tracking(self.table_migration_identifier, 1))
+            self.current_migration_version = 1
+            for application_name, max_tracking_id in max_tracking_ids.items():
+                self._insert_tracking(c, Tracking(application_name, max_tracking_id))
 
     def insert_tracking(self, tracking: Tracking) -> None:
         with self.datastore.transaction(commit=True) as c:
@@ -514,6 +596,8 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
         c: SQLiteCursor,
         tracking: Tracking,
     ) -> None:
+        self._check_has_multi_row_tracking_table(c)
+
         c.execute(
             self.insert_tracking_statement,
             (
@@ -521,22 +605,33 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
                 tracking.notification_id,
             ),
         )
+        if self.datastore.single_row_tracking:
+            fetchone = c.fetchone()
+            if fetchone is None:
+                msg = (
+                    "Failed to record tracking for "
+                    f"{tracking.application_name} {tracking.notification_id}"
+                )
+                raise IntegrityError(msg)
+
+    def _check_has_multi_row_tracking_table(self, c: SQLiteCursor) -> None:
+        if (
+            not self.datastore.single_row_tracking
+            and not self.has_checked_for_multi_row_tracking_table
+            and self._max_tracking_id(self.table_migration_identifier, c)
+        ):
+            msg = "Can't do multi-row tracking with single-row tracking table"
+            raise OperationalError(msg)
+        self.has_checked_for_multi_row_tracking_table = True
 
     def max_tracking_id(self, application_name: str) -> int | None:
-        params = [application_name]
         with self.datastore.transaction(commit=False) as c:
-            c.execute(self.select_max_tracking_id_statement, params)
-            return c.fetchone()[0]
+            return self._max_tracking_id(application_name, c)
 
-    def has_tracking_id(
-        self, application_name: str, notification_id: int | None
-    ) -> bool:
-        if notification_id is None:
-            return True
-        params = [application_name, notification_id]
-        with self.datastore.transaction(commit=False) as c:
-            c.execute(self.count_tracking_id_statement, params)
-            return bool(c.fetchone()[0])
+    def _max_tracking_id(self, application_name: str, c: SQLiteCursor) -> int | None:
+        params = [application_name]
+        c.execute(self.select_max_tracking_id_statement, params)
+        return c.fetchone()[0]
 
 
 class SQLiteProcessRecorder(

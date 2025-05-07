@@ -761,14 +761,16 @@ class TrackingRecorderTestCase(TestCase, ABC):
         tracking_recorder = self.create_recorder()
 
         # Construct tracking objects.
-        tracking1 = Tracking(notification_id=21, application_name="upstream1")
-        tracking2 = Tracking(notification_id=22, application_name="upstream1")
-        tracking3 = Tracking(notification_id=21, application_name="upstream2")
+        tracking1 = Tracking("upstream1", 21)
+        tracking2 = Tracking("upstream1", 22)
+        tracking3 = Tracking("upstream2", 21)
 
         # Insert tracking objects.
         tracking_recorder.insert_tracking(tracking=tracking1)
         tracking_recorder.insert_tracking(tracking=tracking2)
         tracking_recorder.insert_tracking(tracking=tracking3)
+
+        # raise Exception(tracking_recorder.max_tracking_id(tracking1.application_name))
 
         # Fail to insert same tracking object twice.
         with self.assertRaises(IntegrityError):
@@ -778,16 +780,37 @@ class TrackingRecorderTestCase(TestCase, ABC):
         with self.assertRaises(IntegrityError):
             tracking_recorder.insert_tracking(tracking=tracking3)
 
-        # Get latest tracked position.
+        # Get max tracking ID.
         self.assertEqual(tracking_recorder.max_tracking_id("upstream1"), 22)
         self.assertEqual(tracking_recorder.max_tracking_id("upstream2"), 21)
         self.assertIsNone(tracking_recorder.max_tracking_id("upstream3"))
 
         # Check if an event notification has been processed.
-        assert tracking_recorder.has_tracking_id("upstream1", 21)
-        assert tracking_recorder.has_tracking_id("upstream1", 22)
-        assert tracking_recorder.has_tracking_id("upstream2", 21)
-        assert not tracking_recorder.has_tracking_id("upstream2", 22)
+        self.assertTrue(tracking_recorder.has_tracking_id("upstream1", None))
+        self.assertTrue(tracking_recorder.has_tracking_id("upstream1", 20))
+        self.assertTrue(tracking_recorder.has_tracking_id("upstream1", 21))
+        self.assertTrue(tracking_recorder.has_tracking_id("upstream1", 22))
+        self.assertFalse(tracking_recorder.has_tracking_id("upstream1", 23))
+
+        self.assertTrue(tracking_recorder.has_tracking_id("upstream2", None))
+        self.assertTrue(tracking_recorder.has_tracking_id("upstream2", 20))
+        self.assertTrue(tracking_recorder.has_tracking_id("upstream2", 21))
+        self.assertFalse(tracking_recorder.has_tracking_id("upstream2", 22))
+
+        self.assertTrue(tracking_recorder.has_tracking_id("upstream2", None))
+        self.assertFalse(tracking_recorder.has_tracking_id("upstream2", 22))
+
+        # Construct more tracking objects.
+        tracking4 = Tracking("upstream1", 23)
+        tracking5 = Tracking("upstream1", 24)
+
+        tracking_recorder.insert_tracking(tracking5)
+
+        # Can't fill in the gap.
+        with self.assertRaises(IntegrityError):
+            tracking_recorder.insert_tracking(tracking4)
+
+        self.assertTrue(tracking_recorder.has_tracking_id("upstream1", 23))
 
     def test_wait(self) -> None:
         tracking_recorder = self.create_recorder()
@@ -918,14 +941,15 @@ class ProcessRecorderTestCase(TestCase, ABC):
         self.assertFalse(recorder.has_tracking_id("upstream_app", 1))
         self.assertFalse(recorder.has_tracking_id("upstream_app", 2))
         self.assertFalse(recorder.has_tracking_id("upstream_app", 3))
+        self.assertFalse(recorder.has_tracking_id("upstream_app", 4))
 
         tracking1 = Tracking(
             application_name="upstream_app",
             notification_id=1,
         )
-        tracking2 = Tracking(
+        tracking3 = Tracking(
             application_name="upstream_app",
-            notification_id=2,
+            notification_id=3,
         )
 
         recorder.insert_events(
@@ -936,15 +960,55 @@ class ProcessRecorderTestCase(TestCase, ABC):
         self.assertTrue(recorder.has_tracking_id("upstream_app", 1))
         self.assertFalse(recorder.has_tracking_id("upstream_app", 2))
         self.assertFalse(recorder.has_tracking_id("upstream_app", 3))
+        self.assertFalse(recorder.has_tracking_id("upstream_app", 4))
 
+        recorder.insert_events(
+            stored_events=[],
+            tracking=tracking3,
+        )
+
+        self.assertTrue(recorder.has_tracking_id("upstream_app", 1))
+        self.assertTrue(recorder.has_tracking_id("upstream_app", 2))
+        self.assertTrue(recorder.has_tracking_id("upstream_app", 3))
+        self.assertFalse(recorder.has_tracking_id("upstream_app", 4))
+
+    def test_raises_when_lower_inserted_later(self) -> None:
+        # Construct the recorder.
+        recorder = self.create_recorder()
+
+        tracking1 = Tracking(
+            application_name="upstream_app",
+            notification_id=1,
+        )
+        tracking2 = Tracking(
+            application_name="upstream_app",
+            notification_id=2,
+        )
+
+        # Insert tracking info.
         recorder.insert_events(
             stored_events=[],
             tracking=tracking2,
         )
 
-        self.assertTrue(recorder.has_tracking_id("upstream_app", 1))
-        self.assertTrue(recorder.has_tracking_id("upstream_app", 2))
-        self.assertFalse(recorder.has_tracking_id("upstream_app", 3))
+        # Get current position.
+        self.assertEqual(
+            recorder.max_tracking_id("upstream_app"),
+            2,
+        )
+
+        # Insert tracking info.
+        with self.assertRaises(IntegrityError):
+            recorder.insert_events(
+                stored_events=[],
+                tracking=tracking1,
+            )
+
+        # Get current position.
+        self.assertEqual(
+            recorder.max_tracking_id("upstream_app"),
+            2,
+        )
 
     def test_performance(self) -> None:
         # Construct the recorder.

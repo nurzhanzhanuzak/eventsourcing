@@ -171,6 +171,8 @@ class EventSourcedProjection(Application, ABC):
                 tracking.application_name,
                 tracking.notification_id,
             ):
+                # TODO: Maybe just don't catch the IntegrityError here.
+                #  - why should we ever get it if events are pulled correctly?
                 pass
             else:
                 raise

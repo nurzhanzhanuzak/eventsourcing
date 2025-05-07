@@ -449,14 +449,17 @@ class TrackingRecorder(Recorder, ABC):
         for the named application, or None if no tracking objects have been recorded.
         """
 
-    @abstractmethod
     def has_tracking_id(
         self, application_name: str, notification_id: int | None
     ) -> bool:
-        """Returns True if a tracking object with the given application name
-        and notification ID has been recorded, and True if given notification_id is
-        None, otherwise returns False.
+        """Returns True if given notification_id is None or a tracking
+        object with the given application_name and a notification ID greater
+        than or equal to the given notification_id has been recorded.
         """
+        if notification_id is None:
+            return True
+        max_tracking_id = self.max_tracking_id(application_name)
+        return max_tracking_id is not None and max_tracking_id >= notification_id
 
     def wait(
         self,
@@ -483,10 +486,7 @@ class TrackingRecorder(Recorder, ABC):
         sleep_interval_ms = 100.0
         max_sleep_interval_ms = 800.0
         while True:
-            max_tracking_id = self.max_tracking_id(application_name)
-            if notification_id is None or (
-                max_tracking_id is not None and max_tracking_id >= notification_id
-            ):
+            if self.has_tracking_id(application_name, notification_id):
                 break
             if interrupt:
                 if interrupt.wait(timeout=sleep_interval_ms / 1000):

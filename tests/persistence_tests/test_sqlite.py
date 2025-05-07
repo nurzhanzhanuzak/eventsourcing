@@ -23,6 +23,7 @@ from eventsourcing.persistence import (
     ProcessRecorder,
     ProgrammingError,
     StoredEvent,
+    Tracking,
     TrackingRecorder,
 )
 from eventsourcing.sqlite import (
@@ -271,13 +272,104 @@ class TestSQLiteApplicationRecorderErrors(TestCase):
 
 
 class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
-    def create_recorder(self) -> TrackingRecorder:
-        recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
-        recorder.create_table()
+    def create_recorder(
+        self,
+        *,
+        db_name: str = ":memory:",
+        create_table: bool = True,
+        single_row_tracking: bool = True,
+    ) -> SQLiteTrackingRecorder:
+        datastore = SQLiteDatastore(db_name, single_row_tracking=single_row_tracking)
+        recorder = SQLiteTrackingRecorder(datastore)
+        if create_table:
+            recorder.create_table()
         return recorder
 
     def test_insert_tracking(self) -> None:
         super().test_insert_tracking()
+
+    def test_initialise_single_row_tracking(self) -> None:
+        recorder = self.create_recorder()
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+        self.assertEqual(1, recorder.current_migration_version)
+
+    def test_raises_if_multi_row_tracking_with_single_row_table(self) -> None:
+        uris = tmpfile_uris()
+        db_uri = next(uris)
+
+        recorder = self.create_recorder(db_name=db_uri)
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+        self.assertEqual(1, recorder.current_migration_version)
+
+        with self.assertRaises(OperationalError):
+            self.create_recorder(db_name=db_uri, single_row_tracking=False)
+
+        recorder = self.create_recorder(
+            db_name=db_uri, single_row_tracking=False, create_table=False
+        )
+        with self.assertRaises(OperationalError):
+            recorder.insert_tracking(Tracking("upstream1", 10))
+
+        with self.assertRaises(OperationalError):
+            recorder.insert_tracking(Tracking("upstream1", 10))
+
+    def test_migration_to_single_row_tracking(self) -> None:
+        uris = tmpfile_uris()
+        db_uri = next(uris)
+
+        # Insert tracking single-row tracking, no table...
+        recorder = self.create_recorder(db_name=db_uri, create_table=False)
+        self.assertTrue(recorder.datastore.single_row_tracking)
+        # Raises OperationalError because we haven't created the table.
+        with self.assertRaises(OperationalError):
+            recorder.insert_tracking(Tracking("upstream1", 1))
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+
+        # Insert tracking multi-row tracking, no table...
+        recorder = self.create_recorder(
+            db_name=db_uri, create_table=False, single_row_tracking=False
+        )
+        # Raises OperationalError because we haven't created the table.
+        with self.assertRaises(OperationalError):
+            recorder.insert_tracking(Tracking("upstream1", 1))
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+
+        # Create table for multi-row tracking.
+        recorder.create_table()
+        self.assertFalse(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+
+        # Insert some tracking records.
+        recorder.insert_tracking(Tracking("upstream1", 1))
+        recorder.insert_tracking(Tracking("upstream1", 3))
+        recorder.insert_tracking(Tracking("upstream2", 1))
+        recorder.insert_tracking(Tracking("upstream2", 2))
+        recorder.insert_tracking(Tracking("upstream2", 3))
+        recorder.insert_tracking(Tracking("upstream2", 4))
+        self.assertEqual(3, recorder.max_tracking_id("upstream1"))
+        self.assertTrue(recorder.has_tracking_id("upstream1", 2))
+        self.assertEqual(4, recorder.max_tracking_id("upstream2"))
+
+        # Migrate table for multi-row tracking.
+        recorder = self.create_recorder(db_name=db_uri, create_table=True)
+        self.assertTrue(recorder.found_pre_existing_table)
+        self.assertIsNone(recorder.found_migration_version)
+        self.assertEqual(1, recorder.current_migration_version)
+
+        # Check records have been migrated.
+        self.assertEqual(3, recorder.max_tracking_id("upstream1"))
+        self.assertTrue(recorder.has_tracking_id("upstream1", 2))
+        self.assertEqual(4, recorder.max_tracking_id("upstream2"))
+
+        # Recreate table and check records have been migrated.
+        recorder = self.create_recorder(db_name=db_uri, create_table=True)
+        self.assertTrue(recorder.found_pre_existing_table)
+        self.assertEqual(1, recorder.found_migration_version)
+        self.assertEqual(1, recorder.current_migration_version)
 
 
 class TestSQLiteProcessRecorder(ProcessRecorderTestCase):

@@ -193,14 +193,14 @@ class POPOSubscription(ListenNotifySubscription[POPOApplicationRecorder]):
 class POPOTrackingRecorder(POPORecorder, TrackingRecorder):
     def __init__(self) -> None:
         super().__init__()
-        self._tracking_table: dict[str, set[int]] = defaultdict(set)
         self._max_tracking_ids: dict[str, int | None] = defaultdict(lambda: None)
 
     def _assert_tracking_uniqueness(self, tracking: Tracking) -> None:
-        if tracking.notification_id in self._tracking_table[tracking.application_name]:
+        max_tracking_id = self._max_tracking_ids[tracking.application_name]
+        if max_tracking_id is not None and max_tracking_id >= tracking.notification_id:
             msg = (
-                f"Already recorded notification ID {tracking.notification_id} "
-                f"for application {tracking.application_name}"
+                f"Tracking notification ID {tracking.notification_id} "
+                f"not greater than current max tracking ID {max_tracking_id}"
             )
             raise IntegrityError(msg)
 
@@ -210,22 +210,11 @@ class POPOTrackingRecorder(POPORecorder, TrackingRecorder):
             self._insert_tracking(tracking)
 
     def _insert_tracking(self, tracking: Tracking) -> None:
-        self._tracking_table[tracking.application_name].add(tracking.notification_id)
-        max_tracking_id = self._max_tracking_ids[tracking.application_name]
-        if max_tracking_id is None or max_tracking_id < tracking.notification_id:
-            self._max_tracking_ids[tracking.application_name] = tracking.notification_id
+        self._max_tracking_ids[tracking.application_name] = tracking.notification_id
 
     def max_tracking_id(self, application_name: str) -> int | None:
         with self._database_lock:
             return self._max_tracking_ids[application_name]
-
-    def has_tracking_id(
-        self, application_name: str, notification_id: int | None
-    ) -> bool:
-        if notification_id is None:
-            return True
-        with self._database_lock:
-            return notification_id in self._tracking_table[application_name]
 
 
 class POPOProcessRecorder(

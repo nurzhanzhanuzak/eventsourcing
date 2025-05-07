@@ -94,10 +94,12 @@ class PostgresDatastore:
         schema: str = "",
         pool_open_timeout: int | None = None,
         get_password_func: Callable[[], str] | None = None,
+        single_row_tracking: bool = True,
     ):
         self.idle_in_transaction_session_timeout = idle_in_transaction_session_timeout
         self.pre_ping = pre_ping
         self.pool_open_timeout = pool_open_timeout
+        self.single_row_tracking = single_row_tracking
 
         check = ConnectionPool.check_connection if pre_ping else None
         self.pool = ConnectionPool(
@@ -206,8 +208,11 @@ class PostgresRecorder:
 
     def create_table(self) -> None:
         with self.datastore.transaction(commit=True) as curs:
-            for statement in self.create_table_statements:
-                curs.execute(statement, prepare=False)
+            self._create_table(curs)
+
+    def _create_table(self, curs: Cursor[DictRow]) -> None:
+        for statement in self.create_table_statements:
+            curs.execute(statement, prepare=False)
 
 
 class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
@@ -610,25 +615,56 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
         super().__init__(datastore, **kwargs)
         self.check_table_name_length(tracking_table_name)
         self.tracking_table_name = tracking_table_name
-        self.create_table_statements.append(
-            SQL(
-                "CREATE TABLE IF NOT EXISTS {0}.{1} ("
-                "application_name text, "
-                "notification_id bigint, "
-                "PRIMARY KEY "
-                "(application_name, notification_id))"
+        self.found_pre_existing_table: bool = False
+        self.found_migration_version: int | None = None
+        self.current_migration_version: int | None = None
+        self.table_migration_identifier = "__migration__"
+        self.has_checked_for_multi_row_tracking_table: bool = False
+        if self.datastore.single_row_tracking:
+            # For single-row tracking.
+            self.create_table_statements.append(
+                SQL(
+                    "CREATE TABLE IF NOT EXISTS {0}.{1} ("
+                    "application_name text, "
+                    "notification_id bigint, "
+                    "PRIMARY KEY "
+                    "(application_name))"
+                ).format(
+                    Identifier(self.datastore.schema),
+                    Identifier(self.tracking_table_name),
+                )
+            )
+            self.insert_tracking_statement = SQL(
+                "INSERT INTO {0}.{1} "
+                "VALUES (%(application_name)s, %(notification_id)s) "
+                "ON CONFLICT (application_name) DO UPDATE "
+                "SET notification_id = %(notification_id)s "
+                "WHERE {0}.{1}.notification_id < %(notification_id)s "
+                "RETURNING notification_id"
             ).format(
                 Identifier(self.datastore.schema),
                 Identifier(self.tracking_table_name),
             )
-        )
-
-        self.insert_tracking_statement = SQL(
-            "INSERT INTO {0}.{1} VALUES (%s, %s)"
-        ).format(
-            Identifier(self.datastore.schema),
-            Identifier(self.tracking_table_name),
-        )
+        else:
+            # For legacy multi-row tracking.
+            self.create_table_statements.append(
+                SQL(
+                    "CREATE TABLE IF NOT EXISTS {0}.{1} ("
+                    "application_name text, "
+                    "notification_id bigint, "
+                    "PRIMARY KEY "
+                    "(application_name, notification_id))"
+                ).format(
+                    Identifier(self.datastore.schema),
+                    Identifier(self.tracking_table_name),
+                )
+            )
+            self.insert_tracking_statement = SQL(
+                "INSERT INTO {0}.{1} VALUES (%(application_name)s, %(notification_id)s)"
+            ).format(
+                Identifier(self.datastore.schema),
+                Identifier(self.tracking_table_name),
+            )
 
         self.max_tracking_id_statement = SQL(
             "SELECT MAX(notification_id) FROM {0}.{1} WHERE application_name=%s"
@@ -637,21 +673,82 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
             Identifier(self.tracking_table_name),
         )
 
-        self.count_tracking_id_statement = SQL(
-            "SELECT COUNT(*) FROM {0}.{1} "
-            "WHERE application_name=%s AND notification_id=%s"
-        ).format(
-            Identifier(self.datastore.schema),
-            Identifier(self.tracking_table_name),
-        )
+    def create_table(self) -> None:
+        # Get the migration version.
+        try:
+            self.current_migration_version = self.found_migration_version = (
+                self.max_tracking_id(self.table_migration_identifier)
+            )
+        except ProgrammingError:
+            pass
+        else:
+            self.found_pre_existing_table = True
+        super().create_table()
+        if (
+            not self.datastore.single_row_tracking
+            and self.current_migration_version is not None
+        ):
+            msg = "Can't do multi-row tracking with single-row tracking table"
+            raise OperationalError(msg)
+
+    def _create_table(self, curs: Cursor[DictRow]) -> None:
+        max_tracking_ids: dict[str, int] = {}
+        if (
+            self.datastore.single_row_tracking
+            and self.found_pre_existing_table
+            and not self.found_migration_version
+        ):
+            # Migrate the table.
+            curs.execute(
+                SQL("SET LOCAL lock_timeout = '{0}s'").format(
+                    self.datastore.lock_timeout
+                )
+            )
+            curs.execute(
+                SQL("LOCK TABLE {0}.{1} IN ACCESS EXCLUSIVE MODE").format(
+                    Identifier(self.datastore.schema),
+                    Identifier(self.tracking_table_name),
+                )
+            )
+
+            # Get all application names.
+            application_names: list[str] = [
+                select_row["application_name"]
+                for select_row in curs.execute(
+                    SQL("SELECT DISTINCT application_name FROM {0}.{1}").format(
+                        Identifier(self.datastore.schema),
+                        Identifier(self.tracking_table_name),
+                    )
+                )
+            ]
+
+            # Get max tracking ID for each application name.
+            for application_name in application_names:
+                curs.execute(self.max_tracking_id_statement, (application_name,))
+                max_tracking_id_row = curs.fetchone()
+                assert max_tracking_id_row is not None
+                max_tracking_ids[application_name] = max_tracking_id_row["max"]
+            # Drop the table.
+            drop_table_statement = SQL("DROP TABLE {0}.{1}").format(
+                Identifier(self.datastore.schema), Identifier(self.tracking_table_name)
+            )
+            curs.execute(drop_table_statement)
+        # Create the table.
+        super()._create_table(curs)
+        # Maybe insert migration tracking record and application tracking records.
+        if self.datastore.single_row_tracking and (
+            not self.found_pre_existing_table
+            or (self.found_pre_existing_table and not self.found_migration_version)
+        ):
+            # Assume we just created a table for single-row tracking.
+            self._insert_tracking(curs, Tracking(self.table_migration_identifier, 1))
+            self.current_migration_version = 1
+            for application_name, max_tracking_id in max_tracking_ids.items():
+                self._insert_tracking(curs, Tracking(application_name, max_tracking_id))
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_tracking(self, tracking: Tracking) -> None:
-        with (
-            self.datastore.get_connection() as conn,
-            conn.transaction(),
-            conn.cursor() as curs,
-        ):
+        with self.datastore.transaction(commit=True) as curs:
             self._insert_tracking(curs, tracking)
 
     def _insert_tracking(
@@ -659,42 +756,57 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
         curs: Cursor[DictRow],
         tracking: Tracking,
     ) -> None:
+        self._check_has_multi_row_tracking_table(curs)
+
         curs.execute(
             query=self.insert_tracking_statement,
-            params=(
-                tracking.application_name,
-                tracking.notification_id,
-            ),
+            params={
+                "application_name": tracking.application_name,
+                "notification_id": tracking.notification_id,
+            },
             prepare=True,
         )
+        if self.datastore.single_row_tracking:
+            fetchone = curs.fetchone()
+            if fetchone is None:
+                msg = (
+                    "Failed to record tracking for "
+                    f"{tracking.application_name} {tracking.notification_id}"
+                )
+                raise IntegrityError(msg)
+
+    def _check_has_multi_row_tracking_table(self, c: Cursor[DictRow]) -> None:
+        if (
+            not self.datastore.single_row_tracking
+            and not self.has_checked_for_multi_row_tracking_table
+            and self._max_tracking_id(self.table_migration_identifier, c)
+        ):
+            msg = "Can't do multi-row tracking with single-row tracking table"
+            raise ProgrammingError(msg)
+        self.has_checked_for_multi_row_tracking_table = True
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def max_tracking_id(self, application_name: str) -> int | None:
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
-            curs.execute(
-                query=self.max_tracking_id_statement,
-                params=(application_name,),
-                prepare=True,
-            )
-            fetchone = curs.fetchone()
-            assert fetchone is not None
-            return fetchone["max"]
+            return self._max_tracking_id(application_name, curs)
+
+    def _max_tracking_id(
+        self, application_name: str, curs: Cursor[DictRow]
+    ) -> int | None:
+        curs.execute(
+            query=self.max_tracking_id_statement,
+            params=(application_name,),
+            prepare=True,
+        )
+        fetchone = curs.fetchone()
+        assert fetchone is not None
+        return fetchone["max"]
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def has_tracking_id(
         self, application_name: str, notification_id: int | None
     ) -> bool:
-        if notification_id is None:
-            return True
-        with self.datastore.get_connection() as conn, conn.cursor() as curs:
-            curs.execute(
-                query=self.count_tracking_id_statement,
-                params=(application_name, notification_id),
-                prepare=True,
-            )
-            fetchone = curs.fetchone()
-            assert fetchone is not None
-            return bool(fetchone["count"])
+        return super().has_tracking_id(application_name, notification_id)
 
 
 TPostgresTrackingRecorder = TypeVar(
