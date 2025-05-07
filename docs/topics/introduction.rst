@@ -539,7 +539,7 @@ included in this library, for example by adapting popular ORMs such as
 and `SQLAlchemy <https://github.com/pyeventsourcing/eventsourcing-sqlalchemy#readme>`_,
 specialist event store databases such as
 `Axon Server <https://github.com/pyeventsourcing/eventsourcing-axonserver#readme>`_
-and `EventStoreDB <https://github.com/pyeventsourcing/eventsourcing-eventstoredb#readme>`_,
+and `KurrentDB <https://github.com/pyeventsourcing/eventsourcing-kurrentdb#readme>`_,
 alternative model and serialisation frameworks such as Pydantic and orjson, and for
 serving applications and running systems with efficient
 inter-process communication technologies like `gRPC <https://github.com/pyeventsourcing/eventsourcing-grpc#readme>`_.

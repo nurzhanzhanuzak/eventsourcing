@@ -1335,7 +1335,7 @@ that support using popular ORMs for persistence such as
 and `SQLAlchemy <https://github.com/pyeventsourcing/eventsourcing-sqlalchemy#readme>`_,
 specialist event stores such as
 `Axon Server <https://github.com/pyeventsourcing/eventsourcing-axonserver#readme>`_
-and `EventStoreDB <https://github.com/pyeventsourcing/eventsourcing-eventstoredb#readme>`_,
+and `KurrentDB <https://github.com/pyeventsourcing/eventsourcing-kurrentdb#readme>`_,
 and popular NoSQL databases such as
 `DynamoDB <https://github.com/pyeventsourcing/eventsourcing-dynamodb#readme>`_.
 

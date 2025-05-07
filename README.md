@@ -173,7 +173,7 @@ There are projects that adapt popular ORMs such as
 and [SQLAlchemy](https://github.com/pyeventsourcing/eventsourcing-sqlalchemy#readme).
 There are projects that adapt specialist event stores such as
 [Axon Server](https://github.com/pyeventsourcing/eventsourcing-axonserver#readme) and
-[EventStoreDB](https://github.com/pyeventsourcing/eventsourcing-eventstoredb#readme).
+[KurrentDB](https://github.com/pyeventsourcing/eventsourcing-kurrentdb#readme).
 There are projects that support popular NoSQL databases such as
 [DynamoDB](https://github.com/pyeventsourcing/eventsourcing-dynamodb#readme).
 There are also projects that provide examples of using the
