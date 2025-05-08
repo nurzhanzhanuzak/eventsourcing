@@ -28,17 +28,20 @@ It is recommended to install the library into a Python virtual environment.
     (my_venv) $ pip install eventsourcing
 
 
-When including the library in a list of project dependencies, in order to
-avoid installing future incompatible releases, it is recommended to specify
-the major and minor version numbers.
+Assuming you are developing a true application (and not a library), when including this library
+in your list of project dependencies, in order to avoid installing future incompatible releases,
+it is recommended to specify the major and minor version numbers, use dependency locking, and walk
+the dependency forward in a controlled way. Please note, it is recommended to test all updates in
+your CI.
 
-As an example, the expression ``eventsourcing>=9.4.0,<9.5.0`` would install the
-latest version of the 9.4 series, allowing future bug fixes released with
-point version number increments. You can use this expression in a ``pip install`` command.
+As an example, the expression ``eventsourcing>=9.4.3,==9.4.*`` would install the latest version of
+the 9.4 series, allowing future bug fixes released with point version increments, whilst avoiding
+any changes introduced by major and minor version increments that might break your code. You can use
+this expression in a ``pip install`` command.
 
 ::
 
-    $ pip install "eventsourcing>=9.4.0,<9.5.0"
+    $ pip install "eventsourcing>=9.4.3,==9.4.*"
 
 You can use the same expression in ``requirements.txt`` files, in ``setup.py`` files, and
 in ``pyproject.toml`` files.
@@ -51,23 +54,21 @@ file, you can specify the dependency on this library in the following way.
     [project]
     requires-python = ">=3.9.2"
     dependencies = [
-        "eventsourcing>=9.4.0,<9.5.0",
+        "eventsourcing>=9.4.3,==9.4.*",
     ]
 
 
 Requiring a specific major and minor version number in this way will avoid any
 potentially destabilising additional features with minor version increments, and
-also avoid all backward incompatible changes introduced with major version number
-increments.
+also avoid potentially backward incompatible changes introduced with major version
+number increments.
 
-Upgrading to new minor versions is encouraged, but it is recommended to
-do this carefully so that you can be sure your project isn't inadvertently
-broken by changes in the library. Migrating to new major versions is
-also encouraged, but by definition this may involve your making changes
-to your project to adjust for the backward incompatibilities introduced
-by the new major version. Of course it's your project so, if you wish,
-feel free to pin the major and minor and point version, or indeed only
-the major version.
+Upgrading to new versions is encouraged, but it is recommended to do this carefully
+so that you can be sure your project isn't inadvertently broken by changes in the library.
+
+Please note, if you are developing a library that depends on this library, then it is
+generally recommended not to have upper limit caps on the versions of your dependencies,
+and to leave the responsibility for ensuring application integrity to application developers.
 
 Install options
 ===============
