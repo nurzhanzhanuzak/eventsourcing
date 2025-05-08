@@ -1,7 +1,6 @@
 import psycopg
 from psycopg.sql import SQL, Identifier
 
-from eventsourcing.persistence import PersistenceError
 from eventsourcing.postgres import PostgresDatastore
 
 
@@ -44,12 +43,9 @@ def pg_close_all_connections(
 
 
 def drop_postgres_table(datastore: PostgresDatastore, table_name: str) -> None:
-    statement = SQL("DROP TABLE {0}.{1}").format(
+    # print(f"Dropping table {datastore.schema}.{table_name}")
+    statement = SQL("DROP TABLE IF EXISTS {0}.{1}").format(
         Identifier(datastore.schema), Identifier(table_name)
     )
-    # print(f"Dropping table {datastore.schema}.{table_name}")
-    try:
-        with datastore.transaction(commit=True) as curs:
-            curs.execute(statement, prepare=False)
-    except PersistenceError:
-        pass
+    with datastore.transaction(commit=True) as curs:
+        curs.execute(statement, prepare=False)
