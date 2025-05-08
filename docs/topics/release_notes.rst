@@ -15,12 +15,45 @@ nor extends the functionality of the library.
 Version 9.x
 ===========
 
+First released 13 March 2021.
+
 Version 9.x series is a rewrite of the library that distills most of
-the best parts of the previous versions of the library into faster
-and simpler code. This version is recommended for new projects.
-It is not backwards-compatible with previous major versions. However
-the underlying principles are the same, and so conversion of
-code and stored events is very possible.
+the best parts of the 8.x series into faster and simpler code. This
+version is recommended for new projects. It is not backwards-compatible
+with previous major versions. However the underlying principles are the
+same, and so conversion of code and stored events is very possible.
+
+
+Version 9.4.3 (released 8 May 2025)
+-----------------------------------
+
+* Fixed has_tracking_id() on tracking recorders, which previously did not use "greater than" semantics, and
+  so reported "false" for all notification IDs in any gaps in the sequence of tracking records for an application.
+* Fixed tracking recorders to exclude the insertion of tracking records in gaps, by changing SQLite and
+  PostgreSQL tracking recorders to use "single-row" tracking. Tracking the processing of events in an
+  application sequence with a single database row also has the advantage of using less disk space, relative
+  to "multi-row" tracking which inserts a new row for each tracking object. It is also faster, O(1) rather than
+  O(log n). Added support for environment variables 'SQLITE_SINGLE_ROW_TRACKING' and 'POSTGRES_SINGLE_ROW_TRACKING'
+  to allow users to continue with legacy "multi-row" tracking. Please note, SQLite tracking tables will be
+  automatically migrated unless 'CREATE_TABLE' is "false" or 'SQLITE_SINGLE_ROW_TRACKING' is "false". Similarly,
+  PostgreSQL tracking tables will be automatically migrated unless 'CREATE_TABLE' is "false" or
+  'POSTGRES_SINGLE_ROW_TRACKING' is "false". New installations will immediately use "single-row" tracking unless
+  'SQLITE_SINGLE_ROW_TRACKING' or 'POSTGRES_SINGLE_ROW_TRACKING' is "false". Setting these environment variables to
+  "false" after "single-row" tracking tables have been created will cause a run-time error when tracking recorders
+  are constructed. After migration, old tracking tables (tracking tables then prefixed with "old1_") can be manually
+  dropped (or restored if you really wanted to continue with "multi-row" tracking). Unless inhibited in the way
+  described above, migration of tracking records will be performed automatically by default by the first tracking
+  recorder to be constructed, using a lock on the tracking table which will block all other statements executed on
+  the tracking table. Migration of tracking records has been tested to ensure operational integrity in production
+  (migration is fast, tracked positions in application sequences are migrated, and any concurrent tracking command
+  and query operations started during the brief migration operation wait until migration has completed and then
+  complete successfully).
+* Fixed remaining dependencies (the optional dependencies on pycryptodome, cryptography, and psycopg[pool]) to
+  not have upper cap limits, to conform with general recommendations for Python library developers. This should
+  afford greater future compatibility for users of this library between their dependencies, whilst leaving
+  responsibility for application integrity to application developers.
+* Fixed links to KurrentDB persistence module (formerly EventStoreDB).
+* Added link to docs in pyproject.toml, so that it is listed in PyPI.
 
 
 Version 9.4.2 (released 7 May 2025)
