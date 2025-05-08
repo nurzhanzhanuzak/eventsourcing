@@ -796,6 +796,7 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
     def drop_tables(self) -> None:
         super().drop_tables()
         drop_postgres_table(self.datastore, TRACKING_TABLE_NAME)
+        drop_postgres_table(self.datastore, f"bkup1_{TRACKING_TABLE_NAME}"[:63])
 
     def create_recorder(self, *, create_table: bool = True) -> PostgresTrackingRecorder:
         tracking_table_name = TRACKING_TABLE_NAME
@@ -820,15 +821,15 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
 
     def test_initialise_single_row_tracking(self) -> None:
         recorder = self.create_recorder()
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
-        self.assertEqual(1, recorder.current_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
+        self.assertEqual(1, recorder.tracking_migration_current)
 
     def test_raises_if_multi_row_tracking_with_single_row_table(self) -> None:
         recorder = self.create_recorder()
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
-        self.assertEqual(1, recorder.current_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
+        self.assertEqual(1, recorder.tracking_migration_current)
 
         self.datastore.single_row_tracking = False
         with self.assertRaises(OperationalError):
@@ -848,8 +849,8 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
         # Raises ProgrammingError because we haven't created the table.
         with self.assertRaises(ProgrammingError):
             recorder.insert_tracking(Tracking("upstream1", 1))
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
 
         # Insert tracking multi-row tracking, no table...
         self.datastore.single_row_tracking = False
@@ -857,13 +858,13 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
         # Raises ProgrammingError if we haven't created the table.
         with self.assertRaises(ProgrammingError):
             recorder.insert_tracking(Tracking("upstream1", 1))
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
 
         # Create table for multi-row tracking.
         recorder.create_table()
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
 
         # Insert some tracking records.
         recorder.insert_tracking(Tracking("upstream1", 1))
@@ -879,9 +880,9 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
         # Migrate table for multi-row tracking.
         self.datastore.single_row_tracking = True
         recorder = self.create_recorder(create_table=True)
-        self.assertTrue(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
-        self.assertEqual(1, recorder.current_migration_version)
+        self.assertTrue(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
+        self.assertEqual(1, recorder.tracking_migration_current)
 
         # Check records have been migrated.
         self.assertEqual(3, recorder.max_tracking_id("upstream1"))
@@ -890,9 +891,9 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
 
         # Recreate table and check records have been migrated.
         recorder = self.create_recorder(create_table=True)
-        self.assertTrue(recorder.found_pre_existing_table)
-        self.assertEqual(1, recorder.found_migration_version)
-        self.assertEqual(1, recorder.current_migration_version)
+        self.assertTrue(recorder.tracking_table_exists)
+        self.assertEqual(1, recorder.tracking_migration_previous)
+        self.assertEqual(1, recorder.tracking_migration_current)
 
 
 class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCase):

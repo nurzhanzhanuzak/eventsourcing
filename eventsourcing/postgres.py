@@ -191,6 +191,12 @@ class PostgresDatastore:
 class PostgresRecorder:
     """Base class for recorders that use PostgreSQL."""
 
+    MAX_IDENTIFIER_LEN = 63
+    # From the PostgreSQL docs: "The system uses no more than NAMEDATALEN-1 bytes
+    # of an identifier; longer names can be written in commands, but they will be
+    # truncated. By default, NAMEDATALEN is 64 so the maximum identifier length is
+    # 63 bytes." https://www.postgresql.org/docs/current/sql-syntax-lexical.html
+
     def __init__(
         self,
         datastore: PostgresDatastore,
@@ -198,13 +204,14 @@ class PostgresRecorder:
         self.datastore = datastore
         self.create_table_statements = self.construct_create_table_statements()
 
-    def construct_create_table_statements(self) -> list[Composed]:
-        return []
-
-    def check_table_name_length(self, table_name: str) -> None:
-        if len(table_name) > 63:
+    @staticmethod
+    def check_table_name_length(table_name: str) -> None:
+        if len(table_name) > PostgresRecorder.MAX_IDENTIFIER_LEN:
             msg = f"Table name too long: {table_name}"
             raise ProgrammingError(msg)
+
+    def construct_create_table_statements(self) -> list[Composed]:
+        return []
 
     def create_table(self) -> None:
         with self.datastore.transaction(commit=True) as curs:
@@ -615,9 +622,9 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
         super().__init__(datastore, **kwargs)
         self.check_table_name_length(tracking_table_name)
         self.tracking_table_name = tracking_table_name
-        self.found_pre_existing_table: bool = False
-        self.found_migration_version: int | None = None
-        self.current_migration_version: int | None = None
+        self.tracking_table_exists: bool = False
+        self.tracking_migration_previous: int | None = None
+        self.tracking_migration_current: int | None = None
         self.table_migration_identifier = "__migration__"
         self.has_checked_for_multi_row_tracking_table: bool = False
         if self.datastore.single_row_tracking:
@@ -676,17 +683,17 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
     def create_table(self) -> None:
         # Get the migration version.
         try:
-            self.current_migration_version = self.found_migration_version = (
+            self.tracking_migration_current = self.tracking_migration_previous = (
                 self.max_tracking_id(self.table_migration_identifier)
             )
         except ProgrammingError:
             pass
         else:
-            self.found_pre_existing_table = True
+            self.tracking_table_exists = True
         super().create_table()
         if (
             not self.datastore.single_row_tracking
-            and self.current_migration_version is not None
+            and self.tracking_migration_current is not None
         ):
             msg = "Can't do multi-row tracking with single-row tracking table"
             raise OperationalError(msg)
@@ -695,8 +702,8 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
         max_tracking_ids: dict[str, int] = {}
         if (
             self.datastore.single_row_tracking
-            and self.found_pre_existing_table
-            and not self.found_migration_version
+            and self.tracking_table_exists
+            and not self.tracking_migration_previous
         ):
             # Migrate the table.
             curs.execute(
@@ -728,21 +735,24 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
                 max_tracking_id_row = curs.fetchone()
                 assert max_tracking_id_row is not None
                 max_tracking_ids[application_name] = max_tracking_id_row["max"]
-            # Drop the table.
-            drop_table_statement = SQL("DROP TABLE {0}.{1}").format(
-                Identifier(self.datastore.schema), Identifier(self.tracking_table_name)
+            # Rename the table.
+            rename = f"bkup1_{self.tracking_table_name}"[: self.MAX_IDENTIFIER_LEN]
+            drop_table_statement = SQL("ALTER TABLE {0}.{1} RENAME TO {2}").format(
+                Identifier(self.datastore.schema),
+                Identifier(self.tracking_table_name),
+                Identifier(rename),
             )
             curs.execute(drop_table_statement)
         # Create the table.
         super()._create_table(curs)
         # Maybe insert migration tracking record and application tracking records.
         if self.datastore.single_row_tracking and (
-            not self.found_pre_existing_table
-            or (self.found_pre_existing_table and not self.found_migration_version)
+            not self.tracking_table_exists
+            or (self.tracking_table_exists and not self.tracking_migration_previous)
         ):
             # Assume we just created a table for single-row tracking.
             self._insert_tracking(curs, Tracking(self.table_migration_identifier, 1))
-            self.current_migration_version = 1
+            self.tracking_migration_current = 1
             for application_name, max_tracking_id in max_tracking_ids.items():
                 self._insert_tracking(curs, Tracking(application_name, max_tracking_id))
 

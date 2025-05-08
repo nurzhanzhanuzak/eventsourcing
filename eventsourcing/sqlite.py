@@ -489,9 +489,9 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
         **kwargs: Any,
     ):
         super().__init__(datastore, **kwargs)
-        self.found_pre_existing_table: bool = False
-        self.found_migration_version: int | None = None
-        self.current_migration_version: int | None = None
+        self.tracking_table_exists: bool = False
+        self.tracking_migration_previous: int | None = None
+        self.tracking_migration_current: int | None = None
         self.table_migration_identifier = "__migration__"
         self.has_checked_for_multi_row_tracking_table: bool = False
         if self.datastore.single_row_tracking:
@@ -536,17 +536,17 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
     def create_table(self) -> None:
         # Get the migration version.
         try:
-            self.current_migration_version = self.found_migration_version = (
+            self.tracking_migration_current = self.tracking_migration_previous = (
                 self.max_tracking_id(self.table_migration_identifier)
             )
         except OperationalError:
             pass
         else:
-            self.found_pre_existing_table = True
+            self.tracking_table_exists = True
         super().create_table()
         if (
             not self.datastore.single_row_tracking
-            and self.current_migration_version is not None
+            and self.tracking_migration_current is not None
         ):
             msg = "Can't do multi-row tracking with single-row tracking table"
             raise OperationalError(msg)
@@ -555,8 +555,8 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
         max_tracking_ids: dict[str, int] = {}
         if (
             self.datastore.single_row_tracking
-            and self.found_pre_existing_table
-            and not self.found_migration_version
+            and self.tracking_table_exists
+            and not self.tracking_migration_previous
         ):
             # Migrate tracking to use single-row per application name.
             # - Get all application names.
@@ -571,19 +571,19 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
                 max_tracking_id_row = c.fetchone()
                 assert max_tracking_id_row is not None
                 max_tracking_ids[application_name] = max_tracking_id_row[0]
-            # - Drop the table.
-            drop_table_statement = "DROP TABLE tracking"
+            # - Rename the table.
+            drop_table_statement = "ALTER TABLE tracking RENAME TO old1_tracking"
             c.execute(drop_table_statement)
         # Create the table.
         super()._create_table(c)
         # - Maybe insert migration tracking record and application tracking records.
         if self.datastore.single_row_tracking and (
-            not self.found_pre_existing_table
-            or (self.found_pre_existing_table and not self.found_migration_version)
+            not self.tracking_table_exists
+            or (self.tracking_table_exists and not self.tracking_migration_previous)
         ):
             # - Assume we just created a table for single-row tracking.
             self._insert_tracking(c, Tracking(self.table_migration_identifier, 1))
-            self.current_migration_version = 1
+            self.tracking_migration_current = 1
             for application_name, max_tracking_id in max_tracking_ids.items():
                 self._insert_tracking(c, Tracking(application_name, max_tracking_id))
 

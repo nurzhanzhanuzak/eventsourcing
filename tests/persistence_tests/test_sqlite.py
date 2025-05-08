@@ -290,18 +290,18 @@ class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
 
     def test_initialise_single_row_tracking(self) -> None:
         recorder = self.create_recorder()
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
-        self.assertEqual(1, recorder.current_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
+        self.assertEqual(1, recorder.tracking_migration_current)
 
     def test_raises_if_multi_row_tracking_with_single_row_table(self) -> None:
         uris = tmpfile_uris()
         db_uri = next(uris)
 
         recorder = self.create_recorder(db_name=db_uri)
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
-        self.assertEqual(1, recorder.current_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
+        self.assertEqual(1, recorder.tracking_migration_current)
 
         with self.assertRaises(OperationalError):
             self.create_recorder(db_name=db_uri, single_row_tracking=False)
@@ -325,8 +325,8 @@ class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
         # Raises OperationalError because we haven't created the table.
         with self.assertRaises(OperationalError):
             recorder.insert_tracking(Tracking("upstream1", 1))
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
 
         # Insert tracking multi-row tracking, no table...
         recorder = self.create_recorder(
@@ -335,13 +335,13 @@ class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
         # Raises OperationalError because we haven't created the table.
         with self.assertRaises(OperationalError):
             recorder.insert_tracking(Tracking("upstream1", 1))
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
 
         # Create table for multi-row tracking.
         recorder.create_table()
-        self.assertFalse(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
+        self.assertFalse(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
 
         # Insert some tracking records.
         recorder.insert_tracking(Tracking("upstream1", 1))
@@ -356,9 +356,9 @@ class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
 
         # Migrate table for multi-row tracking.
         recorder = self.create_recorder(db_name=db_uri, create_table=True)
-        self.assertTrue(recorder.found_pre_existing_table)
-        self.assertIsNone(recorder.found_migration_version)
-        self.assertEqual(1, recorder.current_migration_version)
+        self.assertTrue(recorder.tracking_table_exists)
+        self.assertIsNone(recorder.tracking_migration_previous)
+        self.assertEqual(1, recorder.tracking_migration_current)
 
         # Check records have been migrated.
         self.assertEqual(3, recorder.max_tracking_id("upstream1"))
@@ -367,9 +367,9 @@ class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
 
         # Recreate table and check records have been migrated.
         recorder = self.create_recorder(db_name=db_uri, create_table=True)
-        self.assertTrue(recorder.found_pre_existing_table)
-        self.assertEqual(1, recorder.found_migration_version)
-        self.assertEqual(1, recorder.current_migration_version)
+        self.assertTrue(recorder.tracking_table_exists)
+        self.assertEqual(1, recorder.tracking_migration_previous)
+        self.assertEqual(1, recorder.tracking_migration_current)
 
 
 class TestSQLiteProcessRecorder(ProcessRecorderTestCase):
