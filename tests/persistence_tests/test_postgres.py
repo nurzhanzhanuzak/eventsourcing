@@ -1430,6 +1430,14 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
             recorder.create_table_statements[2].as_string(),
         )
 
+    def test_single_row_tracking(self) -> None:
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.single_row_tracking, True)
+
+        self.env[PostgresFactory.POSTGRES_SINGLE_ROW_TRACKING] = "f"
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.single_row_tracking, False)
+
 
 del AggregateRecorderTestCase
 del ApplicationRecorderTestCase

@@ -663,6 +663,7 @@ class SQLiteProcessRecorder(
 class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
     SQLITE_DBNAME = "SQLITE_DBNAME"
     SQLITE_LOCK_TIMEOUT = "SQLITE_LOCK_TIMEOUT"
+    SQLITE_SINGLE_ROW_TRACKING = "SINGLE_ROW_TRACKING"
     CREATE_TABLE = "CREATE_TABLE"
 
     aggregate_recorder_class = SQLiteAggregateRecorder
@@ -698,7 +699,15 @@ class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
                 )
                 raise OSError(msg) from None
 
-        self.datastore = SQLiteDatastore(db_name=db_name, lock_timeout=lock_timeout)
+        single_row_tracking = strtobool(
+            self.env.get(self.SQLITE_SINGLE_ROW_TRACKING, "t")
+        )
+
+        self.datastore = SQLiteDatastore(
+            db_name=db_name,
+            lock_timeout=lock_timeout,
+            single_row_tracking=single_row_tracking,
+        )
 
     def aggregate_recorder(self, purpose: str = "events") -> AggregateRecorder:
         events_table_name = "stored_" + purpose

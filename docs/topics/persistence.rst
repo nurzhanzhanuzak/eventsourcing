@@ -1600,6 +1600,8 @@ Similarly, the :ref:`SQLite module<sqlite-module>` can be selected and configure
     environ["PERSISTENCE_MODULE"] = "eventsourcing.sqlite"
     environ["SQLITE_DBNAME"] = ":memory:"
     environ["SQLITE_LOCK_TIMEOUT"] = "10"
+    environ["SQLITE_SINGLE_ROW_TRACKING"] = "t"
+    environ["CREATE_TABLE"] = "t"
 
 
 The environment variable ``SQLITE_DBNAME`` is required to set the name of a database.
@@ -1613,6 +1615,17 @@ for writing to timeout after that duration. By default this value is 5 (seconds)
 Please note, a file-based SQLite database will have its journal mode set to use
 write-ahead logging (WAL), which allows reading to proceed concurrently reading
 and writing.
+
+The optional environment variable ``SQLITE_SINGLE_ROW_TRACKING`` may be used to disable the
+single-row tracking implementation of tracking recorders, which uses one row in a tracking table
+per application name and which is the default, and instead continue with the legacy multi-row tracking
+implementation, which records a new row for each tracking object. Setting this to a "true" value
+(``"y"``, ``"yes"``, ``"t"``, ``"true"``, ``"on"``, or ``"1"``) has no effect because that is the
+default. Setting this value to to a "false" value (``"n"``, ``"no"``, ``"f"``, ``"false"``, ``"off"``,
+or ``"0"``) will mean that tracking recorders will continue with the legacy multi-row tracking
+implementation, unless a table for single-row tracking has already been created, in which case an exception
+will be raised at runtime. Migration from multi-row tracking to single-row tracking will automatically happen
+when a tracking recorder is constructed unless this value is "false" or ``CREATE_TABLE`` is "false".
 
 The optional environment variable ``CREATE_TABLE`` controls whether or not database tables are
 created when a recorder is constructed by a factory. If the tables already exist, the ``CREATE_TABLE``
@@ -1687,6 +1700,8 @@ Similarly, the :ref:`PostgreSQL module<postgres-module>` can be selected and con
     environ["POSTGRES_PRE_PING"] = "n"
     environ["POSTGRES_LOCK_TIMEOUT"] = "5"
     environ["POSTGRES_SCHEMA"] = "public"
+    environ["POSTGRES_SINGLE_ROW_TRACKING"] = "y"
+    environ["CREATE_TABLE"] = "t"
 
 
 The environment variables ``POSTGRES_DBNAME``, ``POSTGRES_HOST``, ``POSTGRES_PORT``,
@@ -1770,6 +1785,17 @@ used by the recorders to be qualified with a schema name. Setting this will crea
 a specific PostgreSQL schema. See the
 `PostgreSQL Schemas <https://www.postgresql.org/docs/current/ddl-schemas.html>`_
 documentation for more information about creating and using PostgreSQL schemas safely.
+
+The optional environment variable ``POSTGRES_SINGLE_ROW_TRACKING`` may be used to disable the
+single-row tracking implementation of tracking recorders, which uses one row in a tracking table
+per application name and which is the default, and instead continue with the legacy multi-row tracking
+implementation, which records a new row for each tracking object. Setting this to a "true" value
+(``"y"``, ``"yes"``, ``"t"``, ``"true"``, ``"on"``, or ``"1"``) has no effect because that is the
+default. Setting this value to to a "false" value (``"n"``, ``"no"``, ``"f"``, ``"false"``, ``"off"``,
+or ``"0"``) will mean that tracking recorders will continue with the legacy multi-row tracking
+implementation, unless a table for single-row tracking has already been created, in which case an exception
+will be raised at runtime. Migration from multi-row tracking to single-row tracking will automatically happen
+when a tracking recorder is constructed unless this value is "false" or ``CREATE_TABLE`` is "false".
 
 The optional environment variable ``CREATE_TABLE`` controls whether or not database tables are
 created when a recorder is constructed by a factory. If the tables already exist, the ``CREATE_TABLE``

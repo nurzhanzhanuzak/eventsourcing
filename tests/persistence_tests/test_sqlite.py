@@ -467,6 +467,14 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase[SQLiteFactor
         factory = SQLiteFactory(self.env)
         self.assertEqual(factory.datastore.pool.lock_timeout, 10)
 
+    def test_single_row_tracking(self) -> None:
+        factory = SQLiteFactory(self.env)
+        self.assertEqual(factory.datastore.single_row_tracking, True)
+
+        self.env[SQLiteFactory.SQLITE_SINGLE_ROW_TRACKING] = "f"
+        factory = SQLiteFactory(self.env)
+        self.assertEqual(factory.datastore.single_row_tracking, False)
+
 
 del AggregateRecorderTestCase
 del ApplicationRecorderTestCase

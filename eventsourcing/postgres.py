@@ -872,6 +872,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
         "POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT"
     )
     POSTGRES_SCHEMA = "POSTGRES_SCHEMA"
+    POSTGRES_SINGLE_ROW_TRACKING = "SINGLE_ROW_TRACKING"
     CREATE_TABLE = "CREATE_TABLE"
 
     aggregate_recorder_class = PostgresAggregateRecorder
@@ -1033,13 +1034,16 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
 
         schema = self.env.get(self.POSTGRES_SCHEMA) or ""
 
+        single_row_tracking = strtobool(
+            self.env.get(self.POSTGRES_SINGLE_ROW_TRACKING, "t")
+        )
+
         self.datastore = PostgresDatastore(
             dbname=dbname,
             host=host,
             port=port,
             user=user,
             password=password,
-            get_password_func=get_password_func,
             connect_timeout=connect_timeout,
             idle_in_transaction_session_timeout=idle_in_transaction_session_timeout,
             pool_size=pool_size,
@@ -1049,6 +1053,8 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
             pre_ping=pre_ping,
             lock_timeout=lock_timeout,
             schema=schema,
+            get_password_func=get_password_func,
+            single_row_tracking=single_row_tracking,
         )
 
     def env_create_table(self) -> bool:
