@@ -63,7 +63,7 @@ class singledispatchmethod(_singledispatchmethod[_T]):  # noqa: N801
 
         try:
             return self.dispatcher.register(cast("type[Any]", cls), func=method)
-        except NameError:
+        except (NameError, TypeError):  # NameError <= Py3.13, TypeError >= Py3.14
             self.deferred_registrations.append(
                 (cls, method)  # pyright: ignore [reportArgumentType]
             )

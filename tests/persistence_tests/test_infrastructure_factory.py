@@ -10,7 +10,6 @@ from eventsourcing.persistence import (
     Mapper,
 )
 from eventsourcing.utils import Environment, get_topic
-from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
 
 
 class TestInfrastructureFactory(TestCase):
@@ -51,23 +50,26 @@ class TestInfrastructureFactory(TestCase):
         transcoder = factory.transcoder()
         self.assertIsInstance(transcoder, JSONTranscoder)
 
-        # TRANSCODER_TOPIC set to OrjsonTranscoder.
-        transcoder_topic = get_topic(OrjsonTranscoder)
+        class MyTranscoder(JSONTranscoder):
+            pass
+
+        # TRANSCODER_TOPIC set to MyTranscoder.
+        transcoder_topic = get_topic(MyTranscoder)
         env = Environment(
             env={InfrastructureFactory.TRANSCODER_TOPIC: transcoder_topic}
         )
         factory = InfrastructureFactory.construct(env)
         transcoder = factory.transcoder()
-        self.assertIsInstance(transcoder, OrjsonTranscoder)
+        self.assertIsInstance(transcoder, MyTranscoder)
 
-        # MYAPP_TRANSCODER_TOPIC set to OrjsonTranscoder.
+        # MYAPP_TRANSCODER_TOPIC set to MyTranscoder.
         env = Environment(
             name="MyApp",
             env={"MYAPP_" + InfrastructureFactory.TRANSCODER_TOPIC: transcoder_topic},
         )
         factory = InfrastructureFactory.construct(env)
         transcoder = factory.transcoder()
-        self.assertIsInstance(transcoder, OrjsonTranscoder)
+        self.assertIsInstance(transcoder, MyTranscoder)
 
     def test_construct_mapper(self) -> None:
         # No environment variables.
@@ -82,33 +84,31 @@ class TestInfrastructureFactory(TestCase):
         mapper = factory.mapper()
         self.assertIsInstance(mapper, Mapper)
 
-        # MAPPER_TOPIC set to PydanticMapper.
-        pydantic_topic = get_topic(PydanticMapper)
-        orjson_topic = get_topic(OrjsonTranscoder)
+        class MyMapper(Mapper):
+            pass
+
+        # MAPPER_TOPIC set to MyMapper.
+        pydantic_topic = get_topic(MyMapper)
         env = Environment(
             env={
                 InfrastructureFactory.MAPPER_TOPIC: pydantic_topic,
-                InfrastructureFactory.TRANSCODER_TOPIC: orjson_topic,
             }
         )
         factory = InfrastructureFactory.construct(env)
         mapper = factory.mapper()
-        self.assertIsInstance(mapper, PydanticMapper)
-        self.assertIsInstance(mapper.transcoder, OrjsonTranscoder)
+        self.assertIsInstance(mapper, MyMapper)
 
-        # MAPPER_TOPIC set to PydanticMapper.
+        # MYAPP_MAPPER_TOPIC set to MyMapper.
         env = Environment(
             name="MyApp",
             env={
                 "MYAPP_" + InfrastructureFactory.MAPPER_TOPIC: pydantic_topic,
-                "MYAPP_" + InfrastructureFactory.TRANSCODER_TOPIC: orjson_topic,
             },
         )
 
         factory = InfrastructureFactory.construct(env=env)
         mapper = factory.mapper()
-        self.assertIsInstance(mapper, PydanticMapper)
-        self.assertIsInstance(mapper.transcoder, OrjsonTranscoder)
+        self.assertIsInstance(mapper, MyMapper)
 
     def test_construct_event_store(self) -> None:
         factory = InfrastructureFactory.construct()

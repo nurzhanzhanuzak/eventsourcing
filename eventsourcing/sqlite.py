@@ -600,10 +600,10 @@ class SQLiteTrackingRecorder(SQLiteRecorder, TrackingRecorder):
 
         c.execute(
             self.insert_tracking_statement,
-            (
-                tracking.application_name,
-                tracking.notification_id,
-            ),
+            {
+                "application_name": tracking.application_name,
+                "notification_id": tracking.notification_id,
+            },
         )
         if self.datastore.single_row_tracking:
             fetchone = c.fetchone()

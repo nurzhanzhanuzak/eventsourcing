@@ -34,3 +34,8 @@ eventsourcing=> CREATE SCHEMA myschema AUTHORIZATION eventsourcing;
 
 To build PDF docs (make docs-pdf), download and install MacTeX from https://www.tug.org/mactex/mactex-download.html
 and then make sure latexmk is on your PATH (export PATH="$PATH:/Library/TeX/texbin").
+
+To use psycopg without psycopg-c or psycopg-binary (e.g. when testing beta versions of new Python releases
+before psycopg-binary has been released), install libpq with homebrew:
+
+$ brew install libpq
