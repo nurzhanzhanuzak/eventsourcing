@@ -228,6 +228,12 @@ You can build the docs (and check they build) with ``make docs``.
 
     $ make docs
 
+You can update the locked package dependencies and install them with ``make update``.
+
+::
+
+    $ make update
+
 You can make sure everything is okay by running ``make install docs lint test``.
 
 ::
