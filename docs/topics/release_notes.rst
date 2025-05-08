@@ -24,6 +24,14 @@ with previous major versions. However the underlying principles are the
 same, and so conversion of code and stored events is very possible.
 
 
+Version 9.4.4 (released 9 May 2025)
+-----------------------------------
+
+* Adjustments after testing with Python 3.14.0b1:
+
+  * Fixed statement parameters in sqlite.py.
+  * Added TypeError to caught exception classes for unresolved forward refs in singledispatchmethod.register().
+
 Version 9.4.3 (released 8 May 2025)
 -----------------------------------
 
