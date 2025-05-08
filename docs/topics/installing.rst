@@ -162,15 +162,15 @@ Once you have cloned the project's GitHub repository, change into the root folde
 or open the project in an IDE. You should see a Makefile.
 
 If you don't already have the required version of Poetry installed, running
-`make install-poetry` will install it with pipx, using a suffix to indicate
-the version e.g. 'poetry@2.1.2'.
+``make install-poetry`` will install it with pipx, using a suffix to indicate
+the version e.g. ``poetry@2.1.2``.
 
 ::
 
     $ make install-poetry
 
 
-Run `make install` to create a new virtual environment and install packages that
+Run ``make install`` to create a new virtual environment and install packages that
 are needed for development, such as sphinx, coverage, black, ruff, isort, mypy,
 and pyright.
 
@@ -179,7 +179,7 @@ and pyright.
     $ make install
 
 
-Once installed, check the project's test suite passes by running `make test`.
+Once installed, check the project's test suite passes by running ``make test``.
 
 ::
 
@@ -215,22 +215,21 @@ to be fixed by hand.
     $ make fmt
 
 
-Check the syntax and static types are correct by running `make lint`.
+Check the syntax and static types are correct by running ``make lint``.
 
 ::
 
     $ make lint
 
 
-You can build the docs (and check they build) with `make docs`.
+You can build the docs (and check they build) with ``make docs``.
 
 ::
 
     $ make docs
 
-Before submitting Pull Requests on GitHub, please make sure everything is working
-by running `make docs lint test`.
+You can make sure everything is okay by running ``make install docs lint test``.
 
 ::
 
-    $ make docs lint test
+    $ make install docs lint test
