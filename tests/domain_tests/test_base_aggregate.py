@@ -157,14 +157,14 @@ class TestBaseAggregate(TestCase):
         )
 
     def test_cant_identify_suitable_base_class_for_created_event_class(self) -> None:
-        with self.assertRaises(TypeError) as cm:
+        class A(BaseAggregate):
+            pass
 
-            class A(BaseAggregate):
-                pass
+        with self.assertRaises(TypeError) as cm:
+            A()
 
         self.assertEqual(
-            "Can't identify suitable base class for "
-            "\"created\" event class on class 'A'",
+            "No \"created\" event classes defined on class 'A'.",
             str(cm.exception),
         )
 
@@ -347,10 +347,22 @@ class TestBaseAggregate(TestCase):
             "@event decorator on __init__ has neither event name nor class",
         )
 
+    def test_base_event_class_not_defined(self) -> None:
+        with self.assertRaises(TypeError) as cm:
+
+            class A(BaseAggregate):
+                class SubsequentEvent(AggregateEvent):
+                    pass
+
+        self.assertIn("Base event class not defined", str(cm.exception))
+
     def test_init_has_event_decorator_with_class_wrong_type(self) -> None:
         with self.assertRaises(TypeError) as cm:
 
             class A(BaseAggregate):
+                class Event(AggregateEvent):
+                    pass
+
                 class Started(AggregateEvent):
                     pass
 
@@ -366,6 +378,9 @@ class TestBaseAggregate(TestCase):
         self,
     ) -> None:
         class A(BaseAggregate):
+            class Event(AggregateEvent):
+                pass
+
             class Started(AggregateCreated):
                 pass
 
@@ -384,6 +399,9 @@ class TestBaseAggregate(TestCase):
 
     def test_init_has_event_decorator_with_class_matched_attrs_wrong_call(self) -> None:
         class A(BaseAggregate):
+            class Event(AggregateEvent):
+                pass
+
             class Started(AggregateCreated):
                 pass
 
@@ -407,6 +425,9 @@ class TestBaseAggregate(TestCase):
     ) -> None:
 
         class A(BaseAggregate):
+            class Event(AggregateEvent):
+                pass
+
             class Started(AggregateCreated):
                 name: str
 
@@ -494,6 +515,9 @@ class TestBaseAggregate(TestCase):
         with self.assertRaises(TypeError) as cm:
 
             class _A(BaseAggregate, created_event_name="Began"):
+                class Event(AggregateEvent):
+                    pass
+
                 class Started(AggregateCreated):
                     name: str
 
@@ -508,6 +532,9 @@ class TestBaseAggregate(TestCase):
 
         # This is okay.
         class A(BaseAggregate, created_event_name="Started"):
+            class Event(AggregateEvent):
+                pass
+
             class SomethingHappened(AggregateCreated):  # for coverage
                 pass
 
@@ -524,6 +551,9 @@ class TestBaseAggregate(TestCase):
 
     def test_created_event_name_matches_defined_class(self) -> None:
         class A(BaseAggregate, created_event_name="Started"):
+            class Event(AggregateEvent):
+                pass
+
             class Started(AggregateCreated):
                 name: str
 
@@ -534,8 +564,24 @@ class TestBaseAggregate(TestCase):
         self.assertEqual(a.name, "bar")
         self.assertIsInstance(a.pending_events[0], A.Started)
 
+    def test_created_event_name_without_create_event_base_class(self) -> None:
+        with self.assertRaises(TypeError):
+
+            class A1(BaseAggregate, created_event_name="Started"):
+                pass
+
+        with self.assertRaises(TypeError):
+
+            class A2(BaseAggregate):
+                @event("Started")
+                def __init__(self) -> None:
+                    pass
+
     def test_decorator_event_name_matches_defined_class(self) -> None:
         class A(BaseAggregate):
+            class Event(AggregateEvent):
+                pass
+
             class Started(AggregateCreated):
                 name: str
 
@@ -550,6 +596,9 @@ class TestBaseAggregate(TestCase):
     def test_named_created_event_class_inherits_from_super_class_synonym(self) -> None:
         # This is basically what the library's Aggregate class does.
         class A(BaseAggregate):
+            class Event(AggregateEvent):
+                pass
+
             class Started(AggregateCreated):
                 pass
 
@@ -572,3 +621,14 @@ class TestBaseAggregate(TestCase):
         c = C()
         self.assertIsInstance(c.pending_events[0], C.Began)
         self.assertTrue(issubclass(C.Began, B.Began))
+
+    def test_method_decorator_uses_string_but_base_event_not_defined(self) -> None:
+
+        with self.assertRaises(TypeError) as cm:
+
+            class A(BaseAggregate):
+                @event("Commanded")
+                def command(self) -> None:
+                    pass
+
+        self.assertIn("Base event class not defined", str(cm.exception))

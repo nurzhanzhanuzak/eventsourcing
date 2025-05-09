@@ -765,6 +765,9 @@ class TestAggregateCreation(TestCase):
                 self.confirmed_at = None
                 self.pickedup_at = None
 
+            class Event(AggregateEvent):
+                pass
+
             class Created(AggregateCreated):
                 name: str
 
@@ -774,24 +777,6 @@ class TestAggregateCreation(TestCase):
         order = Order("name")
         pending = order.collect_events()
         self.assertEqual(type(pending[0]).__name__, "Started")
-
-    def test_defines_created_event_when_given_name_does_not_match(self) -> None:
-        with self.assertRaises(TypeError):
-
-            class Order(BaseAggregate, created_event_name="Started"):
-                def __init__(self, name: str) -> None:
-                    self.name = name
-                    self.confirmed_at = None
-                    self.pickedup_at = None
-
-                class Created(AggregateCreated):
-                    name: str
-
-        # order = Order("name")
-        # pending = order.collect_events()
-        # self.assertEqual(type(pending[0]).__name__, "Started")
-        # self.assertFalse(isinstance(pending[0], Order.Created))
-        # self.assertTrue(isinstance(pending[0], Order.Started))
 
     def test_define_create_id(self) -> None:
         @dataclass

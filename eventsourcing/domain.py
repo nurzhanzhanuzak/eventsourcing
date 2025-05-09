@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import importlib
 import inspect
@@ -229,7 +230,7 @@ class HasOriginatorIDVersion:
 
 
 class CanMutateAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
-    """Implements a :func:`~eventsourcing.domain.CanMutateAggregate.mutate`
+    """Implements a :py:func:`~eventsourcing.domain.CanMutateAggregate.mutate`
     method that evolves the state of an aggregate.
     """
 
@@ -238,8 +239,8 @@ class CanMutateAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
     """Timezone-aware :class:`datetime` object representing when an event occurred."""
 
     def mutate(self, aggregate: TAggregate | None) -> TAggregate | None:
-        """Validates and adjustes the attributes of the given ``aggregate`
-         argument. The argument typed as ``Optional`` but the value is
+        """Validates and adjusts the attributes of the given ``aggregate``
+         argument. The argument is typed as ``Optional``, but the value is
          expected to be not ``None``.
 
         Validates the ``aggregate`` argument by checking the event's
@@ -957,6 +958,10 @@ class MetaAggregate(EventsourcingType, Generic[TAggregate], type):
         # so we need to check that there is one "created" event class to use here.
         # We don't check this in __init_subclass__ to allow for alternatives that
         # can be selected by developers by calling _create(event_class=...).
+        if len(created_event_classes) == 0:
+            msg = f"No \"created\" event classes defined on class '{cls.__name__}'."
+            raise TypeError(msg)
+
         if len(created_event_classes) > 1:
             msg = (
                 f"{cls.__qualname__} can't decide which of many "
@@ -1208,16 +1213,21 @@ class BaseAggregate(metaclass=MetaAggregate):
 
         # Identify or define a base event class for this aggregate.
         base_event_name = "Event"
-        base_event_cls: type[CanMutateAggregate]
+        base_event_cls: type[CanMutateAggregate] | None = None
         try:
             base_event_cls = cls.__dict__[base_event_name]
         except KeyError:
-            base_event_cls = cls._define_event_class(
-                name=base_event_name,
-                bases=(getattr(cls, base_event_name, AggregateEvent),),
-                apply_method=None,
-            )
-            setattr(cls, base_event_name, base_event_cls)
+            try:
+                super_base_event_cls = getattr(cls, base_event_name)
+            except AttributeError:
+                pass
+            else:
+                base_event_cls = cls._define_event_class(
+                    name=base_event_name,
+                    bases=(super_base_event_cls,),
+                    apply_method=None,
+                )
+                setattr(cls, base_event_name, base_event_cls)
 
         # Ensure all events defined on this class are subclasses of base event class.
         created_event_classes: dict[str, type[CanInitAggregate]] = {}
@@ -1229,6 +1239,9 @@ class BaseAggregate(metaclass=MetaAggregate):
                 # Don't subclass lowercase named attributes.
                 continue
             if isinstance(value, type) and issubclass(value, CanMutateAggregate):
+                if base_event_cls is None:
+                    msg = f"Base event class not defined for {cls}"
+                    raise TypeError(msg)
                 if not issubclass(value, base_event_cls):
                     event_class = cls._define_event_class(
                         name, (value, base_event_cls), None
@@ -1306,18 +1319,22 @@ class BaseAggregate(metaclass=MetaAggregate):
             elif not created_event_name and len(created_event_classes) == 1:
                 created_event_class = next(iter(created_event_classes.values()))
 
-            # Otherwise, if there are no "created" events, or a name is
-            # specified that hasn't matched, then define a "created" event class.
+            # Otherwise, if there are no "created" event classes, or a name
+            # is specified that hasn't matched, then try to define one.
             elif len(created_event_classes) == 0 or created_event_name:
                 # Decide the base "created" event class.
 
-                try:
+                base_created_event_cls: type[CanInitAggregate] | None = None
+
+                if created_event_name:
                     # Look for a base class with the same name.
-                    base_created_event_cls = cast(
-                        "type[CanInitAggregate]",
-                        getattr(cls, created_event_name),
-                    )
-                except AttributeError:
+                    with contextlib.suppress(AttributeError):
+                        base_created_event_cls = cast(
+                            "type[CanInitAggregate]",
+                            getattr(cls, created_event_name),
+                        )
+
+                if base_created_event_cls is None:
                     # Look for base class with one nominated "created" event.
                     for base_cls in cls.__mro__:
                         if (
@@ -1326,43 +1343,48 @@ class BaseAggregate(metaclass=MetaAggregate):
                         ):
                             base_created_event_cls = _created_event_classes[base_cls][0]
                             break
-                    else:
-                        msg = (
-                            "Can't identify suitable base class for "
-                            f"\"created\" event class on class '{cls.__name__}'"
-                        )
-                        raise TypeError(msg) from None
 
-                if not created_event_name:
-                    created_event_name = base_created_event_cls.__name__
+                if base_created_event_cls:
+                    if not created_event_name:
+                        created_event_name = base_created_event_cls.__name__
 
-                # Disallow init method from having variable params, because
-                # we are using it to define a "created" event class.
-                if init_method:
-                    _raise_type_error_if_func_has_variable_params(init_method)
+                    # Disallow init method from having variable params, because
+                    # we are using it to define a "created" event class.
+                    if init_method:
+                        _raise_type_error_if_func_has_variable_params(init_method)
 
-                # Don't subclass from base event class twice.
-                assert isinstance(base_created_event_cls, type), base_created_event_cls
-                assert not issubclass(
-                    base_created_event_cls, base_event_cls
-                ), base_created_event_cls
+                    # Sanity check: we have a base event class.
+                    assert base_event_cls is not None
+                    # Sanity check: the base created event class is a class.
+                    assert isinstance(
+                        base_created_event_cls, type
+                    ), base_created_event_cls
+                    # Sanity check: base created event not subclass of base event class.
+                    assert not issubclass(
+                        base_created_event_cls, base_event_cls
+                    ), base_created_event_cls
 
-                # Define "created" event class.
-                assert created_event_name
-                assert issubclass(base_created_event_cls, CanInitAggregate)
-                created_event_class_bases = (base_created_event_cls, base_event_cls)
-                created_event_class = cast(
-                    "type[CanInitAggregate]",
-                    cls._define_event_class(
-                        created_event_name,
-                        created_event_class_bases,
-                        init_method,
-                    ),
-                )
-                # Set the event class as an attribute of the aggregate class.
-                setattr(cls, created_event_name, created_event_class)
+                    # Define "created" event class.
+                    assert created_event_name
+                    assert issubclass(base_created_event_cls, CanInitAggregate)
+                    created_event_class_bases = (base_created_event_cls, base_event_cls)
+                    created_event_class = cast(
+                        "type[CanInitAggregate]",
+                        cls._define_event_class(
+                            created_event_name,
+                            created_event_class_bases,
+                            init_method,
+                        ),
+                    )
+                    # Set the event class as an attribute of the aggregate class.
+                    setattr(cls, created_event_name, created_event_class)
 
-        assert created_event_class or len(created_event_classes) > 1
+                elif created_event_name:
+                    msg = (
+                        'Can\'t defined "created" event class '
+                        f"for name '{created_event_name}'"
+                    )
+                    raise TypeError(msg)
 
         if created_event_class:
             _created_event_classes[cls] = [created_event_class]
@@ -1444,6 +1466,10 @@ class BaseAggregate(metaclass=MetaAggregate):
                         raise TypeError(msg)
 
                     # Define event class from signature of original method.
+                    if base_event_cls is None:
+                        msg = f"Base event class not defined for {cls}"
+                        raise TypeError(msg)
+
                     event_cls = cls._define_event_class(
                         event_decorator.event_cls_name,
                         (DecoratorEvent, base_event_cls),
@@ -1481,10 +1507,12 @@ class BaseAggregate(metaclass=MetaAggregate):
             for name, value in aggregate_base_class.__dict__.items():
                 if (
                     isinstance(value, type)
-                    and issubclass(value, AggregateEvent)
+                    and issubclass(value, CanMutateAggregate)
                     and name not in cls.__dict__
                     and name.lower() != name
                 ):
+                    # Sanity check: we have a base event class.
+                    assert base_event_cls is not None
                     event_class = cls._define_event_class(
                         name, (base_event_cls, value), None
                     )
