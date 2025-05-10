@@ -366,7 +366,7 @@ class AggregateRecorder(Recorder, ABC):
 
     @abstractmethod
     def insert_events(
-        self, stored_events: list[StoredEvent], **kwargs: Any
+        self, stored_events: Sequence[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
         """Writes stored events into database."""
 
@@ -379,7 +379,7 @@ class AggregateRecorder(Recorder, ABC):
         lte: int | None = None,
         desc: bool = False,
         limit: int | None = None,
-    ) -> list[StoredEvent]:
+    ) -> Sequence[StoredEvent]:
         """Reads stored events from database."""
 
 

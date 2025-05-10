@@ -97,7 +97,7 @@ class SearchableTimestampsApplicationRecorder(
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
         notification_ids = super()._insert_events(c, stored_events, **kwargs)

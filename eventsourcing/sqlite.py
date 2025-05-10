@@ -300,7 +300,7 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
         return statements
 
     def insert_events(
-        self, stored_events: list[StoredEvent], **kwargs: Any
+        self, stored_events: Sequence[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
         with self.datastore.transaction(commit=True) as c:
             return self._insert_events(c, stored_events, **kwargs)
@@ -308,7 +308,7 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **_: Any,
     ) -> Sequence[int] | None:
         params = [
@@ -331,7 +331,7 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
         lte: int | None = None,
         desc: bool = False,
         limit: int | None = None,
-    ) -> list[StoredEvent]:
+    ) -> Sequence[StoredEvent]:
         statement = self.select_events_statement
         params: list[Any] = [originator_id.hex]
         if gt is not None:
@@ -391,7 +391,7 @@ class SQLiteApplicationRecorder(
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **_: Any,
     ) -> Sequence[int] | None:
         returning = []
@@ -650,7 +650,7 @@ class SQLiteProcessRecorder(
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
         returning = super()._insert_events(c, stored_events, **kwargs)

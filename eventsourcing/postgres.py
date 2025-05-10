@@ -271,7 +271,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_events(
-        self, stored_events: list[StoredEvent], **kwargs: Any
+        self, stored_events: Sequence[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
         exc: Exception | None = None
         notification_ids: Sequence[int] | None = None
@@ -302,7 +302,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
     def _insert_events(
         self,
         curs: Cursor[DictRow],
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **_: Any,
     ) -> None:
         pass
@@ -310,7 +310,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
     def _insert_stored_events(
         self,
         curs: Cursor[DictRow],
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **_: Any,
     ) -> None:
         # Only do something if there is something to do.
@@ -343,7 +343,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
     def _fetch_ids_after_insert_events(
         self,
         curs: Cursor[DictRow],
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
         return None
@@ -357,7 +357,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         lte: int | None = None,
         desc: bool = False,
         limit: int | None = None,
-    ) -> list[StoredEvent]:
+    ) -> Sequence[StoredEvent]:
         statement = self.select_events_statement
         params: list[Any] = [originator_id]
         if gt is not None:
@@ -548,7 +548,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
     def _fetch_ids_after_insert_events(
         self,
         curs: Cursor[DictRow],
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **kwargs: Any,
     ) -> Sequence[int] | None:
         notification_ids: list[int] = []
@@ -845,7 +845,7 @@ class PostgresProcessRecorder(
     def _insert_events(
         self,
         curs: Cursor[DictRow],
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **kwargs: Any,
     ) -> None:
         tracking: Tracking | None = kwargs.get("tracking")

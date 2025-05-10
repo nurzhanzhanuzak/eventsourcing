@@ -40,7 +40,7 @@ from eventsourcing.persistence import (
 from eventsourcing.utils import Environment, get_topic
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Sequence
 
     from typing_extensions import Never
 
@@ -1065,7 +1065,7 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
 
         errors = []
 
-        def insert_stack(stack: list[StoredEvent]) -> None:
+        def insert_stack(stack: Sequence[StoredEvent]) -> None:
             try:
                 race_started.wait()
                 recorder.insert_events(stack)
@@ -1111,7 +1111,7 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
         else:
             self.assertGreater(min_id_for_sequence2, max_id_for_sequence1)
 
-    def create_stack(self, originator_id: UUID) -> list[StoredEvent]:
+    def create_stack(self, originator_id: UUID) -> Sequence[StoredEvent]:
         return [
             StoredEvent(
                 originator_id=originator_id,

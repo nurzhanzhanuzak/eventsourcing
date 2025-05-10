@@ -56,7 +56,7 @@ from eventsourcing.utils import Environment, get_topic
 from tests.persistence_tests.test_connection_pool import TestConnectionPool
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Sequence
 
 
 class TestPostgresDatastore(TestCase):
@@ -753,7 +753,7 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder.max_notification_id()
 
     def test_fetch_ids_after_insert_events(self) -> None:
-        def make_events() -> list[StoredEvent]:
+        def make_events() -> Sequence[StoredEvent]:
             return [
                 StoredEvent(
                     originator_id=uuid4(),

@@ -12,6 +12,7 @@ from eventsourcing.postgres import (
 from examples.searchabletimestamps.persistence import SearchableTimestampsRecorder
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from datetime import datetime
     from uuid import UUID
 
@@ -60,7 +61,7 @@ class SearchableTimestampsApplicationRecorder(
     def _insert_events(
         self,
         curs: Cursor[DictRow],
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         **kwargs: Any,
     ) -> None:
         # Insert event timestamps.

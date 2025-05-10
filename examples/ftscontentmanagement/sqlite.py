@@ -128,7 +128,7 @@ class SQLiteFtsApplicationRecorder(SQLiteFtsRecorder, SQLiteApplicationRecorder)
     def _insert_events(
         self,
         c: SQLiteCursor,
-        stored_events: list[StoredEvent],
+        stored_events: Sequence[StoredEvent],
         *,
         insert_pages: Sequence[PageInfo] = (),
         update_pages: Sequence[PageInfo] = (),
