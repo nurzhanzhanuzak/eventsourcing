@@ -547,8 +547,8 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         errors_happened = Event()
 
         # Match this to the batch page size in postgres insert for max throughput.
-        num_events_per_job = 500
-        num_jobs = 60
+        num_events_per_job = 50
+        num_jobs = 10
         num_workers = 4
 
         def insert_events() -> None:

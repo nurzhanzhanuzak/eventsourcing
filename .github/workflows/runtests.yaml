@@ -59,6 +59,9 @@ jobs:
     - name: Test
       run: make test
 
+    - name: Benchmark
+      run: make benchmark
+
 #    - name: Coveralls
 #      uses: AndreMiras/coveralls-python-action@develop
 #      with:

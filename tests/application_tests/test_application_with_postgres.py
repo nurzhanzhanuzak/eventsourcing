@@ -3,7 +3,6 @@ from unittest import TestCase
 
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.tests.application import (
-    TIMEIT_FACTOR,
     ApplicationTestCase,
     ExampleApplicationTestCase,
 )
@@ -11,7 +10,6 @@ from eventsourcing.tests.postgres_utils import drop_postgres_table
 
 
 class WithPostgres(TestCase):
-    timeit_number = 5 * TIMEIT_FACTOR
     expected_factory_topic = "eventsourcing.postgres:PostgresFactory"
 
     def setUp(self) -> None:

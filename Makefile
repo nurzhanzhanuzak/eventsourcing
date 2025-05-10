@@ -7,6 +7,9 @@ POETRY_VERSION=2.1.2
 POETRY ?= poetry@$(POETRY_VERSION)
 PYTHONUNBUFFERED=1
 
+.PHONY: all
+all: install docs fmt lint test benchmark
+
 .PHONY: install-poetry
 install-poetry:
 	@pipx install --suffix="@$(POETRY_VERSION)" "poetry==$(POETRY_VERSION)"
@@ -83,7 +86,7 @@ lint-mypy:
 
 
 .PHONY: test
-test: coveragetest coverage100 timeit
+test: coveragetest coverage100
 
 .PHONY: coveragetest
 coveragetest:
@@ -97,22 +100,31 @@ coverage100:
 unittest:
 	$(POETRY) run python -m unittest discover . -v
 
+.PHONY: pytest
+pytest:
+	$(POETRY) run pytest . -v  --durations 10
 
 
-.PHONY: timeit
-timeit: timeit_popo timeit_sqlite timeit_postgres
+# The pytest-benchmark docs are here: https://pytest-benchmark.readthedocs.io/en/latest/usage.html
+BENCHMARK_OPTIONS= --benchmark-warmup=on --benchmark-disable-gc --benchmark-columns=min,mean,max,ops,rounds,iterations --benchmark-group-by=func --benchmark-time-unit=auto --benchmark-sort=min
 
-.PHONY: timeit_popo
-timeit_popo:
-	TEST_TIMEIT_FACTOR=500 $(POETRY) run python -m unittest tests.application_tests.test_application_with_popo
+.PHONY: benchmark
+#benchmark: benchmark-persistence benchmark-domain benchmark-application
+benchmark:
+	$(POETRY) run pytest tests/benchmark/* $(BENCHMARK_OPTIONS)
 
-.PHONY: timeit_sqlite
-timeit_sqlite:
-	TEST_TIMEIT_FACTOR=500 $(POETRY) run python -m unittest tests.application_tests.test_application_with_sqlite
+.PHONY: benchmark-application
+benchmark-application:
+	$(POETRY) run pytest tests/benchmark/benchmark_application.py $(BENCHMARK_OPTIONS)
 
-.PHONY: timeit_postgres
-timeit_postgres:
-	TEST_TIMEIT_FACTOR=500 $(POETRY) run python -m unittest tests.application_tests.test_application_with_postgres
+.PHONY: benchmark-domain
+benchmark-domain:
+	$(POETRY) run pytest tests/benchmark/benchmark_domain.py $(BENCHMARK_OPTIONS)
+
+.PHONY: benchmark-persistence
+benchmark-persistence:
+	$(POETRY) run pytest tests/benchmark/benchmark_persistence.py $(BENCHMARK_OPTIONS)
+
 
 .PHONY: build
 build:

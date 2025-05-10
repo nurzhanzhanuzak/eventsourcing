@@ -1256,6 +1256,7 @@ class BaseAggregate(metaclass=MetaAggregate):
                 setattr(cls, base_event_name, base_event_cls)
 
         # Ensure all events defined on this class are subclasses of base event class.
+        # TODO: Review decorator processing to see if subclassing can be improved.
         created_event_classes: dict[str, type[CanInitAggregate]] = {}
         for name, value in tuple(cls.__dict__.items()):
             if name == base_event_name:

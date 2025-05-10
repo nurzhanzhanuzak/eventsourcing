@@ -234,8 +234,20 @@ You can update the locked package dependencies and install them with ``make upda
 
     $ make update
 
-You can make sure everything is okay by running ``make install docs lint test``.
+You can make sure everything is okay by running ``make install docs fmt lint test benchmark``.
 
 ::
 
-    $ make install docs lint test
+    $ make install docs lint test benchmark
+
+Or more simply, run ``make all``:
+
+::
+
+    $ make all
+
+Or more simply ``make``:
+
+::
+
+    $ make

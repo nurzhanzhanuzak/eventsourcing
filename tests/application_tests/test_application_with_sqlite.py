@@ -4,7 +4,6 @@ from collections.abc import Iterator
 from unittest import TestCase
 
 from eventsourcing.tests.application import (
-    TIMEIT_FACTOR,
     ApplicationTestCase,
     ExampleApplicationTestCase,
 )
@@ -12,7 +11,6 @@ from eventsourcing.tests.persistence import tmpfile_uris
 
 
 class WithSQLite(TestCase, ABC):
-    timeit_number = 30 * TIMEIT_FACTOR
     expected_factory_topic = "eventsourcing.sqlite:SQLiteFactory"
     uris: Iterator[str] = iter(())
 

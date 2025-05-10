@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-import os
-import sys
 import traceback
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from threading import Event, get_ident
 from time import sleep
-from timeit import timeit
 from typing import TYPE_CHECKING, Any, ClassVar
 from unittest import TestCase
 from uuid import UUID, uuid4
 
 from eventsourcing.application import AggregateNotFoundError, Application
-from eventsourcing.domain import Aggregate, datetime_now_with_tzinfo
+from eventsourcing.domain import Aggregate
 from eventsourcing.persistence import (
     InfrastructureFactory,
     InfrastructureFactoryError,
@@ -28,11 +25,8 @@ from eventsourcing.utils import EnvType, get_topic
 if TYPE_CHECKING:
     from datetime import datetime
 
-TIMEIT_FACTOR = int(os.environ.get("TEST_TIMEIT_FACTOR", default="10"))
-
 
 class ExampleApplicationTestCase(TestCase):
-    timeit_number: ClassVar[int] = TIMEIT_FACTOR
     started_ats: ClassVar[dict[type[TestCase], datetime]] = {}
     counts: ClassVar[dict[type[TestCase], int]] = {}
     expected_factory_topic: str
@@ -76,7 +70,7 @@ class ExampleApplicationTestCase(TestCase):
             Decimal("65.00"),
         )
 
-        sleep(1)  # Added to make eventsourcing-axon tests work, perhaps not necessary.
+        # sleep(1)  # Added to make eventsourcing-axon tests work.
         section = app.notification_log["1,10"]
         self.assertEqual(len(section.items), 4)
 
@@ -107,83 +101,6 @@ class ExampleApplicationTestCase(TestCase):
         self.assertIsInstance(from_snapshot2, BankAccount)
         self.assertEqual(from_snapshot2.version, Aggregate.INITIAL_VERSION + 3)
         self.assertEqual(from_snapshot2.balance, Decimal("65.00"))
-
-    def test__put_performance(self) -> None:
-        app = BankAccounts()
-
-        # Open an account.
-        account_id = app.open_account(
-            full_name="Alice",
-            email_address="alice@example.com",
-        )
-        account = app.get_account(account_id)
-
-        def put() -> None:
-            # Credit the account.
-            account.append_transaction(Decimal("10.00"))
-            app.save(account)
-
-        # Warm up.
-        number = 10
-        timeit(put, number=number)
-
-        duration = timeit(put, number=self.timeit_number)
-        self.print_time("store events", duration)
-
-    def test__get_performance_with_snapshotting_enabled(self) -> None:
-        print()
-        self._test_get_performance(is_snapshotting_enabled=True)
-
-    def test__get_performance_without_snapshotting_enabled(self) -> None:
-        self._test_get_performance(is_snapshotting_enabled=False)
-
-    def _test_get_performance(self, *, is_snapshotting_enabled: bool) -> None:
-        app = BankAccounts(
-            env={"IS_SNAPSHOTTING_ENABLED": "y" if is_snapshotting_enabled else "n"}
-        )
-
-        # Open an account.
-        account_id = app.open_account(
-            full_name="Alice",
-            email_address="alice@example.com",
-        )
-
-        def read() -> None:
-            # Get the account.
-            app.get_account(account_id)
-
-        # Warm up.
-        timeit(read, number=10)
-
-        duration = timeit(read, number=self.timeit_number)
-
-        if is_snapshotting_enabled:
-            test_label = "get with snapshotting"
-        else:
-            test_label = "get without snapshotting"
-        self.print_time(test_label, duration)
-
-    def print_time(self, test_label: str, duration: float) -> None:
-        cls = type(self)
-        if cls not in self.started_ats:
-            self.started_ats[cls] = datetime_now_with_tzinfo()
-            print(f"{cls.__name__: <29} timeit number: {cls.timeit_number}")
-            self.counts[cls] = 1
-        else:
-            self.counts[cls] += 1
-
-        rate = f"{self.timeit_number / duration:.0f} events/s"
-        print(
-            f"{cls.__name__: <29}",
-            f"{test_label: <21}",
-            f"{rate: >15}",
-            f"  {1000 * duration / self.timeit_number:.3f} ms/event",
-        )
-
-        if self.counts[cls] == 3:
-            cls_duration = datetime_now_with_tzinfo() - cls.started_ats[cls]
-            print(f"{cls.__name__: <29} timeit duration: {cls_duration}")
-            sys.stdout.flush()
 
 
 class EmailAddressAsStr(Transcoding):
