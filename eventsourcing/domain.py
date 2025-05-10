@@ -429,6 +429,7 @@ class CommandMethodDecorator:
         self,
         event_spec: EventSpecType | None,
         decorated_obj: DecoratableType,
+        event_topic: str | None = None,
     ):
         self.is_name_inferred_from_method = False
         self.given_event_cls: type[CanMutateAggregate] | None = None
@@ -437,6 +438,7 @@ class CommandMethodDecorator:
         self.is_property_setter = False
         self.property_setter_arg_name: str | None = None
         self.decorated_func: CallableType
+        self.event_topic = event_topic
 
         # Event name has been specified.
         if isinstance(event_spec, str):
@@ -575,26 +577,31 @@ class CommandMethodDecorator:
 
 
 @overload
-def event(arg: TDecoratableType) -> TDecoratableType:
+def event(arg: TDecoratableType, /) -> TDecoratableType:
     """Signature for calling ``@event`` decorator with decorated method."""
 
 
 @overload
 def event(
-    arg: EventSpecType,
+    arg: type[CanMutateAggregate], /
 ) -> Callable[[TDecoratableType], TDecoratableType]:
-    """Signature for calling ``@event`` decorator with event specification."""
+    """Signature for calling ``@event`` decorator with event class."""
 
 
 @overload
 def event(
-    arg: None = None,
+    arg: str, /, *, topic: str | None = None
 ) -> Callable[[TDecoratableType], TDecoratableType]:
+    """Signature for calling ``@event`` decorator with event name."""
+
+
+@overload
+def event(arg: None = None, /) -> Callable[[TDecoratableType], TDecoratableType]:
     """Signature for calling ``@event`` decorator without event specification."""
 
 
 def event(
-    arg: EventSpecType | TDecoratableType | None = None,
+    arg: EventSpecType | TDecoratableType | None = None, /, *, topic: str | None = None
 ) -> TDecoratableType | Callable[[TDecoratableType], TDecoratableType]:
     """Event-triggering decorator for aggregate command methods and property setters.
 
@@ -667,6 +674,7 @@ def event(
             command_method_decorator = CommandMethodDecorator(
                 event_spec=event_spec,
                 decorated_obj=decorated_obj,
+                event_topic=topic,
             )
             return cast("TDecoratableType", command_method_decorator)
 
@@ -926,6 +934,7 @@ class MetaAggregate(EventsourcingType, Generic[TAggregate], type):
         name: str,
         bases: tuple[type[CanMutateAggregate], ...],
         apply_method: CallableType | None,
+        event_topic: str | None = None,
     ) -> type[CanMutateAggregate]:
         # Define annotations for the event class (specs the init method).
         annotations = {}
@@ -948,6 +957,8 @@ class MetaAggregate(EventsourcingType, Generic[TAggregate], type):
             "__module__": cls.__module__,
             "__qualname__": event_cls_qualname,
         }
+        if event_topic:
+            event_cls_dict["TOPIC"] = event_topic
 
         # Create the event class object.
         _new_class = type(name, bases, event_cls_dict)
@@ -1271,6 +1282,7 @@ class BaseAggregate(metaclass=MetaAggregate):
 
         # Identify or define the aggregate's "created" event class.
         created_event_class: type[CanInitAggregate] | None = None
+        created_event_topic: str | None = None
 
         # Analyse __init__ method decorator.
         if init_decorator:
@@ -1307,6 +1319,7 @@ class BaseAggregate(metaclass=MetaAggregate):
 
             # Does the decorator specify an event name?
             elif init_decorator.event_cls_name:
+                created_event_topic = init_decorator.event_topic
                 # Disallow conflicts between 'created_event_name' and given name.
                 if (
                     created_event_name
@@ -1389,6 +1402,7 @@ class BaseAggregate(metaclass=MetaAggregate):
                             created_event_name,
                             created_event_class_bases,
                             init_method,
+                            event_topic=created_event_topic,
                         ),
                     )
                     # Set the event class as an attribute of the aggregate class.
@@ -1464,6 +1478,8 @@ class BaseAggregate(metaclass=MetaAggregate):
                         "type[CanMutateAggregate]",
                         getattr(cls, event_decorator.given_event_cls.__name__),
                     )
+                    # TODO: Check if this subclassing means we can avoid some of
+                    #  the subclassing of events above? Maybe do this first?
                     event_cls = cls._define_event_class(
                         event_decorator.given_event_cls.__name__,
                         (DecoratorEvent, given_subclass),
@@ -1489,6 +1505,7 @@ class BaseAggregate(metaclass=MetaAggregate):
                         event_decorator.event_cls_name,
                         (DecoratorEvent, base_event_cls),
                         event_decorator.decorated_func,
+                        event_topic=event_decorator.event_topic,
                     )
 
                 # Cache the decorated method for the event class to use.

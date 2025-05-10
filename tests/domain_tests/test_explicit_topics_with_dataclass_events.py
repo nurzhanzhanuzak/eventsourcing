@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 from unittest import TestCase
 
 from eventsourcing.domain import (
@@ -8,8 +7,8 @@ from eventsourcing.domain import (
     AggregateEvent,
     BaseAggregate,
     DomainEvent,
-    MetaAggregate,
     ProgrammingError,
+    event,
 )
 from eventsourcing.utils import (
     clear_topic_cache,
@@ -18,14 +17,7 @@ from eventsourcing.utils import (
 )
 
 
-# Making the aggregate uncallable has nothing to do with explicit topics.
-class UncallableMetaAggregate(MetaAggregate[Any]):
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        msg = "Calling the aggregate class is prohibited."
-        raise ProgrammingError(msg)
-
-
-class Aggregate(BaseAggregate, metaclass=UncallableMetaAggregate):
+class Aggregate(BaseAggregate):
     TOPIC = "Aggregate"
 
     class Event(AggregateEvent):
@@ -116,34 +108,6 @@ class TestExplicitTopics(TestCase):
 
             class Started(AggregateCreated):
                 TOPIC = "MyAggregate2Started"
-
-    def test_aggregate_class_is_uncallable(self) -> None:
-        # Can't call Aggregate base class.
-        with self.assertRaises(ProgrammingError) as cm:
-            Aggregate()
-
-        self.assertIn(
-            "Calling the aggregate class is prohibited.",
-            str(cm.exception),
-        )
-
-        # Can't call MyAggregate subclass.
-        class MyAggregate(Aggregate):
-            TOPIC = "MyAggregate"
-
-            class Started(AggregateCreated):
-                TOPIC = "MyAggregateStarted"
-
-        with self.assertRaises(ProgrammingError) as cm:
-            MyAggregate()
-
-        self.assertIn(
-            "Calling the aggregate class is prohibited.",
-            str(cm.exception),
-        )
-
-        # This is okay.
-        MyAggregate._create(event_class=MyAggregate.Started)
 
     def test_raises_if_explicit_topic_not_on_subsequent_event(self) -> None:
         with self.assertRaises(ProgrammingError) as cm:
@@ -317,3 +281,67 @@ class TestExplicitTopics(TestCase):
 
         with self.assertRaises(AttributeError):
             a.trigger_event(DomainEvent4)  # type: ignore[arg-type]
+
+    def test_raises_if_init_decorator_doesnt_define_topic(self) -> None:
+        # Define an aggregate.
+
+        class MyAggregate(Aggregate):
+            TOPIC = "MyAggregate"
+
+            class Started(AggregateCreated):
+                TOPIC = "MyAggregateStarted"
+
+        with self.assertRaises(ProgrammingError) as cm:
+
+            class MyAggregate1(MyAggregate):
+                TOPIC = "MyAggregate1"
+
+                @event("Started")
+                def __init__(self) -> None:
+                    pass
+
+        self.assertIn("already registered", str(cm.exception))
+
+        class MyAggregate2(MyAggregate):
+            TOPIC = "MyAggregate2"
+
+            @event("Started", topic="MyAggregate2Started")
+            def __init__(self) -> None:
+                pass
+
+        self.assertEqual(
+            MyAggregate2.Started.TOPIC,
+            "MyAggregate2Started",
+        )
+
+    def test_raises_if_method_decorator_doesnt_define_topic(self) -> None:
+        # Define an aggregate.
+
+        with self.assertRaises(ProgrammingError) as cm:
+
+            class MyAggregate1(Aggregate):
+                TOPIC = "MyAggregate1"
+
+                class Started(AggregateCreated):
+                    TOPIC = "MyAggregate1Started"
+
+                @event("SomethingWasDone")
+                def do_something(self) -> None:
+                    pass
+
+        self.assertIn("not defined", str(cm.exception))
+
+        class MyAggregate2(Aggregate):
+            TOPIC = "MyAggregate2"
+
+            class Started(AggregateCreated):
+                TOPIC = "MyAggregate2Started"
+
+            @event("SomethingWasDone", topic="MyAggregate2SomethingWasDone")
+            def do_something(self) -> None:
+                pass
+
+        self.assertEqual(
+            MyAggregate2.SomethingWasDone.TOPIC,  # type: ignore[attr-defined]
+            "MyAggregate2SomethingWasDone",
+        )
