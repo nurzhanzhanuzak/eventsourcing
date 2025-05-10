@@ -19,6 +19,8 @@ experience. Please [read the docs](https://eventsourcing.readthedocs.io/). See a
 
 *"a huge help and time saver"*
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pyeventsourcing/eventsourcing)
+
 
 ## Installation
 
