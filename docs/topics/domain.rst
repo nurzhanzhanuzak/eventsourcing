@@ -2623,8 +2623,8 @@ used when creating timezone-aware datetime objects.
     assert resolve_topic("eventsourcing.domain:Aggregate.Created") == Aggregate.Created
 
 
-Registering old topics
-----------------------
+Registering topics
+==================
 
 The :func:`~eventsourcing.utils.register_topic` function
 can be used to register an old topic for an object that has
@@ -2702,6 +2702,66 @@ See the examples below.
     assert resolve_topic("__main__:ServiceContract.Started") == ServiceContract.Started
     assert resolve_topic("eventsourcing.domain:Aggregate") == Aggregate
 
+..
+    #include-when-testing
+..
+    clear_topic_cache()
+    del ServiceContract
+
+
+.. _Explicit topics:
+
+Explicit topics
+===============
+
+If you aren't comfortable using the module and class names of aggregates and events as their topics in stored
+events, then you can define explicit topics on your aggregate and event classes. They will be registered
+automatically.
+
+Before reconstructing domain events from stored events, or reconstructing aggregates from snapshots, you will
+need to ensure the Python modules in which such aggregate and event classes are defined have been imported, so
+that their topics will be registered and so can be resolved,
+
+.. code-block:: python
+
+    from eventsourcing.domain import BaseAggregate
+
+
+    class ServiceContract(BaseAggregate):
+        TOPIC = "ServiceContract"
+
+        class Event(AggregateEvent):
+            pass
+
+        class Started(AggregateCreated, Event):
+            TOPIC = "ServiceContractStarted"
+
+        class Updated(Event):
+            TOPIC = "ServiceContractUpdated"
+
+
+    assert resolve_topic("ServiceContract") is ServiceContract
+    assert resolve_topic("ServiceContractStarted") is ServiceContract.Started
+    assert resolve_topic("ServiceContractUpdated") is ServiceContract.Updated
+
+    assert get_topic(ServiceContract) == "ServiceContract"
+    assert get_topic(ServiceContract.Started) == "ServiceContractStarted"
+    assert get_topic(ServiceContract.Updated) == "ServiceContractUpdated"
+
+
+If you set ``TOPIC`` explicitly on an aggregate in this way, then all of its event classes, and all of its aggregate
+subclasses, and all of their event classes, will be required to have a unique explicit topic.
+
+Although explicit topics will be enforced in this way, you won't need to define ``TOPIC`` on any base event classes
+(e.g. ``ServiceContact.Event``) and for this reason if an aggregate has an explicit topic then triggering its base
+event class will be prohibited.
+
+You can avoid having superfluous "created" event classes by inheriting from :class:`~eventsourcing.domain.BaseAggregate`
+and defining only the ones that are actually needed in your model.
+
+If an aggregate class has an explicit topic, then any event class that you might pass to its
+:func:`~eventsourcing.BaseAggregate._create` and :func:`~eventsourcing.BaseAggregate.trigger_event` methods
+must have an explicit topic that is already registered to that event class.
 
 .. _Versioning:
 
