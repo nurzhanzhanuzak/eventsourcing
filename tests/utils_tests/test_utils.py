@@ -155,6 +155,11 @@ class TestTopics(TestCase):
     def test_get_topic(self) -> None:
         self.assertEqual("eventsourcing.domain:Aggregate", get_topic(Aggregate))
 
+        class MyClass:
+            TOPIC = "mytopic"
+
+        self.assertEqual("mytopic", get_topic(MyClass))
+
     def test_resolve_topic(self) -> None:
         self.assertEqual(Aggregate, resolve_topic("eventsourcing.domain:Aggregate"))
 

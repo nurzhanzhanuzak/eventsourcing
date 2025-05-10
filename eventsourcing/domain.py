@@ -25,7 +25,13 @@ from typing import (
 from uuid import UUID, uuid4
 from warnings import warn
 
-from eventsourcing.utils import get_method_name, get_topic, resolve_topic
+from eventsourcing.utils import (
+    TopicError,
+    get_method_name,
+    get_topic,
+    register_topic,
+    resolve_topic,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -1011,6 +1017,9 @@ class BaseAggregate(metaclass=MetaAggregate):
         **kwargs: Any,
     ) -> Self:
         """Constructs a new aggregate object instance."""
+        if getattr(cls, "TOPIC", None):
+            _check_explicit_topic_is_registered(event_class)
+
         # Construct the domain event with an ID and a
         # version, and a topic for the aggregate class.
         create_id_kwargs = {
@@ -1107,6 +1116,12 @@ class BaseAggregate(metaclass=MetaAggregate):
         """Triggers domain event of given type, by creating
         an event object and using it to mutate the aggregate.
         """
+        if getattr(type(self), "TOPIC", None):
+            if event_class.__name__ == "Event":
+                msg = "Triggering base 'Event' class is prohibited."
+                raise ProgrammingError(msg)
+            _check_explicit_topic_is_registered(event_class)
+
         # Construct the domain event as the
         # next in the aggregate's sequence.
         # Use counting to generate the sequence.
@@ -1517,6 +1532,60 @@ class BaseAggregate(metaclass=MetaAggregate):
                         name, (base_event_cls, value), None
                     )
                     setattr(cls, name, event_class)
+
+        if getattr(cls, "TOPIC", None):
+
+            explicit_topic = cls.__dict__.get("TOPIC", None)
+
+            if not explicit_topic:
+                msg = f"Explicit topic not defined on {cls}"
+                raise ProgrammingError(msg)
+
+            try:
+                register_topic(explicit_topic, cls)
+            except TopicError:
+                msg = (
+                    f"Explicit topic '{explicit_topic}' of {cls} "
+                    f"already registered for {resolve_topic(explicit_topic)}"
+                )
+                raise ProgrammingError(msg) from None
+
+            for name, obj in cls.__dict__.items():
+                if (
+                    isinstance(obj, type)
+                    and issubclass(obj, CanMutateAggregate)
+                    and name != "Event"
+                ):
+                    explicit_topic = getattr(obj, "TOPIC", None)
+                    if not explicit_topic:
+                        msg = f"Explicit topic not defined on {obj}"
+                        raise ProgrammingError(msg)
+                    try:
+                        register_topic(explicit_topic, obj)
+                    except TopicError:
+                        msg = (
+                            f"Explicit topic '{explicit_topic}' of {obj} "
+                            f"already registered for {resolve_topic(explicit_topic)}"
+                        )
+                        raise ProgrammingError(msg) from None
+
+
+def _check_explicit_topic_is_registered(event_class: type[object]) -> None:
+    explicit_topic = getattr(event_class, "TOPIC", None)
+    if not explicit_topic:
+        msg = f"Explicit topic not defined on {event_class}"
+        raise ProgrammingError(msg)
+    try:
+        resolved_obj = resolve_topic(explicit_topic)
+    except TopicError:
+        msg = f"Explicit topic '{explicit_topic}' on {event_class} is not registered"
+        raise ProgrammingError(msg) from None
+    if resolved_obj is not event_class:
+        msg = (
+            f"Explicit topic '{explicit_topic}' on {event_class} "
+            f"already registered for {resolved_obj}"
+        )
+        raise ProgrammingError(msg) from None
 
 
 class Aggregate(BaseAggregate):

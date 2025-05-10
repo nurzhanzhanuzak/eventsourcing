@@ -35,7 +35,7 @@ def get_topic(obj: SupportsTopic, /) -> str:
     try:
         return _type_cache[obj]
     except KeyError:
-        topic = f"{obj.__module__}:{obj.__qualname__}"
+        topic = getattr(obj, "TOPIC", f"{obj.__module__}:{obj.__qualname__}")
         register_topic(topic, obj)
         _type_cache[obj] = topic
         return topic
