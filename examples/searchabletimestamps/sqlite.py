@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime
+import sqlite3
 from typing import TYPE_CHECKING, Any, cast
 
 from eventsourcing.sqlite import (
@@ -12,11 +14,42 @@ from examples.searchabletimestamps.persistence import SearchableTimestampsRecord
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from datetime import datetime
     from uuid import UUID
 
     from eventsourcing.persistence import ApplicationRecorder, StoredEvent
 
+
+def adapt_date_iso(val: datetime.date) -> str:
+    """Adapt datetime.date to ISO 8601 date."""
+    return val.isoformat()
+
+def adapt_datetime_iso(val: datetime.datetime) -> str:
+    """Adapt datetime.datetime to timezone-naive ISO 8601 date."""
+    return val.isoformat()
+
+def adapt_datetime_epoch(val: datetime.datetime) -> int:
+    """Adapt datetime.datetime to Unix timestamp."""
+    return int(val.timestamp())
+
+sqlite3.register_adapter(datetime.date, adapt_date_iso)
+sqlite3.register_adapter(datetime.datetime, adapt_datetime_iso)
+# sqlite3.register_adapter(datetime.datetime, adapt_datetime_epoch)
+
+def convert_date(val: bytes) -> datetime.date:
+    """Convert ISO 8601 date to datetime.date object."""
+    return datetime.date.fromisoformat(val.decode())
+
+def convert_datetime(val: bytes) -> datetime.datetime:
+    """Convert ISO 8601 datetime to datetime.datetime object."""
+    return datetime.datetime.fromisoformat(val.decode())
+
+def convert_timestamp(val: bytes) -> datetime.datetime:
+    """Convert Unix epoch timestamp to datetime.datetime object."""
+    return datetime.datetime.fromtimestamp(int(val))
+
+sqlite3.register_converter("date", convert_date)
+sqlite3.register_converter("datetime", convert_datetime)
+sqlite3.register_converter("timestamp", convert_timestamp)
 
 class SearchableTimestampsApplicationRecorder(
     SearchableTimestampsRecorder, SQLiteApplicationRecorder
@@ -63,7 +96,7 @@ class SearchableTimestampsApplicationRecorder(
 
         # Insert event timestamps.
         event_timestamps_data = cast(
-            "list[tuple[UUID, datetime, int]]", kwargs["event_timestamps_data"]
+            "list[tuple[UUID, datetime.datetime, int]]", kwargs["event_timestamps_data"]
         )
         for originator_id, timestamp, originator_version in event_timestamps_data:
             c.execute(
@@ -74,7 +107,7 @@ class SearchableTimestampsApplicationRecorder(
         return notification_ids
 
     def get_version_at_timestamp(
-        self, originator_id: UUID, timestamp: datetime
+        self, originator_id: UUID, timestamp: datetime.datetime
     ) -> int | None:
         with self.datastore.transaction(commit=False) as c:
             c.execute(
