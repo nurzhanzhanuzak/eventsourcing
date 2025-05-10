@@ -1,4 +1,6 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -7,6 +9,8 @@ from pytest_benchmark.fixture import BenchmarkFixture
 from eventsourcing.application import Application
 from eventsourcing.domain import Aggregate, event
 from eventsourcing.persistence import InfrastructureFactory, StoredEvent
+from eventsourcing.postgres import PostgresApplicationRecorder
+from eventsourcing.tests.postgres_utils import drop_postgres_table
 from eventsourcing.utils import Environment, clear_topic_cache
 
 envs = {
@@ -75,7 +79,7 @@ def test_recorder_insert_events(
         env=Environment(name="benchmark", env=envs[env])
     ).application_recorder()
 
-    def func() -> None:
+    def setup() -> Any:
         originator_id = uuid4()
         events = [
             StoredEvent(
@@ -86,9 +90,22 @@ def test_recorder_insert_events(
             )
             for i in range(num_events)
         ]
+        return (events,), {}
+
+    def func(events: Sequence[StoredEvent]) -> None:
         recorder.insert_events(events)
 
-    benchmark(func)
+    rounds = {
+        "popo": 5000,
+        "sqlite": 3000,
+        "postgres": 300,
+    }
+
+    try:
+        benchmark.pedantic(func, setup=setup, rounds=rounds[env])
+    finally:
+        if isinstance(recorder, PostgresApplicationRecorder):
+            drop_postgres_table(recorder.datastore, recorder.events_table_name)
 
 
 @pytest.mark.parametrize(param_arg_names, param_arg_values)
@@ -115,11 +132,17 @@ def test_recorder_select_events(
     def func() -> None:
         recorder.select_events(originator_id)
 
-    benchmark(func)
+    try:
+        benchmark(func)
+    finally:
+        if isinstance(recorder, PostgresApplicationRecorder):
+            drop_postgres_table(recorder.datastore, recorder.events_table_name)
 
 
 @pytest.mark.parametrize(param_arg_names, param_arg_values)
 def test_app_save(env: str, num_events: int, benchmark: BenchmarkFixture) -> None:
+
+    app = Application(env=envs[env])
 
     clear_topic_cache()
 
@@ -131,15 +154,55 @@ def test_app_save(env: str, num_events: int, benchmark: BenchmarkFixture) -> Non
         def subsequent(self, a: int) -> None:
             self.a = a
 
-    app = Application(env=envs[env])
-    agg = A(a=0)
-    for i in range(num_events - 1):
-        agg.subsequent(a=i + 1)
+    def setup() -> Any:
+        agg = A(a=0)
+        for i in range(num_events - 1):
+            agg.subsequent(a=i + 1)
+        return (app, agg), {}
 
-    def func() -> None:
+    def func(app: Application, agg: Aggregate) -> None:
         app.save(agg)
 
-    benchmark(func)
+    rounds = {
+        "popo": 5000,
+        "sqlite": 3000,
+        "postgres": 300,
+    }
+
+    try:
+        benchmark.pedantic(func, setup=setup, rounds=rounds[env])
+    finally:
+        if isinstance(app.recorder, PostgresApplicationRecorder):
+            drop_postgres_table(app.recorder.datastore, app.recorder.events_table_name)
+
+
+@pytest.mark.parametrize(param_arg_names, param_arg_values)
+def test_app_command(env: str, num_events: int, benchmark: BenchmarkFixture) -> None:
+
+    @dataclass
+    class A(Aggregate):
+        a: int
+
+        @event("Continued")
+        def subsequent(self, a: int) -> None:
+            self.a = a
+
+    class MyApplication(Application):
+        def command(self) -> None:
+            agg = A(a=0)
+            for i in range(num_events - 1):
+                agg.subsequent(a=i + 1)
+            self.save(agg)
+
+    app = MyApplication(env=envs[env])
+
+    clear_topic_cache()
+
+    try:
+        benchmark(app.command)
+    finally:
+        if isinstance(app.recorder, PostgresApplicationRecorder):
+            drop_postgres_table(app.recorder.datastore, app.recorder.events_table_name)
 
 
 @pytest.mark.parametrize(param_arg_names, param_arg_values)
@@ -164,4 +227,8 @@ def test_repository_get(env: str, num_events: int, benchmark: BenchmarkFixture) 
     def func() -> None:
         app.repository.get(agg.id)
 
-    benchmark(func)
+    try:
+        benchmark(func)
+    finally:
+        if isinstance(app.recorder, PostgresApplicationRecorder):
+            drop_postgres_table(app.recorder.datastore, app.recorder.events_table_name)
