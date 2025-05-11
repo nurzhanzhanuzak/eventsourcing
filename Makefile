@@ -106,7 +106,7 @@ pytest:
 
 
 # The pytest-benchmark docs are here: https://pytest-benchmark.readthedocs.io/en/latest/usage.html
-BENCHMARK_OPTIONS= --benchmark-warmup=on --benchmark-disable-gc --benchmark-columns=min,mean,max,ops,rounds,iterations --benchmark-group-by=func --benchmark-time-unit=auto --benchmark-sort=min
+BENCHMARK_OPTIONS= --benchmark-warmup=on --benchmark-disable-gc --benchmark-columns=min,mean,max,ops,rounds,iterations --benchmark-group-by=group --benchmark-time-unit=auto --benchmark-sort=min
 
 .PHONY: benchmark
 #benchmark: benchmark-persistence benchmark-domain benchmark-application
@@ -124,6 +124,10 @@ benchmark-domain:
 .PHONY: benchmark-persistence
 benchmark-persistence:
 	$(POETRY) run pytest tests/benchmark/benchmark_persistence.py $(BENCHMARK_OPTIONS)
+
+.PHONY: benchmark-mapper
+benchmark-mapper:
+	$(POETRY) run pytest -s tests/benchmark/benchmark_mapper.py $(BENCHMARK_OPTIONS)
 
 
 .PHONY: build

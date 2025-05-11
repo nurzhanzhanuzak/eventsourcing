@@ -46,6 +46,7 @@ param_arg_values = [
 
 
 @pytest.mark.parametrize("num_events", [1, 100])
+@pytest.mark.benchmark(group="construct-stored-event")
 def test_stored_event(num_events: int, benchmark: BenchmarkFixture) -> None:
     originator_id = uuid4()
 
@@ -64,6 +65,7 @@ def test_stored_event(num_events: int, benchmark: BenchmarkFixture) -> None:
 
 
 @pytest.mark.parametrize("num_events", [1, 100])
+@pytest.mark.benchmark(group="new-uuid4")
 def test_uuid4(num_events: int, benchmark: BenchmarkFixture) -> None:
     def func() -> None:
         _ = [uuid4() for i in range(num_events)]
@@ -72,6 +74,7 @@ def test_uuid4(num_events: int, benchmark: BenchmarkFixture) -> None:
 
 
 @pytest.mark.parametrize(param_arg_names, param_arg_values)
+@pytest.mark.benchmark(group="recorder-insert-events")
 def test_recorder_insert_events(
     env: str, num_events: int, benchmark: BenchmarkFixture
 ) -> None:
@@ -109,6 +112,7 @@ def test_recorder_insert_events(
 
 
 @pytest.mark.parametrize(param_arg_names, param_arg_values)
+@pytest.mark.benchmark(group="recorder-select-events")
 def test_recorder_select_events(
     env: str, num_events: int, benchmark: BenchmarkFixture
 ) -> None:
@@ -140,6 +144,7 @@ def test_recorder_select_events(
 
 
 @pytest.mark.parametrize(param_arg_names, param_arg_values)
+@pytest.mark.benchmark(group="call-app-save")
 def test_app_save(env: str, num_events: int, benchmark: BenchmarkFixture) -> None:
 
     app = Application(env=envs[env])
@@ -177,6 +182,7 @@ def test_app_save(env: str, num_events: int, benchmark: BenchmarkFixture) -> Non
 
 
 @pytest.mark.parametrize(param_arg_names, param_arg_values)
+@pytest.mark.benchmark(group="call-app-command")
 def test_app_command(env: str, num_events: int, benchmark: BenchmarkFixture) -> None:
 
     @dataclass
@@ -206,6 +212,7 @@ def test_app_command(env: str, num_events: int, benchmark: BenchmarkFixture) -> 
 
 
 @pytest.mark.parametrize(param_arg_names, param_arg_values)
+@pytest.mark.benchmark(group="call-repository-get")
 def test_repository_get(env: str, num_events: int, benchmark: BenchmarkFixture) -> None:
 
     clear_topic_cache()

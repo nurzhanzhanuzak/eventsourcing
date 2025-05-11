@@ -1768,7 +1768,7 @@ class Snapshot(CanSnapshotAggregate, DomainEvent):
     :param int originator_version: version of originating aggregate.
     :param datetime timestamp: date-time of the event
     :param str topic: string that includes a class and its module
-    :param dict state: version of originating aggregate.
+    :param dict state: state of originating aggregate.
     """
 
     topic: str
