@@ -1018,7 +1018,7 @@ class BaseAggregate(metaclass=MetaAggregate):
     INITIAL_VERSION: int = 1
 
     @staticmethod
-    def create_id(*_: Any, **__: Any) -> UUID:
+    def create_id(*_: Any, **__: Any) -> UUID | str:
         """Returns a new aggregate ID."""
         return uuid4()
 
@@ -1027,7 +1027,7 @@ class BaseAggregate(metaclass=MetaAggregate):
         cls: type[Self],
         event_class: type[CanInitAggregate],
         *,
-        id: UUID | None = None,  # noqa: A002
+        id: UUID | str | None = None,  # noqa: A002
         **kwargs: Any,
     ) -> Self:
         """Constructs a new aggregate object instance."""
@@ -1041,15 +1041,15 @@ class BaseAggregate(metaclass=MetaAggregate):
         }
         if id is not None:
             originator_id = id
-            if not isinstance(originator_id, UUID):
-                msg = f"Given id was not a UUID: {originator_id}"
+            if not isinstance(originator_id, (UUID, str)):
+                msg = f"Given id was not a UUID or str: {originator_id!r}"
                 raise TypeError(msg)
         else:
             originator_id = cls.create_id(**create_id_kwargs)
-            if not isinstance(originator_id, UUID):
+            if not isinstance(originator_id, (UUID, str)):
                 msg = (
                     f"{cls.create_id.__module__}.{cls.create_id.__qualname__}"
-                    f" did not return UUID, it returned: {originator_id}"
+                    f" did not return UUID or str, it returned: {originator_id!r}"
                 )
                 raise TypeError(msg)
 

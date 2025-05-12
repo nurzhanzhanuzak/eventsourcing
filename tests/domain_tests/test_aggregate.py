@@ -142,13 +142,16 @@ class TestAggregateCreation(TestCase):
 
     def test_raises_when_call_class_method_create_with_invalid_id(self) -> None:
         # Check the _create() method creates a new aggregate.
-        aggregate_id = "my-id"
+        aggregate_id = Decimal("15.15")
         with self.assertRaises(TypeError) as cm:
             Aggregate._create(
                 event_class=AggregateCreated,
                 id=aggregate_id,  # type: ignore[arg-type]
             )
-        self.assertEqual(cm.exception.args[0], "Given id was not a UUID: my-id")
+        self.assertEqual(
+            cm.exception.args[0],
+            "Given id was not a UUID or str: Decimal('15.15')",
+        )
 
     def test_raises_when_create_args_mismatch_created_event(self) -> None:
         class BrokenAggregate(Aggregate):
@@ -618,16 +621,36 @@ class TestAggregateCreation(TestCase):
         self.assertEqual(a2.name, "name")
         self.assertEqual(a2.id, MyAggregate2.create_id("name"))
 
-    def test_raises_type_error_if_create_id_does_not_return_uuid(
+    def test_raises_type_error_if_create_id_does_not_return_uuid_or_str(
         self,
     ) -> None:
-        class MyAggregate(Aggregate):
+        class MyAggregate1(Aggregate):
             @staticmethod
-            def create_id() -> UUID:
-                return None  # type: ignore[return-value]
+            def create_id() -> int:  # type: ignore[override]
+                return 5
 
         with self.assertRaises(TypeError):
-            MyAggregate()
+            MyAggregate1()
+
+        class MyAggregate2(Aggregate):
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+            @staticmethod
+            def create_id(name: str) -> UUID:
+                return uuid5(NAMESPACE_URL, f"/names/{name}")
+
+        MyAggregate2(name="name")
+
+        class MyAggregate3(Aggregate):
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+            @staticmethod
+            def create_id(name: str) -> str:
+                return str(uuid5(NAMESPACE_URL, f"/names/{name}"))
+
+        MyAggregate3(name="name")
 
     def test_raises_type_error_if_create_id_not_staticmethod_or_classmethod(
         self,
