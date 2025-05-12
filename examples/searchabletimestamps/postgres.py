@@ -37,26 +37,35 @@ class SearchableTimestampsApplicationRecorder(
 
         self.create_table_statements.append(
             SQL(
-                "CREATE TABLE IF NOT EXISTS {0} ("
+                "CREATE TABLE IF NOT EXISTS {0}.{1} ("
                 "originator_id uuid NOT NULL, "
                 "timestamp timestamp with time zone, "
                 "originator_version bigint NOT NULL, "
                 "PRIMARY KEY "
                 "(originator_id, timestamp))"
-            ).format(Identifier(self.event_timestamps_table_name))
+            ).format(
+                Identifier(self.datastore.schema),
+                Identifier(self.event_timestamps_table_name),
+            )
         )
 
         self.insert_event_timestamp_statement = SQL(
-            "INSERT INTO {0} VALUES (%s, %s, %s)"
-        ).format(Identifier(self.event_timestamps_table_name))
+            "INSERT INTO {0}.{1} VALUES (%s, %s, %s)"
+        ).format(
+            Identifier(self.datastore.schema),
+            Identifier(self.event_timestamps_table_name),
+        )
 
         self.select_event_timestamp_statement = SQL(
-            "SELECT originator_version FROM {0} WHERE "
+            "SELECT originator_version FROM {0}.{1} WHERE "
             "originator_id = %s AND "
             "timestamp <= %s "
             "ORDER BY originator_version DESC "
             "LIMIT 1"
-        ).format(Identifier(self.event_timestamps_table_name))
+        ).format(
+            Identifier(self.datastore.schema),
+            Identifier(self.event_timestamps_table_name),
+        )
 
     def _insert_events(
         self,
