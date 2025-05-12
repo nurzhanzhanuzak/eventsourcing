@@ -81,7 +81,7 @@ def _(event: TrickAdded, dog: Dog) -> Dog:
 
 @mutate_dog.register
 def _(event: Snapshot, _: None) -> Dog:
-    return msgspec.json.decode(event.state["bytes"], type=Dog)
+    return msgspec.json.decode(event.state, type=Dog)
 
 
 project_dog = aggregate_projector(mutate_dog)

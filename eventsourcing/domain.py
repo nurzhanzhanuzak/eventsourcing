@@ -296,6 +296,9 @@ class CanMutateAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
         of an aggregate.
         """
 
+    def _as_dict(self) -> dict[str, Any]:
+        return self.__dict__
+
 
 class CanInitAggregate(CanMutateAggregate):
     """Implements a :func:`~eventsourcing.domain.CanMutateAggregate.mutate`
@@ -320,8 +323,9 @@ class CanInitAggregate(CanMutateAggregate):
         agg = aggregate_class.__new__(aggregate_class)
 
         # Pick out event attributes for the aggregate base class init method.
+        self_dict = self._as_dict()
         base_kwargs = _filter_kwargs_for_method_params(
-            self.__dict__, type(agg).__base_init__
+            self_dict, type(agg).__base_init__
         )
 
         # Call the base class init method (so we don't need to always write
@@ -329,13 +333,11 @@ class CanInitAggregate(CanMutateAggregate):
         agg.__base_init__(**base_kwargs)
 
         # Pick out event attributes for aggregate subclass class init method.
-        init_kwargs = _filter_kwargs_for_method_params(
-            self.__dict__, type(agg).__init__
-        )
+        init_kwargs = _filter_kwargs_for_method_params(self_dict, type(agg).__init__)
 
         # Provide the aggregate id, if the __init__ method expects it.
         if aggregate_class in _init_mentions_id:
-            init_kwargs["id"] = self.__dict__["originator_id"]
+            init_kwargs["id"] = self_dict["originator_id"]
 
         # Call the aggregate subclass class init method.
         agg.__init__(**init_kwargs)  # type: ignore[misc]
@@ -754,7 +756,8 @@ class DecoratorEvent(CanMutateAggregate):
         decorated_func = _decorated_funcs[type(self)]
 
         # Select event attributes mentioned in function signature.
-        kwargs = _filter_kwargs_for_method_params(self.__dict__, decorated_func)
+        self_dict = self._as_dict()
+        kwargs = _filter_kwargs_for_method_params(self_dict, decorated_func)
 
         # Call the original method with event attribute values.
         decorated_method = decorated_func.__get__(aggregate, type(aggregate))
@@ -1688,7 +1691,7 @@ class OriginatorVersionError(EventSourcingError):
 
 class SnapshotProtocol(DomainEventProtocol, Protocol):
     @property
-    def state(self) -> dict[str, Any]:
+    def state(self) -> Any:
         """Snapshots have a read-only 'state'."""
         raise NotImplementedError  # pragma: no cover
 
@@ -1705,15 +1708,15 @@ class CanSnapshotAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
     topic: str
     state: Any
 
-    def __init__(
-        self,
-        originator_id: UUID,
-        originator_version: int,
-        timestamp: datetime,
-        topic: str,
-        state: Any,
-    ) -> None:
-        raise NotImplementedError  # pragma: no cover
+    # def __init__(
+    #     self,
+    #     originator_id: UUID,
+    #     originator_version: int,
+    #     timestamp: datetime,
+    #     topic: str,
+    #     state: Any,
+    # ) -> None:
+    #     raise NotImplementedError  # pragma: no cover
 
     @classmethod
     def take(
@@ -1730,14 +1733,14 @@ class CanSnapshotAggregate(HasOriginatorIDVersion, CanCreateTimestamp):
             aggregate_state.pop("_version")
             aggregate_state.pop("_pending_events")
         return cls(
-            originator_id=aggregate.id,
-            originator_version=aggregate.version,
-            timestamp=cls.create_timestamp(),
-            topic=get_topic(type(aggregate)),
-            state=aggregate_state,
+            originator_id=aggregate.id,  # type: ignore[call-arg]
+            originator_version=aggregate.version,  # pyright: ignore[reportCallIssue]
+            timestamp=cls.create_timestamp(),  # pyright: ignore[reportCallIssue]
+            topic=get_topic(type(aggregate)),  # pyright: ignore[reportCallIssue]
+            state=aggregate_state,  # pyright: ignore[reportCallIssue]
         )
 
-    def mutate(self, _: None) -> Aggregate:
+    def mutate(self, _: None) -> BaseAggregate:
         """Reconstructs the snapshotted :class:`Aggregate` object."""
         cls = cast("type[Aggregate]", resolve_topic(self.topic))
         aggregate_state = dict(self.state)

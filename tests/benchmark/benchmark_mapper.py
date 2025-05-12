@@ -19,7 +19,7 @@ from eventsourcing.persistence import (
     UUIDAsHex,
 )
 from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
-from examples.aggregate9.msgspec import MsgspecMapper, NullTranscoder
+from examples.aggregate9.msgspecstructs import MsgspecMapper, NullTranscoder
 
 if TYPE_CHECKING:
     from pytest_benchmark.fixture import BenchmarkFixture

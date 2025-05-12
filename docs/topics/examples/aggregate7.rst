@@ -9,7 +9,7 @@ The main advantage of using Pydantic here is that any custom value objects
 used in the domain model will be automatically serialised and deserialised,
 without needing also to define custom :ref:`transcoding<Transcodings>` classes.
 
-This is demonstrated in the example below with the :class:`~examples.aggregate7.domainmodel.Trick` class,
+This approach is demonstrated in the example below with the :class:`~examples.aggregate7.domainmodel.Trick` class,
 which is used in both aggregate events and aggregate state, and which is reconstructed from serialised string
 values, representing only the name of the trick, from both recorded aggregate events and from recorded snapshots.
 

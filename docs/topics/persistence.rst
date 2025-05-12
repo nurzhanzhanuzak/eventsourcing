@@ -190,8 +190,8 @@ A stored event object also has a :class:`~eventsourcing.persistence.StoredEvent.
     stored_event = StoredEvent(
         originator_id=uuid4(),
         originator_version=1,
-        state="{}",
         topic="eventsourcing.model:DomainEvent",
+        state=b'{"a": 4}',
     )
 
 
@@ -217,9 +217,9 @@ serialisation and deserialisation. The serialised state is a Python :class:`byte
 
 .. code-block:: python
 
-    data = transcoder.encode({"a": 1})
+    data = transcoder.encode({"a": 4})
     copy = transcoder.decode(data)
-    assert copy == {"a": 1}
+    assert copy == {"a": 4}
 
 The library's :class:`~eventsourcing.persistence.JSONTranscoder` uses the Python
 :mod:`json` module. And so, by default, only the object types supported by that

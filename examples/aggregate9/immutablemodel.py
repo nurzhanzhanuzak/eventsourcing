@@ -32,17 +32,16 @@ class Aggregate(Immutable, frozen=True):
 
 class Snapshot(DomainEvent, frozen=True):
     topic: str
-    state: dict[str, bytes]
+    state: bytes
 
     @classmethod
     def take(cls, aggregate: Aggregate) -> Snapshot:
-        # raise Exception(msgspec.json.encode(aggregate))
         return Snapshot(
             originator_id=aggregate.id,
             originator_version=aggregate.version,
             timestamp=datetime_now_with_tzinfo(),
             topic=get_topic(type(aggregate)),
-            state={"bytes": msgspec.json.encode(aggregate)},
+            state=msgspec.json.encode(aggregate),
         )
 
 

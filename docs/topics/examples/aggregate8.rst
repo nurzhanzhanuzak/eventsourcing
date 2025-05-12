@@ -26,7 +26,7 @@ The code below shows how to define base classes for mutable aggregates that use 
 Domain model
 ------------
 
-The code below shows how to define an aggregate using the Pydantic and the library's declarative syntax.
+The code below shows how to define a mutable aggregate with the library's declarative syntax, using the Pydantic module for mutable aggregates
 
 .. literalinclude:: ../../../examples/aggregate8/domainmodel.py
 

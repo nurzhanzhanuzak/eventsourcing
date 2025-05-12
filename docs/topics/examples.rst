@@ -17,7 +17,6 @@ aggregate objects. All these examples make use of the library's application
 and persistence modules. All these examples satisfy the same test case which
 involves creating and updating a ``Dog`` aggregate, and taking a snapshot.
 
-
 .. toctree::
    :maxdepth: 2
 
@@ -29,6 +28,8 @@ involves creating and updating a ``Dog`` aggregate, and taking a snapshot.
    examples/aggregate6
    examples/aggregate7
    examples/aggregate8
+   examples/aggregate9
+   examples/aggregate10
 
 .. _Example applications:
 
