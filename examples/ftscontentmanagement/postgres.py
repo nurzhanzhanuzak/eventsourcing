@@ -38,47 +38,63 @@ class PostgresFtsRecorder(
         self.create_table_statements.append(
             SQL(
                 "CREATE TABLE IF NOT EXISTS "
-                "{0} ("
+                "{0}.{1} ("
                 "page_id uuid, "
                 "page_slug text, "
                 "page_title text, "
                 "page_body text, "
                 "PRIMARY KEY "
                 "(page_id))"
-            ).format(Identifier(self.fts_table_name))
+            ).format(
+                Identifier(self.datastore.schema),
+                Identifier(self.fts_table_name),
+            )
         )
         self.create_table_statements.append(
             SQL(
                 "CREATE INDEX IF NOT EXISTS {0} "
-                "ON {1} "
+                "ON {1}.{2} "
                 "USING GIN (to_tsvector('english', page_body))"
             ).format(
                 Identifier(self.fts_table_name + "_idx"),
+                Identifier(self.datastore.schema),
                 Identifier(self.fts_table_name),
             )
         )
 
         self.select_page_statement = SQL(
-            "SELECT page_slug, page_title, page_body FROM {0} WHERE page_id = %s"
-        ).format(Identifier(self.fts_table_name))
+            "SELECT page_slug, page_title, page_body FROM {0}.{1} WHERE page_id = %s"
+        ).format(
+            Identifier(self.datastore.schema),
+            Identifier(self.fts_table_name),
+        )
 
         self.insert_page_statement = SQL(
-            "INSERT INTO {0} VALUES (%s, %s, %s, %s)"
-        ).format(Identifier(self.fts_table_name))
+            "INSERT INTO {0}.{1} VALUES (%s, %s, %s, %s)"
+        ).format(
+            Identifier(self.datastore.schema),
+            Identifier(self.fts_table_name),
+        )
 
         self.update_page_statement = SQL(
-            "UPDATE {0} SET "
+            "UPDATE {0}.{1} SET "
             "page_slug = %s, "
             "page_title = %s, "
             "page_body = %s "
             "WHERE page_id = %s"
-        ).format(Identifier(self.fts_table_name))
+        ).format(
+            Identifier(self.datastore.schema),
+            Identifier(self.fts_table_name),
+        )
 
         self.search_pages_statement = SQL(
-            "SELECT page_id FROM {0} WHERE "
+            "SELECT page_id FROM {0}.{1} WHERE "
             "to_tsvector('english', page_body) @@ "
             "websearch_to_tsquery('english', %s)"
-        ).format(Identifier(self.fts_table_name))
+        ).format(
+            Identifier(self.datastore.schema),
+            Identifier(self.fts_table_name),
+        )
 
     def insert_pages(self, pages: Sequence[PageInfo]) -> None:
         with self.datastore.transaction(commit=True) as curs:
