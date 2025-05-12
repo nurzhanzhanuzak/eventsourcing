@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import os
 from typing import ClassVar
 from unittest import TestCase
 from uuid import uuid4
 
-from eventsourcing.postgres import PostgresDatastore
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 from eventsourcing.utils import get_topic
 from examples.contentmanagement.domainmodel import user_id_cvar
 from examples.ftscontentmanagement.application import FtsContentManagement
@@ -14,10 +12,11 @@ from examples.ftscontentmanagement.postgres import PostgresFtsApplicationRecorde
 from examples.ftscontentmanagement.sqlite import SQLiteFtsApplicationRecorder
 
 
-class SearchableContentApplicationTestCase(TestCase):
+class FtsContentManagementTestCase(TestCase):
     env: ClassVar[dict[str, str]] = {}
 
     def test_app(self) -> None:
+
         app = FtsContentManagement(env=self.env)
 
         # Set user_id context variable.
@@ -71,7 +70,7 @@ class SearchableContentApplicationTestCase(TestCase):
         self.assertEqual(["animals", "plants"], sorted(p["slug"] for p in pages))
 
 
-class TestWithSQLite(SearchableContentApplicationTestCase):
+class TestWithSQLite(FtsContentManagementTestCase):
     env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "eventsourcing.sqlite",
         "APPLICATION_RECORDER_TOPIC": get_topic(SQLiteFtsApplicationRecorder),
@@ -79,35 +78,24 @@ class TestWithSQLite(SearchableContentApplicationTestCase):
     }
 
 
-class TestWithPostgres(SearchableContentApplicationTestCase):
+class TestWithPostgres(FtsContentManagementTestCase):
     env: ClassVar[dict[str, str]] = {
         "PERSISTENCE_MODULE": "eventsourcing.postgres",
+        "POSTGRES_DBNAME": "eventsourcing",
+        "POSTGRES_HOST": "127.0.0.1",
+        "POSTGRES_PORT": "5432",
+        "POSTGRES_USER": "eventsourcing",
+        "POSTGRES_PASSWORD": "eventsourcing",
         "APPLICATION_RECORDER_TOPIC": get_topic(PostgresFtsApplicationRecorder),
     }
 
     def setUp(self) -> None:
+        drop_tables()
         super().setUp()
-        os.environ["POSTGRES_DBNAME"] = "eventsourcing"
-        os.environ["POSTGRES_HOST"] = "127.0.0.1"
-        os.environ["POSTGRES_PORT"] = "5432"
-        os.environ["POSTGRES_USER"] = "eventsourcing"
-        os.environ["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
-        self.drop_tables()
 
     def tearDown(self) -> None:
-        self.drop_tables()
         super().tearDown()
-
-    def drop_tables(self) -> None:
-        with PostgresDatastore(
-            os.environ["POSTGRES_DBNAME"],
-            os.environ["POSTGRES_HOST"],
-            os.environ["POSTGRES_PORT"],
-            os.environ["POSTGRES_USER"],
-            os.environ["POSTGRES_PASSWORD"],
-        ) as datastore:
-            drop_postgres_table(datastore, "ftscontentmanagement_events")
-            drop_postgres_table(datastore, "ftsprojection")
+        drop_tables()
 
 
-del SearchableContentApplicationTestCase
+del FtsContentManagementTestCase

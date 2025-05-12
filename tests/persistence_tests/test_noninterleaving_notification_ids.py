@@ -6,7 +6,7 @@ from eventsourcing.tests.persistence import (
     NonInterleavingNotificationIDsBaseCase,
     tmpfile_uris,
 )
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 
 
 class TestNonInterleavingPOPO(NonInterleavingNotificationIDsBaseCase):
@@ -43,6 +43,7 @@ class TestNonInterleavingPostgres(NonInterleavingNotificationIDsBaseCase):
     insert_num = 100
 
     def setUp(self) -> None:
+        drop_tables()
         self.datastore = PostgresDatastore(
             "eventsourcing",
             "127.0.0.1",
@@ -50,13 +51,10 @@ class TestNonInterleavingPostgres(NonInterleavingNotificationIDsBaseCase):
             "eventsourcing",
             "eventsourcing",
         )
-        self.drop_table()
 
     def tearDown(self) -> None:
-        self.drop_table()
-
-    def drop_table(self) -> None:
-        drop_postgres_table(self.datastore, "stored_events")
+        self.datastore.close()
+        drop_tables()
 
     def create_recorder(self) -> ApplicationRecorder:
         self.uris = tmpfile_uris()

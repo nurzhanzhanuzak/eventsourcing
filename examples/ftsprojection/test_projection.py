@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.projection import ProjectionRunner
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 from examples.contentmanagement.application import ContentManagement
 from examples.contentmanagement.domainmodel import user_id_cvar
 from examples.ftsprojection.projection import FtsProjection, PostgresFtsView
@@ -120,21 +120,9 @@ class TestFtsProjection(unittest.TestCase):
         self.assertEqual(pages[0].body, "iron zinc calcium")
 
     def setUp(self) -> None:
+        drop_tables()
         super().setUp()
-        self.drop_tables()
 
     def tearDown(self) -> None:
-        self.drop_tables()
         super().tearDown()
-
-    def drop_tables(self) -> None:
-        datastore = PostgresDatastore(
-            "eventsourcing",
-            "127.0.0.1",
-            "5432",
-            "eventsourcing",
-            "eventsourcing",
-        )
-        drop_postgres_table(datastore, "contentmanagement_events")
-        drop_postgres_table(datastore, "ftsprojection")
-        drop_postgres_table(datastore, "ftsprojection_tracking")
+        drop_tables()

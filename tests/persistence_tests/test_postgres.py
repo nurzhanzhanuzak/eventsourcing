@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import sys
 from concurrent.futures.thread import ThreadPoolExecutor
 from threading import Event, Thread
 from time import sleep
 from typing import TYPE_CHECKING
-from unittest import TestCase, skipIf
+from unittest import TestCase
 from unittest.mock import Mock
 from uuid import uuid4
 
@@ -13,6 +12,7 @@ import psycopg
 from psycopg import Connection
 from psycopg.sql import SQL, Identifier
 from psycopg_pool import ConnectionPool
+from psycopg_pool.base import AttemptWithBackoff
 
 from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.persistence import (
@@ -49,7 +49,7 @@ from eventsourcing.tests.persistence import (
     TrackingRecorderTestCase,
 )
 from eventsourcing.tests.postgres_utils import (
-    drop_postgres_table,
+    drop_tables,
     pg_close_all_connections,
 )
 from eventsourcing.utils import Environment, get_topic
@@ -132,35 +132,43 @@ class TestPostgresDatastore(TestCase):
             self.assertEqual(curs.fetchall(), [{"?column?": 1}])
 
     def test_connect_failure_raises_operational_error(self) -> None:
-        datastore = PostgresDatastore(
-            dbname="eventsourcing",
-            host="127.0.0.1",
-            port="4321",  # wrong port
-            user="eventsourcing",
-            password="eventsourcing",  # noqa: S106
-            pool_open_timeout=2,
-        )
-        with self.assertRaises(OperationalError), datastore.get_connection():
-            pass
+        original_initial_delay = AttemptWithBackoff.INITIAL_DELAY
+        original_delay_jitter = AttemptWithBackoff.DELAY_JITTER
+        original_delay_backoff = AttemptWithBackoff.DELAY_BACKOFF
+        AttemptWithBackoff.INITIAL_DELAY = 0.0
+        AttemptWithBackoff.DELAY_JITTER = 0
+        AttemptWithBackoff.DELAY_BACKOFF = 1  # multiplication factor
 
-        with (
-            PostgresDatastore(
+        try:
+            datastore = PostgresDatastore(
                 dbname="eventsourcing",
                 host="127.0.0.1",
-                port="987654321",  # bad value
+                port="4321",  # wrong port
                 user="eventsourcing",
                 password="eventsourcing",  # noqa: S106
-                pool_open_timeout=2,
-            ) as datastore,
-            self.assertRaises(OperationalError),
-            datastore.get_connection(),
-        ):
-            pass
+                pool_open_timeout=0.2,
+            )
+            with self.assertRaises(OperationalError), datastore.get_connection():
+                pass
 
-    @skipIf(
-        sys.version_info[:2] < (3, 8),
-        "The 'check' argument and the check_connection() method aren't supported.",
-    )
+            with (
+                PostgresDatastore(
+                    dbname="eventsourcing",
+                    host="127.0.0.1",
+                    port="987654321",  # bad value
+                    user="eventsourcing",
+                    password="eventsourcing",  # noqa: S106
+                    pool_open_timeout=0.2,
+                ) as datastore,
+                self.assertRaises(OperationalError),
+                datastore.get_connection(),
+            ):
+                pass
+        finally:
+            AttemptWithBackoff.INITIAL_DELAY = original_initial_delay
+            AttemptWithBackoff.DELAY_JITTER = original_delay_jitter
+            AttemptWithBackoff.DELAY_BACKOFF = original_delay_backoff
+
     def test_pre_ping(self) -> None:
         # Define method to open and close a connection, and then execute a statement.
         def open_close_execute(*, pre_ping: bool) -> None:
@@ -207,88 +215,131 @@ class TestPostgresDatastore(TestCase):
             port="5432",
             user="eventsourcing",
             password="eventsourcing",  # noqa: S106
-            idle_in_transaction_session_timeout=1,
+            idle_in_transaction_session_timeout=0.1,
+            pool_size=1,
+            max_overflow=0,
         ) as datastore:
 
-            # Error on commit is raised.
-            with self.assertRaises(InternalError), datastore.get_connection() as curs:
-                curs.execute("BEGIN")
-                curs.execute("SELECT 1")
-                self.assertFalse(curs.closed)
-                sleep(2)
-
-            # Error on commit is raised.
+            # Auto-begin, idle-in-transaction error is raised.
             with (
-                self.assertRaises(InternalError),
+                self.assertRaises(InternalError) as cm1,
                 datastore.transaction(commit=True) as curs,
             ):
-                # curs.execute("BEGIN")
                 curs.execute("SELECT 1")
                 self.assertFalse(curs.closed)
-                sleep(2)
+                sleep(0.2)
 
-            # Force rollback. Error is ignored.
+            self.assertIn("idle-in-transaction timeout", str(cm1.exception))
+
+            # Auto-begin, cursor raises syntax error, idle-in-transaction not raised.
+            with (
+                self.assertRaises(ProgrammingError) as cm2,
+                datastore.transaction(commit=True) as curs,
+            ):
+                curs.execute("SEL___ECT 1")  # syntax error
+                self.fail("Shouldn't get here")
+
+            self.assertIn("syntax error", str(cm2.exception))
+
+            # Auto-begin, raise exception, idle-in-transaction error is ignored.
+            with (
+                self.assertRaises(ProgrammingError) as cm3,
+                datastore.transaction(commit=True) as curs,
+            ):
+                curs.execute("SELECT 1")
+                self.assertFalse(curs.closed)
+                sleep(0.2)
+                msg = "forced-error"
+                raise ProgrammingError(msg)
+
+            self.assertIn("forced-error", str(cm3.exception))
+
+            # Auto-begin, forced rollback, idle-in-transaction error is ignored.
             with datastore.transaction(commit=False) as curs:
-                # curs.execute("BEGIN")
                 curs.execute("SELECT 1")
                 self.assertFalse(curs.closed)
-                sleep(2)
+                sleep(0.2)
 
-            # Autocommit mode - transaction is commited in time.
+            # Auto-commit mode, explicit "BEGIN", idle-in-transaction is raised.
+            with (
+                self.assertRaises(InternalError) as cm4,
+                datastore.get_connection() as curs,
+            ):
+                curs.execute("BEGIN")  # Start transaction.
+                self.assertFalse(curs.closed)
+                sleep(0.2)
+
+            self.assertIn("idle-in-transaction timeout", str(cm4.exception))
+
+            # Auto-commit, no transaction, idle-in-transaction not raised.
             with datastore.get_connection() as curs:
                 curs.execute("SELECT 1")
                 self.assertFalse(curs.closed)
-                sleep(2)
+                sleep(0.2)
 
     def test_get_password_func(self) -> None:
-        # Check correct password is required, wrong password causes operational error.
-        with (
-            PostgresDatastore(
-                dbname="eventsourcing",
-                host="127.0.0.1",
-                port="5432",
-                user="eventsourcing",
-                password="wrong",  # noqa: S106
-                pool_size=1,
-                connect_timeout=3,
-            ) as datastore,
-            self.assertRaises(OperationalError),
-            datastore.get_connection() as conn,
-            conn.cursor() as curs,
-        ):
-            curs.execute("SELECT 1")
+        original_initial_delay = AttemptWithBackoff.INITIAL_DELAY
+        original_delay_jitter = AttemptWithBackoff.DELAY_JITTER
+        original_delay_backoff = AttemptWithBackoff.DELAY_BACKOFF
+        AttemptWithBackoff.INITIAL_DELAY = 0.0
+        AttemptWithBackoff.DELAY_JITTER = 0
+        AttemptWithBackoff.DELAY_BACKOFF = 1  # multiplication factor
 
-        # Define a "get password" function, with a generator that returns
-        # wrong password a few times first.
-        def password_token_generator() -> Iterator[str]:
-            yield "wrong"
-            yield "wrong"
-            yield "eventsourcing"
+        try:
+            # Check wrong password causes operational error.
+            with (
+                PostgresDatastore(
+                    dbname="eventsourcing",
+                    host="127.0.0.1",
+                    port="5432",
+                    user="eventsourcing",
+                    password="wrong",  # noqa: S106
+                    pool_size=1,
+                    max_overflow=0,
+                    max_waiting=0,
+                    connect_timeout=0.1,
+                ) as datastore,
+                self.assertRaises(OperationalError),
+                datastore.transaction(commit=True) as curs,
+            ):
+                curs.execute("SELECT 1")
 
-        password_generator = password_token_generator()
+            # Define a "get password" function, with a generator that returns
+            # wrong password a few times first.
+            def password_token_generator() -> Iterator[str]:
+                yield "wrong"
+                yield "wrong"
+                yield "eventsourcing"
 
-        def get_password_func() -> str:
-            return next(password_generator)
+            password_generator = password_token_generator()
 
-        # Construct datastore with "get password" function.
-        with (
-            PostgresDatastore(
-                dbname="eventsourcing",
-                host="127.0.0.1",
-                port="5432",
-                user="eventsourcing",
-                password="",
-                pool_size=1,
-                get_password_func=get_password_func,
-                connect_timeout=3,
-            ) as datastore,
-            datastore.get_connection() as conn,
-            conn.cursor() as curs,
-        ):
-            # Create a connection, and check it works (this test depends on psycopg
-            # retrying attempt to connect, should call "get password" twice).
-            curs.execute("SELECT 1")
-            self.assertEqual(curs.fetchall(), [{"?column?": 1}])
+            def get_password_func() -> str:
+                return next(password_generator)
+
+            # Construct datastore with "get password" function.
+            with (
+                PostgresDatastore(
+                    dbname="eventsourcing",
+                    host="127.0.0.1",
+                    port="5432",
+                    user="eventsourcing",
+                    password="",
+                    pool_size=1,
+                    max_overflow=0,
+                    max_waiting=0,
+                    get_password_func=get_password_func,
+                    connect_timeout=3,
+                ) as datastore,
+                datastore.transaction(commit=True) as curs,
+            ):
+                # Create a connection, and check it works (this test depends on psycopg
+                # retrying attempt to connect, should call "get password" twice).
+                curs.execute("SELECT 1")
+                self.assertEqual(curs.fetchall(), [{"?column?": 1}])
+        finally:
+            AttemptWithBackoff.INITIAL_DELAY = original_initial_delay
+            AttemptWithBackoff.DELAY_JITTER = original_delay_jitter
+            AttemptWithBackoff.DELAY_BACKOFF = original_delay_backoff
 
 
 MAX_IDENTIFIER_LEN = 63
@@ -312,6 +363,7 @@ class SetupPostgresDatastore(TestCase):
     max_waiting = 0
 
     def setUp(self) -> None:
+        drop_tables()
         super().setUp()
         self.datastore = PostgresDatastore(
             "eventsourcing",
@@ -324,15 +376,11 @@ class SetupPostgresDatastore(TestCase):
             max_waiting=self.max_waiting,
             schema=self.schema,
         )
-        self.drop_tables()
 
     def tearDown(self) -> None:
-        super().tearDown()
-        self.drop_tables()
         self.datastore.close()
-
-    def drop_tables(self) -> None:
-        drop_postgres_table(self.datastore, EVENTS_TABLE_NAME)
+        super().tearDown()
+        drop_tables()
 
 
 class WithSchema(SetupPostgresDatastore):
@@ -350,10 +398,6 @@ class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTes
         recorder.create_table()
         return recorder
 
-    def drop_tables(self) -> None:
-        super().drop_tables()
-        drop_postgres_table(self.datastore, "stored_events")
-
     def test_create_table(self) -> None:
         recorder = PostgresAggregateRecorder(
             datastore=self.datastore, events_table_name="stored_events"
@@ -368,7 +412,8 @@ class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTes
 
     def test_retry_insert_events_after_closing_connection(self) -> None:
         # This checks connection is recreated after connections are closed.
-        self.datastore.pool.resize(1, 1)
+        self.assertEqual(1, self.datastore.pool.max_size)
+        self.assertEqual(1, self.datastore.pool.min_size)
 
         # Construct the recorder.
         recorder = self.create_recorder()
@@ -512,10 +557,12 @@ class TestPostgresApplicationRecorder(
         super().test_insert_select()
 
     def test_insert_subscribe(self) -> None:
+        self.datastore.pool.open()
         self.datastore.pool.resize(2, 2)
         super().optional_test_insert_subscribe()
 
     def test_subscribe_concurrent_reading_and_writing(self) -> None:
+        self.datastore.pool.open()
         self.datastore.pool.resize(2, 2)
         recorder = self.create_recorder()
 
@@ -583,10 +630,12 @@ class TestPostgresApplicationRecorder(
         thread_pool.shutdown()
 
     def test_concurrent_no_conflicts(self) -> None:
+        self.datastore.pool.open()
         self.datastore.pool.resize(12, 12)
         super().test_concurrent_no_conflicts()
 
     def test_concurrent_throughput(self) -> None:
+        self.datastore.pool.open()
         self.datastore.pool.resize(10, 10)
         super().test_concurrent_throughput()
 
@@ -657,6 +706,7 @@ class TestPostgresApplicationRecorder(
 
     def test_insert_lock_timeout_actually_works(self) -> None:
         self.datastore.lock_timeout = 1
+        self.datastore.pool.open()
         self.datastore.pool.resize(2, 2)
         recorder = self.create_recorder()
 
@@ -793,11 +843,6 @@ _check_identifier_is_max_len(TRACKING_TABLE_NAME)
 
 
 class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestCase):
-    def drop_tables(self) -> None:
-        super().drop_tables()
-        drop_postgres_table(self.datastore, TRACKING_TABLE_NAME)
-        drop_postgres_table(self.datastore, f"bkup1_{TRACKING_TABLE_NAME}"[:63])
-
     def create_recorder(self, *, create_table: bool = True) -> PostgresTrackingRecorder:
         tracking_table_name = TRACKING_TABLE_NAME
         recorder = PostgresTrackingRecorder(
@@ -897,10 +942,6 @@ class TestPostgresTrackingRecorder(SetupPostgresDatastore, TrackingRecorderTestC
 
 
 class TestPostgresProcessRecorder(SetupPostgresDatastore, ProcessRecorderTestCase):
-    def drop_tables(self) -> None:
-        super().drop_tables()
-        drop_postgres_table(self.datastore, TRACKING_TABLE_NAME)
-
     def create_recorder(self) -> ProcessRecorder:
         events_table_name = EVENTS_TABLE_NAME
         tracking_table_name = TRACKING_TABLE_NAME
@@ -971,10 +1012,6 @@ class TestPostgresProcessRecorderWithSchema(WithSchema, TestPostgresProcessRecor
 
 
 class TestPostgresProcessRecorderErrors(SetupPostgresDatastore, TestCase):
-    def drop_tables(self) -> None:
-        super().drop_tables()
-        drop_postgres_table(self.datastore, TRACKING_TABLE_NAME)
-
     def create_recorder(self) -> PostgresProcessRecorder:
         return PostgresProcessRecorder(
             datastore=self.datastore,
@@ -1025,6 +1062,7 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
         return PostgresProcessRecorder
 
     def setUp(self) -> None:
+        drop_tables()
         self.env = Environment("TestCase")
         self.env[PostgresFactory.PERSISTENCE_MODULE] = PostgresFactory.__module__
         self.env[PostgresFactory.POSTGRES_DBNAME] = "eventsourcing"
@@ -1032,28 +1070,11 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
         self.env[PostgresFactory.POSTGRES_PORT] = "5432"
         self.env[PostgresFactory.POSTGRES_USER] = "eventsourcing"
         self.env[PostgresFactory.POSTGRES_PASSWORD] = "eventsourcing"
-        self.drop_tables()
         super().setUp()
 
     def tearDown(self) -> None:
-        self.drop_tables()
         super().tearDown()
-
-    def drop_tables(self) -> None:
-        with PostgresDatastore(
-            "eventsourcing",
-            "127.0.0.1",
-            "5432",
-            "eventsourcing",
-            "eventsourcing",
-        ) as datastore:
-            drop_postgres_table(datastore, "testcase_events")
-            drop_postgres_table(datastore, "testcase_snapshots")
-            drop_postgres_table(datastore, "testcase_tracking")
-            datastore.schema = "myschema"
-            drop_postgres_table(datastore, "testcase_events")
-            drop_postgres_table(datastore, "testcase_snapshots")
-            drop_postgres_table(datastore, "testcase_tracking")
+        drop_tables()
 
     def test_close(self) -> None:
         factory = PostgresFactory(self.env)

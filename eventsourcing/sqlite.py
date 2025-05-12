@@ -29,7 +29,7 @@ from eventsourcing.persistence import (
     Tracking,
     TrackingRecorder,
 )
-from eventsourcing.utils import Environment, resolve_topic, strtobool
+from eventsourcing.utils import Environment, EnvType, resolve_topic, strtobool
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -671,7 +671,7 @@ class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
     tracking_recorder_class = SQLiteTrackingRecorder
     process_recorder_class = SQLiteProcessRecorder
 
-    def __init__(self, env: Environment):
+    def __init__(self, env: Environment | EnvType | None):
         super().__init__(env)
         db_name = self.env.get(self.SQLITE_DBNAME)
         if not db_name:

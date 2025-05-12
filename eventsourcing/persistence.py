@@ -20,6 +20,7 @@ from typing_extensions import TypeVar
 from eventsourcing.domain import DomainEventProtocol, EventSourcingError
 from eventsourcing.utils import (
     Environment,
+    EnvType,
     TopicError,
     get_topic,
     resolve_topic,
@@ -671,9 +672,9 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
             raise InfrastructureFactoryError(msg)
         return factory_cls(env=env)
 
-    def __init__(self, env: Environment):
+    def __init__(self, env: Environment | EnvType | None):
         """Initialises infrastructure factory object with given application name."""
-        self.env = env
+        self.env = env if isinstance(env, Environment) else Environment(env=env)
 
     def transcoder(
         self,

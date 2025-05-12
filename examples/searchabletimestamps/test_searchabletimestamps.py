@@ -7,8 +7,7 @@ from typing import ClassVar
 from unittest import TestCase
 
 from eventsourcing.domain import datetime_now_with_tzinfo
-from eventsourcing.postgres import PostgresDatastore
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 from examples.cargoshipping.domainmodel import Location
 from examples.searchabletimestamps.application import (
     CargoNotFoundError,
@@ -63,28 +62,17 @@ class WithPostgreSQL(SearchableTimestampsTestCase):
     }
 
     def setUp(self) -> None:
+        drop_tables()
         super().setUp()
         os.environ["POSTGRES_DBNAME"] = "eventsourcing"
         os.environ["POSTGRES_HOST"] = "127.0.0.1"
         os.environ["POSTGRES_PORT"] = "5432"
         os.environ["POSTGRES_USER"] = "eventsourcing"
         os.environ["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
-        self.drop_tables()
 
     def tearDown(self) -> None:
-        self.drop_tables()
         super().tearDown()
-
-    def drop_tables(self) -> None:
-        with PostgresDatastore(
-            os.environ["POSTGRES_DBNAME"],
-            os.environ["POSTGRES_HOST"],
-            os.environ["POSTGRES_PORT"],
-            os.environ["POSTGRES_USER"],
-            os.environ["POSTGRES_PASSWORD"],
-        ) as datastore:
-            drop_postgres_table(datastore, "searchabletimestampsapplication_events")
-            drop_postgres_table(datastore, "searchabletimestampsapplication_timestamps")
+        drop_tables()
 
 
 del SearchableTimestampsTestCase

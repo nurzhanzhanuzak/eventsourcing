@@ -1186,8 +1186,8 @@ a method to create a database table for stored events.
 ..
     #include-when-testing
 ..
-    from eventsourcing.tests.postgres_utils import drop_postgres_table
-    drop_postgres_table(datastore, "stored_events")
+    from eventsourcing.tests.postgres_utils import drop_tables
+    drop_tables()
 
 .. code-block:: python
 
@@ -1212,8 +1212,14 @@ by extending :class:`~eventsourcing.postgres.PostgresAggregateRecorder`.
 ..
     #include-when-testing
 ..
-    from eventsourcing.tests.postgres_utils import drop_postgres_table
-    drop_postgres_table(datastore, "stored_events")
+    datastore = PostgresDatastore(
+        dbname = "eventsourcing",
+        host = "127.0.0.1",
+        port = "5432",
+        user = "eventsourcing",
+        password = "eventsourcing",
+    )
+    drop_tables()
 
 
 .. code-block:: python
@@ -1253,12 +1259,6 @@ The :class:`~eventsourcing.postgres.PostgresTrackingRecorder` class implements t
 :ref:`tracking recorder <Tracking recorder>` abstract base class, and provides
 a method to create a database table for tracking records.
 
-..
-    #include-when-testing
-..
-    from eventsourcing.tests.postgres_utils import drop_postgres_table
-    drop_postgres_table(datastore, "notification_tracking")
-
 
 .. code-block:: python
 
@@ -1290,9 +1290,7 @@ by combining and extending :class:`~eventsourcing.postgres.PostgresApplicationRe
 ..
     #include-when-testing
 ..
-    from eventsourcing.tests.postgres_utils import drop_postgres_table
-    drop_postgres_table(datastore, "stored_events")
-    drop_postgres_table(datastore, "notification_tracking")
+    drop_tables()
 
 
 .. code-block:: python
@@ -1809,9 +1807,7 @@ constructed and used in a standard way.
 ..
     #include-when-testing
 ..
-    from eventsourcing.tests.postgres_utils import drop_postgres_table
-    factory = InfrastructureFactory.construct(environ)
-    drop_postgres_table(factory.datastore, "stored_events")
+    drop_tables()
 
 
 
@@ -1836,6 +1832,11 @@ constructed and used in a standard way.
 As above, the optional environment variables ``COMPRESSOR_TOPIC``, ``CIPHER_KEY``,
 and ``CIPHER_TOPIC`` may be used to enable compression and encryption of stored
 events recorded in PostgreSQL.
+
+..
+    #include-when-testing
+..
+    drop_tables()
 
 
 Code reference

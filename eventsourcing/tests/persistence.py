@@ -281,7 +281,7 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         with self.assertRaises(IntegrityError):
             recorder.insert_events([stored_event3])
 
-        sleep(1)  # Added to make eventsourcing-axon tests work, perhaps not necessary.
+        # sleep(1)  # Added to make eventsourcing-axon tests work.
         notifications = recorder.select_notifications(start=None, limit=10)
         self.assertEqual(len(notifications), 3)
         self.assertEqual(notifications[0].id, 1)
@@ -891,6 +891,13 @@ class ProcessRecorderTestCase(TestCase, ABC):
             tracking=tracking1,
         )
 
+        # Check get record conflict error if attempt to store same event again.
+        with self.assertRaises(IntegrityError):
+            recorder.insert_events(
+                stored_events=[stored_event2],
+                tracking=tracking2,
+            )
+
         # Get current position.
         self.assertEqual(
             recorder.max_tracking_id("upstream_app"),
@@ -1086,7 +1093,7 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
         if errors:
             raise errors[0]
 
-        sleep(1)  # Added to make eventsourcing-axon tests work, perhaps not necessary.
+        # sleep(1)  # Added to make eventsourcing-axon tests work.
         notifications = recorder.select_notifications(
             start=max_notification_id,
             limit=2 * self.insert_num,

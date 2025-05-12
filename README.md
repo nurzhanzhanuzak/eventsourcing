@@ -107,7 +107,7 @@ Configure the application to run with an SQLite database. Other persistence modu
 import os
 
 os.environ["PERSISTENCE_MODULE"] = 'eventsourcing.sqlite'
-os.environ["SQLITE_DBNAME"] = 'dog-school.db'
+os.environ["SQLITE_DBNAME"] = ':memory:'
 ```
 
 Run the test with SQLite.

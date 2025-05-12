@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.sqlite import SQLiteDatastore
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 from eventsourcing.utils import get_topic
 from examples.contentmanagement.application import PageNotFoundError
 from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
@@ -85,23 +85,12 @@ class TestWithPostgres(FtsRecorderTestCase):
     }
 
     def setUp(self) -> None:
+        drop_tables()
         super().setUp()
-        self.drop_tables()
 
     def tearDown(self) -> None:
-        self.drop_tables()
         super().tearDown()
-
-    def drop_tables(self) -> None:
-        with PostgresDatastore(
-            "eventsourcing",
-            "127.0.0.1",
-            "5432",
-            "eventsourcing",
-            "eventsourcing",  # ,
-        ) as datastore:
-            drop_postgres_table(datastore, "searchablecontentapplication_events")
-            drop_postgres_table(datastore, "ftsprojection")
+        drop_tables()
 
     def construct_recorder(self) -> FtsRecorder:
         datastore = PostgresDatastore(

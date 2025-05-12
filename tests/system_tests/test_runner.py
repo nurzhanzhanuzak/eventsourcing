@@ -17,7 +17,6 @@ from eventsourcing.application import ProcessingEvent  # noqa: TC001
 from eventsourcing.dispatch import singledispatchmethod
 from eventsourcing.domain import Aggregate, AggregateEvent, DomainEventProtocol, event
 from eventsourcing.persistence import Notification, ProgrammingError, Tracking
-from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.system import (
     ConvertingThread,
     EventProcessingError,
@@ -37,7 +36,7 @@ from eventsourcing.system import (
 )
 from eventsourcing.tests.application import BankAccounts
 from eventsourcing.tests.persistence import tmpfile_uris
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 from eventsourcing.utils import EnvType, clear_topic_cache, get_topic
 from tests.application_tests.test_processapplication import EmailProcess
 
@@ -745,38 +744,16 @@ class TestMultiThreadedRunnerWithSQLiteInMemory(TestMultiThreadedRunner):
 class TestMultiThreadedRunnerWithPostgres(TestMultiThreadedRunner):
     def setUp(self) -> None:
         super().setUp()
+        os.environ["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
         os.environ["POSTGRES_DBNAME"] = "eventsourcing"
         os.environ["POSTGRES_HOST"] = "127.0.0.1"
         os.environ["POSTGRES_PORT"] = "5432"
         os.environ["POSTGRES_USER"] = "eventsourcing"
         os.environ["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
-
-        with PostgresDatastore(
-            os.getenv("POSTGRES_DBNAME", ""),
-            os.getenv("POSTGRES_HOST", ""),
-            os.getenv("POSTGRES_PORT", ""),
-            os.getenv("POSTGRES_USER", ""),
-            os.getenv("POSTGRES_PASSWORD", ""),
-        ) as datastore:
-            drop_postgres_table(datastore, f"{BankAccounts.name.lower()}_events")
-            drop_postgres_table(datastore, f"{EmailProcess.name.lower()}_events")
-            drop_postgres_table(datastore, f"{EmailProcess.name.lower()}_tracking")
-            drop_postgres_table(datastore, f"{EmailProcess.name.lower()}2_events")
-            drop_postgres_table(datastore, f"{EmailProcess.name.lower()}2_tracking")
-            drop_postgres_table(datastore, "brokenprocessing_events")
-            drop_postgres_table(datastore, "brokenprocessing_tracking")
-            drop_postgres_table(datastore, "brokenconverting_events")
-            drop_postgres_table(datastore, "brokenconverting_tracking")
-            drop_postgres_table(datastore, "brokenpulling_events")
-            drop_postgres_table(datastore, "brokenpulling_tracking")
-            drop_postgres_table(datastore, "commands_events")
-            drop_postgres_table(datastore, "commands_tracking")
-            drop_postgres_table(datastore, "results_events")
-            drop_postgres_table(datastore, "results_tracking")
-
-        os.environ["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
+        drop_tables()
 
     def tearDown(self) -> None:
+        drop_tables()
         del os.environ["PERSISTENCE_MODULE"]
         del os.environ["POSTGRES_DBNAME"]
         del os.environ["POSTGRES_HOST"]

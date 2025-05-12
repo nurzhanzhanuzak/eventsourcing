@@ -1,15 +1,14 @@
-import contextlib
 import os
 import sys
+import traceback
 from pathlib import Path
-from subprocess import PIPE, Popen
-from tempfile import NamedTemporaryFile
+from types import ModuleType
 from unittest.case import TestCase
 
 import eventsourcing
-from eventsourcing.postgres import PostgresDatastore
+from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.tests.persistence import tmpfile_uris
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 from eventsourcing.utils import clear_topic_cache
 
 base_dir = Path(eventsourcing.__file__).resolve().parent.parent
@@ -17,58 +16,27 @@ base_dir = Path(eventsourcing.__file__).resolve().parent.parent
 
 class TestDocs(TestCase):
     def setUp(self) -> None:
+        drop_tables()
         super().setUp()
         self.uris = tmpfile_uris()
-
-        with PostgresDatastore(
-            "eventsourcing",
-            "127.0.0.1",
-            "5432",
-            "eventsourcing",
-            "eventsourcing",
-        ) as datastore:
-            drop_postgres_table(datastore, "dogschool_events")
-            drop_postgres_table(datastore, "counters_events")
-            drop_postgres_table(datastore, "counters_tracking")
+        self.os_environ_copy = os.environ.copy()
+        self.orig_main = sys.modules["__main__"]
 
     def tearDown(self) -> None:
-        self.clean_env()
+        self.restore_environ()
+
+    def restore_environ(self) -> None:
+        sys.modules["__main__"] = self.orig_main
+        for key in list(os.environ.keys()):
+            if key not in self.os_environ_copy:
+                del os.environ[key]
+            else:
+                os.environ[key] = self.os_environ_copy[key]
+        clear_topic_cache()
+        drop_tables()
 
     def clean_env(self) -> None:
-        clear_topic_cache()
-        with PostgresDatastore(
-            "eventsourcing",
-            "127.0.0.1",
-            "5432",
-            "eventsourcing",
-            "eventsourcing",
-        ) as datastore:
-            drop_postgres_table(datastore, "dogschool_events")
-            drop_postgres_table(datastore, "counters_events")
-            drop_postgres_table(datastore, "counters_tracking")
-
-        keys = [
-            "PERSISTENCE_MODULE",
-            "IS_SNAPSHOTTING_ENABLED",
-            "POSTGRES_DBNAME",
-            "POSTGRES_HOST",
-            "POSTGRES_PORT",
-            "POSTGRES_USER",
-            "POSTGRES_PASSWORD",
-            "POSTGRES_CONN_MAX_AGE",
-            "POSTGRES_PRE_PING",
-            "POSTGRES_LOCK_TIMEOUT",
-            "POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT",
-            "SQLITE_DBNAME",
-            "SQLITE_LOCK_TIMEOUT",
-            "CIPHER_TOPIC",
-            "CIPHER_KEY",
-            "COMPRESSOR_TOPIC",
-            "AGGREGATE_CACHE_MAXSIZE",
-        ]
-        for key in keys:
-            with contextlib.suppress(KeyError):
-                del os.environ[key]
+        drop_tables()
 
     def test_readme(self) -> None:
         self._out = ""
@@ -77,10 +45,19 @@ class TestDocs(TestCase):
         if not Path.exists(path):
             self.skipTest(f"Skipped test, README file not found: {path}")
 
+        started = datetime_now_with_tzinfo()
         try:
             self.check_code_snippets_in_file(path)
-        finally:
-            Path("dog-school.db").unlink()
+        except:
+            duration = datetime_now_with_tzinfo() - started
+            print(f"FAIL after {duration}s")
+            raise
+        else:
+            duration = datetime_now_with_tzinfo() - started
+            print(f"PASS after {duration}s")
+        # finally:
+        #
+        #     Path("dog-school.db").unlink()
 
         # path = join(base_dir, "README_example_with_axon.md")
         # if not os.path.exists(path):
@@ -133,27 +110,34 @@ class TestDocs(TestCase):
         for path in file_paths:
             print(path)
         print()
+        total_duration = 0.0
         for path in file_paths:
             # print("Testing code snippets in file: {}".format(path))
+            started = datetime_now_with_tzinfo()
             try:
                 self.check_code_snippets_in_file(path)
-            except self.failureException as e:  # noqa: PERF203
+            except self.failureException as e:
                 failures.append(e)
                 failed.append(path)
                 print(str(e).strip("\n"))
-                print("FAIL")
+                duration = (datetime_now_with_tzinfo() - started).total_seconds()
+                total_duration += duration
+                print(f"FAIL after {duration}s")
                 print()
             else:
                 passed.append(path)
-                print("PASS")
+                duration = (datetime_now_with_tzinfo() - started).total_seconds()
+                total_duration += duration
+                print(f"PASS after {duration}s")
                 print()
             finally:
-                self.clean_env()
+                self.restore_environ()
 
         print(f"{len(failed)} failed, {len(passed)} passed")
+        print(f"total duration: {total_duration}s")
 
         if failures:
-            raise failures[0]
+            self.fail(f"{len(failures)} failed docs - see above for details")
 
     def check_code_snippets_in_file(self, doc_path: Path) -> None:
         # Extract lines of Python code from the README.md file.
@@ -262,33 +246,53 @@ class TestDocs(TestCase):
         print(f"{num_code_lines} lines of code in {doc_path}")
 
         lines[0] = "from __future__ import annotations"
+        lines[1] = "from eventsourcing.domain import datetime_now_with_tzinfo"
+        lines[2] = "started = datetime_now_with_tzinfo()"
+        lines.append(
+            "print(f'exec duration: "
+            "{(datetime_now_with_tzinfo() - started).total_seconds()}s')"
+        )
 
         source = "\n".join(lines) + "\n"
 
-        # Write the code into a temp file.
-        with NamedTemporaryFile("w+") as tempfile:
-            temp_path = tempfile.name
-            tempfile.writelines(source)
-            tempfile.flush()
+        code = compile(source, "__main__", "exec")
 
-            # Run the code and catch errors.
-            p = Popen(  # noqa: S603
-                [sys.executable, temp_path],
-                stdout=PIPE,
-                stderr=PIPE,
-                env={"PYTHONPATH": base_dir},
-                encoding="utf-8",
+        exec_module = ModuleType("__main__")
+
+        sys.modules["__main__"] = exec_module
+
+        try:
+            exec(code, exec_module.__dict__)  # noqa: S102
+        except BaseException:
+            print(
+                traceback.format_exc().replace('File "__main__",', f'File "{doc_path}"')
             )
-            out, err = p.communicate()
-        # out = out.decode("utf8")
-        # err = err.decode("utf8")
-        out = out.replace(temp_path, str(doc_path))
-        err = err.replace(temp_path, str(doc_path))
-        exit_status = p.wait()
-
-        # print(out)
-        # print(err)
-
-        # Check for errors running the code.
-        if exit_status:
-            self.fail(out + err)
+            raise self.failureException from None
+        #
+        # # Write the code into a temp file.
+        # with NamedTemporaryFile("w+") as tempfile:
+        #     temp_path = tempfile.name
+        #     tempfile.writelines(source)
+        #     tempfile.flush()
+        #
+        #     # Run the code and catch errors.
+        #     p = Popen(  # no qa: S603
+        #         [sys.executable, temp_path],
+        #         stdout=PIPE,
+        #         stderr=PIPE,
+        #         env={"PYTHONPATH": base_dir},
+        #         encoding="utf-8",
+        #     )
+        #     out, err = p.communicate()
+        # # out = out.decode("utf8")
+        # # err = err.decode("utf8")
+        # out = out.replace(temp_path, str(doc_path))
+        # err = err.replace(temp_path, str(doc_path))
+        # exit_status = p.wait()
+        #
+        # # print(out)
+        # # print(err)
+        #
+        # # Check for errors running the code.
+        # if exit_status:
+        #     self.fail(out + err)

@@ -1,12 +1,11 @@
 import os
 from unittest import TestCase
 
-from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.tests.application import (
     ApplicationTestCase,
     ExampleApplicationTestCase,
 )
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 
 
 class WithPostgres(TestCase):
@@ -23,30 +22,10 @@ class WithPostgres(TestCase):
         os.environ["POSTGRES_USER"] = "eventsourcing"
         os.environ["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
         os.environ["POSTGRES_SCHEMA"] = "public"
-
-        db = PostgresDatastore(
-            os.environ["POSTGRES_DBNAME"],
-            os.environ["POSTGRES_HOST"],
-            os.environ["POSTGRES_PORT"],
-            os.environ["POSTGRES_USER"],
-            os.environ["POSTGRES_PASSWORD"],
-        )
-        drop_postgres_table(db, "bankaccounts_events")
-        drop_postgres_table(db, "bankaccounts_snapshots")
-        drop_postgres_table(db, "application_events")
-        # drop_postgres_table(db, "public.app_snapshots")
-        db.close()
+        drop_tables()
 
     def tearDown(self) -> None:
-        db = PostgresDatastore(
-            os.environ["POSTGRES_DBNAME"],
-            os.environ["POSTGRES_HOST"],
-            os.environ["POSTGRES_PORT"],
-            os.environ["POSTGRES_USER"],
-            os.environ["POSTGRES_PASSWORD"],
-        )
-        drop_postgres_table(db, "bankaccounts_events")
-        drop_postgres_table(db, "bankaccounts_snapshots")
+        drop_tables()
 
         del os.environ["PERSISTENCE_MODULE"]
         del os.environ["CREATE_TABLE"]
@@ -56,7 +35,6 @@ class WithPostgres(TestCase):
         del os.environ["POSTGRES_USER"]
         del os.environ["POSTGRES_PASSWORD"]
         del os.environ["POSTGRES_SCHEMA"]
-        db.close()
 
         super().tearDown()
 

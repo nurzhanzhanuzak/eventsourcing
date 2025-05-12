@@ -396,19 +396,9 @@ do this by deleting the database tables for the system.
 
 .. code-block:: python
 
-    from eventsourcing.postgres import PostgresDatastore
-    from eventsourcing.tests.postgres_utils import drop_postgres_table
+    from eventsourcing.tests.postgres_utils import drop_tables
 
-    db = PostgresDatastore(
-        'eventsourcing',
-        '127.0.0.1',
-        '5432',
-        'eventsourcing',
-        'eventsourcing',
-    )
-    drop_postgres_table(db, 'dogschool_events')
-    drop_postgres_table(db, 'counters_events')
-    drop_postgres_table(db, 'counters_tracking')
+    drop_tables()
 
 After resetting the recorded state of the system, we can run the system again with the multi-threaded runner.
 

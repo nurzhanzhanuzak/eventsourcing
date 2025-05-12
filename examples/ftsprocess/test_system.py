@@ -4,9 +4,8 @@ from typing import ClassVar
 from unittest import TestCase
 from uuid import uuid4
 
-from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.system import SingleThreadedRunner
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 from eventsourcing.utils import get_topic
 from examples.contentmanagement.application import ContentManagement
 from examples.contentmanagement.domainmodel import user_id_cvar
@@ -155,25 +154,12 @@ class TestWithPostgres(ContentManagementSystemTestCase):
     }
 
     def setUp(self) -> None:
+        drop_tables()
         super().setUp()
-        self.drop_tables()
 
     def tearDown(self) -> None:
-        self.drop_tables()
         super().tearDown()
-
-    def drop_tables(self) -> None:
-        with PostgresDatastore(
-            self.env["POSTGRES_DBNAME"],
-            self.env["POSTGRES_HOST"],
-            self.env["POSTGRES_PORT"],
-            self.env["POSTGRES_USER"],
-            self.env["POSTGRES_PASSWORD"],
-        ) as datastore:
-            drop_postgres_table(datastore, "contentmanagement_events")
-            drop_postgres_table(datastore, "ftsprojection")
-            # drop_postgres_table(datastore, "ftsprocess_events")
-            drop_postgres_table(datastore, "ftsprocess_tracking")
+        drop_tables()
 
     def test_system(self) -> None:
         super().test_system()

@@ -23,8 +23,8 @@ $ brew services start postgresql
 - use psql with the postgres database and your user to create roles for postgres and eventsourcing and database for eventsourcing
 $ psql postgres
 postgres=> CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';
-postgres=> CREATE DATABASE eventsourcing;
 postgres=> CREATE USER eventsourcing WITH PASSWORD 'eventsourcing';
+postgres=> CREATE DATABASE eventsourcing;
 postgres=> ALTER DATABASE eventsourcing OWNER TO eventsourcing;
 
 - use psql with the eventsourcing user to create schema in eventsourcing database

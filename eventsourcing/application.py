@@ -710,7 +710,7 @@ class Application:
         )
 
     def construct_snapshot_store(self) -> EventStore:
-        """Constructs an :class:`~eventsourcing.persistence.EventStore`
+        """Constructs an :py:class:`~eventsourcing.persistence.EventStore`
         for use by the application to store and retrieve aggregate
         :class:`~eventsourcing.domain.Snapshot` objects.
         """
@@ -721,7 +721,7 @@ class Application:
         )
 
     def construct_repository(self) -> Repository:
-        """Constructs a :class:`Repository` for use by the application."""
+        """Constructs a :py:class:`Repository` for use by the application."""
         cache_maxsize_envvar = self.env.get(self.AGGREGATE_CACHE_MAXSIZE)
         cache_maxsize = int(cache_maxsize_envvar) if cache_maxsize_envvar else None
         return Repository(

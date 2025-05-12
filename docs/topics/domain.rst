@@ -1351,12 +1351,11 @@ particular type of event to the aggregate in a particular way.
             trick: str
 
         def add_trick(self, trick):
-            print("Triggering event:", self.TrickAdded.__qualname__, id(self.TrickAdded), id(Dog.TrickAdded))
             self.trigger_event(self.TrickAdded, trick=trick)
 
         @singledispatchmethod
         def apply(self, event) -> None:
-            print("Didn't process:", event)
+            pass
 
         @apply.register
         def trick_added(self, event: Dog.TrickAdded) -> None:

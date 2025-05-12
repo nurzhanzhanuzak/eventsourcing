@@ -22,7 +22,7 @@ from eventsourcing.postgres import (
     PostgresTrackingRecorder,
 )
 from eventsourcing.projection import Projection, ProjectionRunner
-from eventsourcing.tests.postgres_utils import drop_postgres_table
+from eventsourcing.tests.postgres_utils import drop_tables
 from eventsourcing.utils import Environment, get_topic
 
 
@@ -142,7 +142,7 @@ class POPOEventCounters(POPOTrackingRecorder, EventCountersInterface):
 class TestPostgresEventCounters(EventCountersViewTestCase):
     def setUp(self) -> None:
         self.factory = cast(
-            "PostgresFactory",
+            PostgresFactory,
             InfrastructureFactory.construct(
                 env=Environment(
                     name="eventcounters",
@@ -162,8 +162,7 @@ class TestPostgresEventCounters(EventCountersViewTestCase):
         return self.factory.tracking_recorder(PostgresEventCounters)
 
     def tearDown(self) -> None:
-        drop_postgres_table(self.factory.datastore, self.factory.env.name + "_tracking")
-        drop_postgres_table(self.factory.datastore, self.factory.env.name)
+        drop_tables()
 
 
 class PostgresEventCounters(PostgresTrackingRecorder, EventCountersInterface):
@@ -454,24 +453,12 @@ class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
                 )
 
     def setUp(self) -> None:
+        drop_tables()
         super().setUp()
-        self.drop_tables()
 
     def tearDown(self) -> None:
         super().tearDown()
-        self.drop_tables()
-
-    def drop_tables(self) -> None:
-        datastore = PostgresDatastore(
-            "eventsourcing",
-            "127.0.0.1",
-            "5432",
-            "eventsourcing",
-            "eventsourcing",
-        )
-        drop_postgres_table(datastore, "application_events")
-        drop_postgres_table(datastore, "eventcounters_tracking")
-        drop_postgres_table(datastore, "eventcounters")
+        drop_tables()
 
 
 del EventCountersViewTestCase

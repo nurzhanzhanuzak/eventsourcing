@@ -119,7 +119,7 @@ benchmark-application:
 
 .PHONY: benchmark-domain
 benchmark-domain:
-	$(POETRY) run pytest tests/benchmark/benchmark_domain.py $(BENCHMARK_OPTIONS)
+	$(POETRY) run pytest -s tests/benchmark/benchmark_domain.py $(BENCHMARK_OPTIONS)
 
 .PHONY: benchmark-persistence
 benchmark-persistence:
