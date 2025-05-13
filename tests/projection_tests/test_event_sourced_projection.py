@@ -29,7 +29,7 @@ class Counter(Aggregate):
         self.count += 1
 
 
-class Counters(EventSourcedProjection):
+class Counters(EventSourcedProjection[UUID]):
     @singledispatchmethod
     def policy(
         self,

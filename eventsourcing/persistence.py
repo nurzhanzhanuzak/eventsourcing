@@ -1,23 +1,29 @@
 from __future__ import annotations
 
 import json
+import typing
 import uuid
 from abc import ABC, abstractmethod
 from collections import deque
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Hashable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
 from queue import Queue
 from threading import Condition, Event, Lock, Semaphore, Thread, Timer
 from time import monotonic, sleep, time
 from types import GenericAlias, ModuleType
-from typing import TYPE_CHECKING, Any, Generic, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Generic, Union, cast
 from uuid import UUID
 
 from typing_extensions import TypeVar
 
-from eventsourcing.domain import DomainEventProtocol, EventSourcingError
+from eventsourcing.domain import (
+    DomainEventProtocol,
+    EventSourcingError,
+    HasOriginatorIDVersion,
+)
 from eventsourcing.utils import (
     Environment,
     EnvType,
@@ -179,7 +185,7 @@ class StoredEvent:
     objects and :class:`~eventsourcing.domain.Snapshot` objects.
     """
 
-    originator_id: uuid.UUID
+    originator_id: uuid.UUID | str
     """ID of the originating aggregate."""
     originator_version: int
     """Position in an aggregate sequence."""
@@ -221,6 +227,9 @@ class MapperDeserialisationError(EventSourcingError, ValueError):
     """Raised when deserialization fails in a Mapper."""
 
 
+TAggregateIDType = TypeVar("TAggregateIDType", type[UUID], type[str])
+
+
 class Mapper:
     """Converts between domain event objects and :class:`StoredEvent` objects.
 
@@ -260,6 +269,8 @@ class Mapper:
 
     def to_domain_event(self, stored_event: StoredEvent) -> DomainEventProtocol:
         """Converts the given :class:`StoredEvent` to a domain event object."""
+        cls = resolve_topic(stored_event.topic)
+
         stored_state = stored_event.state
         try:
             if self.cipher:
@@ -276,9 +287,12 @@ class Mapper:
             )
             raise MapperDeserialisationError(msg) from e
 
-        event_state["originator_id"] = stored_event.originator_id
+        id_convertor = _find_id_convertor(
+            cls, cast(Hashable, type(stored_event.originator_id))
+        )
+        # print("ID of convertor:", id(convertor))
+        event_state["originator_id"] = id_convertor(stored_event.originator_id)
         event_state["originator_version"] = stored_event.originator_version
-        cls = resolve_topic(stored_event.topic)
         class_version = getattr(cls, "class_version", 1)
         from_version = event_state.pop("class_version", 1)
         while from_version < class_version:
@@ -288,6 +302,46 @@ class Mapper:
         domain_event = object.__new__(cls)
         domain_event.__dict__.update(event_state)
         return domain_event
+
+
+@lru_cache
+def _find_id_convertor(
+    domain_event_cls: type[object], originator_id_cls: type[UUID | str]
+) -> Callable[[UUID | str], UUID | str]:
+    # Try to find the originator_id type.
+    type_originator_id: type[UUID | str] = UUID
+    if issubclass(domain_event_cls, HasOriginatorIDVersion):
+        type_originator_id = domain_event_cls.type_originator_id
+    else:
+        try:
+            # Look on plain simple annotations.
+            originator_id_annotation = typing.get_type_hints(
+                domain_event_cls, globalns=globals()
+            ).get("originator_id", None)
+            assert originator_id_annotation in [UUID, str]
+            type_originator_id = cast(type[Union[UUID, str]], originator_id_annotation)
+        except NameError:
+            pass
+
+    if originator_id_cls is str and type_originator_id is UUID:
+        convertor = str_to_uuid_convertor
+    else:
+        convertor = pass_through_convertor
+    # print(
+    #     f"Decided {convertor.__name__} "
+    #     f"for {domain_event_cls.__name__} "
+    #     f"and {originator_id_cls.__name__}."
+    # )
+    return convertor
+
+
+def str_to_uuid_convertor(originator_id: UUID | str) -> UUID | str:
+    assert isinstance(originator_id, str)
+    return UUID(originator_id)
+
+
+def pass_through_convertor(originator_id: UUID | str) -> UUID | str:
+    return originator_id
 
 
 class RecordConflictError(EventSourcingError):
@@ -374,7 +428,7 @@ class AggregateRecorder(Recorder, ABC):
     @abstractmethod
     def select_events(
         self,
-        originator_id: UUID,
+        originator_id: UUID | str,
         *,
         gt: int | None = None,
         lte: int | None = None,
@@ -406,7 +460,7 @@ class ApplicationRecorder(AggregateRecorder):
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,
-    ) -> list[Notification]:
+    ) -> Sequence[Notification]:
         """Returns a list of Notification objects representing events from an
         application sequence. If `inclusive_of_start` is True (the default),
         the returned Notification objects will have IDs greater than or equal
@@ -557,7 +611,7 @@ class EventStore:
 
     def get(
         self,
-        originator_id: UUID,
+        originator_id: UUID | str,
         *,
         gt: int | None = None,
         lte: int | None = None,
@@ -1259,9 +1313,9 @@ class ListenNotifySubscription(Subscription[TApplicationRecorder_co]):
     ) -> None:
         super().__init__(recorder=recorder, gt=gt, topics=topics)
         self._select_limit = 500
-        self._notifications: list[Notification] = []
+        self._notifications: Sequence[Notification] = []
         self._notifications_index: int = 0
-        self._notifications_queue: Queue[list[Notification]] = Queue(maxsize=10)
+        self._notifications_queue: Queue[Sequence[Notification]] = Queue(maxsize=10)
         self._has_been_notified = Event()
         self._thread_error: BaseException | None = None
         self._pull_thread = Thread(target=self._loop_on_pull)

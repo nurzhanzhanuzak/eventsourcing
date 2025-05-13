@@ -30,6 +30,7 @@ from eventsourcing.domain import (
     SDomainEvent,
     Snapshot,
     SnapshotProtocol,
+    TAggregateID_co,
     TDomainEvent,
     TMutableOrImmutableAggregate,
     datetime_now_with_tzinfo,
@@ -229,7 +230,9 @@ class Repository:
         self.snapshot_store = snapshot_store
 
         if cache_maxsize is None:
-            self.cache: Cache[UUID, MutableOrImmutableAggregate] | None = None
+            self.cache: Cache[UUID | str, MutableOrImmutableAggregate[UUID]] | None = (
+                None
+            )
         elif cache_maxsize <= 0:
             self.cache = Cache()
         else:
@@ -240,14 +243,14 @@ class Repository:
 
         # Because fast-forwarding a cached aggregate isn't thread-safe.
         self._fastforward_locks_lock = Lock()
-        self._fastforward_locks_cache: LRUCache[UUID, Lock] = LRUCache(
+        self._fastforward_locks_cache: LRUCache[UUID | str, Lock] = LRUCache(
             maxsize=self.FASTFORWARD_LOCKS_CACHE_MAXSIZE
         )
-        self._fastforward_locks_inuse: dict[UUID, tuple[Lock, int]] = {}
+        self._fastforward_locks_inuse: dict[UUID | str, tuple[Lock, int]] = {}
 
     def get(
         self,
-        aggregate_id: UUID,
+        aggregate_id: UUID | str,
         *,
         version: int | None = None,
         projector_func: ProjectorFunction[
@@ -310,7 +313,7 @@ class Repository:
 
     def _reconstruct_aggregate(
         self,
-        aggregate_id: UUID,
+        aggregate_id: UUID | str,
         version: int | None,
         projector_func: ProjectorFunction[TMutableOrImmutableAggregate, TDomainEvent],
     ) -> TMutableOrImmutableAggregate:
@@ -354,7 +357,7 @@ class Repository:
         # Return the aggregate.
         return aggregate
 
-    def _use_fastforward_lock(self, aggregate_id: UUID) -> Lock:
+    def _use_fastforward_lock(self, aggregate_id: UUID | str) -> Lock:
         lock: Lock | None = None
         with self._fastforward_locks_lock:
             num_users = 0
@@ -369,7 +372,7 @@ class Repository:
             self._fastforward_locks_inuse[aggregate_id] = (lock, num_users)
             return lock
 
-    def _disuse_fastforward_lock(self, aggregate_id: UUID) -> None:
+    def _disuse_fastforward_lock(self, aggregate_id: UUID | str) -> None:
         with self._fastforward_locks_lock:
             lock_, num_users = self._fastforward_locks_inuse[aggregate_id]
             num_users -= 1
@@ -409,7 +412,7 @@ class Section:
     """
 
     id: str | None
-    items: list[Notification]
+    items: Sequence[Notification]
     next_id: str | None
 
 
@@ -432,7 +435,7 @@ class NotificationLog(ABC):
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,
-    ) -> list[Notification]:
+    ) -> Sequence[Notification]:
         """Returns a selection of
         :class:`~eventsourcing.persistence.Notification` objects
         from the notification log.
@@ -518,7 +521,7 @@ class LocalNotificationLog(NotificationLog):
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,
-    ) -> list[Notification]:
+    ) -> Sequence[Notification]:
         """Returns a selection of
         :class:`~eventsourcing.persistence.Notification` objects
         from the notification log.
@@ -552,12 +555,12 @@ class ProcessingEvent:
         """Initialises the process event with the given tracking object."""
         self.tracking = tracking
         self.events: list[DomainEventProtocol] = []
-        self.aggregates: dict[UUID, MutableOrImmutableAggregate] = {}
+        self.aggregates: dict[UUID | str, MutableOrImmutableAggregate[UUID]] = {}
         self.saved_kwargs: dict[Any, Any] = {}
 
     def collect_events(
         self,
-        *objs: MutableOrImmutableAggregate | DomainEventProtocol | None,
+        *objs: MutableOrImmutableAggregate[Any] | DomainEventProtocol | None,
         **kwargs: Any,
     ) -> None:
         """Collects pending domain events from the given aggregate."""
@@ -576,7 +579,7 @@ class ProcessingEvent:
 
     def save(
         self,
-        *aggregates: MutableOrImmutableAggregate | DomainEventProtocol | None,
+        *aggregates: MutableOrImmutableAggregate[UUID] | DomainEventProtocol | None,
         **kwargs: Any,
     ) -> None:
         warn(
@@ -588,15 +591,17 @@ class ProcessingEvent:
         self.collect_events(*aggregates, **kwargs)
 
 
-class Application:
+class Application(Generic[TAggregateID_co]):
     """Base class for event-sourced applications."""
 
     name = "Application"
     env: ClassVar[dict[str, str]] = {}
     is_snapshotting_enabled: bool = False
-    snapshotting_intervals: ClassVar[dict[type[MutableOrImmutableAggregate], int]] = {}
+    snapshotting_intervals: ClassVar[
+        dict[type[MutableOrImmutableAggregate[Any]], int]
+    ] = {}
     snapshotting_projectors: ClassVar[
-        dict[type[MutableOrImmutableAggregate], ProjectorFunction[Any, Any]]
+        dict[type[MutableOrImmutableAggregate[Any]], ProjectorFunction[Any, Any]]
     ] = {}
     snapshot_class: type[SnapshotProtocol] = Snapshot
     log_section_size = 10
@@ -743,7 +748,9 @@ class Application:
 
     def save(
         self,
-        *objs: MutableOrImmutableAggregate | DomainEventProtocol | None,
+        *objs: MutableOrImmutableAggregate[TAggregateID_co]
+        | DomainEventProtocol
+        | None,
         **kwargs: Any,
     ) -> list[Recording]:
         """Collects pending events from given aggregates and
@@ -806,7 +813,7 @@ class Application:
 
     def take_snapshot(
         self,
-        aggregate_id: UUID,
+        aggregate_id: UUID | str,
         version: int | None = None,
         projector_func: ProjectorFunction[
             TMutableOrImmutableAggregate, TDomainEvent
@@ -852,7 +859,7 @@ class Application:
         self.factory.close()
 
 
-TApplication = TypeVar("TApplication", bound=Application)
+TApplication = TypeVar("TApplication", bound=Application[Any])
 
 
 class AggregateNotFoundError(EventSourcingError):

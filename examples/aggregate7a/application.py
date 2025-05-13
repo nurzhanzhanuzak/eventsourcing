@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar
+from uuid import UUID
 
 from eventsourcing.application import Application, ProjectorFunction
 from examples.aggregate7.orjsonpydantic import OrjsonTranscoder, PydanticMapper
@@ -13,20 +14,19 @@ from examples.aggregate7a.domainmodel import (
 )
 
 if TYPE_CHECKING:
-    from uuid import UUID
 
     from eventsourcing.domain import MutableOrImmutableAggregate
     from eventsourcing.persistence import Mapper, Transcoder
 
 
-class DogSchool(Application):
+class DogSchool(Application[UUID]):
     is_snapshotting_enabled = True
     snapshot_class = Snapshot
-    snapshotting_intervals: ClassVar[dict[type[MutableOrImmutableAggregate], int]] = {
-        Dog: 5
-    }
+    snapshotting_intervals: ClassVar[
+        dict[type[MutableOrImmutableAggregate[UUID]], int]
+    ] = {Dog: 5}
     snapshotting_projectors: ClassVar[
-        dict[type[MutableOrImmutableAggregate], ProjectorFunction[Any, Any]]
+        dict[type[MutableOrImmutableAggregate[UUID]], ProjectorFunction[Any, Any]]
     ] = {Dog: project_dog}
 
     def register_dog(self, name: str) -> UUID:

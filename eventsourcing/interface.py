@@ -57,7 +57,11 @@ class NotificationLogJSONService(NotificationLogInterface, Generic[TApplication]
                 "items": [
                     {
                         "id": item.id,
-                        "originator_id": item.originator_id.hex,
+                        "originator_id": (
+                            item.originator_id.hex
+                            if isinstance(item.originator_id, UUID)
+                            else item.originator_id
+                        ),
                         "originator_version": item.originator_version,
                         "topic": item.topic,
                         "state": b64encode(item.state).decode("utf8"),
@@ -85,7 +89,11 @@ class NotificationLogJSONService(NotificationLogInterface, Generic[TApplication]
             [
                 {
                     "id": notification.id,
-                    "originator_id": notification.originator_id.hex,
+                    "originator_id": (
+                        notification.originator_id.hex
+                        if isinstance(notification.originator_id, UUID)
+                        else notification.originator_id
+                    ),
                     "originator_version": notification.originator_version,
                     "topic": notification.topic,
                     "state": b64encode(notification.state).decode("utf8"),

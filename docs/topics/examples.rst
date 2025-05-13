@@ -30,6 +30,7 @@ involves creating and updating a ``Dog`` aggregate, and taking a snapshot.
    examples/aggregate8
    examples/aggregate9
    examples/aggregate10
+   examples/aggregate11
 
 .. _Example applications:
 

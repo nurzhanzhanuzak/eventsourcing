@@ -4,7 +4,7 @@ from decimal import Decimal
 from functools import reduce
 from typing import TYPE_CHECKING, cast
 from unittest.case import TestCase
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from eventsourcing.application import (
     AggregateNotFoundError,
@@ -213,7 +213,7 @@ class TestRepository(TestCase):
 
     def test_with_alternative_mutator_function(self) -> None:
         def mutator(
-            initial: Aggregate | None, domain_events: Iterable[CanMutateAggregate]
+            initial: Aggregate | None, domain_events: Iterable[CanMutateAggregate[UUID]]
         ) -> BankAccount:
             return cast(
                 "BankAccount", reduce(lambda a, e: e.mutate(a), domain_events, initial)

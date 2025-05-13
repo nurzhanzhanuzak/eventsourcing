@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
@@ -165,7 +165,7 @@ def test_app_save(env: str, num_events: int, benchmark: BenchmarkFixture) -> Non
             agg.subsequent(a=i + 1)
         return (app, agg), {}
 
-    def func(app: Application, agg: Aggregate) -> None:
+    def func(app: Application[UUID], agg: Aggregate) -> None:
         app.save(agg)
 
     rounds = {
@@ -193,7 +193,7 @@ def test_app_command(env: str, num_events: int, benchmark: BenchmarkFixture) -> 
         def subsequent(self, a: int) -> None:
             self.a = a
 
-    class MyApplication(Application):
+    class MyApplication(Application[UUID]):
         def command(self) -> None:
             agg = A(a=0)
             for i in range(num_events - 1):

@@ -10,6 +10,7 @@ from time import sleep
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, Union, cast
 from unittest.case import TestCase
 from unittest.mock import MagicMock
+from uuid import UUID
 
 from typing_extensions import TypeVar
 
@@ -42,7 +43,6 @@ from tests.application_tests.test_processapplication import EmailProcess
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
-    from uuid import UUID
 
 
 class EmailProcess2(EmailProcess):
@@ -188,7 +188,7 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
             self.assertEqual(len(section.items), 10)
 
     def test_system_with_processing_loop(self) -> None:
-        class Commands(ProcessApplication):
+        class Commands(ProcessApplication[UUID]):
             def create_command(self, text: str) -> UUID:
                 command = Command(text=text)
                 self.save(command)
@@ -219,7 +219,7 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
                 command: Command = self.repository.get(command_id)
                 return command.output, command.error
 
-        class Results(ProcessApplication):
+        class Results(ProcessApplication[UUID]):
             @singledispatchmethod
             def policy(
                 self,

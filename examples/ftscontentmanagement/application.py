@@ -7,6 +7,7 @@ from examples.contentmanagement.domainmodel import Page
 from examples.ftscontentmanagement.persistence import FtsRecorder, PageInfo
 
 if TYPE_CHECKING:
+    from uuid import UUID
 
     from eventsourcing.domain import DomainEventProtocol, MutableOrImmutableAggregate
     from eventsourcing.persistence import Recording
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
 class FtsContentManagement(ContentManagement):
     def save(
         self,
-        *objs: MutableOrImmutableAggregate | DomainEventProtocol | None,
+        *objs: MutableOrImmutableAggregate[UUID] | DomainEventProtocol | None,
         **kwargs: Any,
     ) -> list[Recording]:
         insert_pages: list[PageInfo] = []

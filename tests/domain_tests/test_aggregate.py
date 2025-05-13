@@ -624,13 +624,16 @@ class TestAggregateCreation(TestCase):
     def test_raises_type_error_if_create_id_does_not_return_uuid_or_str(
         self,
     ) -> None:
+        # Returning an int is not okay.
         class MyAggregate1(Aggregate):
             @staticmethod
             def create_id() -> int:  # type: ignore[override]
                 return 5
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(TypeError) as cm:
             MyAggregate1()
+
+        self.assertIn("create_id did not return UUID or str", str(cm.exception))
 
         class MyAggregate2(Aggregate):
             def __init__(self, name: str) -> None:
@@ -642,15 +645,23 @@ class TestAggregateCreation(TestCase):
 
         MyAggregate2(name="name")
 
+        # Create string ID, which is okay until the domain event is constructed.
+        # TODO: Maybe aggregate could find aggregateID type arg in its __orig_bases__?
         class MyAggregate3(Aggregate):
             def __init__(self, name: str) -> None:
                 self.name = name
 
             @staticmethod
-            def create_id(name: str) -> str:
+            def create_id(name: str) -> str:  # type: ignore[override]
                 return str(uuid5(NAMESPACE_URL, f"/names/{name}"))
 
-        MyAggregate3(name="name")
+        with self.assertRaises(TypeError) as cm:
+            MyAggregate3(name="name")
+
+        self.assertIn(
+            "was initialized with a non-UUID originator_id",
+            str(cm.exception),
+        )
 
     def test_raises_type_error_if_create_id_not_staticmethod_or_classmethod(
         self,
@@ -782,11 +793,15 @@ class TestAggregateCreation(TestCase):
         )
 
     def test_uses_defined_created_event_when_given_name_matches(self) -> None:
-        class Order(BaseAggregate, created_event_name="Started"):
+        class Order(BaseAggregate[UUID], created_event_name="Started"):
             def __init__(self, name: str) -> None:
                 self.name = name
                 self.confirmed_at = None
                 self.pickedup_at = None
+
+            @staticmethod
+            def create_id() -> UUID:
+                return uuid4()
 
             class Event(AggregateEvent):
                 pass

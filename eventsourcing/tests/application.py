@@ -114,7 +114,7 @@ class EmailAddressAsStr(Transcoding):
         return EmailAddress(data)
 
 
-class BankAccounts(Application):
+class BankAccounts(Application[UUID]):
     is_snapshotting_enabled = True
 
     def register_transcodings(self, transcoder: JSONTranscoder) -> None:
@@ -155,12 +155,12 @@ class ApplicationTestCase(TestCase):
     def test_name(self) -> None:
         self.assertEqual(Application.name, "Application")
 
-        class MyApplication1(Application):
+        class MyApplication1(Application[UUID]):
             pass
 
         self.assertEqual(MyApplication1.name, "MyApplication1")
 
-        class MyApplication2(Application):
+        class MyApplication2(Application[UUID]):
             name = "MyBoundedContext"
 
         self.assertEqual(MyApplication2.name, "MyBoundedContext")

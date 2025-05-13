@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing
 from datetime import datetime
 from typing import Any
+from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, TypeAdapter
 
@@ -26,7 +27,7 @@ class SnapshotState(Immutable):
         super().__init__(**kwargs)
 
 
-class AggregateSnapshot(DomainEvent, CanSnapshotAggregate):
+class AggregateSnapshot(DomainEvent, CanSnapshotAggregate[UUID]):
     topic: str
     state: Any
 
@@ -46,9 +47,14 @@ class AggregateSnapshot(DomainEvent, CanSnapshotAggregate):
             raise TypeError(msg) from e
 
 
-class Aggregate(BaseAggregate):
-    class Event(DomainEvent, CanMutateAggregate):
+class Aggregate(BaseAggregate[UUID]):
+    @staticmethod
+    def create_id(*_: Any, **__: Any) -> UUID:
+        """Returns a new aggregate ID."""
+        return uuid4()
+
+    class Event(DomainEvent, CanMutateAggregate[UUID]):
         pass
 
-    class Created(Event, CanInitAggregate):
+    class Created(Event, CanInitAggregate[UUID]):
         originator_topic: str

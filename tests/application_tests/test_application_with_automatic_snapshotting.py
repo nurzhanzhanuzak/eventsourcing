@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 from unittest import TestCase
 
 from eventsourcing.domain import Aggregate, MutableOrImmutableAggregate
 from eventsourcing.tests.application import BankAccounts
 from eventsourcing.tests.domain import BankAccount
 
+if TYPE_CHECKING:
+    from uuid import UUID
+
 
 class BankAccountsWithAutomaticSnapshotting(BankAccounts):
     is_snapshotting_enabled = False
-    snapshotting_intervals: ClassVar[dict[type[MutableOrImmutableAggregate], int]] = {
-        BankAccount: 5
-    }
+    snapshotting_intervals: ClassVar[
+        dict[type[MutableOrImmutableAggregate[UUID]], int]
+    ] = {BankAccount: 5}
 
 
 class TestApplicationWithAutomaticSnapshotting(TestCase):

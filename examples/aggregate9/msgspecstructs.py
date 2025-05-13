@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar
+from uuid import UUID
 
 import msgspec
 
@@ -47,7 +48,7 @@ class NullTranscoder(Transcoder):
         return None
 
 
-class MsgspecApplication(Application):
+class MsgspecApplication(Application[UUID]):
     env: ClassVar[dict[str, str]] = {
         "MAPPER_TOPIC": get_topic(MsgspecMapper),
         "TRANSCODER_TOPIC": get_topic(NullTranscoder),

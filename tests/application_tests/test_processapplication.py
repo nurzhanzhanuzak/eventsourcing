@@ -1,4 +1,6 @@
+from typing import Any
 from unittest.case import TestCase
+from uuid import UUID
 
 from eventsourcing.application import ProcessingEvent
 from eventsourcing.dispatch import singledispatchmethod
@@ -71,7 +73,7 @@ class TestProcessApplication(TestCase):
         self.assertEqual(email_process.recorder.max_tracking_id(BankAccounts.name), 2)
 
 
-class EmailProcess(ProcessApplication):
+class EmailProcess(ProcessApplication[UUID]):
     def register_transcodings(self, transcoder: JSONTranscoder) -> None:
         super().register_transcodings(transcoder)
         transcoder.register(EmailAddressAsStr())
@@ -99,7 +101,7 @@ class EmailProcess(ProcessApplication):
 
 
 class PromptForwarder(RecordingEventReceiver):
-    def __init__(self, application: Follower):
+    def __init__(self, application: Follower[Any]):
         self.application = application
 
     def receive_recording_event(self, new_recording_event: RecordingEvent) -> None:

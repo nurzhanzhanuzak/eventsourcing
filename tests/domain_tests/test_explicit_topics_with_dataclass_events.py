@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from unittest import TestCase
+from uuid import UUID, uuid4
 
 from eventsourcing.domain import (
     AggregateCreated,
@@ -17,8 +18,12 @@ from eventsourcing.utils import (
 )
 
 
-class Aggregate(BaseAggregate):
+class Aggregate(BaseAggregate[UUID]):
     TOPIC = "Aggregate"
+
+    @staticmethod
+    def create_id() -> UUID:
+        return uuid4()
 
     class Event(AggregateEvent):
         pass

@@ -5,7 +5,7 @@ import warnings
 import weakref
 from threading import Event
 from time import sleep
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest import TestCase
 
 from eventsourcing.application import Application
@@ -133,7 +133,7 @@ class TestProjectionRunner(TestCase):
         thread_started = Event()
         errors: list[Exception] = []
 
-        def call_runforever(r: ProjectionRunner[Application]) -> None:
+        def call_runforever(r: ProjectionRunner[Application[Any]]) -> None:
             errors.clear()
             exception_raised.clear()
             thread_started.set()
@@ -145,7 +145,7 @@ class TestProjectionRunner(TestCase):
             finally:
                 thread_started.clear()
 
-        def call_wait(r: ProjectionRunner[Application]) -> None:
+        def call_wait(r: ProjectionRunner[Application[Any]]) -> None:
             errors.clear()
             exception_raised.clear()
             thread_started.set()

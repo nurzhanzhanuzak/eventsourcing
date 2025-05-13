@@ -351,7 +351,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def select_events(
         self,
-        originator_id: UUID,
+        originator_id: UUID | str,
         *,
         gt: int | None = None,
         lte: int | None = None,
@@ -451,7 +451,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,
-    ) -> list[Notification]:
+    ) -> Sequence[Notification]:
         """Returns a list of event notifications
         from 'start', limited by 'limit'.
         """

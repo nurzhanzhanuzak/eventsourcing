@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, ClassVar
 from unittest import TestCase
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict
 
@@ -38,14 +38,18 @@ class UncallableMetaAggregate(MetaAggregate[Any]):
         raise ProgrammingError(msg)
 
 
-class CreatedEvent(DomainEvent, CanInitAggregate):
+class CreatedEvent(DomainEvent, CanInitAggregate[UUID]):
     originator_topic: str
 
 
-class Aggregate(BaseAggregate, metaclass=UncallableMetaAggregate):
+class Aggregate(BaseAggregate[UUID], metaclass=UncallableMetaAggregate):
     TOPIC = "PydanticAggregate"
 
-    class Event(DomainEvent, CanMutateAggregate):
+    @staticmethod
+    def create_id() -> UUID:
+        return uuid4()
+
+    class Event(DomainEvent, CanMutateAggregate[UUID]):
         pass
 
 

@@ -13,7 +13,7 @@ from warnings import warn
 
 from eventsourcing.application import Application, ProcessingEvent
 from eventsourcing.dispatch import singledispatchmethod
-from eventsourcing.domain import DomainEventProtocol
+from eventsourcing.domain import DomainEventProtocol, TAggregateID_co
 from eventsourcing.persistence import (
     InfrastructureFactory,
     ProcessRecorder,
@@ -40,7 +40,7 @@ class ApplicationSubscription(Iterator[tuple[DomainEventProtocol, Tracking]]):
 
     def __init__(
         self,
-        app: Application,
+        app: Application[Any],
         gt: int | None = None,
         topics: Sequence[str] = (),
     ):
@@ -121,7 +121,7 @@ class Projection(ABC, Generic[TTrackingRecorder]):
         """Process a domain event and track it."""
 
 
-class EventSourcedProjection(Application, ABC):
+class EventSourcedProjection(Application[TAggregateID_co], ABC):
     """Extends the :py:class:`~eventsourcing.application.Application` class
     by using a process recorder as its application recorder, and by
     processing domain events through its :py:func:`policy` method.
@@ -183,9 +183,9 @@ class EventSourcedProjection(Application, ABC):
         """
 
 
-TApplication = TypeVar("TApplication", bound=Application)
+TApplication = TypeVar("TApplication", bound=Application[Any])
 TEventSourcedProjection = TypeVar(
-    "TEventSourcedProjection", bound=EventSourcedProjection
+    "TEventSourcedProjection", bound=EventSourcedProjection[Any]
 )
 
 
@@ -193,7 +193,7 @@ class BaseProjectionRunner(Generic[TApplication]):
     def __init__(
         self,
         *,
-        projection: EventSourcedProjection | Projection[Any],
+        projection: EventSourcedProjection[Any] | Projection[Any],
         application_class: type[TApplication],
         tracking_recorder: TrackingRecorder,
         topics: Sequence[str],
@@ -273,9 +273,11 @@ class BaseProjectionRunner(Generic[TApplication]):
     @staticmethod
     def _process_events_loop(
         subscription: ApplicationSubscription,
-        projection: EventSourcedProjection | Projection[Any],
+        projection: EventSourcedProjection[Any] | Projection[Any],
         is_stopping: Event,
-        runner: weakref.ReferenceType[ProjectionRunner[Application, TrackingRecorder]],
+        runner: weakref.ReferenceType[
+            ProjectionRunner[Application[Any], TrackingRecorder]
+        ],
     ) -> None:
         """Iterates over the subscription and calls process_event()."""
         try:

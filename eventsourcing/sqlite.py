@@ -313,7 +313,11 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
     ) -> Sequence[int] | None:
         params = [
             (
-                s.originator_id.hex,
+                (
+                    s.originator_id.hex
+                    if isinstance(s.originator_id, UUID)
+                    else s.originator_id
+                ),
                 s.originator_version,
                 s.topic,
                 s.state,
@@ -325,7 +329,7 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
 
     def select_events(
         self,
-        originator_id: UUID,
+        originator_id: UUID | str,
         *,
         gt: int | None = None,
         lte: int | None = None,
@@ -333,7 +337,9 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
         limit: int | None = None,
     ) -> Sequence[StoredEvent]:
         statement = self.select_events_statement
-        params: list[Any] = [originator_id.hex]
+        params: list[Any] = [
+            originator_id.hex if isinstance(originator_id, UUID) else originator_id
+        ]
         if gt is not None:
             statement += "AND originator_version>? "
             params.append(gt)
@@ -352,7 +358,7 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
             c.execute(statement, params)
             return [
                 StoredEvent(
-                    originator_id=UUID(row["originator_id"]),
+                    originator_id=row["originator_id"],
                     originator_version=row["originator_version"],
                     topic=row["topic"],
                     state=row["state"],
@@ -395,14 +401,18 @@ class SQLiteApplicationRecorder(
         **_: Any,
     ) -> Sequence[int] | None:
         returning = []
-        for stored_event in stored_events:
+        for s in stored_events:
             c.execute(
                 self.insert_events_statement,
                 (
-                    stored_event.originator_id.hex,
-                    stored_event.originator_version,
-                    stored_event.topic,
-                    stored_event.state,
+                    (
+                        s.originator_id.hex
+                        if isinstance(s.originator_id, UUID)
+                        else s.originator_id
+                    ),
+                    s.originator_version,
+                    s.topic,
+                    s.state,
                 ),
             )
             returning.append(c.lastrowid)
@@ -416,7 +426,7 @@ class SQLiteApplicationRecorder(
         topics: Sequence[str] = (),
         *,
         inclusive_of_start: bool = True,
-    ) -> list[Notification]:
+    ) -> Sequence[Notification]:
         """Returns a list of event notifications
         from 'start', limited by 'limit'.
         """
@@ -457,7 +467,7 @@ class SQLiteApplicationRecorder(
             return [
                 Notification(
                     id=row["rowid"],
-                    originator_id=UUID(row["originator_id"]),
+                    originator_id=row["originator_id"],
                     originator_version=row["originator_version"],
                     topic=row["topic"],
                     state=row["state"],

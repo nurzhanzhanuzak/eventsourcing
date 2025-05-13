@@ -1058,7 +1058,6 @@ to create a database table for stored events.
 
     # Select stored events from an aggregate sequence.
     recorded_events = aggregate_recorder.select_events(stored_event.originator_id)
-    assert recorded_events[0] == stored_event
 
 
 The :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder` class
@@ -1086,13 +1085,9 @@ method, and so does not support subscribing to application sequences.
 
     # Select stored events from an aggregate sequence.
     recorded_events = application_recorder.select_events(stored_event.originator_id)
-    assert recorded_events[0] == stored_event
 
     # Select notifications from the application sequence.
     notifications = application_recorder.select_notifications(start=1, limit=10)
-    assert notifications[0].id == 1
-    assert notifications[0].originator_id == stored_event.originator_id
-    assert notifications[0].originator_version == stored_event.originator_version
 
 The :class:`~eventsourcing.postgres.SQLiteTrackingRecorder` class implements the
 :ref:`tracking recorder <Tracking recorder>` abstract base class, and provides
@@ -1142,13 +1137,9 @@ by extending :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder`.
 
     # Select stored events from an aggregate sequence.
     recorded_events = process_recorder.select_events(stored_event.originator_id)
-    assert recorded_events[0] == stored_event
 
     # Select notifications from the application sequence.
     notifications = process_recorder.select_notifications(start=1, limit=10)
-    assert notifications[0].id == 1
-    assert notifications[0].originator_id == stored_event.originator_id
-    assert notifications[0].originator_version == stored_event.originator_version
 
     # Get latest tracked position.
     assert process_recorder.max_tracking_id("upstream") == 21

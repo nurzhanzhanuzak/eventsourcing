@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar, cast
+from uuid import UUID
 
 import orjson
 from pydantic import BaseModel
@@ -48,7 +49,7 @@ class OrjsonTranscoder(Transcoder):
         return orjson.loads(data)
 
 
-class PydanticApplication(Application):
+class PydanticApplication(Application[UUID]):
     env: ClassVar[dict[str, str]] = {
         "TRANSCODER_TOPIC": get_topic(OrjsonTranscoder),
         "MAPPER_TOPIC": get_topic(PydanticMapper),

@@ -275,7 +275,7 @@ class TestFollower(TestCase):
             email_process.process_event(aggregate_event, tracking)
 
     def test_filter_received_notifications(self) -> None:
-        class MyFollower(Follower):
+        class MyFollower(Follower[UUID]):
             topics: ClassVar[Sequence[str]] = []
 
             @singledispatchmethod
