@@ -24,6 +24,29 @@ with previous major versions. However the underlying principles are the
 same, and so conversion of code and stored events is very possible.
 
 
+Version 9.4.5 (released 14 May 2025)
+-----------------------------------
+
+* Added support for enforced explicit topics on aggregate and event classes, with discussion and examples in domain module doc.
+* Fixed support for string aggregate IDs.
+
+    * Changed Application, MutableAggregateProtocol, ImmutableAggregateProtocol, HasOriginatorIDVersion, CanMutateAggregate, CanInitAggregate, CanSnapshotAggregate and BaseAggregate to be generic classes parameterised by a type variable constrained to be UUID or str.
+    * Changed StoredEvent.originator_id to be a union of UUID and str. Also changed various methods that have originator_id as an argument to accept UUID or str.
+    * Adjusted POPO recorders to use str to key dict of aggregate sequences internally.
+    * Adjusted SQLite recorders (which already store originator IDs as TEXT) to conditionally convert originator IDs to str when inserting events, and to return originator IDs as str rather than always trying to convert to UUID.
+    * Changed Mapper.to_domain_event() to find from the resolved event class the declared type of its originator_id attribute, and then convert originator_id values from StoredEvent objects to UUID if the attribute type is UUID and the value is str.
+    * Changed DomainEvent, which definitely uses UUID aggregate IDs, to assert that its originator_id value is a UUID (just like Pydantic and msgspec Struct will do).
+    * Deprecated BaseAggregate.create_id() in favour of defining this on a subclass that has a definite type of aggregate ID. Because it's not possible to return an indefinite type of object.
+
+* Added example of string aggregate IDs, demonstrating aggregate and application works with the core library, the POPO persistence module, the SQLite persistence module, and the KurrentDB persistence module, both functionally and with static type checking.
+* Changed type annotations from list[Notification] to Sequence[Notification] in various places.
+* Changed type annotations from list[StoredEvent] to Sequence[StoredEvent] in various places.
+* Added example showing how to use msgspec structs for both immutable and mutable domain models.
+* Extracted benchmarks from the test suite into a separate folder, and recoded them using pytest-benchmark.
+* Included benchmark results showing absolute and relative performance of domain event/stored event mappers for json, pydantic and msgspec.
+* Resolved sqlite deprecation warning by configuring adapters for date, datetime, and timestamp values.
+
+
 Version 9.4.4 (released 9 May 2025)
 -----------------------------------
 
