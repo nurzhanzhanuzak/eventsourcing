@@ -46,21 +46,21 @@ that string IDs can be used in the both the POPO and SQLite persistence modules.
 Code reference
 --------------
 
-.. automodule:: examples.aggregate2.domainmodel
+.. automodule:: examples.aggregate11.domainmodel
     :show-inheritance:
     :member-order: bysource
     :members:
     :undoc-members:
     :special-members: __init__
 
-.. automodule:: examples.aggregate2.application
+.. automodule:: examples.aggregate11.application
     :show-inheritance:
     :member-order: bysource
     :members:
     :undoc-members:
     :special-members: __init__
 
-.. automodule:: examples.aggregate2.test_application
+.. automodule:: examples.aggregate11.test_application
     :show-inheritance:
     :member-order: bysource
     :members:
