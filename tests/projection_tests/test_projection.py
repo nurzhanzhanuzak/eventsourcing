@@ -283,7 +283,7 @@ class TestEventCountersProjection(TestCase, ABC):
     def test_event_counters_projection(self) -> None:
         # Construct runner with application, projection, and recorder.
         with ProjectionRunner(
-            application_class=Application,
+            application_class=Application[UUID],
             projection_class=EventCountersProjection,
             view_class=self.view_class,
             env=self.env,
@@ -328,7 +328,7 @@ class TestEventCountersProjection(TestCase, ABC):
     def test_run_forever_raises_projection_error(self) -> None:
         # Construct runner with application, projection, and recorder.
         with ProjectionRunner(
-            application_class=Application,
+            application_class=Application[UUID],
             projection_class=EventCountersProjection,
             view_class=self.view_class,
             env=self.env,
@@ -375,7 +375,7 @@ class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
 
         # Resume....
         with ProjectionRunner(
-            application_class=Application,
+            application_class=Application[UUID],
             projection_class=EventCountersProjection,
             view_class=self.view_class,
             env=self.env,
@@ -430,7 +430,7 @@ class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
 
         # Resume...
         with ProjectionRunner(
-            application_class=Application,
+            application_class=Application[UUID],
             projection_class=EventCountersProjection,
             view_class=self.view_class,
             env=self.env,

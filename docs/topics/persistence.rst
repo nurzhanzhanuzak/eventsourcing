@@ -207,7 +207,7 @@ can be constructed without any arguments.
 
 .. code-block:: python
 
-    from eventsourcing.persistence import JSONTranscoder
+    from eventsourcing.persistence import Transcoder, JSONTranscoder
 
     transcoder = JSONTranscoder()
 
@@ -217,8 +217,8 @@ serialisation and deserialisation. The serialised state is a Python :class:`byte
 
 .. code-block:: python
 
-    data = transcoder.encode({"a": 4})
-    copy = transcoder.decode(data)
+    json_bytes = transcoder.encode({"a": 4})
+    copy = transcoder.decode(json_bytes)
     assert copy == {"a": 4}
 
 The library's :class:`~eventsourcing.persistence.JSONTranscoder` uses the Python
@@ -253,13 +253,13 @@ transcodes a Python :class:`~uuid.UUID` objects as a hexadecimal string.
 .. code-block:: python
 
     from uuid import UUID
-    from eventsourcing.persistence import UUIDAsHex
+    from eventsourcing.persistence import Transcoding, UUIDAsHex
 
-    transcoding = UUIDAsHex()
+    uuid_transcoding = UUIDAsHex()
 
     id1 = UUID("ffffffffffffffffffffffffffffffff")
-    data = transcoding.encode(id1)
-    copy = transcoding.decode(data)
+    python_str = uuid_transcoding.encode(id1)
+    copy = uuid_transcoding.decode(python_str)
     assert copy == id1
 
 
@@ -271,11 +271,11 @@ transcodes Python :class:`~datetime.datetime` objects as ISO strings.
     from datetime import datetime
     from eventsourcing.persistence import DatetimeAsISO
 
-    transcoding = DatetimeAsISO()
+    datetime_transcoding = DatetimeAsISO()
 
     datetime1 = datetime(2021, 12, 31, 23, 59, 59)
-    data = transcoding.encode(datetime1)
-    copy = transcoding.decode(data)
+    python_str = datetime_transcoding.encode(datetime1)
+    copy = datetime_transcoding.decode(python_str)
     assert copy == datetime1
 
 
@@ -287,11 +287,11 @@ transcodes Python :class:`~decimal.Decimal` objects as decimal strings.
     from decimal import Decimal
     from eventsourcing.persistence import DecimalAsStr
 
-    transcoding = DecimalAsStr()
+    decimal_transcoding = DecimalAsStr()
 
     decimal1 = Decimal("1.2345")
-    data = transcoding.encode(decimal1)
-    copy = transcoding.decode(data)
+    python_str = decimal_transcoding.encode(decimal1)
+    copy = decimal_transcoding.decode(python_str)
     assert copy == decimal1
 
 
@@ -304,16 +304,16 @@ Transcodings are registered with the transcoder using the transcoder object's
     transcoder.register(DatetimeAsISO())
     transcoder.register(DecimalAsStr())
 
-    data = transcoder.encode(id1)
-    copy = transcoder.decode(data)
+    json_bytes = transcoder.encode(id1)
+    copy = transcoder.decode(json_bytes)
     assert copy == id1
 
-    data = transcoder.encode(datetime1)
-    copy = transcoder.decode(data)
+    json_bytes = transcoder.encode(datetime1)
+    copy = transcoder.decode(json_bytes)
     assert copy == datetime1
 
-    data = transcoder.encode(decimal1)
-    copy = transcoder.decode(data)
+    json_bytes = transcoder.encode(decimal1)
+    copy = transcoder.decode(json_bytes)
     assert copy == decimal1
 
 
@@ -326,7 +326,7 @@ Attempting to serialize an unsupported type will result in a Python :class:`Type
     date1 = date(2021, 12, 31)
 
     try:
-        data = transcoder.encode(date1)
+        JSONTranscoder().encode(date1)
     except TypeError as e:
         assert e.args[0] == (
             "Object of type <class 'datetime.date'> is not serializable. "
@@ -341,7 +341,7 @@ Attempting to deserialize an unsupported type will also result in a Python :clas
 .. code-block:: python
 
     try:
-        JSONTranscoder().decode(data)
+        JSONTranscoder().decode(json_bytes)
     except TypeError as e:
         assert e.args[0] == (
             "Data serialized with name 'decimal_str' is not deserializable. "
@@ -375,8 +375,8 @@ convert that representation back to an instance of that type.
             return date.fromisoformat(data)
 
     transcoder.register(DateAsISO())
-    data = transcoder.encode(date1)
-    copy = transcoder.decode(data)
+    json_bytes = transcoder.encode(date1)
+    copy = transcoder.decode(json_bytes)
     assert copy == date1
 
 
@@ -392,8 +392,8 @@ performance penalty in the transcoding of domain event objects.
 
 .. code-block:: python
 
-    data = transcoder.encode((1, 2, 3))
-    copy = transcoder.decode(data)
+    json_bytes = transcoder.encode((1, 2, 3))
+    copy = transcoder.decode(json_bytes)
     assert isinstance(copy, list)
     assert copy == [1, 2, 3]
 
@@ -412,6 +412,7 @@ transcoding simply returns that object.
 
 .. code-block:: python
 
+    from typing import Any
     from uuid import UUID
 
     class SimpleCustomValue:
@@ -419,7 +420,7 @@ transcoding simply returns that object.
             self.id = id
             self.date = date
 
-        def __eq__(self, other):
+        def __eq__(self, other: object) -> bool:
             return (
                 isinstance(other, SimpleCustomValue) and
                 self.id == other.id and self.date == other.date
@@ -429,7 +430,7 @@ transcoding simply returns that object.
         def __init__(self, value: SimpleCustomValue):
             self.value = value
 
-        def __eq__(self, other):
+        def __eq__(self, other: object) -> bool:
             return (
                 isinstance(other, ComplexCustomValue) and
                 self.value == other.value
@@ -439,10 +440,10 @@ transcoding simply returns that object.
         type = SimpleCustomValue
         name = "simple_custom_value"
 
-        def encode(self, obj: SimpleCustomValue) -> dict:
+        def encode(self, obj: SimpleCustomValue) -> dict[str, Any]:
             return {"id": obj.id, "date": obj.date}
 
-        def decode(self, data: dict) -> SimpleCustomValue:
+        def decode(self, data: dict[str, Any]) -> SimpleCustomValue:
             assert isinstance(data, dict)
             return SimpleCustomValue(**data)
 
@@ -476,8 +477,8 @@ We can now transcode an instance of :class:`ComplexCustomValueAsDict`.
         )
     )
 
-    data = transcoder.encode(obj1)
-    copy = transcoder.decode(data)
+    json_bytes = transcoder.encode(obj1)
+    copy = transcoder.decode(json_bytes)
     assert copy == obj1
 
 
@@ -491,14 +492,13 @@ avoid defining transcodings that return such a thing.
 
 .. code-block:: python
 
-    expected_data = (
+    assert json_bytes == (
         b'{"_type_":"complex_custom_value","_data_":{"_type_":'
         b'"simple_custom_value","_data_":{"id":{"_type_":'
         b'"uuid_hex","_data_":"b2723fe2c01a40d2875ea3aac6a09ff5"},'
         b'"date":{"_type_":"date_iso","_data_":"2000-02-20"}'
         b'}}}'
     )
-    assert data == expected_data
 
 
 .. _Mapper:
@@ -517,7 +517,7 @@ must be constructed with a :ref:`transcoder<Transcoder>` object.
 
     from eventsourcing.persistence import Mapper
 
-    mapper = Mapper(transcoder=transcoder)
+    mapper = Mapper[UUID](transcoder=transcoder)
 
 The :class:`~eventsourcing.persistence.Mapper` class defines a :func:`~eventsourcing.persistence.Mapper.to_stored_event`
 method, which converts :class:`~eventsourcing.domain.DomainEvent` objects to :class:`~eventsourcing.persistence.StoredEvent`
@@ -716,7 +716,7 @@ the position of a stored event in an application sequence.
         id=123,
         originator_id=uuid4(),
         originator_version=1,
-        state="{}",
+        state=b"{}",
         topic="eventsourcing.model:DomainEvent",
     )
 
@@ -1065,7 +1065,7 @@ implements the :ref:`application recorder <Application recorder>` abstract base 
 by extending :class:`~eventsourcing.popo.SQLiteAggregateRecorder`.
 
 Please note, the :class:`~eventsourcing.sqlite.SQLiteApplicationRecorder` class
-does not implement the `:func:`~eventsourcing.persistence.ApplicationRecorder.subscribe`
+does not implement the :func:`ApplicationRecorder.subscribe() <eventsourcing.persistence.ApplicationRecorder.subscribe>`
 method, and so does not support subscribing to application sequences.
 
 
@@ -1368,7 +1368,7 @@ in the order in which they were created.
 
     application_recorder = POPOApplicationRecorder()
 
-    event_store = EventStore(
+    event_store = EventStore[UUID](
         mapper=mapper,
         recorder=application_recorder,
     )

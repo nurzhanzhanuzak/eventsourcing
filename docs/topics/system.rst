@@ -25,12 +25,12 @@ The library's system class...
 
     class Dog(Aggregate):
         @event('Registered')
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
-            self.tricks = []
+            self.tricks: list[str] = []
 
         @event('TrickAdded')
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 
@@ -39,21 +39,25 @@ Now let's define an application...
 
 .. code-block:: python
 
+    from typing import Any
+    from uuid import UUID
+
     from eventsourcing.application import Application
 
-    class DogSchool(Application):
-        def register_dog(self, name):
+
+    class DogSchool(Application[UUID]):
+        def register_dog(self, name: str) -> UUID:
             dog = Dog(name)
             self.save(dog)
             return dog.id
 
-        def add_trick(self, dog_id, trick):
-            dog = self.repository.get(dog_id)
+        def add_trick(self, dog_id: UUID, trick: str) -> None:
+            dog: Dog = self.repository.get(dog_id)
             dog.add_trick(trick)
             self.save(dog)
 
-        def get_dog(self, dog_id):
-            dog = self.repository.get(dog_id)
+        def get_dog(self, dog_id: UUID) -> dict[str, Any]:
+            dog: Dog = self.repository.get(dog_id)
             return {'name': dog.name, 'tricks': tuple(dog.tricks)}
 
 
@@ -64,45 +68,45 @@ Now let's define an analytics application...
     from uuid import uuid5, NAMESPACE_URL
 
     class Counter(Aggregate):
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
             self.count = 0
 
         @classmethod
-        def create_id(cls, name):
+        def create_id(cls, name: str) -> UUID:
             return uuid5(NAMESPACE_URL, f'/counters/{name}')
 
         @event('Incremented')
-        def increment(self):
+        def increment(self) -> None:
             self.count += 1
 
 
 .. code-block:: python
 
-    from eventsourcing.application import AggregateNotFoundError
+    from eventsourcing.application import AggregateNotFoundError, ProcessingEvent
     from eventsourcing.system import ProcessApplication
     from eventsourcing.dispatch import singledispatchmethod
 
-    class Counters(ProcessApplication):
+    class Counters(ProcessApplication[UUID]):
         @singledispatchmethod
-        def policy(self, domain_event, process_event):
+        def policy(self, domain_event: DomainEventProtocol[UUID], processing_event: ProcessingEvent[UUID]) -> None:
             """Default policy"""
 
-        @policy.register(Dog.TrickAdded)
-        def _(self, domain_event, process_event):
+        @policy.register
+        def _(self, domain_event: Dog.TrickAdded, processing_event: ProcessingEvent[UUID]) -> None:
             trick = domain_event.trick
             try:
                 counter_id = Counter.create_id(trick)
-                counter = self.repository.get(counter_id)
+                counter: Counter = self.repository.get(counter_id)
             except AggregateNotFoundError:
                 counter = Counter(trick)
             counter.increment()
-            process_event.collect_events(counter)
+            processing_event.collect_events(counter)
 
-        def get_count(self, trick):
+        def get_count(self, trick: str) -> int:
             counter_id = Counter.create_id(trick)
             try:
-                counter = self.repository.get(counter_id)
+                counter: Counter = self.repository.get(counter_id)
             except AggregateNotFoundError:
                 return 0
             return counter.count
@@ -118,9 +122,9 @@ Single-threaded runner
 
 .. code-block:: python
 
-    from eventsourcing.system import SingleThreadedRunner
+    from eventsourcing.system import SingleThreadedRunner, Runner
 
-    runner = SingleThreadedRunner(system)
+    runner: Runner[UUID] = SingleThreadedRunner(system)
     runner.start()
 
     school = runner.get(DogSchool)

@@ -26,7 +26,7 @@ simply subclassing :class:`~eventsourcing.domain.Aggregate`.
 .. code-block:: python
 
     class Dog(Aggregate):
-        def __init__(self):
+        def __init__(self) -> None:
             pass
 
 
@@ -79,6 +79,7 @@ method.
 
     copy = events[0].mutate(None)
 
+    assert copy is not None
     assert copy.id == dog.id
 
 Using events to determine the state of an aggregate is the essence of event
@@ -115,14 +116,14 @@ The changes are highlighted below.
 ..
     from eventsourcing.utils import clear_topic_cache
     clear_topic_cache()
-    del Dog
+    #del Dog
 
 .. code-block:: python
   :emphasize-lines: 2
 
     class Dog(Aggregate):
         @event('Registered')
-        def __init__(self):
+        def __init__(self) -> None:
             pass
 
 We can see the ``Dog`` class has a nested class ``Dog.Registered``.
@@ -151,14 +152,14 @@ given value of the argument. The changes are highlighted below.
     #include-when-testing
 ..
     clear_topic_cache()
-    del Dog
+    #del Dog
 
 .. code-block:: python
   :emphasize-lines: 3-4
 
     class Dog(Aggregate):
         @event('Registered')
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
 
 Now, when we call the ``Dog`` class, we need to provide a value for
@@ -236,6 +237,7 @@ reconstruct the initial state of the aggregate.
 
     copy = events[0].mutate(None)
 
+    assert copy is not None
     assert copy.id == dog.id
     assert copy.name == dog.name
 
@@ -285,19 +287,19 @@ highlighted below.
     #include-when-testing
 ..
     clear_topic_cache()
-    del Dog
+    #del Dog
 
 .. code-block:: python
     :emphasize-lines: 5,7-9
 
     class Dog(Aggregate):
         @event('Registered')
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
-            self.tricks = []
+            self.tricks: list[str] = []
 
         @event('TrickAdded')
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 
@@ -423,7 +425,7 @@ The event class definitions are interpreted as `Python data classes <https://doc
     #include-when-testing
 ..
     clear_topic_cache()
-    del Dog
+    #del Dog
 
 .. code-block:: python
     :emphasize-lines: 2,3,5,10,11,13
@@ -433,15 +435,15 @@ The event class definitions are interpreted as `Python data classes <https://doc
             name: str
 
         @event(Registered)
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
-            self.tricks = []
+            self.tricks: list[str] = []
 
         class TrickAdded(Aggregate.Event):
             trick: str
 
         @event(TrickAdded)
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 
@@ -501,23 +503,23 @@ command method ``add_trick()`` that calls a decorated "private" method ``_add_tr
     #include-when-testing
 ..
     clear_topic_cache()
-    del Dog
+    #del Dog
 
 .. code-block:: python
 
     class Dog(Aggregate):
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
-            self.tricks = []
+            self.tricks: list[str] = []
 
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             # Do some work.
             assert isinstance(trick, str)
             # Trigger event.
             self._add_trick(trick=trick)
 
         @event('TrickAdded')
-        def _add_trick(self, trick):
+        def _add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 
@@ -573,18 +575,18 @@ to be ``'ItemAdded'``. Copy the test below and make it pass.
 ..
     class Todos(Aggregate):
         @event('Started')
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
-            self.items = []
+            self.items: list[str] = []
 
         @event('ItemAdded')
-        def add_item(self, item):
+        def add_item(self, item: str) -> None:
             self.items.append(item)
 
 
 .. code-block:: python
 
-    def test():
+    def test() -> None:
 
         # Start a list of todos, and add some items.
         todos1 = Todos(name='Shopping list')

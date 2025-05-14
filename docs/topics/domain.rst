@@ -156,7 +156,7 @@ new balance of £80. That might be coded as follows:
         def __init__(self, starting_balance: int):
             self.balance = starting_balance
 
-        def debit(self, amount):
+        def debit(self, amount: int) -> None:
             self.balance = self.balance - amount
 
 
@@ -326,10 +326,10 @@ The :class:`~eventsourcing.domain.AggregateEvent` class can be instantiated dire
 
 
 The :class:`~eventsourcing.domain.AggregateEvent` class extends
-:class:`~eventsourcing.domain.DomainEvent` by inheriting two methods
-from the class :class:`~eventsourcing.domain.CanMutateAggregate`:
+:class:`~eventsourcing.domain.DomainEvent` by inheriting
 :func:`~eventsourcing.domain.CanMutateAggregate.mutate` and
-:func:`~eventsourcing.domain.CanMutateAggregate.apply`.
+:func:`~eventsourcing.domain.CanMutateAggregate.apply` from
+:class:`~eventsourcing.domain.CanMutateAggregate`.
 
 Although the :class:`~eventsourcing.domain.AggregateEvent` class can be
 instantiated directly, more typically subclasses are defined to code
@@ -385,6 +385,7 @@ results in a new aggregate object.
 
     a = created_event.mutate(None)
 
+    assert a is not None
     assert a.__class__.__name__ == "Aggregate"
     assert a.__class__.__module__ == "eventsourcing.domain"
     assert a.id == originator_id
@@ -504,10 +505,12 @@ how a particular event evolves the state of a particular aggregate.
 
 .. code-block:: python
 
+    from typing import Any
+
     class MyEvent(AggregateEvent):
         full_name: str
 
-        def apply(self, aggregate):
+        def apply(self, aggregate: Any) -> None:
             aggregate.full_name = self.full_name
 
 
@@ -562,7 +565,12 @@ an aggregate projector by iterating over a sequence of events and calling
 
 .. code-block:: python
 
-    def reconstruct_aggregate_from_events(events):
+    from collections.abc import Sequence
+
+    from eventsourcing.domain import CanMutateAggregate, BaseAggregate
+
+
+    def reconstruct_aggregate_from_events(events: Sequence[CanMutateAggregate[Any]]) -> BaseAggregate[Any] | None:
         a = None
         for event in events:
             a = event.mutate(a)
@@ -617,7 +625,7 @@ of events is then used to reconstruct the "current state" of the aggregate. The 
 .. code-block:: python
 
     class AggregateDiscarded(AggregateEvent):
-        def mutate(self, aggregate):
+        def mutate(self, aggregate: Any) -> Any:
             super().mutate(aggregate)
             return None
 
@@ -972,25 +980,27 @@ In the example below, the ``Dog`` aggregate is defined as a subclass of the :cla
 
 .. code-block:: python
 
+    from typing_extensions import Self
+
     class Dog(Aggregate):
-        def __init__(self):
-            self.tricks = []
+        def __init__(self) -> None:
+            self.tricks: list[str] = []
 
         @classmethod
-        def create(cls):
+        def create(cls) -> Self:
             return cls._create(cls.Created, id=uuid4())
 
         class Created(Aggregate.Created):
             pass
 
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.trigger_event(self.TrickAdded, trick=trick)
 
         class TrickAdded(Aggregate.Event):
             trick: str
 
-            def apply(self, dog):
-                dog.tricks.append(self.trick)
+            def apply(self, aggregate: Dog) -> None:
+                aggregate.tricks.append(self.trick)
 
 
 The ``__init__()`` method
@@ -1109,8 +1119,8 @@ the current state of the aggregate, by calling their
 .. code-block:: python
 
     copy = None
-    for domain_event in pending_events:
-        copy = domain_event.mutate(copy)
+    for new_event in pending_events:
+        copy = new_event.mutate(copy)
 
     assert isinstance(copy, Dog)
     assert copy.id == dog.id
@@ -1174,7 +1184,7 @@ how this can work.
             self.body = body
 
         @classmethod
-        def create(cls, name: str, body: str = ""):
+        def create(cls, name: str, body: str = "") -> Self:
             return cls._create(
                 event_class=cls.Created,
                 name=name,
@@ -1185,14 +1195,14 @@ how this can work.
             name: str
             body: str
 
-        def update_name(self, name: str):
+        def update_name(self, name: str) -> None:
             self.trigger_event(self.NameUpdated, name=name)
 
         class NameUpdated(Aggregate.Event):
             name: str
 
-            def apply(self, page):
-                page.name = self.name
+            def apply(self, aggregate: Page):
+                aggregate.name = self.name
 
 
     class Index(Aggregate):
@@ -1201,7 +1211,7 @@ how this can work.
             self.ref = ref
 
         @classmethod
-        def create(cls, name: str, ref: UUID):
+        def create(cls, name: str, ref: UUID) -> Self:
             return cls._create(
                 event_class=cls.Created,
                 id=cls.create_id(page.name),
@@ -1210,21 +1220,21 @@ how this can work.
             )
 
         @staticmethod
-        def create_id(name: str):
+        def create_id(name: str) -> UUID:
             return uuid5(NAMESPACE_URL, f"/pages/{name}")
 
         class Created(Aggregate.Created):
             name: str
             ref: UUID
 
-        def update_ref(self, ref):
+        def update_ref(self, ref: UUID) -> None:
             self.trigger_event(self.RefUpdated, ref=ref)
 
         class RefUpdated(Aggregate.Event):
             ref: Optional[UUID]
 
-            def apply(self, index):
-                index.ref = self.ref
+            def apply(self, aggregate: Index):
+                aggregate.ref = self.ref
 
 
 We can use the classes above to create a "page" aggregate with a name that
@@ -1333,15 +1343,15 @@ particular type of event to the aggregate in a particular way.
 .. code-block:: python
 
     class Dog(Aggregate):
-        def __init__(self):
+        def __init__(self) -> None:
             self.tricks = []
 
         @classmethod
-        def create(cls):
+        def create(cls) -> Self:
             return cls._create(cls.Created, id=uuid4())
 
         class Event(Aggregate.Event):
-            def apply(self, aggregate) -> None:
+            def apply(self, aggregate: Dog) -> None:
                 aggregate.apply(self)
 
         class Created(Aggregate.Created, Event):
@@ -1350,11 +1360,11 @@ particular type of event to the aggregate in a particular way.
         class TrickAdded(Event):
             trick: str
 
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.trigger_event(self.TrickAdded, trick=trick)
 
         @singledispatchmethod
-        def apply(self, event) -> None:
+        def apply(self, event: Any) -> None:
             pass
 
         @apply.register
@@ -1491,7 +1501,7 @@ that has an attribute ``name``.
 .. code-block:: python
 
     class Cat(Aggregate):
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
 
 
@@ -1740,7 +1750,7 @@ aggregate. You can do this by defining a ``create_id()`` method.
         number: str
 
         @staticmethod
-        def create_id(number: str):
+        def create_id(number: str) -> UUID:
             return uuid5(NAMESPACE_URL, f"/invoices/{number}")
 
 
@@ -1835,7 +1845,7 @@ can be passed to the decorator as a Python :class:`str`.
         name: str
 
         @event("NameUpdated")
-        def update_name(self, name):
+        def update_name(self, name: str) -> None:
             self.name = name
 
 
@@ -1879,16 +1889,16 @@ This decorator also works with the ``__init__()`` methods.
 
     class Journey(Aggregate):
         @event("Started")
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
 
 
     # Call the class with a 'name' argument.
-    agg = Journey(name="My Holiday")
-    assert agg.name == "My Holiday"
+    journey = Journey(name="My Holiday")
+    assert journey.name == "My Holiday"
 
     # There is one pending event.
-    pending_events = agg.collect_events()
+    pending_events = journey.collect_events()
     assert len(pending_events) == 1
 
     # The pending event is a "created" event.
@@ -1902,7 +1912,7 @@ This decorator also works with the ``__init__()`` methods.
 
     # The "created" event can be used to reconstruct the aggregate.
     copy = pending_events[0].mutate(None)
-    assert copy.name == agg.name
+    assert copy.name == journey.name
 
 
 Inferring the event class name from the method name
@@ -1932,7 +1942,7 @@ and then by concatenating the capitalised parts to give an
         name: str
 
         @event
-        def name_updated(self, name):
+        def name_updated(self, name: str) -> None:
             self.name = name
 
 
@@ -1975,29 +1985,29 @@ it might be desirable to skip on having an event triggered.
     class Ship(Aggregate):
         name: str
 
-        def update_name(self, name):
+        def update_name(self, name: str) -> None:
             if name != self.name:
                 self.name_updated(name)
 
         @event
-        def name_updated(self, name):
+        def name_updated(self, name: str) -> None:
             self.name = name
 
     # Create an aggregate.
-    agg = Ship(name="Invincible")
-    assert agg.name == "Invincible"
+    ship = Ship(name="Invincible")
+    assert ship.name == "Invincible"
 
     # Update the name lots of times.
-    agg.update_name("Invincible")
-    agg.update_name("Invincible")
-    agg.update_name("Invincible")
-    agg.update_name("Queen Mary")
-    agg.update_name("Queen Mary")
-    agg.update_name("Queen Mary")
-    agg.update_name("Queen Mary")
+    ship.update_name("Invincible")
+    ship.update_name("Invincible")
+    ship.update_name("Invincible")
+    ship.update_name("Queen Mary")
+    ship.update_name("Queen Mary")
+    ship.update_name("Queen Mary")
+    ship.update_name("Queen Mary")
 
     # There are two pending events (not eight).
-    pending_events = agg.collect_events()
+    pending_events = ship.collect_events()
     assert len(pending_events) == 2, len(pending_events)
 
 
@@ -2022,20 +2032,20 @@ instead of the :func:`@event<eventsourcing.domain.event>` decorator (it does the
             name: str
 
         @triggers(NameUpdated)
-        def update_name(self, name):
+        def update_name(self, name: str) -> None:
             self.name = name
 
 
     # Create an aggregate.
-    agg = Gallery(name="The Stone Age")
-    assert agg.name == "The Stone Age"
+    gallery = Gallery(name="The Stone Age")
+    assert gallery.name == "The Stone Age"
 
     # Update the name.
-    agg.update_name("The Bronze Age")
-    assert agg.name == "The Bronze Age"
+    gallery.update_name("The Bronze Age")
+    assert gallery.name == "The Bronze Age"
 
     # There are two pending events.
-    pending_events = agg.collect_events()
+    pending_events = gallery.collect_events()
     assert len(pending_events) == 2
     assert pending_events[0].name == "The Stone Age"
 
@@ -2062,11 +2072,11 @@ expressed more concisely in the following way.
 .. code-block:: python
 
     class Dog(Aggregate):
-        def __init__(self):
-            self.tricks = []
+        def __init__(self) -> None:
+            self.tricks: list[str] = []
 
         @event("TrickAdded")
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 
@@ -2137,7 +2147,7 @@ concisely in the following way.
         body: str = ""
 
         @event("NameUpdated")
-        def update_name(self, name: str):
+        def update_name(self, name: str) -> None:
             self.name = name
 
 
@@ -2147,11 +2157,11 @@ concisely in the following way.
         ref: Optional[UUID]
 
         @staticmethod
-        def create_id(name: str):
+        def create_id(name: str) -> UUID:
             return uuid5(NAMESPACE_URL, f"/pages/{name}")
 
         @event("RefUpdated")
-        def update_ref(self, ref: Optional[UUID]):
+        def update_ref(self, ref: Optional[UUID]) -> None:
             self.ref = ref
 
 
@@ -2229,20 +2239,20 @@ order has been confirmed.
 .. code-block:: python
 
     class Order:
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
             self.confirmed_at = None
             self.pickedup_at = None
 
-        def confirm(self, at):
+        def confirm(self, at: datetime) -> None:
             self.confirmed_at = at
 
-        def pickup(self, at):
+        def pickup(self, at: datetime) -> None:
             if self.confirmed_at is None:
                 raise AssertionError("Order is not confirmed")
             self._pickup(at)
 
-        def _pickup(self, at):
+        def _pickup(self, at: datetime) -> None:
             self.pickedup_at = at
 
 
@@ -2726,7 +2736,7 @@ that their topics will be registered and so can be resolved,
     from eventsourcing.domain import BaseAggregate
 
 
-    class ServiceContract(BaseAggregate):
+    class ServiceContract(BaseAggregate[UUID]):
         TOPIC = "ServiceContract"
 
         class Event(AggregateEvent):

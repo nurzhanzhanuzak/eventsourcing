@@ -115,23 +115,23 @@ as the :ref:`simple example <Aggregate simple example>` in the domain module doc
 
 
     class Dog(Aggregate):
-        def __init__(self):
-            self.tricks = []
+        def __init__(self) -> None:
+            self.tricks: list[str] = []
 
         @classmethod
-        def create(cls):
+        def create(cls) -> Dog:
             return cls._create(
                 event_class=cls.Created,
                 id=uuid4(),
             )
 
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.trigger_event(Dog.TrickAdded, trick=trick)
 
         class TrickAdded(AggregateEvent):
             trick: str
 
-            def apply(self, dog):
+            def apply(self, dog: Dog) -> None:
                 dog.tricks.append(self.trick)
 
 
@@ -142,19 +142,19 @@ as the :ref:`simple example <Aggregate simple example>` in the domain module doc
     from eventsourcing.application import Application
 
 
-    class DogSchool(Application):
+    class DogSchool(Application[UUID]):
         def register_dog(self) -> UUID:
             dog = Dog.create()
             self.save(dog)
             return dog.id
 
-        def add_trick(self, dog_id: UUID, trick: str):
-            dog = self.repository.get(dog_id)
+        def add_trick(self, dog_id: UUID, trick: str) -> None:
+            dog: Dog = self.repository.get(dog_id)
             dog.add_trick(trick)
             self.save(dog)
 
         def get_tricks(self, dog_id: UUID) -> list[str]:
-            dog = self.repository.get(dog_id)
+            dog: Dog = self.repository.get(dog_id)
             return list(dog.tricks)
 
 
@@ -182,15 +182,15 @@ are then obtained by calling ``get_tricks()`` method.
 
 .. code-block:: python
 
-    application = DogSchool()
+    dog_school = DogSchool()
 
-    dog_id = application.register_dog()
+    dog_id = dog_school.register_dog()
 
-    application.add_trick(dog_id, "roll over")
-    application.add_trick(dog_id, "fetch ball")
-    application.add_trick(dog_id, "play dead")
+    dog_school.add_trick(dog_id, "roll over")
+    dog_school.add_trick(dog_id, "fetch ball")
+    dog_school.add_trick(dog_id, "play dead")
 
-    tricks = application.get_tricks(dog_id)
+    tricks = dog_school.get_tricks(dog_id)
     assert tricks[0] == "roll over"
     assert tricks[1] == "fetch ball"
     assert tricks[2] == "play dead"
@@ -221,7 +221,7 @@ aggregate, and then using these to reconstruct an aggregate object.
 
 .. code-block:: python
 
-    dog_latest = application.repository.get(dog_id)
+    dog_latest: Dog = dog_school.repository.get(dog_id)
 
     assert len(dog_latest.tricks) == 3
     assert dog_latest.version == 4
@@ -234,9 +234,9 @@ exists in the repository.
 
 .. code-block:: python
 
-    assert dog_id in application.repository
+    assert dog_id in dog_school.repository
 
-    assert uuid4() not in application.repository
+    assert uuid4() not in dog_school.repository
 
 
 The repository :func:`~eventsourcing.application.Repository.get` method accepts
@@ -251,30 +251,30 @@ highest available version of the aggregate will be returned.
 
 .. code-block:: python
 
-    dog_v1 = application.repository.get(dog_id, version=1)
+    dog_v1: Dog = dog_school.repository.get(dog_id, version=1)
 
     assert dog_v1.version == 1
     assert len(dog_v1.tricks) == 0
 
-    dog_v2 = application.repository.get(dog_id, version=2)
+    dog_v2: Dog = dog_school.repository.get(dog_id, version=2)
 
     assert dog_v2.version == 2
     assert len(dog_v2.tricks) == 1
     assert dog_v2.tricks[-1] == "roll over"
 
-    dog_v3 = application.repository.get(dog_id, version=3)
+    dog_v3: Dog = dog_school.repository.get(dog_id, version=3)
 
     assert dog_v3.version == 3
     assert len(dog_v3.tricks) == 2
     assert dog_v3.tricks[-1] == "fetch ball"
 
-    dog_v4 = application.repository.get(dog_id, version=4)
+    dog_v4: Dog = dog_school.repository.get(dog_id, version=4)
 
     assert dog_v4.version == 4
     assert len(dog_v4.tricks) == 3
     assert dog_v4.tricks[-1] == "play dead"
 
-    dog_v5 = application.repository.get(dog_id, version=5)
+    dog_v5: Dog = dog_school.repository.get(dog_id, version=5)
 
     assert dog_v5.version == 4  # There is no version 5.
     assert len(dog_v5.tricks) == 3
@@ -305,7 +305,7 @@ The application object attribute ``notification_log`` is an instance of
 
     from eventsourcing.application import LocalNotificationLog
 
-    assert isinstance(application.notification_log, LocalNotificationLog)
+    assert isinstance(dog_school.notification_log, LocalNotificationLog)
 
 
 This class implements an abstract base class :class:`~eventsourcing.application.NotificationLog`
@@ -351,7 +351,7 @@ notification log of the :class:`~eventsourcing.application.Application` object.
 
 .. code-block:: python
 
-    notifications = application.notification_log.select(start=1, limit=2)
+    notifications = dog_school.notification_log.select(start=1, limit=2)
 
 
 The ``start`` and ``limit`` arguments are used to specify the selection. The
@@ -406,7 +406,7 @@ last event notification ID to calculate the next ``start`` value.
 
 .. code-block:: python
 
-    notifications = application.notification_log.select(
+    notifications = dog_school.notification_log.select(
         start=notifications[-1].id + 1, limit=2
     )
 
@@ -472,7 +472,7 @@ are four notifications in the notification log.
 
 .. code-block:: python
 
-    section = application.notification_log["1,10"]
+    section = dog_school.notification_log["1,10"]
 
     assert len(section.items) == 4
     assert section.id == "1,4"
@@ -510,11 +510,11 @@ will also be encrypted, but the mapper will decrypt the event notification.
 
 .. code-block:: python
 
-    domain_event = application.mapper.to_domain_event(section.items[0])
+    domain_event = dog_school.mapper.to_domain_event(section.items[0])
     assert isinstance(domain_event, Dog.Created)
     assert domain_event.originator_id == dog_id
 
-    domain_event = application.mapper.to_domain_event(section.items[3])
+    domain_event = dog_school.mapper.to_domain_event(section.items[3])
     assert isinstance(domain_event, Dog.TrickAdded)
     assert domain_event.originator_id == dog_id
     assert domain_event.trick == "play dead"
@@ -565,13 +565,13 @@ method once for each of your custom transcodings.
         def encode(self, o: date) -> str:
             return o.isoformat()
 
-        def decode(self, d: Union[str, dict]) -> date:
+        def decode(self, d: str) -> date:
             assert isinstance(d, str)
             return date.fromisoformat(d)
 
 
-    class MyApplication(Application):
-        def register_transcodings(self, transcoder: JSONTranscoder):
+    class ApplicationWithDates(Application[UUID]):
+        def register_transcodings(self, transcoder: JSONTranscoder) -> None:
             super().register_transcodings(transcoder)
             transcoder.register(DateAsISO())
 
@@ -583,14 +583,15 @@ Then, models that involve date objects can be serialised and deserialised.
     class DogWithDateOfBirth(Aggregate):
         def __init__(self, date_of_birth: date):
             self.date_of_birth = date_of_birth
-            self.tricks = []
+            self.tricks: list[str] = []
 
     fido = DogWithDateOfBirth(date_of_birth=date(2025, 2, 11))
 
-    application = MyApplication()
-    application.save(fido)
+    app_with_dates = ApplicationWithDates()
+    app_with_dates.save(fido)
 
-    assert application.repository.get(fido.id).date_of_birth == date(2025, 2, 11)
+    fido_copy: DogWithDateOfBirth = app_with_dates.repository.get(fido.id)
+    assert fido.date_of_birth == date(2025, 2, 11)
 
 
 To use an alternative transcoder, you can either override the application method
@@ -625,6 +626,7 @@ aggregate classes ``Page`` and ``Index`` are defined in that section.
     # include-when-testing
 ..
     from dataclasses import dataclass
+    from typing_extensions import Self
     from uuid import uuid5, NAMESPACE_URL
 
     from eventsourcing.domain import Aggregate, AggregateEvent, AggregateCreated
@@ -636,7 +638,7 @@ aggregate classes ``Page`` and ``Index`` are defined in that section.
             self.body = body
 
         @classmethod
-        def create(cls, name: str, body: str = ""):
+        def create(cls, name: str, body: str = "") -> Page:
             return cls._create(
                 id=uuid4(),
                 event_class=cls.Created,
@@ -648,26 +650,26 @@ aggregate classes ``Page`` and ``Index`` are defined in that section.
             name: str
             body: str
 
-        def update_name(self, name: str):
+        def update_name(self, name: str) -> None:
             self.trigger_event(self.NameUpdated, name=name)
 
         class NameUpdated(AggregateEvent):
             name: str
 
-            def apply(self, page: "Page"):
+            def apply(self, page: Page) -> None:
                 page.name = self.name
 
 
     class Index(Aggregate):
-        def __init__(self, ref):
+        def __init__(self, ref: UUID):
             self.ref = ref
 
         @classmethod
-        def create_id(cls, name: str):
+        def create_id(cls, name: str) -> UUID:
             return uuid5(NAMESPACE_URL, f"/pages/{name}")
 
         @classmethod
-        def create(cls, page: Page):
+        def create(cls, page: Page) -> Self:
             return cls._create(
                 event_class=cls.Created,
                 id=cls.create_id(page.name),
@@ -677,13 +679,13 @@ aggregate classes ``Page`` and ``Index`` are defined in that section.
         class Created(AggregateCreated):
             ref: UUID
 
-        def update_ref(self, ref):
+        def update_ref(self, ref: str) -> None:
             self.trigger_event(self.RefUpdated, ref=ref)
 
         class RefUpdated(AggregateEvent):
             ref: UUID
 
-            def apply(self, index: "Index"):
+            def apply(self, index: "Index") -> None:
                 index.ref = self.ref
 
 
@@ -693,7 +695,7 @@ and the pages can be retrieved by the new name.
 
 .. code-block:: python
 
-    class Wiki(Application):
+    class Wiki(Application[UUID]):
         def create_page(self, name: str, body: str) -> None:
             page = Page.create(name, body)
             index = Index.create(page)
@@ -704,11 +706,10 @@ and the pages can be retrieved by the new name.
             page.update_name(new_name)
             index = Index.create(page)
             self.save(page, index)
-            return page.body
 
         def get_page(self, name: str) -> Page:
             index_id = Index.create_id(name)
-            index = self.repository.get(index_id)
+            index: Index = self.repository.get(index_id)
             page_id = index.ref
             return self.repository.get(page_id)
 
@@ -827,14 +828,15 @@ discovered. The aggregate IDs are then accessed in pages of a fixed size.
 
     from eventsourcing.application import EventSourcedLog
     from eventsourcing.domain import DomainEvent
+    from eventsourcing.utils import EnvType
 
 
     class LoggedID(DomainEvent):
         aggregate_id: UUID
 
 
-    class MyApplication(Application):
-        def __init__(self, env=None) -> None:
+    class ApplicationWithAggregateLog(Application[UUID]):
+        def __init__(self, env: EnvType | None = None) -> None:
             super().__init__(env=env)
             self.aggregate_log = EventSourcedLog(
                 events=self.events,
@@ -842,7 +844,7 @@ discovered. The aggregate IDs are then accessed in pages of a fixed size.
                 logged_cls=LoggedID,
             )
 
-        def create_aggregate(self):
+        def create_aggregate(self) -> UUID:
             aggregate = Aggregate()
             log_event = self.aggregate_log.trigger_event(
                 aggregate_id=aggregate.id
@@ -851,43 +853,45 @@ discovered. The aggregate IDs are then accessed in pages of a fixed size.
             return aggregate.id
 
 
-    app = MyApplication()
+    app_with_aggregate_log = ApplicationWithAggregateLog()
 
     # Get last created aggregate ID.
-    assert app.aggregate_log.get_last() == None
+    assert app_with_aggregate_log.aggregate_log.get_last() == None
 
-    aggregate1_id = app.create_aggregate()
-    last = app.aggregate_log.get_last()
+    aggregate1_id = app_with_aggregate_log.create_aggregate()
+    last = app_with_aggregate_log.aggregate_log.get_last()
+    assert last is not None
     assert last.aggregate_id == aggregate1_id
 
-    aggregate2_id = app.create_aggregate()
-    last = app.aggregate_log.get_last()
+    aggregate2_id = app_with_aggregate_log.create_aggregate()
+    last = app_with_aggregate_log.aggregate_log.get_last()
+    assert last is not None
     assert last.aggregate_id == aggregate2_id
 
     # Get all created aggregate ID.
-    aggregate_ids = [i.aggregate_id for i in app.aggregate_log.get()]
+    aggregate_ids = [i.aggregate_id for i in app_with_aggregate_log.aggregate_log.get()]
     assert aggregate_ids == [aggregate1_id, aggregate2_id]
 
-    aggregate_ids = [i.aggregate_id for i in app.aggregate_log.get(desc=True)]
+    aggregate_ids = [i.aggregate_id for i in app_with_aggregate_log.aggregate_log.get(desc=True)]
     assert aggregate_ids == [aggregate2_id, aggregate1_id]
 
     # Get ascending pages of aggregate IDs.
-    log_events = list(app.aggregate_log.get(limit=1))
+    log_events = list(app_with_aggregate_log.aggregate_log.get(limit=1))
     aggregate_ids = [i.aggregate_id for i in log_events]
     assert aggregate_ids == [aggregate1_id]
 
     next = log_events[-1].originator_version
-    log_events = app.aggregate_log.get(limit=1, gt=next)
+    log_events = list(app_with_aggregate_log.aggregate_log.get(limit=1, gt=next))
     aggregate_ids = [i.aggregate_id for i in log_events]
     assert aggregate_ids == [aggregate2_id]
 
     # Get descending pages of aggregate IDs.
-    log_events = list(app.aggregate_log.get(desc=True, limit=1))
+    log_events = list(app_with_aggregate_log.aggregate_log.get(desc=True, limit=1))
     aggregate_ids = [i.aggregate_id for i in log_events]
     assert aggregate_ids == [aggregate2_id]
 
     next = log_events[-1].originator_version - 1
-    log_events = app.aggregate_log.get(desc=True, limit=1, lte=next)
+    log_events = list(app_with_aggregate_log.aggregate_log.get(desc=True, limit=1, lte=next))
     aggregate_ids = [i.aggregate_id for i in log_events]
     assert aggregate_ids == [aggregate1_id]
 
@@ -922,7 +926,7 @@ can use all three ways for configuring an application in combination.
     import os
 
     # Configure by setting class attribute.
-    class MyApplication(Application):
+    class MyApplication(Application[UUID]):
         env = {"SETTING_A": "1", "SETTING_B": "1", "SETTING_C": "1"}
 
     # Configure by setting operating system environment.
@@ -1187,11 +1191,11 @@ setting the boolean attribute 'is_snapshotting_enabled' on the application class
 
 .. code-block:: python
 
-    class SnapshottingApplication(Application):
+    class SnapshottingApplication(Application[UUID]):
         is_snapshotting_enabled = True
 
-    application = SnapshottingApplication()
-    assert application.snapshots is not None
+    snapshotting = SnapshottingApplication()
+    assert snapshotting.snapshots is not None
 
 
 Taking snapshots
@@ -1206,14 +1210,16 @@ actually recorded state of the aggregate is avoided.
 
 .. code-block:: python
 
-    application = DogSchool(env={"IS_SNAPSHOTTING_ENABLED": "y"})
-    dog_id = application.register_dog()
+    dog_school = DogSchool(env={"IS_SNAPSHOTTING_ENABLED": "y"})
+    assert dog_school.snapshots is not None
 
-    application.add_trick(dog_id, "roll over")
-    application.add_trick(dog_id, "fetch ball")
-    application.add_trick(dog_id, "play dead")
+    dog_id = dog_school.register_dog()
 
-    application.take_snapshot(dog_id)
+    dog_school.add_trick(dog_id, "roll over")
+    dog_school.add_trick(dog_id, "fetch ball")
+    dog_school.add_trick(dog_id, "play dead")
+
+    dog_school.take_snapshot(dog_id)
 
 
 Snapshots are stored separately from the aggregate events, but snapshot objects are
@@ -1226,9 +1232,8 @@ by selecting in descending order with a limit of 1.
 
 .. code-block:: python
 
-    snapshots = application.snapshots.get(dog_id, desc=True, limit=1)
+    snapshots = list(dog_school.snapshots.get(dog_id, desc=True, limit=1))
 
-    snapshots = list(snapshots)
     assert len(snapshots) == 1, len(snapshots)
     snapshot = snapshots[0]
 
@@ -1264,16 +1269,16 @@ than 2, perhaps more like 100.
         snapshotting_intervals = {Dog: 2}
 
 
-    application = DogSchoolWithAutomaticSnapshotting()
+    dog_school = DogSchoolWithAutomaticSnapshotting()
+    assert dog_school.snapshots is not None
 
-    dog_id = application.register_dog()
+    dog_id = dog_school.register_dog()
 
-    application.add_trick(dog_id, "roll over")
-    application.add_trick(dog_id, "fetch ball")
-    application.add_trick(dog_id, "play dead")
+    dog_school.add_trick(dog_id, "roll over")
+    dog_school.add_trick(dog_id, "fetch ball")
+    dog_school.add_trick(dog_id, "play dead")
 
-    snapshots = application.snapshots.get(dog_id)
-    snapshots = list(snapshots)
+    snapshots = list(dog_school.snapshots.get(dog_id))
 
     assert len(snapshots) == 2
 

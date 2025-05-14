@@ -44,12 +44,12 @@ Use the library's :class:`~eventsourcing.domain.Aggregate` class and the
 
     class Dog(Aggregate):
         @event('Registered')
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
-            self.tricks = []
+            self.tricks: list[str] = []
 
         @event('TrickAdded')
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 The :func:`@event<eventsourcing.domain.event>` decorator can be used on "public" or
@@ -86,21 +86,24 @@ from previously recorded events.
 
 .. code-block:: python
 
+    from typing import Any
+    from uuid import UUID
+
     from eventsourcing.application import Application
 
 
-    class DogSchool(Application):
-        def register_dog(self, name):
+    class DogSchool(Application[UUID]):
+        def register_dog(self, name: str) -> UUID:
             dog = Dog(name)
             self.save(dog)
             return dog.id
 
-        def get_dog(self, dog_id):
-            dog = self.repository.get(dog_id)
+        def get_dog(self, dog_id: UUID) -> dict[str, Any]:
+            dog: Dog = self.repository.get(dog_id)
             return {'name': dog.name, 'tricks': tuple(dog.tricks)}
 
-        def add_trick(self, dog_id, trick):
-            dog = self.repository.get(dog_id)
+        def add_trick(self, dog_id: UUID, trick: str) -> None:
+            dog: Dog = self.repository.get(dog_id)
             dog.add_trick(trick)
             self.save(dog)
 

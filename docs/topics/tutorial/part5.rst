@@ -19,39 +19,49 @@ First, let's define the ``DogSchool`` application and the ``Dog`` aggregate.
 
 .. code-block:: python
 
-    from uuid import uuid5, NAMESPACE_URL
+    from dataclasses import dataclass
+    from typing import Any
+    from uuid import NAMESPACE_URL, UUID, uuid5
 
     from eventsourcing.application import Application
     from eventsourcing.domain import Aggregate, event
 
 
-    class DogSchool(Application):
-        def register_dog(self, name):
+    class DogSchool(Application[UUID]):
+        def register_dog(self, name: str) -> None:
             dog = Dog(name)
             self.save(dog)
 
-        def add_trick(self, name, trick):
-            dog = self.repository.get(Dog.create_id(name))
+        def add_trick(self, name: str, trick: str) -> None:
+            dog: Dog = self.repository.get(Dog.create_id(name))
             dog.add_trick(trick=trick)
             self.save(dog)
 
-        def get_dog(self, name):
-            dog = self.repository.get(Dog.create_id(name))
+        def get_dog(self, name: str) -> dict[str, Any]:
+            dog: Dog = self.repository.get(Dog.create_id(name))
             return {'name': dog.name, 'tricks': tuple(dog.tricks)}
 
 
     class Dog(Aggregate):
-        @event('Registered')
-        def __init__(self, name):
-            self.name = name
-            self.tricks = []
+        @dataclass(frozen=True)
+        class Registered(Aggregate.Created):
+            name: str
 
-        @classmethod
-        def create_id(cls, name):
+        @dataclass(frozen=True)
+        class TrickAdded(Aggregate.Event):
+            trick: str
+
+        @staticmethod
+        def create_id(name: str) -> UUID:
             return uuid5(NAMESPACE_URL, f'/dogs/{name}')
 
-        @event('TrickAdded')
-        def add_trick(self, trick):
+        @event(Registered)
+        def __init__(self, name: str):
+            self.name = name
+            self.tricks: list[str] = []
+
+        @event(TrickAdded)
+        def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 
@@ -88,8 +98,8 @@ the name of the trick is used to get or create a ``Counter`` aggregate object. T
 ``increment()`` method is called once. The new domain events are then collected on a "processing event"
 object before the policy function returns.
 
-The ``policy()`` function receives two arguments: ``domain_event`` and ``process_event``. The ``domain_event``
-argument is a domain event object that is to be processed. The ``process_event`` is an instance of the
+The ``policy()`` function receives two arguments: ``domain_event`` and ``processing_event``. The ``domain_event``
+argument is a domain event object that is to be processed. The ``processing_event`` is an instance of the
 :class:`~eventsourcing.application.ProcessingEvent` class. New domain events created in the
 policy function are collected by calling the process event object's
 :func:`~eventsourcing.application.ProcessingEvent.collect_events` method.
@@ -102,47 +112,48 @@ consumption and processing of domain events, so that each domain event is proces
 
 .. code-block:: python
 
-    from eventsourcing.application import AggregateNotFoundError
-    from eventsourcing.system import ProcessApplication
+    from eventsourcing.application import AggregateNotFoundError, ProcessingEvent
     from eventsourcing.dispatch import singledispatchmethod
+    from eventsourcing.domain import DomainEventProtocol
+    from eventsourcing.system import ProcessApplication
 
 
-    class Counters(ProcessApplication):
+    class Counters(ProcessApplication[UUID]):
         @singledispatchmethod
-        def policy(self, domain_event, process_event):
+        def policy(self, domain_event: DomainEventProtocol[UUID], processing_event: ProcessingEvent[UUID]) -> None:
             """Default policy"""
 
-        @policy.register(Dog.TrickAdded)
-        def _(self, domain_event, process_event):
+        @policy.register
+        def _(self, domain_event: Dog.TrickAdded, processing_event: ProcessingEvent[UUID]) -> None:
             trick = domain_event.trick
             try:
                 counter_id = Counter.create_id(trick)
-                counter = self.repository.get(counter_id)
+                counter: Counter = self.repository.get(counter_id)
             except AggregateNotFoundError:
                 counter = Counter(trick)
             counter.increment()
-            process_event.collect_events(counter)
+            processing_event.collect_events(counter)
 
-        def get_count(self, trick):
+        def get_count(self, trick: str) -> int:
             counter_id = Counter.create_id(trick)
             try:
-                counter = self.repository.get(counter_id)
+                counter: Counter = self.repository.get(counter_id)
             except AggregateNotFoundError:
                 return 0
             return counter.count
 
 
     class Counter(Aggregate):
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
             self.count = 0
 
         @classmethod
-        def create_id(cls, name):
+        def create_id(cls, name: str) -> UUID:
             return uuid5(NAMESPACE_URL, f'/counters/{name}')
 
         @event('Incremented')
-        def increment(self):
+        def increment(self) -> None:
             self.count += 1
 
 
@@ -223,7 +234,11 @@ with the PostgreSQL persistence module.
 
     from time import sleep
 
-    def test(system, runner_class, wait=0, env=None):
+    from eventsourcing.system import Runner
+    from eventsourcing.utils import EnvType
+
+
+    def test(system: System, runner_class: type[Runner[UUID]], wait: float = 0.0, env: EnvType | None = None) -> None:
 
         # Start running the system.
         runner = runner_class(system, env=env)

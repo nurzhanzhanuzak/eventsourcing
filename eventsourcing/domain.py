@@ -974,6 +974,8 @@ _annotations_mention_id: set[type[BaseAggregate[Any]]] = set()
 _init_mentions_id: set[type[BaseAggregate[Any]]] = set()
 _create_id_param_names: dict[type[BaseAggregate[Any]], list[str]] = defaultdict(list)
 
+ENVVAR_DISABLE_REDEFINITION_CHECK = "EVENTSOURCING_DISABLE_REDEFINITION_CHECK"
+
 
 class MetaAggregate(EventsourcingType, Generic[TAggregate], ABCMeta):
     """Metaclass for aggregate classes."""
@@ -1247,7 +1249,10 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
         # because annotations can get confused when using singledispatchmethod
         # during class definition e.g. on an aggregate projector function.
         _module = importlib.import_module(cls.__module__)
-        if cls.__name__ in _module.__dict__:
+        if (
+            cls.__name__ in _module.__dict__
+            and ENVVAR_DISABLE_REDEFINITION_CHECK not in os.environ
+        ):
             msg = f"Name '{cls.__name__}' already defined in '{cls.__module__}' module"
             raise ProgrammingError(msg)
 

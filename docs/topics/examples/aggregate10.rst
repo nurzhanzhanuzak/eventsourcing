@@ -1,7 +1,7 @@
 .. _Aggregate example 10:
 
 Aggregate 10 - msgspec with declarative syntax
-=============================================
+==============================================
 
 This example shows how to use msgspec with the library's declarative syntax.
 

@@ -77,12 +77,14 @@ method which can be used to stop the subscription to the application recorder in
 
 .. code-block:: python
 
+    from uuid import UUID
+
     from eventsourcing.application import Application
     from eventsourcing.domain import Aggregate
     from eventsourcing.projection import ApplicationSubscription
 
     # Construct an application object.
-    app = Application()
+    app = Application[UUID]()
 
     # Record an event.
     aggregate = Aggregate()
@@ -150,15 +152,15 @@ The example below shows how a projection can be defined.
 
     class MyProjection(Projection["MyMaterialisedViewInterface"]):
         name = "myprojection"
-        topics = [get_topic(Aggregate.Event)]
+        topics = (get_topic(Aggregate.Event), )
 
         @singledispatchmethod
-        def process_event(self, domain_event: DomainEventProtocol, tracking: Tracking) -> None:
+        def process_event(self, domain_event: DomainEventProtocol[UUID], tracking: Tracking) -> None:
             pass
 
         @process_event.register
         def _(self, domain_event: Aggregate.Event, tracking: Tracking) -> None:
-            self.tracking_recorder.my_command(tracking)
+            self.view.my_command(tracking)
 
 
 The example below indicates how the projection's materialised view can be defined.
@@ -173,22 +175,23 @@ The example below indicates how the projection's materialised view can be define
 
     class MyMaterialisedViewInterface(TrackingRecorder, ABC):
         @abstractmethod
-        def my_command(self, tracking: Tracking):
+        def my_command(self, tracking: Tracking) -> None:
             """Updates materialised view"""
 
     class MyPOPOMaterialisedView(MyMaterialisedViewInterface, POPOTrackingRecorder):
-        def my_command(self, tracking: Tracking):
-            with self._datastore:
+        def my_command(self, tracking: Tracking) -> None:
+            with self._database_lock:
                 # Insert tracking record...
+                self._assert_tracking_uniqueness(tracking)
                 self._insert_tracking(tracking)
                 # ...and then update materialised view.
 
     class MySQLiteMaterialisedView(MyMaterialisedViewInterface, SQLiteTrackingRecorder):
-        def my_command(self, tracking: Tracking):
+        def my_command(self, tracking: Tracking) -> None:
             ...
 
     class MyPostgresMaterialisedView(MyMaterialisedViewInterface, PostgresTrackingRecorder):
-        def my_command(self, tracking: Tracking):
+        def my_command(self, tracking: Tracking) -> None:
             ...
 
 .. _Projection runner:
@@ -231,12 +234,16 @@ signal after 1s.
 
 .. code-block:: python
 
-    import signal
+    import os, signal, threading, time
+
     from eventsourcing.projection import ProjectionRunner
 
     # For demonstration purposes, interrupt process with SIGINT after 1s.
-    import os, threading, time
-    threading.Thread(target=lambda: time.sleep(1) or os.kill(os.getpid(), signal.SIGINT)).start()
+    def sleep_then_kill() -> None:
+        time.sleep(1)
+        os.kill(os.getpid(), signal.SIGINT)
+
+    threading.Thread(target=sleep_then_kill).start()
 
     # Run projection as a context manager.
     with ProjectionRunner(
@@ -244,13 +251,13 @@ signal after 1s.
         view_class=MyPOPOMaterialisedView,
         projection_class=MyProjection,
         env={},
-    ) as runner:
+    ) as projection_runner:
 
         # Register signal handler.
-        signal.signal(signal.SIGINT, lambda *args: runner.stop())
+        signal.signal(signal.SIGINT, lambda *args: projection_runner.stop())
 
         # Run until interrupted.
-        runner.run_forever()
+        projection_runner.run_forever()
 
 
 The intention of a projection runner is to operate as a separate event-processing component,

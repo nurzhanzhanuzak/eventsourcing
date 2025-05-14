@@ -27,11 +27,11 @@ the given value of the argument ``trick`` to be appended to its ``tricks`` attri
 .. code-block:: python
 
     class Dog:
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
-            self.tricks = []
+            self.tricks: list[str] = []
 
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 Let's construct an instance of the ``Dog`` class, by calling the ``Dog`` class with a ``name`` argument.
@@ -112,19 +112,19 @@ The changes are highlighted below.
 ..
     from eventsourcing.utils import clear_topic_cache
     clear_topic_cache()
-    del Dog
+    dog: Aggregate
 
 .. code-block:: python
     :emphasize-lines: 1,2,7
 
     class Dog(Aggregate):
         @event('Registered')
-        def __init__(self, name):
+        def __init__(self, name: str) -> None:
             self.name = name
-            self.tricks = []
+            self.tricks: list[str] = []
 
         @event('TrickAdded')
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 As above in the simple example of a Python class, calling this ``Dog`` class will construct a new
@@ -263,20 +263,23 @@ the ``Dog`` class, let's define a ``DogSchool`` application.
 
 .. code-block:: python
 
-    class DogSchool(Application):
-        def register_dog(self, name):
+    from typing import Any
+
+    class DogSchool(Application[UUID]):
+        def register_dog(self, name: str) -> UUID:
             dog = Dog(name)
             self.save(dog)
             return dog.id
 
-        def add_trick(self, dog_id, trick):
-            dog = self.repository.get(dog_id)
+        def add_trick(self, dog_id: UUID, trick: str) -> None:
+            dog: Dog = self.repository.get(dog_id)
             dog.add_trick(trick=trick)
             self.save(dog)
 
-        def get_dog(self, dog_id):
-            dog = self.repository.get(dog_id)
+        def get_dog(self, dog_id: UUID) -> dict[str, Any]:
+            dog: Dog = self.repository.get(dog_id)
             return {'name': dog.name, 'tricks': tuple(dog.tricks)}
+
 
 The command methods ``register_dog()`` and ``add_trick()`` use the application's
 :func:`~eventsourcing.application.Application.save` method to collect and store
@@ -351,7 +354,7 @@ for example with the following test in a file ``test_application.py``.
 
 .. code-block:: python
 
-    def test_dog_school():
+    def test_dog_school() -> None:
 
         # Construct the application.
         app = DogSchool()

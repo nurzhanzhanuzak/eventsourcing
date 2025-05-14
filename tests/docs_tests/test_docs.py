@@ -2,6 +2,8 @@ import os
 import sys
 import traceback
 from pathlib import Path
+from subprocess import PIPE, Popen
+from tempfile import NamedTemporaryFile
 from types import ModuleType
 from unittest.case import TestCase
 
@@ -79,6 +81,8 @@ class TestDocs(TestCase):
         file_paths = []
         for dirpath, _, filenames in os.walk(docs_path):
             for name in filenames:
+                file_path = docs_path / dirpath / name
+
                 if name in skipped:
                     continue
                 if name.endswith(".rst"):
@@ -100,7 +104,7 @@ class TestDocs(TestCase):
                     # if name.endswith('projections.rst'):
                     # if name.endswith('deployment.rst'):
                     # if name.endswith('process.rst'):
-                    file_paths.append(docs_path / dirpath / name)
+                    file_paths.append(file_path)
 
         file_paths = sorted(file_paths)
         failures = []
@@ -115,7 +119,12 @@ class TestDocs(TestCase):
             # print("Testing code snippets in file: {}".format(path))
             started = datetime_now_with_tzinfo()
             try:
-                self.check_code_snippets_in_file(path)
+                try:
+                    os.environ["EVENTSOURCING_DISABLE_REDEFINITION_CHECK"] = "y"
+                    self.check_code_snippets_in_file(path)
+                finally:
+                    del os.environ["EVENTSOURCING_DISABLE_REDEFINITION_CHECK"]
+
             except self.failureException as e:
                 failures.append(e)
                 failed.append(path)
@@ -245,6 +254,10 @@ class TestDocs(TestCase):
 
         print(f"{num_code_lines} lines of code in {doc_path}")
 
+        if num_code_lines == 0:
+            return
+
+        # Execute the code.
         lines[0] = "from __future__ import annotations"
         lines[1] = "from eventsourcing.domain import datetime_now_with_tzinfo"
         lines[2] = "started = datetime_now_with_tzinfo()"
@@ -255,44 +268,77 @@ class TestDocs(TestCase):
 
         source = "\n".join(lines) + "\n"
 
-        code = compile(source, "__main__", "exec")
-
-        exec_module = ModuleType("__main__")
-
-        sys.modules["__main__"] = exec_module
-
         try:
+            code = compile(source, "__main__", "exec")
+            exec_module = ModuleType("__main__")
+            sys.modules["__main__"] = exec_module
             exec(code, exec_module.__dict__)  # noqa: S102
         except BaseException:
             print(
                 traceback.format_exc().replace('File "__main__",', f'File "{doc_path}"')
             )
             raise self.failureException from None
-        #
-        # # Write the code into a temp file.
-        # with NamedTemporaryFile("w+") as tempfile:
-        #     temp_path = tempfile.name
-        #     tempfile.writelines(source)
-        #     tempfile.flush()
-        #
-        #     # Run the code and catch errors.
-        #     p = Popen(  # no qa: S603
-        #         [sys.executable, temp_path],
-        #         stdout=PIPE,
-        #         stderr=PIPE,
-        #         env={"PYTHONPATH": base_dir},
-        #         encoding="utf-8",
-        #     )
-        #     out, err = p.communicate()
-        # # out = out.decode("utf8")
-        # # err = err.decode("utf8")
-        # out = out.replace(temp_path, str(doc_path))
-        # err = err.replace(temp_path, str(doc_path))
-        # exit_status = p.wait()
-        #
-        # # print(out)
-        # # print(err)
-        #
-        # # Check for errors running the code.
-        # if exit_status:
-        #     self.fail(out + err)
+
+        print("Code executed OK")
+
+        # Check the code with mypy and catch errors.
+        with NamedTemporaryFile("w+") as tempfile:
+            temp_path = tempfile.name
+            tempfile.writelines(source)
+            tempfile.flush()
+
+            p = Popen(  # noqa: S603
+                [
+                    sys.executable,
+                    "-m",
+                    "mypy",
+                    # "--disable-error-code=no-redef",
+                    # "--disable-error-code=attr-defined",
+                    # "--disable-error-code=name-defined",
+                    # "--disable-error-code=truthy-function",
+                    temp_path,
+                ],
+                stdout=PIPE,
+                stderr=PIPE,
+                env={
+                    "PYTHONPATH": base_dir,
+                },
+                encoding="utf-8",
+            )
+
+            out, err = p.communicate()
+
+            # # Run the code and catch errors.
+            # p = Popen(  # no qa: S603
+            #     [sys.executable, temp_path],
+            #     stdout=PIPE,
+            #     stderr=PIPE,
+            #     env={"PYTHONPATH": base_dir},
+            #     encoding="utf-8",
+            # )
+            # out, err = p.communicate()
+        # out = out.decode("utf8")
+        # err = err.decode("utf8")
+
+        # To get clickable links in PyCharm console, prefix absolute paths
+        # with "file://". Using paths relative to project root folder doesn't work.
+        # Actually doesn't work because PyCharm tries to open the file in a browser.
+        # out = out.replace(temp_path, "file://" + str(doc_path)[:-4]+".py")
+        # err = err.replace(temp_path, "file://" + str(doc_path)[:-4]+".py")
+
+        # Got clickable links with PyCharm plugin "Clickable Output Links"
+        # https://github.com/Shadow-Devil/output-link-filter
+
+        out = out.replace(temp_path, str(doc_path))
+        out = out.replace(": error:", " error:")
+
+        exit_status = p.wait()
+
+        # Check for errors running the code.
+        if exit_status:
+            print("Mypy errors:")
+            print(out)
+            print(err)
+            # self.fail(out + err)
+        else:
+            print("No mypy errors")

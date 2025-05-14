@@ -16,34 +16,37 @@ the state. These methods depend on the ``Dog`` aggregate class.
 
 .. code-block:: python
 
+    from typing import Any
+    from uuid import UUID
+
     from eventsourcing.application import Application
     from eventsourcing.domain import Aggregate, event
 
 
-    class DogSchool(Application):
-        def register_dog(self, name):
+    class DogSchool(Application[UUID]):
+        def register_dog(self, name: str) -> UUID:
             dog = Dog(name)
             self.save(dog)
             return dog.id
 
-        def add_trick(self, dog_id, trick):
-            dog = self.repository.get(dog_id)
+        def add_trick(self, dog_id: UUID, trick: str) -> None:
+            dog: Dog = self.repository.get(dog_id)
             dog.add_trick(trick=trick)
             self.save(dog)
 
-        def get_dog(self, dog_id):
-            dog = self.repository.get(dog_id)
+        def get_dog(self, dog_id: UUID) -> dict[str, Any]:
+            dog: Dog = self.repository.get(dog_id)
             return {'name': dog.name, 'tricks': tuple(dog.tricks)}
 
 
     class Dog(Aggregate):
         @event('Registered')
-        def __init__(self, name):
+        def __init__(self, name: str):
             self.name = name
-            self.tricks = []
+            self.tricks: list[str] = []
 
         @event('TrickAdded')
-        def add_trick(self, trick):
+        def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
 
@@ -91,10 +94,6 @@ An application object has a :func:`~eventsourcing.application.Application.save` 
 which can be used to "save" aggregates that have been newly created or changed, so that
 the resulting state of the aggregate will be persisted.
 
-.. code-block:: python
-
-    assert application.save
-
 The application's :func:`~eventsourcing.application.Application.save` method can be called
 with one or many aggregates as its arguments. The :func:`~eventsourcing.application.Application.save`
 method collects new event objects from these arguments by calling the
@@ -108,11 +107,6 @@ is normally used by the command methods of an application.
 An application object also has a ``repository`` object. The application's repository has a
 :func:`~eventsourcing.application.Repository.get` method, which can be used to reconstruct
 an aggregate object from the persisted state.
-
-.. code-block:: python
-
-    assert application.repository
-    assert application.repository.get
 
 The repository's :func:`~eventsourcing.application.Repository.get` method is called with an
 aggregate ID argument. It uses the given aggregate ID to select aggregate events from an event
@@ -129,10 +123,6 @@ to reconstruct aggregates that have been previously saved.
 
 An application object also has a ``notification_log`` object. The notification log presents
 the events that have been stored in the application in the order they were saved.
-
-.. code-block:: python
-
-    assert application.notification_log
 
 The notification log has a :func:`~eventsourcing.application.LocalNotificationLog.select` method,
 which allows a limited number of the stored events to be selected from a particular position.
@@ -359,7 +349,7 @@ demonstrated. The steps are commented for greater readability.
 
     from eventsourcing.persistence import IntegrityError
 
-    def test(app: DogSchool, expect_visible_in_db: bool):
+    def test(app: DogSchool, expect_visible_in_db: bool) -> None:
         # Check app has zero event notifications.
         assert len(app.notification_log.select(start=1, limit=10)) == 0
 
@@ -400,7 +390,7 @@ demonstrated. The steps are commented for greater readability.
         assert expected_num_visible == actual_num_visible
 
         # Get historical state (at version 3, before 'play dead' happened).
-        old = app.repository.get(dog_id, version=3)
+        old: Dog = app.repository.get(dog_id, version=3)
         assert len(old.tricks) == 2
         assert old.tricks[-1] == 'fetch ball'  # last thing to have happened was 'fetch ball'
 
