@@ -702,7 +702,7 @@ class TestBaseAggregate(TestCase):
         # Basically, when we redefine an event in B, it must inherit from
         # the original class, from any redefined event classes on B that are
         # in its bases, and from B's base event class. In this example, B
-        # doesn't have its own base event class, so Something and Schedules
+        # doesn't have its own base event class, so Something and Scheduled
         # are redefined. Unless the hierarchy is preserved, after the class
         # is defined, B.Scheduled will not be a subclass of B.Something.
         class B(A):
