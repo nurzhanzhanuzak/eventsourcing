@@ -1297,6 +1297,9 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
         # Identify or define a base event class for this aggregate.
         base_event_name = "Event"
         base_event_cls: type[CanMutateAggregate[TAggregateID]] | None = None
+        msg = f"Base event class 'Event' not defined on {cls} or ancestors"
+        base_event_class_not_defined_error = TypeError(msg)
+
         try:
             base_event_cls = cls.__dict__[base_event_name]
         except KeyError:
@@ -1312,31 +1315,65 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
                 )
                 setattr(cls, base_event_name, base_event_cls)
 
-        # Ensure all events defined on this class are subclasses of base event class.
-        # TODO: Review decorator processing to see if subclassing can be improved.
-        created_event_classes: dict[str, type[CanInitAggregate[TAggregateID]]] = {}
-        for name, value in tuple(cls.__dict__.items()):
-            if name == base_event_name:
-                # Don't subclass the base event class again.
-                continue
-            if name.lower() == name:
-                # Don't subclass lowercase named attributes.
-                continue
-            if isinstance(value, type) and issubclass(value, CanMutateAggregate):
-                if base_event_cls is None:
-                    msg = f"Base event class not defined for {cls}"
-                    raise TypeError(msg)
-                if not issubclass(value, base_event_cls):
-                    event_class = cls._define_event_class(
-                        name, (value, base_event_cls), None
-                    )
-                    setattr(cls, name, event_class)
-                else:
-                    event_class = value
+        # Remember which events have been redefined, to preserve apparent hierarchy,
+        # in a mapping from the original class to the redefined class.
+        redefined_event_classes: dict[
+            type[CanMutateAggregate[TAggregateID]],
+            type[CanMutateAggregate[TAggregateID]],
+        ] = {}
 
-                # Remember all "created" event classes defined on this class.
-                if issubclass(event_class, CanInitAggregate):
-                    created_event_classes[name] = event_class
+        # Remember any "created" event classes that are discovered.
+        created_event_classes: dict[str, type[CanInitAggregate[TAggregateID]]] = {}
+
+        # TODO: Review decorator processing below to see if subclassing can be improved.
+        #  - basically, look at the decorators first, build a plan for defining events
+
+        # Ensure events defined on this class are subclasses of the base event class.
+        for name, value in tuple(cls.__dict__.items()):
+            # Don't subclass the base event class again.
+            if name == base_event_name:
+                continue
+
+            # Don't subclass lowercase named attributes.
+            if name.lower() == name:
+                continue
+
+            # Only consider "event" classes (implement "CanMutateAggregate" protocol).
+            if not isinstance(value, type) or not issubclass(value, CanMutateAggregate):
+                continue
+
+            # Check we have a base event class.
+            if base_event_cls is None:
+                raise base_event_class_not_defined_error
+
+            # Redefine events that aren't already subclass of the base event class.
+            if not issubclass(value, base_event_cls):
+                # Decide base classes of redefined event class: it must be
+                # a subclass of the original class, all redefined classes that
+                # were in its bases, and the aggregate's base event class.
+                redefined_bases = [
+                    redefined_event_classes[b]
+                    for b in value.__bases__
+                    if b in redefined_event_classes
+                ]
+                event_class_bases = (
+                    value,
+                    *redefined_bases,
+                    base_event_cls,
+                )
+
+                # Define event class.
+                event_class = cls._define_event_class(name, event_class_bases, None)
+                setattr(cls, name, event_class)
+
+                # Remember which events have been redefined.
+                redefined_event_classes[value] = event_class
+            else:
+                event_class = value
+
+            # Remember all "created" event classes defined on this class.
+            if issubclass(event_class, CanInitAggregate):
+                created_event_classes[name] = event_class
 
         # Identify or define the aggregate's "created" event class.
         created_event_class: type[CanInitAggregate[TAggregateID]] | None = None
@@ -1478,7 +1515,7 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
         if created_event_class:
             _created_event_classes[cls] = [created_event_class]
         else:
-            # Prepare to disallow ambiguity of choice between created event classes.
+            # Prepare to disallow any ambiguity of choice between created event classes.
             _created_event_classes[cls] = list(created_event_classes.values())
 
         # Find and analyse any @event decorators.
@@ -1556,11 +1593,11 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
                         )
                         raise TypeError(msg)
 
-                    # Define event class from signature of original method.
+                    # Check we have a base event class.
                     if base_event_cls is None:
-                        msg = f"Base event class not defined for {cls}"
-                        raise TypeError(msg)
+                        raise base_event_class_not_defined_error
 
+                    # Define event class from signature of original method.
                     event_cls = cls._define_event_class(
                         event_decorator.event_cls_name,
                         (DecoratorEvent, base_event_cls),

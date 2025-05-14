@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 from unittest import TestCase
@@ -14,6 +14,7 @@ from eventsourcing.domain import (
     OriginatorIDError,
     OriginatorVersionError,
     ProgrammingError,
+    datetime_now_with_tzinfo,
     event,
 )
 from eventsourcing.utils import get_method_name
@@ -358,7 +359,7 @@ class TestBaseAggregate(TestCase):
                 class SubsequentEvent(AggregateEvent):
                     pass
 
-        self.assertIn("Base event class not defined", str(cm.exception))
+        self.assertIn("Base event class 'Event' not defined", str(cm.exception))
 
     def test_init_has_event_decorator_with_class_wrong_type(self) -> None:
         with self.assertRaises(TypeError) as cm:
@@ -687,4 +688,37 @@ class TestBaseAggregate(TestCase):
                 def command(self) -> None:
                     pass
 
-        self.assertIn("Base event class not defined", str(cm.exception))
+        self.assertIn("Base event class 'Event' not defined", str(cm.exception))
+
+    def test_original_subclass_relations_are_respected_issue_295(self) -> None:
+        # Issue #295 on GitHub.
+        # https://github.com/pyeventsourcing/eventsourcing/issues/295
+        class A(BaseAggregate[UUID]):
+            class Event(AggregateEvent):
+                pass
+
+            class Created(Event, AggregateCreated):
+                pass
+
+        # Basically, when we subclass the events in B, so they all inherit from B's
+        # new 'Event' class, then
+        class B(A):
+            @dataclass(frozen=True)
+            class Something(A.Event):
+                a: int
+
+            @dataclass(frozen=True)
+            class Scheduled(Something):
+                pass
+
+        # Should include field 'a'.
+        scheduled = B.Scheduled(
+            originator_id=uuid4(),
+            originator_version=1,
+            timestamp=datetime_now_with_tzinfo(),
+            a=4,
+        )
+        self.assertEqual(scheduled.a, 4)
+
+        # Redefined classes should respect original hierarchy.
+        self.assertTrue(issubclass(B.Scheduled, B.Something))
