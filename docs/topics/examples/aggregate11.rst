@@ -4,7 +4,9 @@ Aggregate 11 - String IDs
 =========================
 
 This example shows an aggregate that uses the library's declarative syntax for aggregates, as described
-in the :doc:`tutorial </topics/tutorial>` and :doc:`module docs </topics/modules>`, but with string IDs.
+in the :doc:`tutorial </topics/tutorial>` and :doc:`module docs </topics/modules>`, but with arbitrary
+string IDs. Many users of KurrentDB, for example, prefer to prefix stream names with the name of a
+stream category. This example shows how this style can be adopted when using this library.
 
 Domain model
 ------------
@@ -36,8 +38,8 @@ Test case
 
 The :class:`~examples.aggregate11.test_application.TestDogSchool` test case shows how the
 :class:`~examples.aggregate11.application.DogSchool` application can be used. It demonstrates
-that string IDs can be used in the both the POPO and SQLite persistence modules.
-
+arbitrary string can be used as aggregate IDs, with both the POPO and SQLite persistence modules,
+and of course with KurrentDB.
 
 .. literalinclude:: ../../../examples/aggregate11/test_application.py
     :pyobject: TestDogSchool
@@ -66,4 +68,3 @@ Code reference
     :members:
     :undoc-members:
     :special-members: __init__
-
