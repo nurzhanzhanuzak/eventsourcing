@@ -26,7 +26,7 @@ from tests.projection_tests.test_projection import (
 )
 
 if TYPE_CHECKING:
-    from eventsourcing.domain import DomainEventProtocol
+    from eventsourcing.domain import DomainEventProtocol, TAggregateID
     from eventsourcing.persistence import Tracking
 
 
@@ -344,7 +344,7 @@ class BrokenProjectionError(Exception):
 class BrokenProjection(Projection):
     @singledispatchmethod
     def process_event(
-        self, domain_event: DomainEventProtocol, tracking: Tracking
+        self, domain_event: DomainEventProtocol[TAggregateID], tracking: Tracking
     ) -> None:
         raise BrokenProjectionError
 
@@ -353,6 +353,6 @@ class BrokenProjection(Projection):
 class VerySlowProjection(Projection):
     @singledispatchmethod
     def process_event(
-        self, domain_event: DomainEventProtocol, tracking: Tracking
+        self, domain_event: DomainEventProtocol[TAggregateID], tracking: Tracking
     ) -> None:
         sleep(2)

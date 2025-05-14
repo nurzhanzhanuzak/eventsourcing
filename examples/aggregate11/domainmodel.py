@@ -24,7 +24,13 @@ class DomainEvent(metaclass=MetaDomainEvent):
     timestamp: datetime
 
     def __post_init__(self) -> None:
-        assert isinstance(self.originator_id, str)
+        if not isinstance(self.originator_id, str):
+            msg = (
+                f"{type(self)} "
+                f"was initialized with a non-str originator_id: "
+                f"{self.originator_id!r}"
+            )
+            raise TypeError(msg)
 
 
 @dataclass(frozen=True)

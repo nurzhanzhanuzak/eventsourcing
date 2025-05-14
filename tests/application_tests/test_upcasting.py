@@ -4,7 +4,7 @@ import os
 from decimal import Decimal
 from typing import Any, cast
 from unittest import TestCase
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from eventsourcing.application import Application
 from eventsourcing.domain import Aggregate, AggregateEvent
@@ -46,7 +46,7 @@ class TestUpcasting(TestCase):
             del _topic_cache[topic_v3_created]
 
     def test_upcast_created_event_from_v1(self) -> None:
-        app = Application()
+        app = Application[UUID]()
 
         topic_v1 = get_topic(self.UpcastFixtureV1)
         topic_v1_created = get_topic(self.UpcastFixtureV1.Created)
@@ -94,7 +94,7 @@ class TestUpcasting(TestCase):
         self.assertEqual(copy4.d, None)
 
     def test_upcast_aggregate_snapshot_from_v1(self) -> None:
-        app = Application()
+        app = Application[UUID]()
 
         topic_v1 = get_topic(self.UpcastFixtureV1)
 
@@ -141,7 +141,7 @@ class TestUpcasting(TestCase):
         self.assertEqual(copy4.d, None)
 
     def test_upcast_created_event_from_v2(self) -> None:
-        app = Application()
+        app = Application[UUID]()
 
         topic_v2 = get_topic(self.UpcastFixtureV2)
         topic_v2_created = get_topic(self.UpcastFixtureV2.Created)
@@ -180,7 +180,7 @@ class TestUpcasting(TestCase):
         self.assertEqual(copy3.d, None)
 
     def test_upcast_aggregate_snapshot_from_v2(self) -> None:
-        app = Application()
+        app = Application[UUID]()
 
         topic_v2 = get_topic(self.UpcastFixtureV2)
 
@@ -218,7 +218,7 @@ class TestUpcasting(TestCase):
         self.assertEqual(copy3.d, None)
 
     def test_upcast_created_event_from_v3(self) -> None:
-        app = Application()
+        app = Application[UUID]()
 
         topic_v3 = get_topic(self.UpcastFixtureV3)
         topic_v3_created = get_topic(self.UpcastFixtureV3.Created)
@@ -255,7 +255,7 @@ class TestUpcasting(TestCase):
         self.assertEqual(copy3.d, 10)
 
     def test_upcast_aggregate_snapshot_from_v3(self) -> None:
-        app = Application()
+        app = Application[UUID]()
 
         topic_v3 = get_topic(self.UpcastFixtureV3)
 
@@ -301,7 +301,7 @@ class TestUpcasting(TestCase):
         self.assertEqual(copy4.d, 10)
 
     def test_upcast_created_event_from_v4(self) -> None:
-        app = Application()
+        app = Application[UUID]()
 
         aggregate = self.UpcastFixtureV4.create(aa="TEXT", b=1, c=[1, 2])
         app.save(aggregate)
@@ -313,7 +313,7 @@ class TestUpcasting(TestCase):
         self.assertEqual(copy.d, None)
 
     def test_upcast_aggregate_snapshot_from_v4(self) -> None:
-        app = Application()
+        app = Application[UUID]()
 
         aggregate = self.UpcastFixtureV4.create(aa="TEXT", b=1, c=[1, 2])
         app.save(aggregate)

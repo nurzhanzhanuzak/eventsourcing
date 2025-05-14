@@ -1,6 +1,6 @@
 from decimal import Decimal
 from unittest.case import TestCase
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from eventsourcing.cipher import AESCipher
 from eventsourcing.compressor import ZlibCompressor
@@ -42,7 +42,7 @@ class TestMapper(TestCase):
         )
 
         # Construct mapper with transcoder.
-        mapper = Mapper(transcoder=transcoder)
+        mapper = Mapper[UUID](transcoder=transcoder)
 
         # Map to stored event.
         stored_event = mapper.to_stored_event(domain_event)

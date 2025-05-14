@@ -4,7 +4,7 @@ from uuid import UUID
 
 from eventsourcing.application import ProcessingEvent
 from eventsourcing.dispatch import singledispatchmethod
-from eventsourcing.domain import DomainEventProtocol
+from eventsourcing.domain import DomainEventProtocol, TAggregateID
 from eventsourcing.persistence import IntegrityError, JSONTranscoder
 from eventsourcing.system import (
     Follower,
@@ -81,8 +81,8 @@ class EmailProcess(ProcessApplication[UUID]):
     @singledispatchmethod
     def policy(
         self,
-        domain_event: DomainEventProtocol,
-        processing_event: ProcessingEvent,
+        domain_event: DomainEventProtocol[UUID],
+        processing_event: ProcessingEvent[UUID],
     ) -> None:
         """Default policy"""
 
@@ -90,7 +90,7 @@ class EmailProcess(ProcessApplication[UUID]):
     def _(
         self,
         domain_event: BankAccount.Opened,
-        processing_event: ProcessingEvent,
+        processing_event: ProcessingEvent[UUID],
     ) -> None:
         notification = EmailNotification.create(
             to=domain_event.email_address,
@@ -100,11 +100,13 @@ class EmailProcess(ProcessApplication[UUID]):
         processing_event.collect_events(notification)
 
 
-class PromptForwarder(RecordingEventReceiver):
+class PromptForwarder(RecordingEventReceiver[TAggregateID]):
     def __init__(self, application: Follower[Any]):
         self.application = application
 
-    def receive_recording_event(self, new_recording_event: RecordingEvent) -> None:
+    def receive_recording_event(
+        self, new_recording_event: RecordingEvent[TAggregateID]
+    ) -> None:
         self.application.pull_and_process(
             leader_name=new_recording_event.application_name,
             # start=recording_event.recordings[0].notification.id,

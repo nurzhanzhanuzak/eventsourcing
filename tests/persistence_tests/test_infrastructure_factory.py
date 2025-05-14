@@ -1,4 +1,5 @@
 from unittest.case import TestCase
+from uuid import UUID
 
 import eventsourcing.popo
 from eventsourcing.persistence import (
@@ -74,7 +75,7 @@ class TestInfrastructureFactory(TestCase):
     def test_construct_mapper(self) -> None:
         # No environment variables.
         factory = InfrastructureFactory.construct()
-        mapper = factory.mapper()
+        mapper: Mapper[UUID] = factory.mapper()
         self.assertIsInstance(mapper, Mapper)
         self.assertIsInstance(mapper.transcoder, JSONTranscoder)
 
@@ -84,7 +85,7 @@ class TestInfrastructureFactory(TestCase):
         mapper = factory.mapper()
         self.assertIsInstance(mapper, Mapper)
 
-        class MyMapper(Mapper):
+        class MyMapper(Mapper[UUID]):
             pass
 
         # MAPPER_TOPIC set to MyMapper.
@@ -112,12 +113,12 @@ class TestInfrastructureFactory(TestCase):
 
     def test_construct_event_store(self) -> None:
         factory = InfrastructureFactory.construct()
-        event_store = factory.event_store()
+        event_store: EventStore[UUID] = factory.event_store()
         self.assertIsInstance(event_store, EventStore)
         self.assertIsInstance(event_store.mapper, Mapper)
         self.assertIsInstance(event_store.recorder, ApplicationRecorder)
 
-        my_mapper = factory.mapper()
+        my_mapper: Mapper[UUID] = factory.mapper()
         event_store = factory.event_store(mapper=my_mapper)
         self.assertEqual(id(event_store.mapper), id(my_mapper))
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import typing
-import uuid
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Hashable, Iterator, Mapping, Sequence
@@ -23,6 +22,7 @@ from eventsourcing.domain import (
     DomainEventProtocol,
     EventSourcingError,
     HasOriginatorIDVersion,
+    TAggregateID,
 )
 from eventsourcing.utils import (
     Environment,
@@ -185,7 +185,7 @@ class StoredEvent:
     objects and :class:`~eventsourcing.domain.Snapshot` objects.
     """
 
-    originator_id: uuid.UUID | str
+    originator_id: UUID | str
     """ID of the originating aggregate."""
     originator_version: int
     """Position in an aggregate sequence."""
@@ -230,7 +230,7 @@ class MapperDeserialisationError(EventSourcingError, ValueError):
 TAggregateIDType = TypeVar("TAggregateIDType", type[UUID], type[str])
 
 
-class Mapper:
+class Mapper(Generic[TAggregateID]):
     """Converts between domain event objects and :class:`StoredEvent` objects.
 
     Uses a :class:`Transcoder`, and optionally a cryptographic cipher and compressor.
@@ -246,7 +246,9 @@ class Mapper:
         self.compressor = compressor
         self.cipher = cipher
 
-    def to_stored_event(self, domain_event: DomainEventProtocol) -> StoredEvent:
+    def to_stored_event(
+        self, domain_event: DomainEventProtocol[TAggregateID]
+    ) -> StoredEvent:
         """Converts the given domain event to a :class:`StoredEvent` object."""
         topic = get_topic(domain_event.__class__)
         event_state = domain_event.__dict__.copy()
@@ -267,7 +269,9 @@ class Mapper:
             state=stored_state,
         )
 
-    def to_domain_event(self, stored_event: StoredEvent) -> DomainEventProtocol:
+    def to_domain_event(
+        self, stored_event: StoredEvent
+    ) -> DomainEventProtocol[TAggregateID]:
         """Converts the given :class:`StoredEvent` to a domain event object."""
         cls = resolve_topic(stored_event.topic)
 
@@ -565,29 +569,29 @@ class ProcessRecorder(TrackingRecorder, ApplicationRecorder, ABC):
 
 
 @dataclass(frozen=True)
-class Recording:
+class Recording(Generic[TAggregateID]):
     """Represents the recording of a domain event."""
 
-    domain_event: DomainEventProtocol
+    domain_event: DomainEventProtocol[TAggregateID]
     """The domain event that has been recorded."""
     notification: Notification
     """A Notification that represents the domain event in the application sequence."""
 
 
-class EventStore:
+class EventStore(Generic[TAggregateID]):
     """Stores and retrieves domain events."""
 
     def __init__(
         self,
-        mapper: Mapper,
+        mapper: Mapper[TAggregateID],
         recorder: AggregateRecorder,
     ):
-        self.mapper = mapper
+        self.mapper: Mapper[TAggregateID] = mapper
         self.recorder = recorder
 
     def put(
-        self, domain_events: Sequence[DomainEventProtocol], **kwargs: Any
-    ) -> list[Recording]:
+        self, domain_events: Sequence[DomainEventProtocol[TAggregateID]], **kwargs: Any
+    ) -> list[Recording[TAggregateID]]:
         """Stores domain events in aggregate sequence."""
         stored_events = list(map(self.mapper.to_stored_event, domain_events))
         recordings = []
@@ -611,13 +615,13 @@ class EventStore:
 
     def get(
         self,
-        originator_id: UUID | str,
+        originator_id: TAggregateID,
         *,
         gt: int | None = None,
         lte: int | None = None,
         desc: bool = False,
         limit: int | None = None,
-    ) -> Iterator[DomainEventProtocol]:
+    ) -> Iterator[DomainEventProtocol[TAggregateID]]:
         """Retrieves domain events from aggregate sequence."""
         return map(
             self.mapper.to_domain_event,
@@ -744,14 +748,23 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
     def mapper(
         self,
         transcoder: Transcoder | None = None,
-        mapper_class: type[Mapper] | None = None,
-    ) -> Mapper:
+        mapper_class: type[Mapper[TAggregateID]] | None = None,
+    ) -> Mapper[TAggregateID]:
         """Constructs a mapper."""
+        # Resolve MAPPER_TOPIC if no given class.
         if mapper_class is None:
             mapper_topic = self.env.get(self.MAPPER_TOPIC)
-            mapper_class = resolve_topic(mapper_topic) if mapper_topic else Mapper
+            mapper_class = (
+                resolve_topic(mapper_topic) if mapper_topic else Mapper[TAggregateID]
+            )
 
-        assert isinstance(mapper_class, type) and issubclass(mapper_class, Mapper)
+        # Check we have a mapper class.
+        assert mapper_class is not None
+        origin_mapper_class = typing.get_origin(mapper_class) or mapper_class
+        assert isinstance(origin_mapper_class, type), mapper_class
+        assert issubclass(origin_mapper_class, Mapper), mapper_class
+
+        # Construct and return a mapper.
         return mapper_class(
             transcoder=transcoder or self.transcoder(),
             cipher=self.cipher(),
@@ -793,9 +806,9 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
     def event_store(
         self,
-        mapper: Mapper | None = None,
+        mapper: Mapper[TAggregateID] | None = None,
         recorder: AggregateRecorder | None = None,
-    ) -> EventStore:
+    ) -> EventStore[TAggregateID]:
         """Constructs an event store."""
         return EventStore(
             mapper=mapper or self.mapper(),

@@ -15,7 +15,7 @@ from examples.ftscontentmanagement.postgres import PostgresFtsRecorder
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from eventsourcing.domain import DomainEventProtocol
+    from eventsourcing.domain import DomainEventProtocol, TAggregateID
 
 
 class FtsViewInterface(FtsRecorder, TrackingRecorder, ABC):
@@ -35,7 +35,7 @@ class FtsViewInterface(FtsRecorder, TrackingRecorder, ABC):
 class FtsProjection(Projection[FtsViewInterface]):
     @singledispatchmethod
     def process_event(
-        self, domain_event: DomainEventProtocol, tracking: Tracking
+        self, domain_event: DomainEventProtocol[TAggregateID], tracking: Tracking
     ) -> None:
         self.view.insert_tracking(tracking)
 

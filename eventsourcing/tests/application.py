@@ -167,7 +167,7 @@ class ApplicationTestCase(TestCase):
 
     def test_resolve_persistence_topics(self) -> None:
         # None specified.
-        app = Application()
+        app = Application[UUID]()
         self.assertIsInstance(app.factory, InfrastructureFactory)
 
         # Legacy 'INFRASTRUCTURE_FACTORY'.
@@ -203,7 +203,7 @@ class ApplicationTestCase(TestCase):
         )
 
     def test_save_returns_recording_event(self) -> None:
-        app = Application()
+        app = Application[UUID]()
 
         recordings = app.save()
         self.assertEqual(recordings, [])
@@ -227,7 +227,7 @@ class ApplicationTestCase(TestCase):
     def test_take_snapshot_raises_assertion_error_if_snapshotting_not_enabled(
         self,
     ) -> None:
-        app = Application()
+        app = Application[UUID]()
         with self.assertRaises(AssertionError) as cm:
             app.take_snapshot(uuid4())
         self.assertEqual(
@@ -240,7 +240,7 @@ class ApplicationTestCase(TestCase):
         )
 
     def test_application_with_cached_aggregates_and_fastforward(self) -> None:
-        app = Application(env={"AGGREGATE_CACHE_MAXSIZE": "10"})
+        app = Application[UUID](env={"AGGREGATE_CACHE_MAXSIZE": "10"})
 
         aggregate = Aggregate()
         app.save(aggregate)
@@ -279,7 +279,7 @@ class ApplicationTestCase(TestCase):
         )
 
     def _check_aggregate_fastforwarding_during_contention(self, env: EnvType) -> None:
-        app = Application(env=env)
+        app = Application[UUID](env=env)
 
         self.assertEqual(len(app.repository._fastforward_locks_inuse), 0)
 
@@ -391,7 +391,7 @@ class ApplicationTestCase(TestCase):
             app.close()
 
     def test_application_with_cached_aggregates_not_fastforward(self) -> None:
-        app = Application(
+        app = Application[UUID](
             env={
                 "AGGREGATE_CACHE_MAXSIZE": "10",
                 "AGGREGATE_CACHE_FASTFORWARD": "f",
@@ -430,7 +430,7 @@ class ApplicationTestCase(TestCase):
             app.save(aggregate4)
 
     def test_application_with_deepcopy_from_cache_arg(self) -> None:
-        app = Application(
+        app = Application[UUID](
             env={
                 "AGGREGATE_CACHE_MAXSIZE": "10",
             }
@@ -447,7 +447,7 @@ class ApplicationTestCase(TestCase):
         self.assertEqual(app.repository.cache.get(aggregate.id).version, 101)
 
     def test_application_with_deepcopy_from_cache_attribute(self) -> None:
-        app = Application(
+        app = Application[UUID](
             env={
                 "AGGREGATE_CACHE_MAXSIZE": "10",
             }
@@ -466,7 +466,7 @@ class ApplicationTestCase(TestCase):
 
     def test_application_log(self) -> None:
         # Check the old 'log' attribute presents the 'notification log' object.
-        app = Application()
+        app = Application[UUID]()
 
         # Verify deprecation warning.
         with warnings.catch_warnings(record=True) as w:

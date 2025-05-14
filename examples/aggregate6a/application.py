@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
 
 from eventsourcing.application import Application, ProjectorFunction
+from eventsourcing.domain import Snapshot
 from examples.aggregate6a.domainmodel import Dog, add_trick, project_dog, register_dog
 
 if TYPE_CHECKING:
@@ -18,6 +19,7 @@ class DogSchool(Application[UUID]):
     snapshotting_projectors: ClassVar[
         dict[type[MutableOrImmutableAggregate[UUID]], ProjectorFunction[Any, Any]]
     ] = {Dog: project_dog}
+    snapshot_class = Snapshot
 
     def register_dog(self, name: str) -> UUID:
         dog = register_dog(name)

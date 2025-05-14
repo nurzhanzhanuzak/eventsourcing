@@ -1229,7 +1229,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactor
 
     def setUp(self) -> None:
         self.factory = cast(
-            "_TInfrastrutureFactory", InfrastructureFactory.construct(self.env)
+            _TInfrastrutureFactory, InfrastructureFactory.construct(self.env)
         )
         self.assertIsInstance(self.factory, self.expected_factory_class())
         self.transcoder = JSONTranscoder()
@@ -1269,7 +1269,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactor
 
         # Create mapper.
 
-        mapper = self.factory.mapper(
+        mapper: Mapper[UUID] = self.factory.mapper(
             transcoder=self.transcoder,
         )
         self.assertIsInstance(mapper, Mapper)
@@ -1279,7 +1279,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactor
     def test_createmapper_with_compressor(self) -> None:
         # Create mapper with compressor class as topic.
         self.env[self.factory.COMPRESSOR_TOPIC] = get_topic(ZlibCompressor)
-        mapper = self.factory.mapper(transcoder=self.transcoder)
+        mapper: Mapper[UUID] = self.factory.mapper(transcoder=self.transcoder)
         self.assertIsInstance(mapper, Mapper)
         self.assertIsInstance(mapper.compressor, ZlibCompressor)
         self.assertIsNone(mapper.cipher)
@@ -1305,7 +1305,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactor
         self.env[AESCipher.CIPHER_KEY] = cipher_key
 
         # Create mapper with cipher.
-        mapper = self.factory.mapper(transcoder=self.transcoder)
+        mapper: Mapper[UUID] = self.factory.mapper(transcoder=self.transcoder)
         self.assertIsInstance(mapper, Mapper)
         self.assertIsNotNone(mapper.cipher)
         self.assertIsNone(mapper.compressor)
@@ -1320,7 +1320,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactor
         cipher_key = AESCipher.create_key(16)
         self.env[AESCipher.CIPHER_KEY] = cipher_key
 
-        mapper = self.factory.mapper(transcoder=self.transcoder)
+        mapper: Mapper[UUID] = self.factory.mapper(transcoder=self.transcoder)
         self.assertIsInstance(mapper, Mapper)
         self.assertIsNotNone(mapper.cipher)
         self.assertIsNotNone(mapper.compressor)
@@ -1333,7 +1333,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactor
         self.env["APP1_" + AESCipher.CIPHER_KEY] = cipher_key1
         self.env["APP2_" + AESCipher.CIPHER_KEY] = cipher_key2
 
-        mapper1: Mapper = self.factory.mapper(
+        mapper1: Mapper[UUID] = self.factory.mapper(
             transcoder=self.transcoder,
         )
 
@@ -1347,7 +1347,7 @@ class InfrastructureFactoryTestCase(ABC, TestCase, Generic[_TInfrastrutureFactor
         self.assertEqual(domain_event.originator_id, copy.originator_id)
 
         self.env.name = "App2"
-        mapper2: Mapper = self.factory.mapper(
+        mapper2: Mapper[UUID] = self.factory.mapper(
             transcoder=self.transcoder,
         )
         # This should fail because the infrastructure factory

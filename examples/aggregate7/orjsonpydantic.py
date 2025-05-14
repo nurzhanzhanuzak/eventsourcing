@@ -14,8 +14,8 @@ if TYPE_CHECKING:
     from eventsourcing.domain import DomainEventProtocol
 
 
-class PydanticMapper(Mapper):
-    def to_stored_event(self, domain_event: DomainEventProtocol) -> StoredEvent:
+class PydanticMapper(Mapper[UUID]):
+    def to_stored_event(self, domain_event: DomainEventProtocol[UUID]) -> StoredEvent:
         topic = get_topic(domain_event.__class__)
         event_state = cast(BaseModel, domain_event).model_dump(mode="json")
         stored_state = self.transcoder.encode(event_state)
@@ -30,7 +30,7 @@ class PydanticMapper(Mapper):
             state=stored_state,
         )
 
-    def to_domain_event(self, stored_event: StoredEvent) -> DomainEventProtocol:
+    def to_domain_event(self, stored_event: StoredEvent) -> DomainEventProtocol[UUID]:
         stored_state = stored_event.state
         if self.cipher:
             stored_state = self.cipher.decrypt(stored_state)

@@ -147,7 +147,7 @@ def test_recorder_select_events(
 @pytest.mark.benchmark(group="call-app-save")
 def test_app_save(env: str, num_events: int, benchmark: BenchmarkFixture) -> None:
 
-    app = Application(env=envs[env])
+    app = Application[UUID](env=envs[env])
 
     clear_topic_cache()
 
@@ -225,7 +225,7 @@ def test_repository_get(env: str, num_events: int, benchmark: BenchmarkFixture) 
         def subsequent(self, a: int) -> None:
             self.a = a
 
-    app = Application(env=envs[env])
+    app = Application[UUID](env=envs[env])
     agg = A(a=0)
     for i in range(num_events - 1):
         agg.subsequent(a=i + 1)

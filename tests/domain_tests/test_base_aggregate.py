@@ -35,10 +35,11 @@ else:
 class TestBaseAggregate(TestCase):
     def test_base_aggregate_class_cannot_be_instantiated_directly(self) -> None:
         with self.assertRaises(TypeError) as cm:
-            BaseAggregate()  # type: ignore[abstract]
+            BaseAggregate()
 
-        self.assertEqual(
-            str(cm.exception), "BaseAggregate class cannot be instantiated directly"
+        self.assertIn(
+            "Please define or use subclasses of BaseAggregate",
+            str(cm.exception),
         )
 
     def test_aggregate_class_can_be_instantiated_directly(self) -> None:
@@ -375,6 +376,22 @@ class TestBaseAggregate(TestCase):
 
         self.assertEqual(
             str(cm.exception), "class 'Started' not a \"created\" event class"
+        )
+
+    def test_raises_not_implemented_error_if_create_id_not_implemented(self) -> None:
+        class A(BaseAggregate[UUID]):
+            class Event(AggregateEvent):
+                pass
+
+            class Created(Event, AggregateCreated):
+                pass
+
+        with self.assertRaises(NotImplementedError) as cm:
+            A()
+
+        self.assertIn(
+            "Please pass an 'id' arg or define a create_id() method",
+            str(cm.exception),
         )
 
     def test_init_has_event_decorator_with_class_correct_type_mismatched_attrs(

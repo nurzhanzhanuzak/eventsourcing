@@ -16,9 +16,9 @@ if TYPE_CHECKING:
 class FtsContentManagement(ContentManagement):
     def save(
         self,
-        *objs: MutableOrImmutableAggregate[UUID] | DomainEventProtocol | None,
+        *objs: MutableOrImmutableAggregate[UUID] | DomainEventProtocol[UUID] | None,
         **kwargs: Any,
-    ) -> list[Recording]:
+    ) -> list[Recording[UUID]]:
         insert_pages: list[PageInfo] = []
         update_pages: list[PageInfo] = []
         for obj in objs:

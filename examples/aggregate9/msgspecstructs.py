@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from eventsourcing.domain import DomainEventProtocol
 
 
-class MsgspecMapper(Mapper):
-    def to_stored_event(self, domain_event: DomainEventProtocol) -> StoredEvent:
+class MsgspecMapper(Mapper[UUID]):
+    def to_stored_event(self, domain_event: DomainEventProtocol[UUID]) -> StoredEvent:
         topic = get_topic(domain_event.__class__)
         stored_state = msgspec.json.encode(domain_event)
         if self.compressor:
@@ -28,7 +28,7 @@ class MsgspecMapper(Mapper):
             state=stored_state,
         )
 
-    def to_domain_event(self, stored_event: StoredEvent) -> DomainEventProtocol:
+    def to_domain_event(self, stored_event: StoredEvent) -> DomainEventProtocol[UUID]:
         stored_state = stored_event.state
         if self.cipher:
             stored_state = self.cipher.decrypt(stored_state)

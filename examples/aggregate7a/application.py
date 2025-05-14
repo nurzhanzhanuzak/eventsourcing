@@ -43,7 +43,7 @@ class DogSchool(Application[UUID]):
         dog = self.repository.get(dog_id, projector_func=project_dog)
         return {"name": dog.name, "tricks": tuple([t.name for t in dog.tricks])}
 
-    def construct_mapper(self) -> Mapper:
+    def construct_mapper(self) -> Mapper[UUID]:
         return self.factory.mapper(
             transcoder=self.construct_transcoder(),
             mapper_class=PydanticMapper,

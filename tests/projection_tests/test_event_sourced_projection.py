@@ -33,8 +33,8 @@ class Counters(EventSourcedProjection[UUID]):
     @singledispatchmethod
     def policy(
         self,
-        domain_event: DomainEventProtocol,
-        processing_event: ProcessingEvent,
+        domain_event: DomainEventProtocol[UUID],
+        processing_event: ProcessingEvent[UUID],
     ) -> None:
         topic = get_topic(type(domain_event))
         try:
@@ -45,7 +45,7 @@ class Counters(EventSourcedProjection[UUID]):
         counter.increment()
         processing_event.collect_events(counter)
 
-    def get_count(self, domain_event_class: type[DomainEventProtocol]) -> int:
+    def get_count(self, domain_event_class: type[DomainEventProtocol[UUID]]) -> int:
         topic = get_topic(domain_event_class)
         counter_id = Counter.create_id(topic)
         try:

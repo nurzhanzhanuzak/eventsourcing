@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from eventsourcing.application import Application
 from examples.aggregate11.domainmodel import Dog, Snapshot
 
-if TYPE_CHECKING:
-    from eventsourcing.domain import SnapshotProtocol
-
 
 class DogSchool(Application[str]):
     is_snapshotting_enabled = True
-    snapshot_class: type[SnapshotProtocol] = Snapshot
+    snapshot_class = Snapshot
 
     def register_dog(self, name: str) -> str:
         dog = Dog(name)

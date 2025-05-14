@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from queue import Queue
 from threading import Event
 from time import sleep
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, Union, cast
+from typing import TYPE_CHECKING, Any, Generic, Union, cast
 from unittest.case import TestCase
 from unittest.mock import MagicMock
 from uuid import UUID
@@ -16,7 +16,13 @@ from typing_extensions import TypeVar
 
 from eventsourcing.application import ProcessingEvent  # noqa: TC001
 from eventsourcing.dispatch import singledispatchmethod
-from eventsourcing.domain import Aggregate, AggregateEvent, DomainEventProtocol, event
+from eventsourcing.domain import (
+    Aggregate,
+    AggregateEvent,
+    DomainEventProtocol,
+    TAggregateID,
+    event,
+)
 from eventsourcing.persistence import Notification, ProgrammingError, Tracking
 from eventsourcing.system import (
     ConvertingThread,
@@ -42,7 +48,7 @@ from eventsourcing.utils import EnvType, clear_topic_cache, get_topic
 from tests.application_tests.test_processapplication import EmailProcess
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Iterator
 
 
 class EmailProcess2(EmailProcess):
@@ -51,8 +57,10 @@ class EmailProcess2(EmailProcess):
 
 TRunner = TypeVar(
     "TRunner",
-    bound=Runner,
-    default=Union[SingleThreadedRunner, NewSingleThreadedRunner],
+    bound=Runner[Any],
+    default=Union[
+        SingleThreadedRunner[TAggregateID], NewSingleThreadedRunner[TAggregateID]
+    ],
 )
 
 
@@ -85,7 +93,7 @@ class Result(Aggregate):
         self.error = error
 
 
-class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
+class TestSingleThreadedRunner(TestCase, Generic[TAggregateID, TRunner]):
     def construct_runner(self, system: System, env: EnvType | None = None) -> TRunner:
         return cast("TRunner", SingleThreadedRunner(system, env))
 
@@ -197,8 +205,8 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
             @singledispatchmethod
             def policy(
                 self,
-                domain_event: DomainEventProtocol,
-                processing_event: ProcessingEvent,
+                domain_event: DomainEventProtocol[TAggregateID],
+                processing_event: ProcessingEvent[TAggregateID],
             ) -> None:
                 pass
 
@@ -206,7 +214,7 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
             def result_created(
                 self,
                 domain_event: Result.Created,
-                processing_event: ProcessingEvent,
+                processing_event: ProcessingEvent[UUID],
             ) -> None:
                 command: Command = self.repository.get(domain_event.command_id)
                 command.done(
@@ -223,8 +231,8 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
             @singledispatchmethod
             def policy(
                 self,
-                domain_event: DomainEventProtocol,
-                processing_event: ProcessingEvent,
+                domain_event: DomainEventProtocol[UUID],
+                processing_event: ProcessingEvent[UUID],
             ) -> None:
                 pass
 
@@ -232,7 +240,7 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
             def _(
                 self,
                 domain_event: Command.Created,
-                processing_event: ProcessingEvent,
+                processing_event: ProcessingEvent[UUID],
             ) -> None:
                 try:
                     openargs = shlex.split(domain_event.text)
@@ -315,9 +323,7 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
 
     def test_filters_notifications_by_topics(self) -> None:
         class MyEmailProcess(EmailProcess):
-            topics: ClassVar[Sequence[str]] = [
-                get_topic(AggregateEvent)
-            ]  # follow nothing
+            topics = (get_topic(AggregateEvent),)
 
         system = System(pipes=[[BankAccounts, MyEmailProcess]])
         runner = self.construct_runner(system)
@@ -394,11 +400,13 @@ class TestSingleThreadedRunner(TestCase, Generic[TRunner]):
 #     runner_class = SingleThreadedRunner
 #
 #
-class TestNewSingleThreadedRunner(TestSingleThreadedRunner[NewSingleThreadedRunner]):
+class TestNewSingleThreadedRunner(
+    TestSingleThreadedRunner[UUID, NewSingleThreadedRunner[UUID]]
+):
 
     def construct_runner(
         self, system: System, env: EnvType | None = None
-    ) -> NewSingleThreadedRunner:
+    ) -> NewSingleThreadedRunner[UUID]:
         return NewSingleThreadedRunner(system=system, env=env)
 
     def test_ignores_recording_event_if_seen_subsequent(self) -> None:
@@ -442,7 +450,7 @@ class TestNewSingleThreadedRunner(TestSingleThreadedRunner[NewSingleThreadedRunn
 
 class TestPullingThread(TestCase):
     def test_receive_recording_event_does_not_block(self) -> None:
-        thread = PullingThread(
+        thread = PullingThread[UUID](
             converting_queue=Queue(),
             follower=MagicMock(),
             leader_name="BankAccounts",
@@ -470,7 +478,7 @@ class TestPullingThread(TestCase):
         self.assertTrue(thread.overflow_event.is_set())
 
     def test_stops_because_stopping_event_is_set(self) -> None:
-        thread = PullingThread(
+        thread = PullingThread[UUID](
             converting_queue=Queue(),
             follower=MagicMock(),
             leader_name="BankAccounts",
@@ -493,7 +501,7 @@ class TestPullingThread(TestCase):
         self.assertEqual(thread.recording_event_queue.qsize(), 2)
 
     def test_stops_because_recording_event_queue_was_poisoned(self) -> None:
-        thread = PullingThread(
+        thread = PullingThread[UUID](
             converting_queue=Queue(),
             follower=MagicMock(),
             leader_name="BankAccounts",
@@ -508,11 +516,13 @@ class TestPullingThread(TestCase):
 
 
 class TestMultiThreadedRunner(
-    TestSingleThreadedRunner[Union[MultiThreadedRunner, NewMultiThreadedRunner]]
+    TestSingleThreadedRunner[
+        UUID, Union[MultiThreadedRunner[UUID], NewMultiThreadedRunner[UUID]]
+    ]
 ):
     def construct_runner(
         self, system: System, env: EnvType | None = None
-    ) -> MultiThreadedRunner | NewMultiThreadedRunner:
+    ) -> MultiThreadedRunner[UUID] | NewMultiThreadedRunner[UUID]:
         return MultiThreadedRunner(system=system, env=env)
 
     def test_ignores_recording_event_if_seen_subsequent(self) -> None:
@@ -524,7 +534,10 @@ class TestMultiThreadedRunner(
         pass
 
     def wait_for_runner(
-        self, runner: MultiThreadedRunner | NewMultiThreadedRunner
+        self,
+        runner: (
+            MultiThreadedRunner[TAggregateID] | NewMultiThreadedRunner[TAggregateID]
+        ),
     ) -> None:
         sleep(0.3)
         runner.reraise_thread_errors()
@@ -536,7 +549,7 @@ class TestMultiThreadedRunner(
 
     class BrokenProcessing(EmailProcess):
         def process_event(
-            self, domain_event: DomainEventProtocol, tracking: Tracking
+            self, domain_event: DomainEventProtocol[TAggregateID], tracking: Tracking
         ) -> None:
             msg = "Just testing error handling when processing is broken"
             raise TestMultiThreadedRunner.DeliberateError(msg)
@@ -763,7 +776,10 @@ class TestMultiThreadedRunnerWithPostgres(TestMultiThreadedRunner):
         super().tearDown()
 
     def wait_for_runner(
-        self, runner: MultiThreadedRunner | NewMultiThreadedRunner
+        self,
+        runner: (
+            MultiThreadedRunner[TAggregateID] | NewMultiThreadedRunner[TAggregateID]
+        ),
     ) -> None:
         sleep(0.6)
         super().wait_for_runner(runner)
@@ -773,7 +789,7 @@ class TestNewMultiThreadedRunner(TestMultiThreadedRunner):
 
     def construct_runner(
         self, system: System, env: EnvType | None = None
-    ) -> NewMultiThreadedRunner:
+    ) -> NewMultiThreadedRunner[UUID]:
         return NewMultiThreadedRunner(system=system, env=env)
 
     class BrokenPulling(EmailProcess):
@@ -791,7 +807,7 @@ class TestNewMultiThreadedRunner(TestMultiThreadedRunner):
     class BrokenConverting(EmailProcess):
         def convert_notifications(
             self, leader_name: str, notifications: Iterable[Notification]
-        ) -> list[ProcessingJob]:
+        ) -> list[ProcessingJob[UUID]]:
             msg = "Just testing error handling when converting is broken"
             raise ProgrammingError(msg)
 

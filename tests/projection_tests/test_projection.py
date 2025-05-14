@@ -3,12 +3,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, cast
 from unittest import TestCase
+from uuid import UUID
 
 from psycopg.sql import SQL, Identifier
 
 from eventsourcing.application import Application
 from eventsourcing.dispatch import singledispatchmethod
-from eventsourcing.domain import Aggregate, DomainEventProtocol
+from eventsourcing.domain import Aggregate, DomainEventProtocol, TAggregateID
 from eventsourcing.persistence import (
     InfrastructureFactory,
     IntegrityError,
@@ -256,7 +257,9 @@ class EventCountersProjection(Projection[EventCountersInterface]):
     )
 
     @singledispatchmethod
-    def process_event(self, _: DomainEventProtocol, tracking: Tracking) -> None:
+    def process_event(
+        self, _: DomainEventProtocol[TAggregateID], tracking: Tracking
+    ) -> None:
         self.view.insert_tracking(tracking)
 
     @process_event.register
@@ -379,7 +382,7 @@ class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
         ):
 
             # Construct separate instance of "write model".
-            write_model = Application(self.env)
+            write_model = Application[UUID](self.env)
 
             # Construct separate instance of "read model".
             read_model = (
@@ -434,7 +437,7 @@ class TestEventCountersProjectionWithPostgres(TestEventCountersProjection):
         ) as runner:
 
             # Construct separate instance of "write model".
-            write_model = Application(self.env)
+            write_model = Application[UUID](self.env)
 
             # Construct separate instance of "read model".
             read_model = InfrastructureFactory.construct(

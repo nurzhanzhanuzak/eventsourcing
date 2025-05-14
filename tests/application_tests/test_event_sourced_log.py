@@ -31,7 +31,7 @@ class TestEventSourcedLog(TestCase):
         transcoder.register(DatetimeAsISO())
 
         event_recorder = POPOAggregateRecorder()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )
@@ -127,7 +127,7 @@ class TestEventSourcedLog(TestCase):
         transcoder.register(DatetimeAsISO())
 
         event_recorder = POPOAggregateRecorder()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )

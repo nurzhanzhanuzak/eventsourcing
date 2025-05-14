@@ -1,6 +1,7 @@
 from decimal import Decimal
 from typing import cast
 from unittest import TestCase
+from uuid import UUID
 
 from eventsourcing.domain import Snapshot
 from eventsourcing.persistence import (
@@ -39,7 +40,7 @@ class TestSnapshotting(TestCase):
             SQLiteDatastore(":memory:"),
             events_table_name="snapshots",
         )
-        snapshot_store = EventStore(
+        snapshot_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=recorder,
         )

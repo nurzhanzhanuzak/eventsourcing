@@ -41,13 +41,13 @@ class TestRepository(TestCase):
 
         event_recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         event_recorder.create_table()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )
         snapshot_recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         snapshot_recorder.create_table()
-        snapshot_store = EventStore(
+        snapshot_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=snapshot_recorder,
         )
@@ -146,7 +146,7 @@ class TestRepository(TestCase):
 
         event_recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         event_recorder.create_table()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )
@@ -227,13 +227,13 @@ class TestRepository(TestCase):
 
         event_recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         event_recorder.create_table()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )
         snapshot_recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         snapshot_recorder.create_table()
-        snapshot_store = EventStore(
+        snapshot_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=snapshot_recorder,
         )
@@ -321,7 +321,7 @@ class TestRepository(TestCase):
         transcoder.register(DatetimeAsISO())
 
         event_recorder = POPOAggregateRecorder()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )
@@ -342,7 +342,7 @@ class TestRepository(TestCase):
 
         event_recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         event_recorder.create_table()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )
@@ -372,7 +372,7 @@ class TestRepository(TestCase):
 
         event_recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         event_recorder.create_table()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )
@@ -418,7 +418,7 @@ class TestRepository(TestCase):
 
         event_recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         event_recorder.create_table()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )
@@ -449,7 +449,7 @@ class TestRepository(TestCase):
 
         event_recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
         event_recorder.create_table()
-        event_store = EventStore(
+        event_store = EventStore[UUID](
             mapper=Mapper(transcoder=transcoder),
             recorder=event_recorder,
         )
@@ -469,7 +469,7 @@ class TestRepository(TestCase):
             repository.get(aggregate.id, projector_func=lambda _, __: None)
 
     def test_fastforward_lock(self) -> None:
-        repository = Repository(
+        repository = Repository[UUID](
             EventStore(
                 mapper=Mapper(transcoder=JSONTranscoder()),
                 recorder=POPOAggregateRecorder(),

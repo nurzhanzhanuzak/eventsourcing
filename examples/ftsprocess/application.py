@@ -22,8 +22,8 @@ class FtsProcess(ProcessApplication[UUID]):
     @singledispatchmethod
     def policy(
         self,
-        domain_event: DomainEventProtocol,
-        processing_event: ProcessingEvent,
+        domain_event: DomainEventProtocol[UUID],
+        processing_event: ProcessingEvent[UUID],
     ) -> None:
         if isinstance(domain_event, Page.Created):
             processing_event.collect_events(
