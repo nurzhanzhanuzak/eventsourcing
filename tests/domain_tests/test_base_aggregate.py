@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime
 from typing import Any
 from unittest import TestCase
@@ -14,7 +14,6 @@ from eventsourcing.domain import (
     OriginatorIDError,
     OriginatorVersionError,
     ProgrammingError,
-    datetime_now_with_tzinfo,
     event,
 )
 from eventsourcing.utils import get_method_name
@@ -700,25 +699,18 @@ class TestBaseAggregate(TestCase):
             class Created(Event, AggregateCreated):
                 pass
 
-        # Basically, when we subclass the events in B, so they all inherit from B's
-        # new 'Event' class, then
+        # Basically, when we redefine an event in B, it must inherit from
+        # the original class, from any redefined event classes on B that are
+        # in its bases, and from B's base event class. In this example, B
+        # doesn't have its own base event class, so Something and Schedules
+        # are redefined. Unless the hierarchy is preserved, after the class
+        # is defined, B.Scheduled will not be a subclass of B.Something.
         class B(A):
-            @dataclass(frozen=True)
             class Something(A.Event):
-                a: int
-
-            @dataclass(frozen=True)
-            class Scheduled(Something):
                 pass
 
-        # Should include field 'a'.
-        scheduled = B.Scheduled(
-            originator_id=uuid4(),
-            originator_version=1,
-            timestamp=datetime_now_with_tzinfo(),
-            a=4,
-        )
-        self.assertEqual(scheduled.a, 4)
+            class Scheduled(Something):
+                pass
 
         # Redefined classes should respect original hierarchy.
         self.assertTrue(issubclass(B.Scheduled, B.Something))
