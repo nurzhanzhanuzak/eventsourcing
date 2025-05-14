@@ -19,17 +19,26 @@ The library's system class...
 
 .. code-block:: python
 
+    from dataclasses import dataclass
     from uuid import uuid4
 
     from eventsourcing.domain import Aggregate, event
 
     class Dog(Aggregate):
-        @event('Registered')
+        @dataclass(frozen=True)
+        class Registered(Aggregate.Created):
+            name: str
+
+        @dataclass(frozen=True)
+        class TrickAdded(Aggregate.Event):
+            trick: str
+
+        @event(Registered)
         def __init__(self, name: str):
             self.name = name
             self.tricks: list[str] = []
 
-        @event('TrickAdded')
+        @event(TrickAdded)
         def add_trick(self, trick: str) -> None:
             self.tricks.append(trick)
 
@@ -89,7 +98,7 @@ Now let's define an analytics application...
 
     class Counters(ProcessApplication[UUID]):
         @singledispatchmethod
-        def policy(self, domain_event: DomainEventProtocol[UUID], processing_event: ProcessingEvent[UUID]) -> None:
+        def policy(self, domain_event: Any, processing_event: ProcessingEvent[UUID]) -> None:
             """Default policy"""
 
         @policy.register
