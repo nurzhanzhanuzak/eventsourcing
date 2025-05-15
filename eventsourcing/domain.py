@@ -1359,20 +1359,37 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
             if not isinstance(value, type) or not issubclass(value, CanMutateAggregate):
                 continue
 
+            # # Don't subclass generic classes (we don't have a type argument).
+            # # TODO: Maybe also prohibit triggering such things?
+            # if value.__dict__.get("__parameters__", ()):
+            #     continue
+
             # Check we have a base event class.
             if base_event_cls is None:
                 raise base_event_class_not_defined_error
 
             # Redefine events that aren't already subclass of the base event class.
             if not issubclass(value, base_event_cls):
+                # Identify base classes that were redefined, to preserve hierarchy.
+                redefined_bases = []
+                for base in value.__bases__:
+                    if base in redefined_event_classes:
+                        redefined_bases.append(redefined_event_classes[base])
+                    elif "__pydantic_generic_metadata__" in base.__dict__:
+                        pydantic_metadata = base.__dict__[
+                            "__pydantic_generic_metadata__"
+                        ]
+                        for i, key in enumerate(pydantic_metadata):
+                            if key == "origin":
+                                origin = base.__bases__[i]
+                                if origin in redefined_event_classes:
+                                    redefined_bases.append(
+                                        redefined_event_classes[origin]
+                                    )
+
                 # Decide base classes of redefined event class: it must be
                 # a subclass of the original class, all redefined classes that
                 # were in its bases, and the aggregate's base event class.
-                redefined_bases = [
-                    redefined_event_classes[b]
-                    for b in value.__bases__
-                    if b in redefined_event_classes
-                ]
                 event_class_bases = (
                     value,
                     *redefined_bases,

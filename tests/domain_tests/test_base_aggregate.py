@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, Generic, TypeVar
 from unittest import TestCase
 from uuid import UUID, uuid4
 
@@ -713,5 +713,118 @@ class TestBaseAggregate(TestCase):
             class Scheduled(Something):
                 pass
 
+            self.assertTrue(issubclass(Scheduled, Something))
+
         # Redefined classes should respect original hierarchy.
+        self.assertTrue(issubclass(B.Scheduled, B.Something))
+
+    def test_original_subclass_relations_are_respected_with_pydantic_generics(
+        self,
+    ) -> None:
+        # Issue #295 on GitHub.
+        # https://github.com/pyeventsourcing/eventsourcing/issues/295
+
+        from pydantic import BaseModel
+
+        from eventsourcing.domain import (
+            BaseAggregate,
+            CanInitAggregate,
+            CanMutateAggregate,
+        )
+
+        class DomainEvent(BaseModel):
+            originator_id: UUID
+            originator_version: int
+            timestamp: datetime
+
+        class A(BaseAggregate[UUID]):
+            class Event(DomainEvent, CanMutateAggregate[UUID]):
+                pass
+
+            class Created(Event, CanInitAggregate[UUID]):
+                originator_topic: str
+
+        class Shared(BaseModel):
+            system_id: str
+
+        class ExtendedShared(Shared):
+            task_id: str
+
+        SharedId = TypeVar("SharedId", bound=Shared)
+
+        class B(A):
+            class Something(A.Event, Generic[SharedId]):
+                shared_id: SharedId
+
+            class Else(Something[ExtendedShared]):
+                pass
+
+            class Scheduled(Else):
+                pass
+
+            self.assertTrue(issubclass(Else, Something))
+            self.assertTrue(issubclass(Scheduled, Else))
+            self.assertTrue(issubclass(Scheduled, Something))
+
+        # Redefined classes should respect original hierarchy.
+        self.assertTrue(issubclass(B.Else, B.Something))
+        self.assertTrue(issubclass(B.Scheduled, B.Else))
+        self.assertTrue(issubclass(B.Scheduled, B.Something))
+
+    def test_original_subclass_relations_are_respected_with_dataclass_generics(
+        self,
+    ) -> None:
+        # Issue #295 on GitHub.
+        # https://github.com/pyeventsourcing/eventsourcing/issues/295
+
+        from eventsourcing.domain import (
+            BaseAggregate,
+            CanInitAggregate,
+            CanMutateAggregate,
+        )
+
+        @dataclass(frozen=True)
+        class DomainEvent:
+            originator_id: UUID
+            originator_version: int
+            timestamp: datetime
+
+        class A(BaseAggregate[UUID]):
+            @dataclass(frozen=True)
+            class Event(DomainEvent, CanMutateAggregate[UUID]):
+                pass
+
+            @dataclass(frozen=True)
+            class Created(Event, CanInitAggregate[UUID]):
+                originator_topic: str
+
+        @dataclass(frozen=True)
+        class Shared:
+            system_id: str
+
+        @dataclass(frozen=True)
+        class ExtendedShared(Shared):
+            task_id: str
+
+        SharedId = TypeVar("SharedId", bound=Shared)
+
+        class B(A):
+            @dataclass(frozen=True)
+            class Something(A.Event, Generic[SharedId]):
+                shared_id: SharedId
+
+            @dataclass(frozen=True)
+            class Else(Something[ExtendedShared]):
+                pass
+
+            class Scheduled(Else):
+                pass
+
+            self.assertTrue(issubclass(Else, Something))
+            self.assertTrue(issubclass(Scheduled, Else))
+            self.assertTrue(issubclass(Scheduled, Something))
+
+        # Redefined classes should respect original hierarchy.
+        self.assertTrue(issubclass(B.Else, B.Something))
+        self.assertTrue(issubclass(B.Scheduled, B.Else))
         self.assertTrue(issubclass(B.Scheduled, B.Something))
