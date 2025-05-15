@@ -276,6 +276,7 @@ class CanMutateAggregate(HasOriginatorIDVersion[TAggregateID_co], CanCreateTimes
 
     def __init_subclass__(cls) -> None:
         cls.find_originator_id_type(CanMutateAggregate)
+        super().__init_subclass__()
 
     def mutate(self, aggregate: TAggregate | None) -> TAggregate | None:
         """Validates and adjusts the attributes of the given ``aggregate``
@@ -343,6 +344,7 @@ class CanInitAggregate(CanMutateAggregate[TAggregateID_co]):
 
     def __init_subclass__(cls) -> None:
         cls.find_originator_id_type(CanInitAggregate)
+        super().__init_subclass__()
 
     def mutate(self, aggregate: TAggregate | None) -> TAggregate | None:
         """Constructs an aggregate instance according to the attributes of an event.
@@ -1746,6 +1748,7 @@ class CanSnapshotAggregate(HasOriginatorIDVersion[TAggregateID_co], CanCreateTim
 
     def __init_subclass__(cls) -> None:
         cls.find_originator_id_type(CanSnapshotAggregate)
+        super().__init_subclass__()
 
     # def __init__(
     #     self,
