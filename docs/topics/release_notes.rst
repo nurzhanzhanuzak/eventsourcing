@@ -24,6 +24,15 @@ with previous major versions. However the underlying principles are the
 same, and so conversion of code and stored events is very possible.
 
 
+Version 9.4.6 (released 15 May 2025)
+------------------------------------
+
+* Fixed issue with subclassing of Pydantic generics in aggregate event classes that don't inherit from their aggregate's base event class.
+* Improved detection and usage of type arg for TAggregateID in library's base event classes, also improving error detection and reporting.
+* Improved typing annotations in Application.take_snapshot() and on BaseAggregate._create() ('TAggregateID' rather than 'UUID | str').
+* Replaced TAggregateID_co with TAggregateID in event base classes (TAggregateID_co is only needed in the protocol classes).
+
+
 Version 9.4.5 (released 14 May 2025)
 ------------------------------------
 
