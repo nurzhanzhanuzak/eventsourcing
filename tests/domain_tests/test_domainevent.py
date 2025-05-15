@@ -7,7 +7,11 @@ from uuid import UUID, uuid4
 
 import eventsourcing.domain
 from eventsourcing.domain import (
+    CanInitAggregate,
+    CanMutateAggregate,
+    CanSnapshotAggregate,
     DomainEvent,
+    HasOriginatorIDVersion,
     MetaDomainEvent,
     create_utc_datetime_now,
     datetime_now_with_tzinfo,
@@ -122,4 +126,77 @@ class TestDatetimeNowWithTzinfo(TestCase):
                 "use 'datetime_now_with_tzinfo()' instead"
             ),
             str(w[-1].message),
+        )
+
+
+class TestOriginatorID(TestCase):
+    def test_hasoriginatoridversion(self) -> None:
+        self.assertIsNone(HasOriginatorIDVersion.originator_id_type)
+
+        # class DomainEvent(HasOriginatorIDVersion[str]):
+        #     pass
+        #
+        # DomainEvent.originator_id_type = int
+        #
+        # class SubDomainEvent(DomainEvent):
+        #     pass
+
+    #
+    #     print(HasOriginatorIDVersion.__parameters__)
+    #     print(HasOriginatorIDVersion[TA].__parameters__)
+    #     print(HasOriginatorIDVersion[int].__parameters__)
+    #     # raise Exception(type(alias))
+
+    def test_uuid(self) -> None:
+        class DomainEvent(CanMutateAggregate[UUID]):
+            pass
+
+        class CustomDomainEvent(DomainEvent):
+            pass
+
+        class CreatedEvent(CanInitAggregate[UUID]):
+            pass
+
+        class CustomCreatedEvent(CreatedEvent):
+            pass
+
+        class Snapshot(CanSnapshotAggregate[UUID]):
+            pass
+
+        self.assertIs(DomainEvent.originator_id_type, UUID)
+        self.assertIs(CustomDomainEvent.originator_id_type, UUID)
+        self.assertIs(CreatedEvent.originator_id_type, UUID)
+        self.assertIs(CustomCreatedEvent.originator_id_type, UUID)
+        self.assertIs(Snapshot.originator_id_type, UUID)
+
+    def test_str(self) -> None:
+        class DomainEvent(CanMutateAggregate[str]):
+            pass
+
+        class CustomDomainEvent(DomainEvent):
+            pass
+
+        class CreatedEvent(CanInitAggregate[str]):
+            pass
+
+        class CustomCreatedEvent(CreatedEvent):
+            pass
+
+        class Snapshot(CanSnapshotAggregate[str]):
+            pass
+
+        self.assertIs(DomainEvent.originator_id_type, str)
+        self.assertIs(CustomDomainEvent.originator_id_type, str)
+        self.assertIs(CreatedEvent.originator_id_type, str)
+        self.assertIs(CustomCreatedEvent.originator_id_type, str)
+        self.assertIs(Snapshot.originator_id_type, str)
+
+    def test_int(self) -> None:
+        with self.assertRaises(TypeError) as cm:
+
+            class DomainEvent(CanMutateAggregate[int]):  # type: ignore[type-var]
+                pass
+
+        self.assertIn(
+            "Aggregate ID type arg cannot be <class 'int'>", str(cm.exception)
         )

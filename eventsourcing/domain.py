@@ -17,6 +17,7 @@ from typing import (
     Callable,
     ClassVar,
     Generic,
+    Optional,
     Protocol,
     TypeVar,
     Union,
@@ -245,24 +246,30 @@ class HasOriginatorIDVersion(Generic[TAggregateID_co]):
     originator_version: int
     """Integer identifying the version of the aggregate when the event occurred."""
 
-    type_originator_id: ClassVar[type[Union[UUID, str]]]  # noqa: UP007
+    originator_id_type: ClassVar[Optional[type[Union[UUID, str]]]] = None  # noqa: UP007
 
     def __init_subclass__(cls) -> None:
         cls.find_originator_id_type(HasOriginatorIDVersion)
+        super().__init_subclass__()
 
     @classmethod
     def find_originator_id_type(cls: type, generic_cls: type) -> None:
         """Store the type argument of TAggregateID_co on the subclass."""
-        for orig_base in cls.__orig_bases__:  # type: ignore[attr-defined]
-            type_originator_id = orig_base.__dict__.get("type_originator_id", "")
-            if type_originator_id in (UUID, str):
-                cls.type_originator_id = type_originator_id  # type: ignore[attr-defined]
-                break
-            if get_origin(orig_base) is generic_cls:
-                type_originator_id = get_args(orig_base)[0]
-                if type_originator_id in (UUID, str):
-                    cls.type_originator_id = type_originator_id  # type: ignore[attr-defined]
-                    break
+        if "originator_id_type" not in cls.__dict__:
+            for orig_base in cls.__orig_bases__:  # type: ignore[attr-defined]
+                if "originator_id_type" in orig_base.__dict__:
+                    cls.originator_id_type = orig_base.__dict__["originator_id_type"]  # type: ignore[attr-defined]
+                elif get_origin(orig_base) is generic_cls:
+                    originator_id_type = get_args(orig_base)[0]
+                    if originator_id_type in (UUID, str):
+                        cls.originator_id_type = originator_id_type  # type: ignore[attr-defined]
+                        break
+                    if originator_id_type is Any:
+                        continue
+                    if isinstance(originator_id_type, TypeVar):
+                        continue
+                    msg = f"Aggregate ID type arg cannot be {originator_id_type}"
+                    raise TypeError(msg)
 
 
 class CanMutateAggregate(HasOriginatorIDVersion[TAggregateID_co], CanCreateTimestamp):
@@ -1348,7 +1355,7 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
             if name.lower() == name:
                 continue
 
-            # Only consider "event" classes (implement "CanMutateAggregate" protocol).
+            # Don't subclass if not "CanMutateAggregate".
             if not isinstance(value, type) or not issubclass(value, CanMutateAggregate):
                 continue
 

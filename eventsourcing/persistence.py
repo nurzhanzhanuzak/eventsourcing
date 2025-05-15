@@ -291,7 +291,7 @@ class Mapper(Generic[TAggregateID]):
             )
             raise MapperDeserialisationError(msg) from e
 
-        id_convertor = _find_id_convertor(
+        id_convertor = find_id_convertor(
             cls, cast(Hashable, type(stored_event.originator_id))
         )
         # print("ID of convertor:", id(convertor))
@@ -309,33 +309,53 @@ class Mapper(Generic[TAggregateID]):
 
 
 @lru_cache
-def _find_id_convertor(
+def find_id_convertor(
     domain_event_cls: type[object], originator_id_cls: type[UUID | str]
 ) -> Callable[[UUID | str], UUID | str]:
     # Try to find the originator_id type.
-    type_originator_id: type[UUID | str] = UUID
     if issubclass(domain_event_cls, HasOriginatorIDVersion):
-        type_originator_id = domain_event_cls.type_originator_id
+        # For classes that inherit CanMutateAggregate, and don't use a different
+        # mapper, then assume they aren't overriding __init_subclass__ is a way
+        # that prevents 'originator_id_type' being found from type arguments and
+        # set on the class.
+        # TODO: Write a test where a custom class does override __init_subclass__
+        #  so that the next line will cause an AssertionError. Then fix this code.
+        if domain_event_cls.originator_id_type is None:
+            msg = "originator_id_type cannot be None"
+            raise TypeError(msg)
+        originator_id_type = domain_event_cls.originator_id_type
     else:
-        try:
-            # Look on plain simple annotations.
-            originator_id_annotation = typing.get_type_hints(
-                domain_event_cls, globalns=globals()
-            ).get("originator_id", None)
-            assert originator_id_annotation in [UUID, str]
-            type_originator_id = cast(type[Union[UUID, str]], originator_id_annotation)
-        except NameError:
-            pass
+        # Otherwise look for annotations.
+        for cls in domain_event_cls.__mro__:
+            try:
+                annotation = cls.__annotations__["originator_id"]
+            except (KeyError, AttributeError):  # noqa: PERF203
+                continue
+            else:
+                valid_annotations = {
+                    str: str,
+                    UUID: UUID,
+                    "str": str,
+                    "UUID": UUID,
+                    "uuid.UUID": UUID,
+                }
+                if annotation not in valid_annotations:
+                    msg = f"originator_id annotation on {cls} is not either UUID or str"
+                    raise TypeError(msg)
+                assert annotation in valid_annotations, annotation
+                originator_id_type = valid_annotations[annotation]
+                break
+        else:
+            msg = (
+                f"Neither event class {domain_event_cls}"
+                f"nor its bases have an originator_id annotation"
+            )
+            raise TypeError(msg)
 
-    if originator_id_cls is str and type_originator_id is UUID:
+    if originator_id_cls is str and originator_id_type is UUID:
         convertor = str_to_uuid_convertor
     else:
         convertor = pass_through_convertor
-    # print(
-    #     f"Decided {convertor.__name__} "
-    #     f"for {domain_event_cls.__name__} "
-    #     f"and {originator_id_cls.__name__}."
-    # )
     return convertor
 
 

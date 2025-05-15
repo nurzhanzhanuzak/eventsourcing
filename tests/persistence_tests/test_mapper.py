@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from eventsourcing.cipher import AESCipher
 from eventsourcing.compressor import ZlibCompressor
+from eventsourcing.domain import CanMutateAggregate, HasOriginatorIDVersion
 from eventsourcing.persistence import (
     DatetimeAsISO,
     DecimalAsStr,
@@ -12,13 +13,16 @@ from eventsourcing.persistence import (
     MapperDeserialisationError,
     TranscodingNotRegisteredError,
     UUIDAsHex,
+    find_id_convertor,
+    pass_through_convertor,
+    str_to_uuid_convertor,
 )
 from eventsourcing.tests.domain import BankAccount
 from eventsourcing.utils import Environment, get_topic
 
 
 class TestMapper(TestCase):
-    def test(self) -> None:
+    def test_basic_operations(self) -> None:
         # Construct transcoder.
         transcoder = JSONTranscoder()
         transcoder.register(UUIDAsHex())
@@ -113,6 +117,93 @@ class TestMapper(TestCase):
         self.assertEqual(copy.originator_version, domain_event.originator_version)
 
         self.assertIn(len(stored_event.state), range(129, 143))
+
+    def test_find_id_convertor(self) -> None:
+        class HasUuidID(HasOriginatorIDVersion[UUID]):
+            pass
+
+        self.assertIs(find_id_convertor(HasUuidID, UUID), pass_through_convertor)
+
+        self.assertIs(find_id_convertor(HasUuidID, str), str_to_uuid_convertor)
+
+        class HasStringID(HasOriginatorIDVersion[str]):
+            pass
+
+        self.assertIs(find_id_convertor(HasStringID, UUID), pass_through_convertor)
+
+        self.assertIs(find_id_convertor(HasStringID, str), pass_through_convertor)
+
+        # Check raises if no type arg have been provided.
+        with self.assertRaises(TypeError) as cm:
+            self.assertIs(
+                find_id_convertor(HasOriginatorIDVersion, str), pass_through_convertor
+            )
+
+        self.assertIn("originator_id_type cannot be None", str(cm.exception))
+
+        # Check raises if no type arg has been provided.
+        with self.assertRaises(TypeError) as cm:
+            self.assertIs(
+                find_id_convertor(CanMutateAggregate, str), pass_through_convertor
+            )
+
+        self.assertIn("originator_id_type cannot be None", str(cm.exception))
+
+        # Check raises if no type arg has been provided.
+        class HasNoneID(HasOriginatorIDVersion):  # type: ignore[type-arg]
+            pass
+
+        with self.assertRaises(TypeError) as cm:
+            self.assertIs(find_id_convertor(HasNoneID, str), pass_through_convertor)
+
+        self.assertIn("originator_id_type cannot be None", str(cm.exception))
+
+        # Check UUID annotation.
+        class HasAnnotationUUID:
+            originator_id: UUID
+
+        self.assertIs(
+            find_id_convertor(HasAnnotationUUID, UUID), pass_through_convertor
+        )
+
+        self.assertIs(find_id_convertor(HasAnnotationUUID, str), str_to_uuid_convertor)
+
+        # Check str annotation.
+        class HasAnnotationStr:
+            originator_id: str
+
+        self.assertIs(find_id_convertor(HasAnnotationStr, UUID), pass_through_convertor)
+
+        self.assertIs(find_id_convertor(HasAnnotationStr, str), pass_through_convertor)
+
+        # Check raises if annotation invalid.
+        class HasAnnotationInt:
+            originator_id: int
+
+        with self.assertRaises(TypeError) as cm:
+            find_id_convertor(HasAnnotationInt, str)
+
+        self.assertIn(
+            "is not either UUID or str",
+            str(cm.exception),
+        )
+
+        # Check raises if without annotation.
+        class WithoutAnnotation:
+            pass
+
+        with self.assertRaises(TypeError) as cm:
+            find_id_convertor(WithoutAnnotation, str)
+
+        self.assertIn(
+            "nor its bases have an originator_id annotation",
+            str(cm.exception),
+        )
+
+    def test_convertors(self) -> None:
+        self.assertIsInstance(pass_through_convertor(""), str)
+        self.assertIsInstance(pass_through_convertor(uuid4()), UUID)
+        self.assertIsInstance(str_to_uuid_convertor(str(uuid4())), UUID)
 
 
 # TODO: Move the upcasting tests in here.

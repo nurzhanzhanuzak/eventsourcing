@@ -154,9 +154,10 @@ class TestBaseAggregate(TestCase):
                 pass
 
         self.assertTrue(
-            str(cm.exception).startswith("Name 'X' already defined in '"),
+            str(cm.exception).startswith("Name 'X'"),
             str(cm.exception),
         )
+        self.assertIn("already defined", str(cm.exception))
 
     def test_cant_identify_suitable_base_class_for_created_event_class(self) -> None:
         class A(BaseAggregate[UUID]):
