@@ -1075,7 +1075,7 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
         cls: type[Self],
         event_class: type[CanInitAggregate[TAggregateID]],
         *,
-        id: UUID | str | None = None,  # noqa: A002
+        id: TAggregateID | None = None,  # noqa: A002
         **kwargs: Any,
     ) -> Self:
         """Constructs a new aggregate object instance."""

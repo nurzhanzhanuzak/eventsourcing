@@ -840,7 +840,7 @@ class Application(Generic[TAggregateID]):
                 "application class."
             )
             raise AssertionError(msg)
-        aggregate: BaseAggregate[UUID | str] = self.repository.get(
+        aggregate: BaseAggregate[TAggregateID] = self.repository.get(
             aggregate_id, version=version, projector_func=projector_func
         )
         snapshot_class = getattr(type(aggregate), "Snapshot", type(self).snapshot_class)
