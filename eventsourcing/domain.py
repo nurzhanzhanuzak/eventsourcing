@@ -238,10 +238,10 @@ class CanCreateTimestamp:
 TAggregate = TypeVar("TAggregate", bound="BaseAggregate[Any]")
 
 
-class HasOriginatorIDVersion(Generic[TAggregateID_co]):
+class HasOriginatorIDVersion(Generic[TAggregateID]):
     """Declares ``originator_id`` and ``originator_version`` attributes."""
 
-    originator_id: TAggregateID_co
+    originator_id: TAggregateID
     """UUID identifying an aggregate to which the event belongs."""
     originator_version: int
     """Integer identifying the version of the aggregate when the event occurred."""
@@ -254,7 +254,7 @@ class HasOriginatorIDVersion(Generic[TAggregateID_co]):
 
     @classmethod
     def find_originator_id_type(cls: type, generic_cls: type) -> None:
-        """Store the type argument of TAggregateID_co on the subclass."""
+        """Store the type argument of TAggregateID on the subclass."""
         if "originator_id_type" not in cls.__dict__:
             for orig_base in cls.__orig_bases__:  # type: ignore[attr-defined]
                 if "originator_id_type" in orig_base.__dict__:
@@ -272,7 +272,7 @@ class HasOriginatorIDVersion(Generic[TAggregateID_co]):
                     raise TypeError(msg)
 
 
-class CanMutateAggregate(HasOriginatorIDVersion[TAggregateID_co], CanCreateTimestamp):
+class CanMutateAggregate(HasOriginatorIDVersion[TAggregateID], CanCreateTimestamp):
     """Implements a :py:func:`~eventsourcing.domain.CanMutateAggregate.mutate`
     method that evolves the state of an aggregate.
     """
@@ -341,7 +341,7 @@ class CanMutateAggregate(HasOriginatorIDVersion[TAggregateID_co], CanCreateTimes
         return self.__dict__
 
 
-class CanInitAggregate(CanMutateAggregate[TAggregateID_co]):
+class CanInitAggregate(CanMutateAggregate[TAggregateID]):
     """Implements a :func:`~eventsourcing.domain.CanMutateAggregate.mutate`
     method that constructs the initial state of an aggregate.
     """
@@ -1764,12 +1764,7 @@ class SnapshotProtocol(DomainEventProtocol[TAggregateID_co], Protocol):
         """Snapshots have a 'take()' class method."""
 
 
-TCanSnapshotAggregate = TypeVar(
-    "TCanSnapshotAggregate", bound="CanSnapshotAggregate[Any]"
-)
-
-
-class CanSnapshotAggregate(HasOriginatorIDVersion[TAggregateID_co], CanCreateTimestamp):
+class CanSnapshotAggregate(HasOriginatorIDVersion[TAggregateID], CanCreateTimestamp):
     topic: str
     state: Any
 
@@ -1790,7 +1785,7 @@ class CanSnapshotAggregate(HasOriginatorIDVersion[TAggregateID_co], CanCreateTim
     @classmethod
     def take(
         cls,
-        aggregate: MutableOrImmutableAggregate[TAggregateID_co],
+        aggregate: MutableOrImmutableAggregate[TAggregateID],
     ) -> Self:
         """Creates a snapshot of the given :class:`Aggregate` object."""
         aggregate_state = dict(aggregate.__dict__)
@@ -1809,9 +1804,9 @@ class CanSnapshotAggregate(HasOriginatorIDVersion[TAggregateID_co], CanCreateTim
             state=aggregate_state,  # pyright: ignore[reportCallIssue]
         )
 
-    def mutate(self, _: None) -> BaseAggregate[TAggregateID_co]:
+    def mutate(self, _: None) -> BaseAggregate[TAggregateID]:
         """Reconstructs the snapshotted :class:`Aggregate` object."""
-        cls = cast(type[BaseAggregate[TAggregateID_co]], resolve_topic(self.topic))
+        cls = cast(type[BaseAggregate[TAggregateID]], resolve_topic(self.topic))
         aggregate_state = dict(self.state)
         from_version = aggregate_state.pop("class_version", 1)
         class_version = getattr(cls, "class_version", 1)
