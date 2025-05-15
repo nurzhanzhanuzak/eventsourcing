@@ -1255,7 +1255,10 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
             cls.__name__ in _module.__dict__
             and ENVVAR_DISABLE_REDEFINITION_CHECK not in os.environ
         ):
-            msg = f"Name '{cls.__name__}' already defined in '{cls.__module__}' module"
+            msg = (
+                f"Name '{cls.__name__}' of {cls} already defined in "
+                f"'{cls.__module__}' module: {_module.__dict__[cls.__name__]}"
+            )
             raise ProgrammingError(msg)
 
         # Get the class annotations.
