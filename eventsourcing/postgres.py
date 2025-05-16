@@ -95,6 +95,7 @@ class PostgresDatastore:
         pool_open_timeout: float | None = None,
         get_password_func: Callable[[], str] | None = None,
         single_row_tracking: bool = True,
+        after_connect: Callable[[Connection[Any]], None] | None = None,
     ):
         self.idle_in_transaction_session_timeout = idle_in_transaction_session_timeout
         self.pre_ping = pre_ping
@@ -116,7 +117,7 @@ class PostgresDatastore:
             min_size=pool_size,
             max_size=pool_size + max_overflow,
             open=False,
-            configure=self.after_connect_func(),
+            configure=self.after_connect_func(after_connect),
             timeout=connect_timeout,
             max_waiting=max_waiting,
             max_lifetime=conn_max_age,
@@ -125,14 +126,18 @@ class PostgresDatastore:
         self.lock_timeout = lock_timeout
         self.schema = schema.strip() or "public"
 
-    def after_connect_func(self) -> Callable[[Connection[Any]], None]:
-        statement = SQL("SET idle_in_transaction_session_timeout = '{0}ms'").format(
-            int(self.idle_in_transaction_session_timeout * 1000)
-        )
+    def after_connect_func(
+        self, extra_after_connect: Callable[[Connection[Any]], None] | None = None
+    ) -> Callable[[Connection[Any]], None]:
+        set_idle_in_transaction_session_timeout_statement = SQL(
+            "SET idle_in_transaction_session_timeout = '{0}ms'"
+        ).format(int(self.idle_in_transaction_session_timeout * 1000))
 
         def after_connect(conn: Connection[DictRow]) -> None:
             conn.autocommit = True
-            conn.cursor().execute(statement)
+            conn.cursor().execute(set_idle_in_transaction_session_timeout_statement)
+            if extra_after_connect:
+                extra_after_connect(conn)
 
         return after_connect
 
