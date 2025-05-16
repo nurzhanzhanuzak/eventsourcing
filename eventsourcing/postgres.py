@@ -521,7 +521,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
     def _lock_table(self, curs: Cursor[DictRow]) -> None:
         # Acquire "EXCLUSIVE" table lock, to serialize transactions that insert
         # stored events, so that readers don't pass over gaps that are filled in
-        # later. We want each transaction that will be issued with notifications
+        # later. We want each transaction that will be issued with notification
         # IDs by the notification ID sequence to receive all its notification IDs
         # and then commit, before another transaction is issued with any notification
         # IDs. In other words, we want the insert order to be the same as the commit
@@ -559,9 +559,9 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
                     row = curs.fetchone()
                     assert row is not None
                     notification_ids.append(row["notification_id"])
-            if len(notification_ids) != len(stored_events):
+            if len(notification_ids) != len_events:
                 msg = "Couldn't get all notification IDs "
-                msg += f"(got {len(notification_ids)}, expected {len(stored_events)})"
+                msg += f"(got {len(notification_ids)}, expected {len_events})"
                 raise ProgrammingError(msg)
         return notification_ids
 
