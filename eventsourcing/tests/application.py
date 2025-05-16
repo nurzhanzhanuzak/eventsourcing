@@ -475,5 +475,5 @@ class ApplicationTestCase(TestCase):
         self.assertEqual(1, len(w))
         self.assertIs(w[-1].category, DeprecationWarning)
         self.assertIn(
-            "'log' is deprecated, use 'notifications' instead", str(w[-1].message)
+            "'log' is deprecated, use 'notification_log' instead", str(w[-1].message)
         )

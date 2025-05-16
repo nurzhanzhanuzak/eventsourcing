@@ -663,7 +663,7 @@ class Application(Generic[TAggregateID]):
     @property
     def log(self) -> LocalNotificationLog:
         warn(
-            "'log' is deprecated, use 'notifications' instead",
+            "'log' is deprecated, use 'notification_log' instead",
             DeprecationWarning,
             stacklevel=2,
         )
