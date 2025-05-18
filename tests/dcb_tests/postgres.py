@@ -62,7 +62,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self.sql_create_index_on_tags = SQL(
             "CREATE INDEX IF NOT EXISTS {index} ON {schema}.{table} USING GIN (tags)"
         ).format(
-            index=Identifier(self.dcb_events_table_name + "_type_idx"),
+            index=Identifier(self.dcb_events_table_name + "_tag_idx"),
             schema=Identifier(self.datastore.schema),
             table=Identifier(self.dcb_events_table_name),
         )
