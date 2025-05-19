@@ -941,6 +941,30 @@ def test_recorder_read_events_one_query_two_tags(
         assert len(results) == 0
 
     benchmark(func)
+    
+    
+# class MySetupForRunningExplainAnalyzeInPsql(TestCase):
+#     def setUp(self) -> None:
+#         datastore = PostgresDatastore(
+#             dbname="eventsourcing",
+#             host="127.0.0.1",
+#             port=5432,
+#             user="eventsourcing",
+#             password="eventsourcing",  # noqa:  S106
+#             after_connect=PostgresDCBEventStore.register_pg_composite_type_adapters,
+#         )
+#         self.eventstore = PostgresDCBEventStore(datastore)
+#         self.eventstore.create_table()
+# 
+#     def test(self):
+#         events = generate_events(500000)
+#         self.eventstore.append(events)
+#         self.eventstore.get()
+#         
+#         
+#     def tearDown(self) -> None:
+#         drop_tables()
+#         drop_functions_and_types(self.eventstore)
 
 
 def generate_events(num_events: int) -> list[DCBEvent]:
@@ -952,7 +976,6 @@ def generate_events(num_events: int) -> list[DCBEvent]:
         )
         for i in range(num_events)
     ]
-
 
 useful_for_listing_functions_and_procedures = """
 select n.nspname as schema_name,
