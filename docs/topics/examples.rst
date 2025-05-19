@@ -67,3 +67,13 @@ Example systems
    :maxdepth: 2
 
    examples/fts-process
+
+.. _Dynamic consistency boundaries:
+
+Dynamic consistency boundaries
+==============================
+
+.. toctree::
+   :maxdepth: 2
+
+   examples/coursebooking
