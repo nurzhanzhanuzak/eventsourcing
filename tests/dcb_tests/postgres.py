@@ -7,7 +7,7 @@ from psycopg.errors import DuplicateObject
 from psycopg.sql import SQL, Identifier
 from psycopg.types.composite import CompositeInfo, register_composite
 
-from eventsourcing.persistence import IntegrityError
+from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.postgres import PostgresDatastore, PostgresRecorder
 from tests.dcb_tests.api import (
     DCBAppendCondition,
@@ -180,7 +180,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "            END IF;"
             "        ELSE"
             "            CREATE TEMP TABLE temp_results ("
-            "                tmpposn BIGINT PRIMARY KEY, "
+            "                tmpposn BIGINT , "
             "                tmptype TEXT, "
             "                tmpdata bytea, "
             "                tmptags TEXT[]"
@@ -227,7 +227,9 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "                    EXIT;"
             "                END IF;"
             "            END LOOP;"
-            "            RETURN QUERY SELECT tmpposn, tmptype, tmpdata, tmptags"
+            "            RETURN QUERY SELECT "
+            "            DISTINCT ON (tmpposn) "
+            "            tmpposn, tmptype, tmpdata, tmptags "
             "            FROM temp_results "
             "            WHERE tmpposn > after "
             "            ORDER BY tmpposn ASC "
@@ -376,7 +378,9 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None
     ) -> int:
         # Prepare arguments.
-        self._assert_len_events(events)
+        if len(events) == 0:
+            msg = "Should be at least one event. Avoid this elsewhere"
+            raise ProgrammingError(msg)
         pg_dcb_events = [
             self.construct_pg_dcb_event(
                 type=event.type,

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from threading import RLock
 from typing import TYPE_CHECKING
 
-from eventsourcing.persistence import IntegrityError
+from eventsourcing.persistence import IntegrityError, ProgrammingError
 from tests.dcb_tests.api import (
     DCBAppendCondition,
     DCBEvent,
@@ -46,12 +47,14 @@ class InMemoryDCBEventStore(DCBEventStore):
             for i, event in enumerate(events):
                 if limit is not None and i >= limit:
                     return
-                yield event
+                yield deepcopy(event)
 
     def append(
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None
     ) -> int:
-        self._assert_len_events(events)
+        if len(events) == 0:
+            msg = "Should be at least one event. Avoid this elsewhere"
+            raise ProgrammingError(msg)
         with self._lock:
             if condition is not None:
                 try:
@@ -67,7 +70,7 @@ class InMemoryDCBEventStore(DCBEventStore):
             self.events.extend(
                 DCBSequencedEvent(
                     position=next(self.position_sequence),
-                    event=event,
+                    event=deepcopy(event),
                 )
                 for event in events
             )

@@ -3,18 +3,18 @@ from __future__ import annotations
 from unittest import TestCase
 from uuid import uuid4
 
-from eventsourcing.persistence import IntegrityError
+from eventsourcing.postgres import PostgresDatastore
 from eventsourcing.tests.postgres_utils import drop_tables
-from examples.coursebooking.application import (
+from examples.coursebookingdcb.application import (
+    AlreadyJoinedError,
     CourseNotFoundError,
     Enrolment,
-    StudentNotFoundError,
-)
-from examples.coursebooking.domainmodel import (
-    AlreadyJoinedError,
     FullyBookedError,
+    StudentNotFoundError,
     TooManyCoursesError,
 )
+from tests.dcb_tests.postgres import PostgresDCBEventStore
+from tests.dcb_tests.test_dcb import drop_functions_and_types
 
 
 class TestEnrolment(TestCase):
@@ -70,11 +70,11 @@ class TestEnrolment(TestCase):
 
         # Course not found.
         with self.assertRaises(CourseNotFoundError):
-            app.join_course(uuid4(), grace)
+            app.join_course(f"course-{uuid4()}", grace)
 
         # Student not found.
         with self.assertRaises(StudentNotFoundError):
-            app.join_course(dcb, uuid4())
+            app.join_course(dcb, f"student-{uuid4()}")
 
         # List students for Dynamic Consistency Boundaries.
         students = app.list_students_for_course(dcb)
@@ -92,23 +92,6 @@ class TestEnrolment(TestCase):
         courses = app.list_courses_for_student(greg)
         self.assertEqual(courses, ["French", "Spanish", "Maths"])
 
-        # Try to break recorded consistency with concurrent operation.
-        student = app.get_student(sara)
-        course = app.get_course(french)
-        student.join_course(course.id)
-        course.accept_student(student.id)
-
-        # During this operation, Bastian joins French.
-        app.join_course(french, bastian)
-
-        # Can't proceed with concurrent operation because course changed.
-        with self.assertRaises(IntegrityError):
-            app.save(student, course)
-
-        # Check Sara doesn't have French, and French doesn't have Sara.
-        self.assertNotIn("Sara", app.list_students_for_course(french))
-        self.assertNotIn("French", app.list_courses_for_student(sara))
-
     def test_enrollment_with_postgres(self) -> None:
         self.env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
         self.env["POSTGRES_DBNAME"] = "eventsourcing"
@@ -121,3 +104,13 @@ class TestEnrolment(TestCase):
             self.test_enrolment()
         finally:
             drop_tables()
+            eventstore = PostgresDCBEventStore(
+                datastore=PostgresDatastore(
+                    dbname=self.env["POSTGRES_DBNAME"],
+                    host=self.env["POSTGRES_HOST"],
+                    port=self.env["POSTGRES_PORT"],
+                    user=self.env["POSTGRES_USER"],
+                    password=self.env["POSTGRES_PASSWORD"],
+                )
+            )
+            drop_functions_and_types(eventstore)

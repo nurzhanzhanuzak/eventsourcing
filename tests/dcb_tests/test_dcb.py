@@ -10,8 +10,9 @@ import pytest
 from psycopg.sql import SQL, Identifier
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
-from eventsourcing.postgres import PostgresDatastore
+from eventsourcing.postgres import PostgresDatastore, PostgresFactory, PostgresRecorder
 from eventsourcing.tests.postgres_utils import drop_tables
+from eventsourcing.utils import Environment
 from tests.dcb_tests.api import (
     DCBAppendCondition,
     DCBEvent,
@@ -549,6 +550,15 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         self.assertEqual(10, len(rows))
         self.assertEqual(11, rows[0]["posn"])
 
+        # Select with repeat query item. Shouldn't get duplicates.
+        rows = list(
+            self.eventstore.invoke_pg_select_events_function(
+                [query_item, query_item], 10
+            )
+        )
+        self.assertEqual(10, len(rows))
+        self.assertEqual(11, rows[0]["posn"])
+
         # Select with query item - no match, wrong types.
         query_item = self.eventstore.construct_pg_query_item(
             types=["EventType1", "EventType2"],
@@ -558,6 +568,7 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         self.assertEqual(0, len(rows))
 
         # Fast fail option - no query items.
+        # TODO: Investigate whether Postgres does this anyway with its 'EXISTS (...)'?
         rows = list(
             self.eventstore.invoke_pg_select_events_function([], 0, 0, fail_fast=True)
         )
@@ -598,6 +609,26 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
 
         # Returned value should be 2 (=> position of last inserted event).
         self.assertEqual(2, after)
+
+
+class TestPostgresFactory(TestCase):
+    def test(self) -> None:
+        # For now, just cover the case of not creating a table.
+        factory = PostgresFactory(
+            Environment(
+                name="test",
+                env={
+                    "POSTGRES_DBNAME": "eventsourcing",
+                    "POSTGRES_HOST": "localhost",
+                    "POSTGRES_PORT": "5432",
+                    "POSTGRES_USER": "eventsourcing",
+                    "POSTGRES_PASSWORD": "eventsourcing",
+                    "CREATE_TABLE": "f",
+                },
+            )
+        )
+        recorder = factory.dcb_event_store()
+        self.assertIsInstance(recorder, PostgresRecorder)
 
 
 class ConcurrentAppendTestCase(TestCase):

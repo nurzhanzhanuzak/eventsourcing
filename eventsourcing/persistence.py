@@ -36,6 +36,8 @@ from eventsourcing.utils import (
 if TYPE_CHECKING:
     from typing_extensions import Self
 
+    from tests.dcb_tests.api import DCBEventStore
+
 
 class Transcoding(ABC):
     """Abstract base class for custom transcodings."""
@@ -862,6 +864,9 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
     def close(self) -> None:
         """Closes any database connections, and anything else that needs closing."""
+
+    def dcb_event_store(self) -> DCBEventStore:
+        raise NotImplementedError  # pragma: no cover
 
 
 @dataclass(frozen=True)

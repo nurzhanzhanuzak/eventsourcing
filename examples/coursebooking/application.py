@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from eventsourcing.application import Application
+from eventsourcing.application import AggregateNotFoundError, Application
 from examples.coursebooking.domainmodel import Course, Student
 
 
@@ -20,8 +20,8 @@ class Enrolment(Application[UUID]):
         return course.id
 
     def join_course(self, course_id: UUID, student_id: UUID) -> None:
-        course: Course = self.repository.get(course_id)
-        student: Student = self.repository.get(student_id)
+        course = self.get_course(course_id)
+        student = self.get_student(student_id)
         course.accept_student(student_id)
         student.join_course(course_id)
         self.save(course, student)
@@ -33,7 +33,21 @@ class Enrolment(Application[UUID]):
         return [self.get_course(s).name for s in self.get_student(student_id).courses]
 
     def get_student(self, student_id: UUID) -> Student:
-        return self.repository.get(student_id)
+        try:
+            return self.repository.get(student_id)
+        except AggregateNotFoundError:
+            raise StudentNotFoundError from None
 
     def get_course(self, course_id: UUID) -> Course:
-        return self.repository.get(course_id)
+        try:
+            return self.repository.get(course_id)
+        except AggregateNotFoundError:
+            raise CourseNotFoundError from None
+
+
+class StudentNotFoundError(AggregateNotFoundError):
+    pass
+
+
+class CourseNotFoundError(AggregateNotFoundError):
+    pass

@@ -46,6 +46,9 @@ if TYPE_CHECKING:
     from psycopg.abc import Query
     from typing_extensions import Self
 
+    from tests.dcb_tests.api import DCBEventStore
+
+
 logging.getLogger("psycopg.pool").setLevel(logging.ERROR)
 logging.getLogger("psycopg").setLevel(logging.ERROR)
 
@@ -1138,6 +1141,19 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
             datastore=self.datastore,
             events_table_name=events_table_name,
             tracking_table_name=tracking_table_name,
+        )
+        if self.env_create_table():
+            recorder.create_table()
+        return recorder
+
+    def dcb_event_store(self) -> DCBEventStore:
+        prefix = self.env.name.lower() or "dcb"
+        dcb_table_name = prefix + "_events"
+        # Temporary hack to avoid circular imports.
+        cls = resolve_topic("tests.dcb_tests.postgres:PostgresDCBEventStore")
+        recorder = cls(
+            datastore=self.datastore,
+            dcb_table_name=dcb_table_name,
         )
         if self.env_create_table():
             recorder.create_table()

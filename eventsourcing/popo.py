@@ -19,10 +19,13 @@ from eventsourcing.persistence import (
     TrackingRecorder,
 )
 from eventsourcing.utils import resolve_topic, reversed_keys
+from tests.dcb_tests.popo import InMemoryDCBEventStore
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from uuid import UUID
+
+    from tests.dcb_tests.api import DCBEventStore
 
 
 class POPORecorder:
@@ -262,6 +265,9 @@ class POPOFactory(InfrastructureFactory[POPOTrackingRecorder]):
 
     def process_recorder(self) -> ProcessRecorder:
         return POPOProcessRecorder()
+
+    def dcb_event_store(self) -> DCBEventStore:
+        return InMemoryDCBEventStore()
 
 
 Factory = POPOFactory

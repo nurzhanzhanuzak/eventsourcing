@@ -77,3 +77,4 @@ Dynamic consistency boundaries
    :maxdepth: 2
 
    examples/coursebooking
+   examples/coursebooking-dcb

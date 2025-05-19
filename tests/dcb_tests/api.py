@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from eventsourcing.persistence import ProgrammingError
-
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
@@ -71,8 +69,3 @@ class DCBEventStore(ABC):
         """
         Appends given events to the event store, unless the condition fails.
         """
-
-    def _assert_len_events(self, events: Sequence[DCBEvent]) -> None:
-        if len(events) == 0:
-            msg = "Should be at least one event. Avoid this elsewhere"
-            raise ProgrammingError(msg)

@@ -31,6 +31,8 @@ class Course(Aggregate):
     def accept_student(self, student_id: UUID) -> None:
         if len(self.students) >= self.places:
             raise FullyBookedError
+        if student_id in self.students:
+            raise AlreadyJoinedError
         self.students.append(student_id)
 
 
@@ -39,4 +41,8 @@ class TooManyCoursesError(Exception):
 
 
 class FullyBookedError(Exception):
+    pass
+
+
+class AlreadyJoinedError(Exception):
     pass
