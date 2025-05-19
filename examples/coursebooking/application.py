@@ -7,8 +7,6 @@ from examples.coursebooking.domainmodel import Course, Student
 
 
 class Enrolment(Application[UUID]):
-    is_snapshotting_enabled = True
-
     def register_student(self, name: str, max_courses: int) -> UUID:
         student = Student(name, max_courses=max_courses)
         self.save(student)
