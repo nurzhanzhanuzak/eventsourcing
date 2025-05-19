@@ -10,10 +10,8 @@ from tests.dcb_tests.application import DCBApplication
 class Enrolment(DCBApplication):
     def register_student(self, name: str, max_courses: int) -> str:
         student_id = f"student-{uuid4()}"
-        consistency_boundary = DCBAppendCondition(
-            fail_if_events_match=DCBQuery(
-                items=[DCBQueryItem(tags=[student_id])],
-            )
+        consistency_boundary = DCBQuery(
+            items=[DCBQueryItem(tags=[student_id])],
         )
         student_registered = DCBEvent(
             type="StudentRegistered",
@@ -22,7 +20,9 @@ class Enrolment(DCBApplication):
         )
         self.events.append(
             events=[student_registered],
-            condition=consistency_boundary,
+            condition=DCBAppendCondition(
+                fail_if_events_match=consistency_boundary,
+            ),
         )
         return student_id
 
@@ -33,14 +33,14 @@ class Enrolment(DCBApplication):
             data=self.transcoder.encode({"name": name, "places": places}),
             tags=[course_id],
         )
-        consistency_boundary = DCBAppendCondition(
-            fail_if_events_match=DCBQuery(
-                items=[DCBQueryItem(tags=[course_id])],
-            )
+        consistency_boundary = DCBQuery(
+            items=[DCBQueryItem(tags=[course_id])],
         )
         self.events.append(
             events=[course_registered],
-            condition=consistency_boundary,
+            condition=DCBAppendCondition(
+                fail_if_events_match=consistency_boundary,
+            ),
         )
         return course_id
 
@@ -114,7 +114,8 @@ class Enrolment(DCBApplication):
         )
 
     def list_students_for_course(self, course_id: str) -> list[str]:
-        consistency_boundary = DCBQuery(
+        # Get events relevant for a list of course student IDs.
+        course_students_consistency_boundary = DCBQuery(
             items=[
                 DCBQueryItem(
                     types=["StudentJoinedCourse"],
@@ -122,26 +123,39 @@ class Enrolment(DCBApplication):
                 ),
             ]
         )
-        sequence = self.events.get(query=consistency_boundary)
-        student_names: list[str] = []
+        sequence = self.events.get(query=course_students_consistency_boundary)
+
+        # Project the events into a mapping of student IDs to names.
+        student_names: dict[str, str] = {}
         for sequenced in sequence:
-            tags = sequenced.event.tags
-            tags.remove(course_id)
-            query = DCBQuery(
-                items=[
-                    DCBQueryItem(
-                        types=["StudentRegistered"],
-                        tags=tags,
-                    ),
-                ]
-            )
-            for s in self.events.get(query=query):
-                name = self.transcoder.decode(s.event.data)["name"]
-                student_names.append(name)
-        return student_names
+            if sequenced.event.type == "StudentJoinedCourse":
+                for tag in sequenced.event.tags:
+                    if tag.startswith("student-"):
+                        student_names[tag] = ""
+
+        # Get events relevant for the student names.
+        student_names_consistency_boundary = DCBQuery(
+            items=[
+                DCBQueryItem(
+                    types=["StudentRegistered"],
+                    tags=[student_id],
+                )
+                for student_id in student_names
+            ]
+        )
+
+        # Project the events into the mapping of IDs to names.
+        for s in self.events.get(query=student_names_consistency_boundary):
+            if s.event.type == "StudentRegistered":
+                name = cast(str, self.transcoder.decode(s.event.data)["name"])
+                student_names[s.event.tags[0]] = name
+
+        # Return the names.
+        return list(student_names.values())
 
     def list_courses_for_student(self, student_id: str) -> list[str]:
-        consistency_boundary = DCBQuery(
+        # Get events relevant for a list of course student IDs.
+        student_courses_consistency_boundary = DCBQuery(
             items=[
                 DCBQueryItem(
                     types=["StudentJoinedCourse"],
@@ -149,23 +163,35 @@ class Enrolment(DCBApplication):
                 ),
             ]
         )
-        sequence = self.events.get(query=consistency_boundary)
-        course_names: list[str] = []
+        sequence = self.events.get(query=student_courses_consistency_boundary)
+
+        # Project the events into a mapping of course IDs to names.
+        course_names: dict[str, str] = {}
         for sequenced in sequence:
-            tags = sequenced.event.tags
-            tags.remove(student_id)
-            query = DCBQuery(
-                items=[
-                    DCBQueryItem(
-                        types=["CourseRegistered"],
-                        tags=tags,
-                    ),
-                ]
-            )
-            for s in self.events.get(query=query):
-                name = self.transcoder.decode(s.event.data)["name"]
-                course_names.append(name)
-        return course_names
+            if sequenced.event.type == "StudentJoinedCourse":
+                for tag in sequenced.event.tags:
+                    if tag.startswith("course-"):
+                        course_names[tag] = ""
+
+        # Get events relevant for the course names.
+        course_names_consistency_boundary = DCBQuery(
+            items=[
+                DCBQueryItem(
+                    types=["CourseRegistered"],
+                    tags=[course_id],
+                )
+                for course_id in course_names
+            ]
+        )
+
+        # Project the events into the mapping of IDs to names.
+        for s in self.events.get(query=course_names_consistency_boundary):
+            if s.event.type == "CourseRegistered":
+                name = cast(str, self.transcoder.decode(s.event.data)["name"])
+                course_names[s.event.tags[0]] = name
+
+        # Return the names.
+        return list(course_names.values())
 
 
 class AlreadyJoinedError(Exception):
