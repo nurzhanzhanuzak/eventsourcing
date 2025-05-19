@@ -57,7 +57,7 @@ Test case
 
 The test case shows students and courses being registered, with students joining courses.
 The test is run twice, once with :class:`~eventsourcing.popo.POPOApplicationRecorder` and
-then with the :class:`~tests.dcb_tests.postgres.PostgresApplicationRecorder`.
+then with the :class:`~eventsourcing.postgres.PostgresApplicationRecorder`.
 
 .. literalinclude:: ../../../examples/coursebooking/test_application.py
     :pyobject: TestEnrolment
