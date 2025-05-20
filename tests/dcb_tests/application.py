@@ -15,11 +15,10 @@ class DCBApplication:
         if "name" not in cls.__dict__:
             cls.name = cls.__name__
 
-    def __init__(self, env: EnvType | None = None) -> None:
+    def __init__(self, env: EnvType | None = None):
         self.env = self.construct_env(self.name, env)  # type: ignore[misc]
         self.factory = InfrastructureFactory.construct(self.env)
-        self.events = self.factory.dcb_event_store()
-        self.transcoder = self.factory.transcoder()
+        self.recorder = self.factory.dcb_event_store()
 
     def construct_env(self, name: str, env: EnvType | None = None) -> Environment:
         """Constructs environment from which application will be configured."""

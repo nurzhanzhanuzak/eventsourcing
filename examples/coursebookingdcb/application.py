@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import cast
 from uuid import uuid4
 
@@ -15,10 +16,10 @@ class Enrolment(DCBApplication):
         )
         student_registered = DCBEvent(
             type="StudentRegistered",
-            data=self.transcoder.encode({"name": name, "max_courses": max_courses}),
+            data=json.dumps({"name": name, "max_courses": max_courses}).encode(),
             tags=[student_id],
         )
-        self.events.append(
+        self.recorder.append(
             events=[student_registered],
             condition=DCBAppendCondition(
                 fail_if_events_match=consistency_boundary,
@@ -30,13 +31,13 @@ class Enrolment(DCBApplication):
         course_id = f"course-{uuid4()}"
         course_registered = DCBEvent(
             type="CourseRegistered",
-            data=self.transcoder.encode({"name": name, "places": places}),
+            data=json.dumps({"name": name, "places": places}).encode(),
             tags=[course_id],
         )
         consistency_boundary = DCBQuery(
             items=[DCBQueryItem(tags=[course_id])],
         )
-        self.events.append(
+        self.recorder.append(
             events=[course_registered],
             condition=DCBAppendCondition(
                 fail_if_events_match=consistency_boundary,
@@ -60,7 +61,7 @@ class Enrolment(DCBApplication):
         )
 
         # Select relevant events.
-        sequence = self.events.get(query=consistency_boundary)
+        sequence = self.recorder.get(query=consistency_boundary)
 
         # Project the events so we can make a joining decision.
         max_courses: int | None = None
@@ -70,10 +71,10 @@ class Enrolment(DCBApplication):
         last_known_position = max(s.position for s in sequence) if sequence else None
         for sequenced in sequence:
             if sequenced.event.type == "CourseRegistered":
-                data = self.transcoder.decode(sequenced.event.data)
+                data = json.loads(sequenced.event.data.decode())
                 places = cast(int, data["places"])
             elif sequenced.event.type == "StudentRegistered":
-                data = self.transcoder.decode(sequenced.event.data)
+                data = json.loads(sequenced.event.data.decode())
                 max_courses = cast(int, data["max_courses"])
             elif sequenced.event.type == "StudentJoinedCourse":
                 if (
@@ -105,7 +106,7 @@ class Enrolment(DCBApplication):
         )
 
         # Append using the same consistency boundary as the fail condition.
-        self.events.append(
+        self.recorder.append(
             events=[student_joined_course],
             condition=DCBAppendCondition(
                 fail_if_events_match=consistency_boundary,
@@ -123,7 +124,7 @@ class Enrolment(DCBApplication):
                 ),
             ]
         )
-        sequence = self.events.get(query=course_students_consistency_boundary)
+        sequence = self.recorder.get(query=course_students_consistency_boundary)
 
         # Project the events into a mapping of student IDs to names.
         student_names: dict[str, str] = {}
@@ -145,9 +146,9 @@ class Enrolment(DCBApplication):
         )
 
         # Project the events into the mapping of IDs to names.
-        for s in self.events.get(query=student_names_consistency_boundary):
+        for s in self.recorder.get(query=student_names_consistency_boundary):
             if s.event.type == "StudentRegistered":
-                name = cast(str, self.transcoder.decode(s.event.data)["name"])
+                name = cast(str, json.loads(s.event.data.decode())["name"])
                 student_names[s.event.tags[0]] = name
 
         # Return the names.
@@ -163,7 +164,7 @@ class Enrolment(DCBApplication):
                 ),
             ]
         )
-        sequence = self.events.get(query=student_courses_consistency_boundary)
+        sequence = self.recorder.get(query=student_courses_consistency_boundary)
 
         # Project the events into a mapping of course IDs to names.
         course_names: dict[str, str] = {}
@@ -185,9 +186,9 @@ class Enrolment(DCBApplication):
         )
 
         # Project the events into the mapping of IDs to names.
-        for s in self.events.get(query=course_names_consistency_boundary):
+        for s in self.recorder.get(query=course_names_consistency_boundary):
             if s.event.type == "CourseRegistered":
-                name = cast(str, self.transcoder.decode(s.event.data)["name"])
+                name = cast(str, json.loads(s.event.data.decode())["name"])
                 course_names[s.event.tags[0]] = name
 
         # Return the names.
