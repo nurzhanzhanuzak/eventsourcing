@@ -5,7 +5,7 @@ import logging
 from asyncio import CancelledError
 from contextlib import contextmanager
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, cast
 
 import psycopg
 import psycopg.errors
@@ -99,11 +99,21 @@ class PostgresDatastore:
         get_password_func: Callable[[], str] | None = None,
         single_row_tracking: bool = True,
         after_connect: Callable[[Connection[Any]], None] | None = None,
+        originator_id_type: Literal["uuid", "text"] = "uuid",
     ):
         self.idle_in_transaction_session_timeout = idle_in_transaction_session_timeout
         self.pre_ping = pre_ping
         self.pool_open_timeout = pool_open_timeout
         self.single_row_tracking = single_row_tracking
+        self.lock_timeout = lock_timeout
+        self.schema = schema.strip() or "public"
+        if originator_id_type.lower() not in ("uuid", "text"):
+            msg = (
+                f"Invalid originator_id_type '{originator_id_type}', "
+                f"must be 'uuid' or 'text'"
+            )
+            raise ValueError(msg)
+        self.originator_id_type = originator_id_type.lower()
 
         check = ConnectionPool.check_connection if pre_ping else None
         self.pool = ConnectionPool(
@@ -126,8 +136,6 @@ class PostgresDatastore:
             max_lifetime=conn_max_age,
             check=check,
         )
-        self.lock_timeout = lock_timeout
-        self.schema = schema.strip() or "public"
 
     def after_connect_func(
         self, extra_after_connect: Callable[[Connection[Any]], None] | None = None
@@ -184,7 +192,8 @@ class PostgresDatastore:
             yield conn.cursor()
 
     def close(self) -> None:
-        self.pool.close()
+        with contextlib.suppress(AttributeError):
+            self.pool.close()
 
     def __enter__(self) -> Self:
         return self
@@ -247,8 +256,8 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         )
         self.create_table_statements.append(
             SQL(
-                "CREATE TABLE IF NOT EXISTS {0}.{1} ("
-                "originator_id uuid NOT NULL, "
+                "CREATE TABLE IF NOT EXISTS {schema}.{table} ("
+                "originator_id {originator_id_type} NOT NULL, "
                 "originator_version bigint NOT NULL, "
                 "topic text, "
                 "state bytea, "
@@ -256,23 +265,24 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
                 "(originator_id, originator_version)) "
                 "WITH (autovacuum_enabled=false)"
             ).format(
-                Identifier(self.datastore.schema),
-                Identifier(self.events_table_name),
+                schema=Identifier(self.datastore.schema),
+                table=Identifier(self.events_table_name),
+                originator_id_type=Identifier(self.datastore.originator_id_type),
             )
         )
 
         self.insert_events_statement = SQL(
-            "INSERT INTO {0}.{1} VALUES (%s, %s, %s, %s)"
+            "INSERT INTO {schema}.{table} VALUES (%s, %s, %s, %s)"
         ).format(
-            Identifier(self.datastore.schema),
-            Identifier(self.events_table_name),
+            schema=Identifier(self.datastore.schema),
+            table=Identifier(self.events_table_name),
         )
 
         self.select_events_statement = SQL(
-            "SELECT * FROM {0}.{1} WHERE originator_id = %s"
+            "SELECT * FROM {schema}.{table} WHERE originator_id = %s"
         ).format(
-            Identifier(self.datastore.schema),
-            Identifier(self.events_table_name),
+            schema=Identifier(self.datastore.schema),
+            table=Identifier(self.events_table_name),
         )
 
         self.lock_table_statements: list[Query] = []
@@ -405,8 +415,8 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
     ):
         super().__init__(datastore, events_table_name=events_table_name)
         self.create_table_statements[-1] = SQL(
-            "CREATE TABLE IF NOT EXISTS {0}.{1} ("
-            "originator_id uuid NOT NULL, "
+            "CREATE TABLE IF NOT EXISTS {schema}.{table} ("
+            "originator_id {originator_id_type} NOT NULL, "
             "originator_version bigint NOT NULL, "
             "topic text, "
             "state bytea, "
@@ -415,18 +425,19 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
             "(originator_id, originator_version)) "
             "WITH (autovacuum_enabled=false)"
         ).format(
-            Identifier(self.datastore.schema),
-            Identifier(self.events_table_name),
+            schema=Identifier(self.datastore.schema),
+            table=Identifier(self.events_table_name),
+            originator_id_type=Identifier(self.datastore.originator_id_type),
         )
 
         self.create_table_statements.append(
             SQL(
-                "CREATE UNIQUE INDEX IF NOT EXISTS {0} "
-                "ON {1}.{2} (notification_id ASC);"
+                "CREATE UNIQUE INDEX IF NOT EXISTS {index} "
+                "ON {schema}.{table} (notification_id ASC);"
             ).format(
-                Identifier(self.notification_id_index_name),
-                Identifier(self.datastore.schema),
-                Identifier(self.events_table_name),
+                index=Identifier(self.notification_id_index_name),
+                schema=Identifier(self.datastore.schema),
+                table=Identifier(self.events_table_name),
             )
         )
 
@@ -436,10 +447,10 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         )
 
         self.max_notification_id_statement = SQL(
-            "SELECT MAX(notification_id) FROM {0}.{1}"
+            "SELECT MAX(notification_id) FROM {schema}.{table}"
         ).format(
-            Identifier(self.datastore.schema),
-            Identifier(self.events_table_name),
+            schema=Identifier(self.datastore.schema),
+            table=Identifier(self.events_table_name),
         )
 
         self.lock_table_statements = [
@@ -464,9 +475,9 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         from 'start', limited by 'limit'.
         """
         params: list[int | str | Sequence[str]] = []
-        statement = SQL("SELECT * FROM {0}.{1}").format(
-            Identifier(self.datastore.schema),
-            Identifier(self.events_table_name),
+        statement = SQL("SELECT * FROM {schema}.{table}").format(
+            schema=Identifier(self.datastore.schema),
+            table=Identifier(self.events_table_name),
         )
         has_where = False
         if start is not None:
@@ -881,6 +892,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
     )
     POSTGRES_SCHEMA = "POSTGRES_SCHEMA"
     POSTGRES_SINGLE_ROW_TRACKING = "SINGLE_ROW_TRACKING"
+    POSTGRES_ORIGINATOR_ID_TYPE = "POSTGRES_ORIGINATOR_ID_TYPE"
     CREATE_TABLE = "CREATE_TABLE"
 
     aggregate_recorder_class = PostgresAggregateRecorder
@@ -1046,6 +1058,17 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
             self.env.get(self.POSTGRES_SINGLE_ROW_TRACKING, "t")
         )
 
+        originator_id_type = cast(
+            Literal["uuid", "text"],
+            self.env.get(self.POSTGRES_ORIGINATOR_ID_TYPE, "uuid"),
+        )
+        if originator_id_type.lower() not in ("uuid", "text"):
+            msg = (
+                f"Invalid originator_id_type '{originator_id_type}', "
+                f"must be 'uuid' or 'text'"
+            )
+            raise OSError(msg)
+
         self.datastore = PostgresDatastore(
             dbname=dbname,
             host=host,
@@ -1063,6 +1086,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
             schema=schema,
             get_password_func=get_password_func,
             single_row_tracking=single_row_tracking,
+            originator_id_type=originator_id_type,
         )
 
     def env_create_table(self) -> bool:

@@ -341,6 +341,49 @@ class TestPostgresDatastore(TestCase):
             AttemptWithBackoff.DELAY_JITTER = original_delay_jitter
             AttemptWithBackoff.DELAY_BACKOFF = original_delay_backoff
 
+    def test_originator_id_type(self) -> None:
+        with PostgresDatastore(
+            dbname="eventsourcing",
+            host="127.0.0.1",
+            port="5432",
+            user="eventsourcing",
+            password="password",  # noqa: S106
+        ) as datastore:
+            self.assertEqual(datastore.originator_id_type, "uuid")
+
+        with PostgresDatastore(
+            dbname="eventsourcing",
+            host="127.0.0.1",
+            port="5432",
+            user="eventsourcing",
+            password="password",  # noqa: S106
+            originator_id_type="uuid",
+        ) as datastore:
+            self.assertEqual(datastore.originator_id_type, "uuid")
+
+        with PostgresDatastore(
+            dbname="eventsourcing",
+            host="127.0.0.1",
+            port="5432",
+            user="eventsourcing",
+            password="password",  # noqa: S106
+            originator_id_type="text",
+        ) as datastore:
+            self.assertEqual(datastore.originator_id_type, "text")
+
+        with (
+            self.assertRaises(ValueError),
+            PostgresDatastore(
+                dbname="eventsourcing",
+                host="127.0.0.1",
+                port="5432",
+                user="eventsourcing",
+                password="password",  # noqa: S106
+                originator_id_type="integer",  # type: ignore[arg-type]
+            ) as datastore,
+        ):
+            self.assertEqual(datastore.originator_id_type, "text")
+
 
 MAX_IDENTIFIER_LEN = 63
 
@@ -521,6 +564,55 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         originator_id = uuid4()
         with self.assertRaises(ProgrammingError):
             recorder.select_events(originator_id=originator_id)
+
+
+class TestPostgresAggregateRecorderWithTextOriginatorID(TestCase):
+    def test(self) -> None:
+        with PostgresDatastore(
+            dbname="eventsourcing",
+            host="127.0.0.1",
+            port="5432",
+            user="eventsourcing",
+            password="eventsourcing",  # noqa: S106
+            originator_id_type="text",
+        ) as datastore:
+            recorder = PostgresAggregateRecorder(datastore=datastore)
+            recorder.create_table()
+
+            # Pass in a str.
+            originator_id1 = str(uuid4())
+            recorder.insert_events(
+                [
+                    StoredEvent(
+                        originator_id=originator_id1,
+                        originator_version=1,
+                        topic="topic1",
+                        state=b"state1",
+                    )
+                ]
+            )
+            events = recorder.select_events(originator_id=originator_id1)
+            self.assertIsInstance(events[0].originator_id, str)
+
+            # Passing a UUID.
+            originator_id2 = uuid4()
+            # - can insert
+            recorder.insert_events(
+                [
+                    StoredEvent(
+                        originator_id=originator_id2,
+                        originator_version=1,
+                        topic="topic1",
+                        state=b"state1",
+                    )
+                ]
+            )
+            # - can't select
+            with self.assertRaises(ProgrammingError):
+                recorder.select_events(originator_id=originator_id2)
+
+    def tearDown(self) -> None:
+        drop_tables()
 
 
 class TestPostgresSubscription(TestCase):
@@ -838,6 +930,55 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder.insert_events(make_events())
 
 
+class TestPostgresApplicationRecorderWithTextOriginatorID(TestCase):
+    def test(self) -> None:
+        with PostgresDatastore(
+            dbname="eventsourcing",
+            host="127.0.0.1",
+            port="5432",
+            user="eventsourcing",
+            password="eventsourcing",  # noqa: S106
+            originator_id_type="text",
+        ) as datastore:
+            recorder = PostgresApplicationRecorder(datastore=datastore)
+            recorder.create_table()
+
+            # Pass in a str.
+            originator_id1 = str(uuid4())
+            recorder.insert_events(
+                [
+                    StoredEvent(
+                        originator_id=originator_id1,
+                        originator_version=1,
+                        topic="topic1",
+                        state=b"state1",
+                    )
+                ]
+            )
+            events = recorder.select_events(originator_id=originator_id1)
+            self.assertIsInstance(events[0].originator_id, str)
+
+            # Passing a UUID.
+            originator_id2 = uuid4()
+            # - can insert
+            recorder.insert_events(
+                [
+                    StoredEvent(
+                        originator_id=originator_id2,
+                        originator_version=1,
+                        topic="topic1",
+                        state=b"state1",
+                    )
+                ]
+            )
+            # - can't select
+            with self.assertRaises(ProgrammingError):
+                recorder.select_events(originator_id=originator_id2)
+
+    def tearDown(self) -> None:
+        drop_tables()
+
+
 TRACKING_TABLE_NAME = "n" * 42 + "notification_tracking"
 _check_identifier_is_max_len(TRACKING_TABLE_NAME)
 
@@ -1030,7 +1171,7 @@ class TestPostgresProcessRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder.max_tracking_id("upstream")
 
 
-class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFactory]):
+class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
     def test_create_application_recorder(self) -> None:
         super().test_create_application_recorder()
 
@@ -1458,6 +1599,22 @@ class TestPostgresInfrastructureFactory(InfrastructureFactoryTestCase[PostgresFa
         self.env[PostgresFactory.POSTGRES_SINGLE_ROW_TRACKING] = "f"
         factory = PostgresFactory(self.env)
         self.assertEqual(factory.datastore.single_row_tracking, False)
+
+    def test_originator_id_type(self) -> None:
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.originator_id_type, "uuid")
+
+        self.env[PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE] = "uuid"
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.originator_id_type, "uuid")
+
+        self.env[PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE] = "text"
+        factory = PostgresFactory(self.env)
+        self.assertEqual(factory.datastore.originator_id_type, "text")
+
+        self.env[PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE] = "integer"
+        with self.assertRaises(OSError):
+            factory = PostgresFactory(self.env)
 
 
 del AggregateRecorderTestCase
