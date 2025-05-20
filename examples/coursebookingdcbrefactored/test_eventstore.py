@@ -1,6 +1,8 @@
 from unittest import TestCase
 
-from examples.coursebookingdcb2.mapper import DomainEvent, Mapper
+from examples.coursebookingdcbrefactored.eventstore import DomainEvent, Mapper
+
+# TODO: Actually test the event store independently of the example application.
 
 
 class StudentRegistered(DomainEvent):

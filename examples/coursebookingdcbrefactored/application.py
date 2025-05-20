@@ -2,7 +2,19 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from examples.coursebookingdcb2.mapper import DomainEvent, EventStore, Mapper, Selector
+from examples.coursebooking.interface import (
+    AlreadyJoinedError,
+    CourseNotFoundError,
+    FullyBookedError,
+    StudentNotFoundError,
+    TooManyCoursesError,
+)
+from examples.coursebookingdcbrefactored.eventstore import (
+    DomainEvent,
+    EventStore,
+    Mapper,
+    Selector,
+)
 from tests.dcb_tests.application import (
     DCBApplication,
 )
@@ -22,7 +34,7 @@ class StudentJoinedCourse(DomainEvent):
     pass
 
 
-class Enrolment(DCBApplication):
+class EnrolmentWithDCBRefactored(DCBApplication):
     def __init__(self, env: dict[str, str]):
         super().__init__(env=env)
         self.events = EventStore(Mapper(), self.recorder)
@@ -30,13 +42,13 @@ class Enrolment(DCBApplication):
     def register_student(self, name: str, max_courses: int) -> str:
         student_id = f"student-{uuid4()}"
         event = StudentRegistered(tags=[student_id], name=name, max_courses=max_courses)
-        self.events.put(event)
+        self.events.put(event, cb=Selector(tags=[student_id]))
         return student_id
 
     def register_course(self, name: str, places: int) -> str:
         course_id = f"course-{uuid4()}"
         event = CourseRegistered(tags=[course_id], name=name, places=places)
-        self.events.put(event)
+        self.events.put(event, cb=Selector(tags=[course_id]))
         return course_id
 
     def join_course(self, course_id: str, student_id: str) -> None:
@@ -140,23 +152,3 @@ class Enrolment(DCBApplication):
 
         # Return the names.
         return [name for name in names.values() if name]
-
-
-class AlreadyJoinedError(Exception):
-    pass
-
-
-class TooManyCoursesError(Exception):
-    pass
-
-
-class FullyBookedError(Exception):
-    pass
-
-
-class StudentNotFoundError(Exception):
-    pass
-
-
-class CourseNotFoundError(Exception):
-    pass

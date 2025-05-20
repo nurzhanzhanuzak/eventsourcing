@@ -4,11 +4,18 @@ import json
 from typing import cast
 from uuid import uuid4
 
+from examples.coursebooking.interface import (
+    AlreadyJoinedError,
+    CourseNotFoundError,
+    FullyBookedError,
+    StudentNotFoundError,
+    TooManyCoursesError,
+)
 from tests.dcb_tests.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
 from tests.dcb_tests.application import DCBApplication
 
 
-class Enrolment(DCBApplication):
+class EnrolmentWithDCB(DCBApplication):
     def register_student(self, name: str, max_courses: int) -> str:
         student_id = f"student-{uuid4()}"
         consistency_boundary = DCBQuery(
@@ -193,23 +200,3 @@ class Enrolment(DCBApplication):
 
         # Return the names.
         return list(course_names.values())
-
-
-class AlreadyJoinedError(Exception):
-    pass
-
-
-class TooManyCoursesError(Exception):
-    pass
-
-
-class FullyBookedError(Exception):
-    pass
-
-
-class StudentNotFoundError(Exception):
-    pass
-
-
-class CourseNotFoundError(Exception):
-    pass
