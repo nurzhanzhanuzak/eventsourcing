@@ -104,7 +104,7 @@ event objects will be stored. If, for some reason, the event objects cannot be s
 exception will be raised. The :func:`~eventsourcing.application.Application.save` method
 is normally used by the command methods of an application.
 
-An application object also has a ``repository`` object. The application's repository has a
+An application object also has a :data:`~eventsourcing.application.Application.repository` object. The application's repository has a
 :func:`~eventsourcing.application.Repository.get` method, which can be used to reconstruct
 an aggregate object from the persisted state.
 
@@ -121,7 +121,7 @@ have been created or updated. Query methods and some command methods will need t
 the application repository's :func:`~eventsourcing.application.Repository.get` method
 to reconstruct aggregates that have been previously saved.
 
-An application object also has a ``notification_log`` object. The notification log presents
+An application object also has a :data:`~eventsourcing.application.Application.notification_log` object. The notification log presents
 the events that have been stored in the application in the order they were saved.
 
 The notification log has a :func:`~eventsourcing.application.LocalNotificationLog.select` method,
@@ -214,7 +214,7 @@ We can evolve the state of the ``Dog`` aggregate by calling ``add_trick()``.
     application.add_trick(dog_id, trick='play dead')
 
 When the application command method ``add_trick()`` is called with
-the ID of an aggregate, the :func:`~eventsourcing.application.Repository.get` method of the ``repository`` is
+the ID of an aggregate, the :func:`~eventsourcing.application.Repository.get` method of the :data:`~eventsourcing.application.Application.repository` is
 used to get the aggregate. The aggregate's ``add_trick()`` method is
 called with the given value of ``trick``. The aggregate is then
 saved by calling the application's :func:`~eventsourcing.application.Application.save` method.

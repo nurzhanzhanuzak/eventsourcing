@@ -57,8 +57,8 @@ The main features of an application are:
 
 * the :func:`~eventsourcing.application.Application.save` method, used for collecting
   and recording new aggregate events;
-* the ``repository`` attribute, with which aggregates are reconstructed;
-* the ``notification_log`` attribute, from which the state of the application can be propagated;
+* the :data:`~eventsourcing.application.Application.repository` attribute, with which aggregates are reconstructed;
+* the :data:`~eventsourcing.application.Application.notification_log` attribute, from which the state of the application can be propagated;
 * the :func:`~eventsourcing.application.Application.take_snapshot` method;
 * the application environment, used to configure an application;
 * the command and query methods you define, which implement your "application services".
@@ -74,12 +74,12 @@ pending domain events; the pending domain events are stored by calling the
 :ref:`event store <Store>`.
 
 The :class:`~eventsourcing.application.Application` class defines an
-object attribute ``repository`` which holds an :ref:`event-sourced repository <Repository>`.
+object attribute :data:`~eventsourcing.application.Application.repository` which holds an :ref:`event-sourced repository <Repository>`.
 The repository's :func:`~eventsourcing.application.Repository.get` method can be used by
 your application's command and query methods to obtain already existing aggregates.
 
 The :class:`~eventsourcing.application.Application` class defines an
-object attribute ``notification_log`` which holds a :ref:`local notification log <Notification log>`.
+object attribute :data:`~eventsourcing.application.Application.notification_log` which holds a :ref:`local notification log <Notification log>`.
 The notification log can be used to select notification objects from the application sequence.
 
 The :class:`~eventsourcing.application.Application` class defines an object method
@@ -208,7 +208,7 @@ variables for the application.
 Repository
 ==========
 
-The application ``repository`` is used to get the already existing aggregates of the
+The application :data:`~eventsourcing.application.Application.repository` is used to get the already existing aggregates of the
 application's domain model. It is an instance of the library's
 :class:`~eventsourcing.application.Repository` class.
 The repository's :func:`~eventsourcing.application.Repository.get` method is used to
@@ -298,7 +298,7 @@ A notification log can be used to propagate the state of an application as a
 sequence of domain event notifications. The library's
 :class:`~eventsourcing.application.LocalNotificationLog` class presents
 the event notifications of an application.
-The application object attribute ``notification_log`` is an instance of
+The application object attribute :data:`~eventsourcing.application.Application.notification_log` is an instance of
 :class:`~eventsourcing.application.LocalNotificationLog`.
 
 .. code-block:: python
