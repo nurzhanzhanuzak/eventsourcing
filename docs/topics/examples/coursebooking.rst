@@ -99,7 +99,7 @@ in :doc:`example 11  </topics/examples/aggregate11>`.
 Application
 -----------
 
-The event-sourced application show below uses the :class:`~examples.coursebooking.domainmodel.Course`
+The event-sourced application shown below uses the :class:`~examples.coursebooking.domainmodel.Course`
 and :class:`~examples.coursebooking.domainmodel.Student` aggregate classes from the domain model,
 and implements the enrolment protocol with its methods for registering students and for registering courses,
 for joining students with courses, for listing students for a course, and for listing courses for a student.
