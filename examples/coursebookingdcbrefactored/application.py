@@ -15,7 +15,7 @@ from examples.coursebookingdcbrefactored.eventstore import (
     Mapper,
     Selector,
 )
-from tests.dcb_tests.application import (
+from examples.dcb.application import (
     DCBApplication,
 )
 

@@ -11,8 +11,8 @@ from examples.coursebooking.interface import (
     StudentNotFoundError,
     TooManyCoursesError,
 )
-from tests.dcb_tests.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
-from tests.dcb_tests.application import DCBApplication
+from examples.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
+from examples.dcb.application import DCBApplication
 
 
 class EnrolmentWithDCB(DCBApplication):

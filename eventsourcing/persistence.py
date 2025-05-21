@@ -13,10 +13,10 @@ from queue import Queue
 from threading import Condition, Event, Lock, Semaphore, Thread, Timer
 from time import monotonic, sleep, time
 from types import GenericAlias, ModuleType
-from typing import TYPE_CHECKING, Any, Callable, Generic, Union, cast
+from typing import Any, Callable, Generic, Union, cast
 from uuid import UUID
 
-from typing_extensions import TypeVar
+from typing_extensions import Self, TypeVar
 
 from eventsourcing.domain import (
     DomainEventProtocol,
@@ -32,11 +32,6 @@ from eventsourcing.utils import (
     resolve_topic,
     strtobool,
 )
-
-if TYPE_CHECKING:
-    from typing_extensions import Self
-
-    from tests.dcb_tests.api import DCBEventStore
 
 
 class Transcoding(ABC):
@@ -681,14 +676,14 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
     @classmethod
     def construct(
-        cls: type[InfrastructureFactory[TTrackingRecorder]],
+        cls: type[Self],
         env: Environment | None = None,
-    ) -> InfrastructureFactory[TTrackingRecorder]:
+    ) -> Self:
         """Constructs concrete infrastructure factory for given
         named application. Reads and resolves persistence
         topic from environment variable 'PERSISTENCE_MODULE'.
         """
-        factory_cls: type[InfrastructureFactory[TTrackingRecorder]]
+        factory_cls: type[Self]
         if env is None:
             env = Environment()
         topic = (
@@ -707,9 +702,7 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
             or "eventsourcing.popo"
         )
         try:
-            obj: type[InfrastructureFactory[TTrackingRecorder]] | ModuleType = (
-                resolve_topic(topic)
-            )
+            obj: type[Self] | ModuleType = resolve_topic(topic)
         except TopicError as e:
             msg = (
                 "Failed to resolve persistence module topic: "
@@ -720,29 +713,29 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
         if isinstance(obj, ModuleType):
             # Find the factory in the module.
-            factory_classes: list[type[InfrastructureFactory[TTrackingRecorder]]] = []
+            factory_classes = set[type[Self]]()
             for member in obj.__dict__.values():
-                if (
-                    member is not InfrastructureFactory
-                    and isinstance(member, type)  # Look for classes...
-                    and isinstance(member, type)  # Look for classes...
-                    and not isinstance(
-                        member, GenericAlias
-                    )  # Issue with Python 3.9 and 3.10.
-                    and issubclass(member, InfrastructureFactory)  # Ignore base class.
-                    and member not in factory_classes  # Forgive aliases.
-                ):
-                    factory_classes.append(member)
+                # Look for classes...
+                if not isinstance(member, type):
+                    continue
+                # Issue with Python 3.9 and 3.10.
+                if isinstance(member, GenericAlias):
+                    continue  # pragma: no cover (for Python > 3.10 only)
+                if not issubclass(member, cls):
+                    continue
+                if getattr(member, "__parameters__", None):
+                    continue
+                factory_classes.add(member)
 
             if len(factory_classes) == 1:
-                factory_cls = factory_classes[0]
+                factory_cls = next(iter(factory_classes))
             else:
                 msg = (
                     f"Found {len(factory_classes)} infrastructure factory classes in"
                     f" '{topic}', expected 1."
                 )
                 raise InfrastructureFactoryError(msg)
-        elif isinstance(obj, type) and issubclass(obj, InfrastructureFactory):
+        elif isinstance(obj, type) and issubclass(obj, cls):
             factory_cls = obj
         else:
             msg = (
@@ -864,9 +857,6 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
 
     def close(self) -> None:
         """Closes any database connections, and anything else that needs closing."""
-
-    def dcb_event_store(self) -> DCBEventStore:
-        raise NotImplementedError  # pragma: no cover
 
 
 @dataclass(frozen=True)

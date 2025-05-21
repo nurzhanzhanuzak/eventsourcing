@@ -6,7 +6,7 @@ import msgspec
 from msgspec import Struct
 
 from eventsourcing.utils import get_topic, resolve_topic
-from tests.dcb_tests.api import (
+from examples.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
     DCBEventStore,

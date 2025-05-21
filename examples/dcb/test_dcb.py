@@ -10,10 +10,10 @@ import pytest
 from psycopg.sql import SQL, Identifier
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
-from eventsourcing.postgres import PostgresDatastore, PostgresFactory, PostgresRecorder
+from eventsourcing.postgres import PostgresDatastore, PostgresRecorder
 from eventsourcing.tests.postgres_utils import drop_tables
 from eventsourcing.utils import Environment
-from tests.dcb_tests.api import (
+from examples.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
     DCBEventStore,
@@ -21,8 +21,8 @@ from tests.dcb_tests.api import (
     DCBQueryItem,
     DCBSequencedEvent,
 )
-from tests.dcb_tests.popo import InMemoryDCBEventStore
-from tests.dcb_tests.postgres import PostgresDCBEventStore
+from examples.dcb.popo import InMemoryDCBEventStore
+from examples.dcb.postgres import DCBPostgresFactory, PostgresDCBEventStore
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -505,6 +505,32 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         self.assertEqual(6, rows[0]["posn"])
         self.assertEqual(20, rows[14]["posn"])
 
+        # Select with one event type, expect rows, should be in asc order.
+        query_item = self.eventstore.construct_pg_query_item(
+            types=["EventTypeA"],
+            tags=[],
+        )
+        rows = list(self.eventstore.invoke_pg_select_events_function([query_item], 0))
+        self.assertEqual(10, len(rows))
+        self.assertEqual(1, rows[0]["posn"])
+        self.assertEqual(3, rows[1]["posn"])
+        self.assertEqual(19, rows[9]["posn"])
+
+        # Many types.
+        query_item = self.eventstore.construct_pg_query_item(
+            types=["EventTypeA"],
+            tags=[],
+        )
+        rows = list(
+            self.eventstore.invoke_pg_select_events_function(
+                [query_item, query_item], 0
+            )
+        )
+        self.assertEqual(10, len(rows))
+        self.assertEqual(1, rows[0]["posn"])
+        self.assertEqual(3, rows[1]["posn"])
+        self.assertEqual(19, rows[9]["posn"])
+
         # Select with event types, expect rows, should be in asc order.
         query_item = self.eventstore.construct_pg_query_item(
             types=["EventTypeA", "EventTypeB"],
@@ -522,6 +548,30 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
             self.eventstore.invoke_pg_select_events_function([query_item], 0, 5)
         )
         self.assertEqual(5, len(rows))
+
+        # Select with tags, one query.
+        query_items = [
+            self.eventstore.construct_pg_query_item(
+                types=[],
+                tags=["tagA", "tagB"],
+            ),
+        ]
+        rows = list(self.eventstore.invoke_pg_select_events_function(query_items, 0))
+        self.assertEqual(10, len(rows))
+
+        # Select many queries, one type.
+        query_items = [
+            self.eventstore.construct_pg_query_item(
+                types=[],
+                tags=["tagA", "tagB"],
+            ),
+            self.eventstore.construct_pg_query_item(
+                types=[],
+                tags=["tagA", "tagB"],
+            ),
+        ]
+        rows = list(self.eventstore.invoke_pg_select_events_function(query_items, 0))
+        self.assertEqual(10, len(rows))
 
         # Select with tags - match, should be in asc order.
         query_items = [
@@ -565,6 +615,13 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
             tags=["tag1", "tag2"],
         )
         rows = list(self.eventstore.invoke_pg_select_events_function([query_item], 0))
+        self.assertEqual(0, len(rows))
+
+        rows = list(
+            self.eventstore.invoke_pg_select_events_function(
+                [query_item, query_item], 0
+            )
+        )
         self.assertEqual(0, len(rows))
 
         # Fast fail option - no query items.
@@ -614,7 +671,7 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
 class TestPostgresFactory(TestCase):
     def test(self) -> None:
         # For now, just cover the case of not creating a table.
-        factory = PostgresFactory(
+        factory = DCBPostgresFactory(
             Environment(
                 name="test",
                 env={

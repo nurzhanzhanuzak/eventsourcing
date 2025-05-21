@@ -99,14 +99,14 @@ class TestEnrolment(TestCase):
         self.assertEqual(courses, ["French", "Spanish", "Maths"])
 
     def test_enrolment_with_postgres(self) -> None:
-        self.env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
+        if "PERSISTENCE_MODULE" not in self.env:
+            self.env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
         self.env["POSTGRES_DBNAME"] = "eventsourcing"
         self.env["POSTGRES_HOST"] = "127.0.0.1"
         self.env["POSTGRES_PORT"] = "5432"
         self.env["POSTGRES_USER"] = "eventsourcing"
         self.env["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
         self.env["POSTGRES_ORIGINATOR_ID_TYPE"] = "text"
-
         try:
             self.test_enrolment()
         finally:

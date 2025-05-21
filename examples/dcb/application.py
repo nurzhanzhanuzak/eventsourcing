@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 from typing import Any, ClassVar
 
-from eventsourcing.persistence import InfrastructureFactory
 from eventsourcing.utils import Environment, EnvType
+from examples.dcb.api import DCBInfrastructureFactory
 
 
 class DCBApplication:
@@ -17,7 +17,7 @@ class DCBApplication:
 
     def __init__(self, env: EnvType | None = None):
         self.env = self.construct_env(self.name, env)  # type: ignore[misc]
-        self.factory = InfrastructureFactory.construct(self.env)
+        self.factory = DCBInfrastructureFactory.construct(self.env)
         self.recorder = self.factory.dcb_event_store()
 
     def construct_env(self, name: str, env: EnvType | None = None) -> Environment:

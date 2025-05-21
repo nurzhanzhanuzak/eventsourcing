@@ -5,10 +5,12 @@ from threading import RLock
 from typing import TYPE_CHECKING
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
-from tests.dcb_tests.api import (
+from eventsourcing.popo import POPOFactory, POPOTrackingRecorder
+from examples.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
     DCBEventStore,
+    DCBInfrastructureFactory,
     DCBQuery,
     DCBSequencedEvent,
 )
@@ -81,3 +83,9 @@ class InMemoryDCBEventStore(DCBEventStore):
         while True:
             yield position
             position += 1
+
+
+class DCBPOPOFactory(POPOFactory, DCBInfrastructureFactory[POPOTrackingRecorder]):
+
+    def dcb_event_store(self) -> DCBEventStore:
+        return InMemoryDCBEventStore()

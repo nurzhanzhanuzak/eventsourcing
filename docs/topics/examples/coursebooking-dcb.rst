@@ -13,18 +13,18 @@ Application
 
 The application has the same methods as the :doc:`previous example </topics/examples/coursebooking>`
 for joining students with courses and for listing students for a course and courses for a student.
-The methods are implemented using the "DCB" classes, :class:`~tests.dcb_tests.api.DCBEvent`,
-:class:`~tests.dcb_tests.api.DCBQuery`, :class:`~tests.dcb_tests.api.DCBQueryItem`,
-:class:`~tests.dcb_tests.api.DCBAppendCondition` and :class:`~tests.dcb_tests.api.DCBSequencedEvent`.
+The methods are implemented using the "DCB" classes, :class:`~examples.dcb.api.DCBEvent`,
+:class:`~examples.dcb.api.DCBQuery`, :class:`~examples.dcb.api.DCBQueryItem`,
+:class:`~examples.dcb.api.DCBAppendCondition` and :class:`~examples.dcb.api.DCBSequencedEvent`.
 
-An abstract base class :class:`~tests.dcb_tests.api.DCBEventStore` is also defined. This abstract base
+An abstract base class :class:`~examples.dcb.api.DCBEventStore` is also defined. This abstract base
 class for recording DCB events has been implemented twice, once as an in-memory recorder
-:class:`~tests.dcb_tests.popo.InMemoryDCBEventStore`, and again for PostgreSQL with the
-:class:`~tests.dcb_tests.postgres.PostgresDCBEventStore` class which uses SQL composite data types and
+:class:`~examples.dcb.popo.InMemoryDCBEventStore`, and again for PostgreSQL with the
+:class:`~examples.dcb.postgres.PostgresDCBEventStore` class which uses SQL composite data types and
 stored procedures to implement the complex query and append logic of DCB in a way that performs well.
 
-The application class :class:`~tests.dcb_tests.application.DCBApplication` is a convenience introduced
-by this library which constructs a concrete :class:`~tests.dcb_tests.api.DCBEventStore` recorder according
+The application class :class:`~examples.dcb.application.DCBApplication` is a convenience introduced
+by this library which constructs a concrete :class:`~examples.dcb.api.DCBEventStore` recorder according
 to its environment variable configuration, just like the library's original
 :ref:`application class <Application objects>`.
 
@@ -54,28 +54,28 @@ Code reference
     :undoc-members:
     :special-members: __init__
 
-.. automodule:: tests.dcb_tests.api
+.. automodule:: examples.dcb.api
     :show-inheritance:
     :member-order: bysource
     :members:
     :undoc-members:
     :special-members: __init__
 
-.. automodule:: tests.dcb_tests.application
+.. automodule:: examples.dcb.application
     :show-inheritance:
     :member-order: bysource
     :members:
     :undoc-members:
     :special-members: __init__
 
-.. automodule:: tests.dcb_tests.popo
+.. automodule:: examples.dcb.popo
     :show-inheritance:
     :member-order: bysource
     :members:
     :undoc-members:
     :special-members: __init__
 
-.. automodule:: tests.dcb_tests.postgres
+.. automodule:: examples.dcb.postgres
     :show-inheritance:
     :member-order: bysource
     :members:

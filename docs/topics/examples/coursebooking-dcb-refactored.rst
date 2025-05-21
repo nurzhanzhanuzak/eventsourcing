@@ -1,4 +1,4 @@
-.. _DCB example 2:
+.. _DCB example 3:
 
 3 - Course booking - refactored DCB
 ===================================
@@ -12,29 +12,29 @@ Model-specific domain event classes,
 :class:`~examples.coursebookingdcbrefactored.application.CourseRegistered`,
 :class:`~examples.coursebookingdcbrefactored.application.StudentJoinedCourse`.
 are defined to help with type checking and code navigation. They are used instead of
-the :class:`~tests.dcb_tests.api.DCBEvent` class in the application code.
+the :class:`~examples.dcb.api.DCBEvent` class in the application code.
 
 The base domain event class :class:`~examples.coursebookingdcbrefactored.eventstore.DomainEvent` is defined using
 the Python :data:`msgspec` package which defines dataclasses from type annotations, and is currently the fastest available
 Python serialisation library giving the smallest packed sizes for the bytes of serialised data in
-:class:`~tests.dcb_tests.api.DCBEvent` objects.
+:class:`~examples.dcb.api.DCBEvent` objects.
 
 A :class:`~examples.coursebookingdcbrefactored.eventstore.Mapper` is used when writing events to convert subclass instances of
-:class:`~examples.coursebookingdcbrefactored.eventstore.DomainEvent` to the :class:`~tests.dcb_tests.api.DCBEvent`
-class, and to convert back from instances of :class:`~tests.dcb_tests.api.DCBSequencedEvent` to the
+:class:`~examples.coursebookingdcbrefactored.eventstore.DomainEvent` to the :class:`~examples.dcb.api.DCBEvent`
+class, and to convert back from instances of :class:`~examples.dcb.api.DCBSequencedEvent` to the
 domain event classes when reading events. This also encapsulates the serialisation and deserialisation of event data
 that was visible in the previous example.
 
-The :class:`~examples.coursebookingdcbrefactored.eventstore.Selector` class is used instead of the :class:`~tests.dcb_tests.api.DCBQuery`
-and :class:`~tests.dcb_tests.api.DCBQueryItem` classes to define the consistency boundary for the command method, and in the
+The :class:`~examples.coursebookingdcbrefactored.eventstore.Selector` class is used instead of the :class:`~examples.dcb.api.DCBQuery`
+and :class:`~examples.dcb.api.DCBQueryItem` classes to define the consistency boundary for the command method, and in the
 query methods. The :class:`~examples.coursebookingdcbrefactored.eventstore.Selector` class uses the domain event classes to indicate
 selected types rather than strings. Instances, and sequences of instances, of :class:`~examples.coursebookingdcbrefactored.eventstore.Selector`
-are converted to :class:`~tests.dcb_tests.api.DCBQuery` objects by the :class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class.
+are converted to :class:`~examples.dcb.api.DCBQuery` objects by the :class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class.
 
-The abstract :class:`~tests.dcb_tests.api.DCBEventStore` interface is encapsulated by the
+The abstract :class:`~examples.dcb.api.DCBEventStore` interface is encapsulated by the
 :class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class, which uses the
-same concrete :class:`~tests.dcb_tests.popo.InMemoryDCBEventStore` and
-:class:`~tests.dcb_tests.postgres.PostgresDCBEventStore` classes introduced in the previous example.
+same concrete :class:`~examples.dcb.popo.InMemoryDCBEventStore` and
+:class:`~examples.dcb.postgres.PostgresDCBEventStore` classes introduced in the previous example.
 The :func:`~examples.coursebookingdcbrefactored.eventstore.EventStore.put`
 and :func:`~examples.coursebookingdcbrefactored.eventstore.EventStore.get` methods of the
 :class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class support passing either a single instance

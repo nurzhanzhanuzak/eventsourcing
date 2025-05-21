@@ -131,7 +131,7 @@ benchmark-mapper:
 
 .PHONY: benchmark-dcb
 benchmark-dcb:
-	$(POETRY) run pytest -s tests/dcb_tests $(BENCHMARK_OPTIONS)
+	$(POETRY) run pytest -s examples/dcb $(BENCHMARK_OPTIONS)
 
 
 .PHONY: build
