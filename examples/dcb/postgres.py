@@ -19,6 +19,7 @@ from examples.dcb.api import (
     DCBEventStore,
     DCBInfrastructureFactory,
     DCBQuery,
+    DCBQueryItem,
     DCBSequencedEvent,
 )
 
@@ -61,28 +62,12 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             table=Identifier(self.dcb_events_table_name),
         )
 
-        # self.sql_create_index_on_type = SQL(
-        #     "CREATE INDEX IF NOT EXISTS {index} ON {schema}.{table}(type, position)"
-        # ).format(
-        #     index=Identifier(self.dcb_events_table_name + "_type_idx"),
-        #     schema=Identifier(self.datastore.schema),
-        #     table=Identifier(self.dcb_events_table_name),
-        # )
-        #
-        # self.sql_create_index_on_tags = SQL(
-        #     "CREATE INDEX IF NOT EXISTS {index} ON {schema}.{table} USING GIN (tags)"
-        # ).format(
-        #     index=Identifier(self.dcb_events_table_name + "_tag_idx"),
-        #     schema=Identifier(self.datastore.schema),
-        #     table=Identifier(self.dcb_events_table_name),
-        # )
-
-        self.sql_create_index_on_searchtext = SQL(
+        self.sql_create_index_on_text_vector = SQL(
             "CREATE INDEX IF NOT EXISTS {index} "
             "ON {schema}.{table} "
             "USING GIN (text_vector)"
         ).format(
-            index=Identifier(self.dcb_events_table_name + "_searchtext_idx"),
+            index=Identifier(self.dcb_events_table_name + "_text_vector_idx"),
             schema=Identifier(self.datastore.schema),
             table=Identifier(self.dcb_events_table_name),
         )
@@ -139,15 +124,14 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self.pg_function_name_select_events = "dcb_select_events"
 
         self.sql_invoke_pg_select_events_function = SQL(
-            "SELECT * FROM {select_events}((%s), (%s), (%s), (%s))"
+            "SELECT * FROM {select_events}((%s), (%s), (%s))"
         ).format(select_events=Identifier(self.pg_function_name_select_events))
 
         self.sql_create_pg_function_select_events = SQL(
             "CREATE OR REPLACE FUNCTION {select_events} ("
-            "    query_items {query_item}[], "
+            "    query_item {query_item}, "
             "    after BIGINT, "
-            "    max_results BIGINT DEFAULT NULL, "
-            "    fail_fast boolean DEFAULT false "
+            "    max_results BIGINT DEFAULT NULL "
             ") "
             "RETURNS TABLE ( "
             "    posn BIGINT, "
@@ -158,145 +142,18 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "LANGUAGE plpgsql "
             "AS "
             "$BODY$ "
-            "DECLARE"
-            "    query_item {query_item};"
-            "    internal_max integer DEFAULT NULL;"
             "BEGIN"
             "    after = COALESCE(after, 0);"
-            "    IF fail_fast THEN "
-            "        max_results = 1;"
-            "        internal_max = 1;"
-            "    ELSE"
-            "        internal_max = max_results;"
-            "    END IF;"
-            "    IF array_length(query_items, 1) IS NOT NULL THEN "
-            "        /* at least one query item... */"
-            "        CREATE TEMP TABLE temp_results ("
-            "            tmpposn BIGINT PRIMARY KEY, "
-            "            tmptype TEXT, "
-            "            tmpdata bytea, "
-            "            tmptags TEXT[]"
-            "        ) ON COMMIT DROP;"
-            "        IF array_length(query_items, 1) = 1 THEN "
-            "            /* one item... */"
-            "            query_item = query_items[1];"
-            "            IF query_item.text_query <> '' THEN "
-            "                RETURN QUERY "
-            "                SELECT t.position, t.type, t.data, t.tags "
-            "                FROM {schema}.{table} t "
-            "                WHERE t.position > after "
-            "                AND t.text_vector @@ query_item.text_query "
-            "                ORDER BY t.position ASC "
-            "                LIMIT max_results;"
-            "            ELSIF array_length(query_item.types, 1) IS NOT NULL THEN "
-            "                /* one item, non-zero types... */"
-            "                IF array_length(query_item.tags, 1) IS NOT NULL THEN "
-            "                    /* one item - non-zero tags - non-zero types  */"
-            "                    RETURN QUERY "
-            "                    SELECT t.position, t.type, t.data, t.tags "
-            "                    FROM {schema}.{table} t "
-            "                    WHERE t.tags @> query_item.tags "
-            "                    AND t.type = ANY (query_item.types) "
-            "                    AND t.position > after "
-            "                    ORDER BY t.position ASC "
-            "                    LIMIT max_results;"
-            "                ELSIF array_length(query_item.types, 1) = 1 THEN "
-            "                    /* one item - zero tags - one type  */"
-            "                    RETURN QUERY "
-            "                    SELECT t.position, t.type, t.data, t.tags "
-            "                    FROM {schema}.{table} t "
-            "                    WHERE t.type = query_item.types[1] "
-            "                    AND t.position > after "
-            "                    ORDER BY t.position ASC "
-            "                    LIMIT max_results;"
-            "                ELSE "
-            "                    /* one item - zero tags - many types */"
-            "                    RETURN QUERY "
-            "                    SELECT t.position, t.type, t.data, t.tags "
-            "                    FROM {schema}.{table} t "
-            "                    WHERE t.type = ANY(query_item.types) "
-            "                    AND t.position > after "
-            "                    ORDER BY t.position ASC "
-            "                    LIMIT max_results;"
-            "                END IF;"
-            "            ELSE"
-            "                /* one item - non-zero tags - zero types */"
-            "                RETURN QUERY "
-            "                SELECT t.position, t.type, t.data, t.tags "
-            "                FROM {schema}.{table} t "
-            "                WHERE t.tags @> query_item.tags "
-            "                AND t.position > after "
-            "                ORDER BY t.position ASC "
-            "                LIMIT max_results;"
-            "            END IF;"
-            "        ELSE"
-            "            FOREACH query_item IN ARRAY query_items"
-            "            LOOP"
-            "                IF array_length(query_item.types, 1) IS NOT NULL THEN "
-            "                    /* nth item - non-zero types... */"
-            "                    IF array_length(query_item.tags, 1) IS NOT NULL THEN "
-            "                        /* nth item - non-zero tags - non-zero types */"
-            "                        INSERT INTO temp_results ("
-            "                           tmpposn, tmptype, tmpdata, tmptags"
-            "                        ) "
-            "                        SELECT t.position, t.type, t.data, t.tags "
-            "                        FROM {schema}.{table} t "
-            "                        WHERE t.tags @> query_item.tags "
-            "                        AND t.type = ANY (query_item.types) "
-            "                        AND t.position > after "
-            "                        LIMIT internal_max"
-            "                        ON CONFLICT DO NOTHING;"
-            "                    ELSIF array_length(query_item.types, 1) = 1 THEN "
-            "                        /* nth item - zero tags - one type */"
-            "                        INSERT INTO temp_results ("
-            "                            tmpposn, tmptype, tmpdata, tmptags"
-            "                        ) "
-            "                        SELECT t.position, t.type, t.data, t.tags "
-            "                        FROM {schema}.{table} t "
-            "                        WHERE t.type = query_item.types[1] "
-            "                        AND t.position > after "
-            "                        LIMIT internal_max"
-            "                        ON CONFLICT DO NOTHING;"
-            "                    ELSE "
-            "                        /* nth item - zero tags - many types */"
-            "                        INSERT INTO temp_results ("
-            "                            tmpposn, tmptype, tmpdata, tmptags"
-            "                        ) "
-            "                        SELECT t.position, t.type, t.data, t.tags "
-            "                        FROM {schema}.{table} t "
-            "                        WHERE t.type = ANY(query_item.types) "
-            "                        AND t.position > after "
-            "                        LIMIT internal_max"
-            "                        ON CONFLICT DO NOTHING;"
-            "                    END IF;"
-            "                ELSE"
-            "                    /* nth item - non-zero tags - zero types */"
-            "                    INSERT INTO temp_results ("
-            "                        tmpposn, tmptype, tmpdata, tmptags"
-            "                    ) "
-            "                    SELECT t.position, t.type, t.data, t.tags "
-            "                        FROM {schema}.{table} t "
-            "                    WHERE t.tags @> query_item.tags "
-            "                    AND t.position > after "
-            "                    LIMIT internal_max"
-            "                    ON CONFLICT DO NOTHING;"
-            "                END IF;"
-            "                /* exit loop if only searching for any existing rows */"
-            "                IF fail_fast AND EXISTS (SELECT FROM temp_results) THEN"
-            "                    EXIT;"
-            "                END IF;"
-            "            END LOOP;"
-            "            /* return distinct limited sorted rows from temp table */"
-            "        END IF;"
-            "        RETURN QUERY SELECT *"
-            # "            DISTINCT ON (tmpposn) "
-            # "            tmpposn, tmptype, tmpdata, tmptags "
-            "        FROM temp_results "
-            "        WHERE tmpposn > after "
-            "        ORDER BY tmpposn ASC "
+            "    IF query_item IS NOT NULL THEN "
+            "        RETURN QUERY "
+            "        SELECT t.position, t.type, t.data, t.tags "
+            "        FROM {schema}.{table} t "
+            "        WHERE t.text_vector @@ query_item.text_query "
+            "        AND t.position > after "
+            "        ORDER BY t.position ASC "
             "        LIMIT max_results;"
             "    ELSE"
-            "        /* no query items - return limited sorted rows from table */"
+            "        /* no query item- return limited sorted rows from table */"
             "        RETURN QUERY SELECT t.position, t.type, t.data, t.tags "
             "        FROM {schema}.{table} t "
             "        WHERE t.position > after "
@@ -322,17 +179,16 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self.sql_create_pg_procedure_append_events = SQL(
             "CREATE OR REPLACE PROCEDURE {append_events} ("
             "    in events dcb_event[],"
-            "    in query_items {query_item}[],"
+            "    in query_item {query_item},"
             "    inout after BIGINT"
             ") "
             "LANGUAGE plpgsql "
             "AS "
             "$BODY$ "
             "BEGIN "
-            # "    LOCK TABLE {schema}.{table} IN EXCLUSIVE MODE;"
             "    IF (after < 0) "
             "    OR (NOT EXISTS ("
-            "        SELECT FROM {select_events}(query_items, after, 1, True)"
+            "        SELECT FROM {select_events}(query_item, after, 1)"
             "    )) "
             "    THEN"
             "        SELECT MAX(posn) FROM {insert_events}(events) INTO after;"
@@ -360,9 +216,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self.create_table_statements.extend(
             [
                 self.sql_create_table,
-                # self.sql_create_index_on_type,
-                # self.sql_create_index_on_tags,
-                self.sql_create_index_on_searchtext,
+                self.sql_create_index_on_text_vector,
                 self.sql_create_pg_function_insert_events,
                 self.sql_create_pg_function_select_events,
                 self.sql_create_pg_procedure_append_events,
@@ -390,16 +244,13 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         limit: int | None = None,
     ) -> Iterator[DCBSequencedEvent]:
         # Prepare arguments and invoke pg function.
-        pg_dcb_query_items = [
-            self.construct_pg_query_item(
-                types=item.types,
-                tags=item.tags,
+        # TODO: Clean this up.
+        if not query or not query.items:
+            pg_dcb_query_item = None
+        else:
+            pg_dcb_query_item = self.construct_dcb_query_item_with_text_query(
+                query_items=query.items,
             )
-            for item in (query or DCBQuery()).items
-        ]
-        pg_dcb_query_items = self.construct_query_items_with_text_query(
-            pg_dcb_query_items
-        )
         return (
             DCBSequencedEvent(
                 event=DCBEvent(
@@ -410,7 +261,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                 position=row["posn"],
             )
             for row in self.invoke_pg_select_events_function(
-                query_items=pg_dcb_query_items,
+                query_item=pg_dcb_query_item,
                 after=after,
                 limit=limit,
             )
@@ -419,10 +270,11 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
     def append(
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None
     ) -> int:
-        # Prepare arguments.
         if len(events) == 0:
             msg = "Should be at least one event. Avoid this elsewhere"
             raise ProgrammingError(msg)
+
+        # Prepare events argument.
         pg_dcb_events = [
             self.construct_pg_dcb_event(
                 type=event.type,
@@ -431,29 +283,22 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             )
             for event in events
         ]
-        if condition is not None:
-            pg_dcb_query_items = [
-                self.construct_pg_query_item(
-                    types=item.types,
-                    tags=item.tags,
-                )
-                for item in condition.fail_if_events_match.items
-            ]
-            pg_dcb_query_items = self.construct_query_items_with_text_query(
-                pg_dcb_query_items
-            )
-            # print("Text query:", query_items[0].text_query)
 
-            after = condition.after or 0
-            assert after >= 0
+        # Prepare query and after argument.
+        pg_dcb_query_item: PgDCBQueryItem | None = None
+        if condition:
+            if condition.fail_if_events_match.items:
+                pg_dcb_query_item = self.construct_dcb_query_item_with_text_query(
+                    condition.fail_if_events_match.items,
+                )
+            after = condition.after
         else:
-            pg_dcb_query_items = []
             after = -1  # Indicates no "fail condition".
 
         # Invoke pg procedure.
         last_new_position = self.invoke_pg_append_events_procedure(
             events=pg_dcb_events,
-            query_items=pg_dcb_query_items,
+            query_item=pg_dcb_query_item,
             after=after,
         )
         assert last_new_position is not None  # Because 'events' wasn't empty.
@@ -475,30 +320,28 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
 
     def invoke_pg_select_events_function(
         self,
-        query_items: list[PgDCBQueryItem],
+        query_item: PgDCBQueryItem | None,
         after: int | None,
         limit: int | None = None,
-        *,
-        fail_fast: bool = False,
     ) -> Iterator[PgDCBEventRow]:
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             curs.execute(
                 self.sql_invoke_pg_select_events_function,
-                (query_items, after, limit, fail_fast),
+                (query_item, after, limit),
             )
             return cast("Iterator[PgDCBEventRow]", curs.fetchall())
 
     def invoke_pg_append_events_procedure(
         self,
         events: list[PgDCBEvent],
-        query_items: list[PgDCBQueryItem],
-        after: int,
+        query_item: PgDCBQueryItem | None,
+        after: int | None,
     ) -> int | None:
         # with self.datastore.transaction(commit=True) as curs:
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             result = curs.execute(
                 self.sql_invoke_pg_append_events_procedure,
-                [events, query_items, after],
+                [events, query_item, after],
             )
             return result.fetchall()[-1]["after"]
 
@@ -511,13 +354,6 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         return self.datastore.pg_type_adapters[self.dcb_event_type_name].python_type(
             type, data, tags, self.construct_text_vector(type, tags)
         )
-
-    def construct_pg_query_item(
-        self, types: list[str], tags: list[str], text_query: str = ""
-    ) -> PgDCBQueryItem:
-        return self.datastore.pg_type_adapters[
-            self.dcb_query_item_type_name
-        ].python_type(types, tags, text_query)
 
     def construct_text_vector(self, type: str, tags: list[str]) -> str:  # noqa: A002
         assert type or tags
@@ -538,12 +374,12 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         # Prefix and join.
         return " ".join([f"TYPE-{type}"] + [f"TAG-{tag}" for tag in tags])
 
-    def construct_query_items_with_text_query(
-        self, query_items: list[PgDCBQueryItem]
-    ) -> list[PgDCBQueryItem]:
+    def construct_dcb_query_item_with_text_query(
+        self, query_items: list[DCBQueryItem]
+    ) -> PgDCBQueryItem:
         text_queries = [self.construct_text_query(q.types, q.tags) for q in query_items]
         text_query = " | ".join([f"({t})" for t in text_queries])
-        return [cast(PgDCBQueryItem, self.construct_pg_query_item([], [], text_query))]
+        return cast(PgDCBQueryItem, self.construct_pg_query_item([], [], text_query))
 
     def construct_text_query(self, types: list[str], tags: list[str]) -> str:
         assert types or tags
@@ -559,6 +395,13 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         else:
             text_query = types_query or tags_query
         return text_query
+
+    def construct_pg_query_item(
+        self, types: list[str], tags: list[str], text_query: str = ""
+    ) -> PgDCBQueryItem:
+        return self.datastore.pg_type_adapters[
+            self.dcb_query_item_type_name
+        ].python_type(types, tags, text_query)
 
 
 class PgDCBEvent(NamedTuple):
