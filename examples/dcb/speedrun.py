@@ -1,40 +1,48 @@
+import sys
 from collections.abc import Iterator
 
 from eventsourcing.domain import datetime_now_with_tzinfo
+from examples.coursebooking.application import Enrolment
+from examples.coursebooking.interface import EnrolmentProtocol
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
 
 # CREATE DATABASE large_test_dcb_db;
 # ALTER DATABASE large_test_dcb_db OWNER TO eventsourcing;
 
-LARGE_DB_NAME = "large_test_dcb_db"
-
-
-def infrange() -> Iterator[int]:
-    i = 1
-    while True:
-        yield i
-        i += 1
-
-
 env = {}
-env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
-env["POSTGRES_DBNAME"] = LARGE_DB_NAME
+env["POSTGRES_DBNAME"] = "large_test_dcb_db"
 env["POSTGRES_HOST"] = "127.0.0.1"
 env["POSTGRES_PORT"] = "5432"
 env["POSTGRES_USER"] = "eventsourcing"
 env["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
 env["POSTGRES_ORIGINATOR_ID_TYPE"] = "text"
 
+
+def inf_range() -> Iterator[int]:
+    i = 1
+    while True:
+        yield i
+        i += 1
+
+
 if __name__ == "__main__":
+    if "dcb" in sys.argv:
+        env["PERSISTENCE_MODULE"] = "examples.dcb.postgres"
+        app: EnrolmentProtocol = EnrolmentWithDCBRefactored(env)
+    elif "agg" in sys.argv:
+        env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
+        app = Enrolment(env)
+    else:
+        print(f"Usage: {__file__} dcb | agg")  # noqa: T201
+        sys.exit(1)
+
     # app = Enrolment(env=env)
-    app = EnrolmentWithDCBRefactored(env=env)
-    r_students = infrange()
-    r_courses = infrange()
+    r_students = inf_range()
+    r_courses = inf_range()
 
     started_script = datetime_now_with_tzinfo()
     started_loop = datetime_now_with_tzinfo()
-    for i in infrange():
-        # if not i % 100:
+    for i in inf_range():
         num_courses = 10
         num_students = 10
         students_per_course = 10
@@ -51,26 +59,12 @@ if __name__ == "__main__":
             for student_id in student_ids:
                 app.join_course(course_id, student_id)
 
-        loop_events = num_courses + num_students + num_students * num_students
-        total_events = loop_events * (i + 1)
+        loop_ops = num_courses + num_students + num_students * num_students
+        total_ops = loop_ops * (i + 1)
         loop_time = (datetime_now_with_tzinfo() - started_loop).total_seconds()
-        total_time = (datetime_now_with_tzinfo() - started_script).total_seconds()
-        loop_rate = loop_events / loop_time
-        total_rate = total_events / total_time
+        loop_rate = loop_ops / loop_time
+        total_time = datetime_now_with_tzinfo() - started_script
         print(  # noqa: T201
-            f"Iteration {i}: {total_events} total events, {loop_rate} events/s"
+            f"Iteration {i}: {total_ops} ops, {int(loop_rate)} ops/s after {total_time}"
         )
-        # print(
-        #     "Iteration",
-        #     i,
-        #     "-",
-        #     total_events,
-        #     "events",
-        #     loop_time,
-        #     loop_rate,
-        #     total_rate,
-        #     "running",
-        #     total_time,
-        #
-        # )
         started_loop = datetime_now_with_tzinfo()
