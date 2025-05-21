@@ -69,3 +69,10 @@ def drop_tables() -> None:
                 )
                 curs.execute(statement, prepare=False)
                 # print(f"Dropped table '{table_name}' in schema '{schema}'")
+
+            # Also drop composite types.
+            statement = SQL("DROP TYPE IF EXISTS {schema}.{type}").format(
+                schema=Identifier(datastore.schema),
+                type=Identifier("stored_event"),
+            )
+            curs.execute(statement, prepare=False)

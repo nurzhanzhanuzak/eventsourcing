@@ -11,6 +11,7 @@ import psycopg
 import psycopg.errors
 import psycopg_pool
 from psycopg import Connection, Cursor, Error
+from psycopg.errors import DuplicateObject
 from psycopg.generators import notifies
 from psycopg.rows import DictRow, dict_row
 from psycopg.sql import SQL, Composed, Identifier
@@ -142,6 +143,7 @@ class PostgresDatastore:
             "SET idle_in_transaction_session_timeout = '{0}ms'"
         ).format(int(self.idle_in_transaction_session_timeout * 1000))
 
+        schema = self.schema
         pg_type_names = self.pg_type_names
         pg_type_adapters = self.pg_type_adapters
 
@@ -156,7 +158,7 @@ class PostgresDatastore:
 
             # Register type adapters for custom pg types.
             PostgresDatastore.register_type_adapters(
-                conn, pg_type_names, pg_type_adapters
+                conn, schema, pg_type_names, pg_type_adapters
             )
 
         return after_connect
@@ -164,6 +166,7 @@ class PostgresDatastore:
     @staticmethod
     def register_type_adapters(
         conn: Connection[DictRow],
+        schema: str,
         pg_type_names: set[str],
         pg_type_adapters: dict[str, Any],
     ) -> None:
@@ -173,7 +176,7 @@ class PostgresDatastore:
         for name in pg_type_names:
             info = pg_type_adapters.get(name)
             if info is None:
-                info = CompositeInfo.fetch(conn, name)
+                info = CompositeInfo.fetch(conn, f"{schema}.{name}")
             if info is not None:
                 register_composite(info, conn)
                 pg_type_adapters[name] = info
@@ -260,9 +263,13 @@ class PostgresRecorder:
         with self.datastore.transaction(commit=True) as curs:
             self._create_table(curs)
 
+        # Register type adapters.
         with self.datastore.get_connection() as conn:
             self.datastore.register_type_adapters(
-                conn, self.datastore.pg_type_names, self.datastore.pg_type_adapters
+                conn=conn,
+                schema=self.datastore.schema,
+                pg_type_names=self.datastore.pg_type_names,
+                pg_type_adapters=self.datastore.pg_type_adapters,
             )
 
     def _create_table(self, curs: Cursor[DictRow]) -> None:
@@ -285,6 +292,26 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         self.notification_id_index_name = (
             f"{self.events_table_name}_notification_id_idx"
         )
+
+        self.stored_event_type_name = "stored_event"
+        self.datastore.pg_type_names.update(
+            [
+                self.stored_event_type_name,
+            ]
+        )
+
+        self.sql_create_type_stored_event = SQL(
+            "CREATE TYPE {schema}.{name} "
+            "AS (originator_id {originator_id_type}, "
+            "originator_version bigint, "
+            "topic text, "
+            "state bytea)"
+        ).format(
+            schema=Identifier(self.datastore.schema),
+            name=Identifier(self.stored_event_type_name),
+            originator_id_type=Identifier(self.datastore.originator_id_type),
+        )
+
         self.create_table_statements.append(
             SQL(
                 "CREATE TABLE IF NOT EXISTS {schema}.{table} ("
@@ -317,6 +344,15 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         )
 
         self.lock_table_statements: list[Query] = []
+
+    def create_table(self) -> None:
+        # Create types each in their own transaction (see above).
+        with (
+            self.datastore.transaction(commit=True) as curs,
+            contextlib.suppress(DuplicateObject),
+        ):
+            curs.execute(self.sql_create_type_stored_event)
+        super().create_table()
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_events(

@@ -434,7 +434,9 @@ class WithSchema(SetupPostgresDatastore):
 
 
 class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTestCase):
-    def create_recorder(self, table_name: str = EVENTS_TABLE_NAME) -> AggregateRecorder:
+    def create_recorder(
+        self, table_name: str = EVENTS_TABLE_NAME
+    ) -> PostgresAggregateRecorder:
         recorder = PostgresAggregateRecorder(
             datastore=self.datastore, events_table_name=table_name
         )
@@ -476,6 +478,44 @@ class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTes
             state=b"state1",
         )
         recorder.insert_events([stored_event1])
+
+    def test_pg_stored_event_type(self) -> None:
+        # Check there are no type names registered with the datastore.
+        self.assertEqual(0, len(self.datastore.pg_type_names))
+
+        # Create recorder method should register type names with the datastore.
+        recorder = self.create_recorder()
+
+        # Check the "stored event" type name is registered with the datastore.
+        self.assertIn(
+            recorder.stored_event_type_name,
+            recorder.datastore.pg_type_names,
+        )
+
+        # Create table should also create the type in the db and register the adapter.
+        recorder.create_table()
+
+        # Check the type adapter is registered.
+        self.assertIn(
+            recorder.stored_event_type_name,
+            recorder.datastore.pg_type_adapters,
+        )
+
+        # Check the type adapter is one of the connection's adapters.
+        with self.datastore.get_connection() as conn:
+            self.assertIn(
+                recorder.stored_event_type_name, [i.name for i in conn.adapters.types]
+            )
+
+            # Close the connection...
+            conn.close()
+
+        # ...and check the type adapter is registered on the new connection.
+        with self.datastore.get_connection() as conn:
+            self.assertIn(
+                recorder.stored_event_type_name,
+                [i.name for i in conn.adapters.types],
+            )
 
 
 class TestPostgresAggregateRecorderWithSchema(
