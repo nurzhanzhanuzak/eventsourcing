@@ -37,7 +37,7 @@ first with the more familiar event-sourced aggregate style of event sourcing, an
 boundaries" described in the DCB specification, to show the basic ideas of DCB directly.
 
 And then again later with a :doc:`refactored and hopefully more refined </topics/examples/coursebooking-dcb-refactored>`
-style for DCB this is more usable, just like the :ref:`declarative syntax <Declarative syntax>` for
+style for DCB that is more usable, just like the :ref:`declarative syntax <Declarative syntax>` for
 event-sourced aggregate is more usable than writing business logic directly against an
 :ref:`application recorder <Application recorder>`.
 

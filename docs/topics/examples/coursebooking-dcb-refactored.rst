@@ -3,7 +3,7 @@
 3 - Course booking - refactored DCB
 ===================================
 
-This example shows how the same "course booking" example as the :doc:`previous example </topics/examples/coursebooking-dcb>`,
+This example shows the same "course booking" example as the :doc:`previous example </topics/examples/coursebooking-dcb>`,
 using a refactored style for `dynamic consistency boundaries <https://dcb.events/>`_, rather than
 standard style suggested by the `specification <https://dcb.events/specification/>`_.
 
