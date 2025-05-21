@@ -14,6 +14,7 @@ from psycopg import Connection, Cursor, Error
 from psycopg.generators import notifies
 from psycopg.rows import DictRow, dict_row
 from psycopg.sql import SQL, Composed, Identifier
+from psycopg.types.composite import CompositeInfo, register_composite
 from typing_extensions import TypeVar
 
 from eventsourcing.persistence import (
@@ -96,7 +97,6 @@ class PostgresDatastore:
         pool_open_timeout: float | None = None,
         get_password_func: Callable[[], str] | None = None,
         single_row_tracking: bool = True,
-        after_connect: Callable[[Connection[Any]], None] | None = None,
         originator_id_type: Literal["uuid", "text"] = "uuid",
     ):
         self.idle_in_transaction_session_timeout = idle_in_transaction_session_timeout
@@ -114,6 +114,8 @@ class PostgresDatastore:
         self.originator_id_type = originator_id_type.lower()
 
         check = ConnectionPool.check_connection if pre_ping else None
+        self.pg_type_names = set[str]()
+        self.pg_type_adapters: dict[str, Any] = {}
         self.pool = ConnectionPool(
             get_password_func=get_password_func,
             connection_class=Connection[DictRow],
@@ -128,27 +130,53 @@ class PostgresDatastore:
             min_size=pool_size,
             max_size=pool_size + max_overflow,
             open=False,
-            configure=self.after_connect_func(after_connect),
+            configure=self.after_connect_func(),
             timeout=connect_timeout,
             max_waiting=max_waiting,
             max_lifetime=conn_max_age,
             check=check,
         )
 
-    def after_connect_func(
-        self, extra_after_connect: Callable[[Connection[Any]], None] | None = None
-    ) -> Callable[[Connection[Any]], None]:
+    def after_connect_func(self) -> Callable[[Connection[Any]], None]:
         set_idle_in_transaction_session_timeout_statement = SQL(
             "SET idle_in_transaction_session_timeout = '{0}ms'"
         ).format(int(self.idle_in_transaction_session_timeout * 1000))
 
+        pg_type_names = self.pg_type_names
+        pg_type_adapters = self.pg_type_adapters
+
+        # Avoid passing a bound method to the pool,
+        # to avoid creating a circular ref to self.
         def after_connect(conn: Connection[DictRow]) -> None:
+            # Put connection in auto-commit mode.
             conn.autocommit = True
+
+            # Set idle in transaction session timeout.
             conn.cursor().execute(set_idle_in_transaction_session_timeout_statement)
-            if extra_after_connect:
-                extra_after_connect(conn)
+
+            # Register type adapters for custom pg types.
+            PostgresDatastore.register_type_adapters(
+                conn, pg_type_names, pg_type_adapters
+            )
 
         return after_connect
+
+    @staticmethod
+    def register_type_adapters(
+        conn: Connection[DictRow],
+        pg_type_names: set[str],
+        pg_type_adapters: dict[str, Any],
+    ) -> None:
+        # Fetch and register type adapters for custom pg types
+        # on the connection, and cache them in this object so
+        # we can avoid fetching the types from the database.
+        for name in pg_type_names:
+            info = pg_type_adapters.get(name)
+            if info is None:
+                info = CompositeInfo.fetch(conn, name)
+            if info is not None:
+                register_composite(info, conn)
+                pg_type_adapters[name] = info
 
     @contextmanager
     def get_connection(self) -> Iterator[Connection[DictRow]]:
@@ -231,6 +259,11 @@ class PostgresRecorder:
     def create_table(self) -> None:
         with self.datastore.transaction(commit=True) as curs:
             self._create_table(curs)
+
+        with self.datastore.get_connection() as conn:
+            self.datastore.register_type_adapters(
+                conn, self.datastore.pg_type_names, self.datastore.pg_type_adapters
+            )
 
     def _create_table(self, curs: Cursor[DictRow]) -> None:
         for statement in self.create_table_statements:

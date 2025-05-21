@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, TypedDict, cast
 
 from psycopg.errors import DuplicateObject
 from psycopg.sql import SQL, Identifier
-from psycopg.types.composite import CompositeInfo, register_composite
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.postgres import (
@@ -26,12 +25,8 @@ from examples.dcb.api import (
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
-    from psycopg import Connection
-
 
 class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
-    dcb_event_type_name = "dcb_event"
-    dcb_query_item_type_name = "dcb_query_item"
     pg_composite_type_adapters: ClassVar[dict[str, Any]] = {}
 
     def __init__(
@@ -41,6 +36,14 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         dcb_table_name: str = "dcb_events",
     ):
         super().__init__(datastore)
+        self.dcb_event_type_name = "dcb_event"
+        self.dcb_query_item_type_name = "dcb_query_item"
+        self.datastore.pg_type_names.update(
+            [
+                self.dcb_event_type_name,
+                self.dcb_query_item_type_name,
+            ]
+        )
         self.check_table_name_length(dcb_table_name)
         self.dcb_events_table_name = dcb_table_name
         self.dcb_channel_name = dcb_table_name.replace(".", "_")
@@ -378,32 +381,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             contextlib.suppress(DuplicateObject),
         ):
             curs.execute(self.sql_create_type_dcb_query_item)
-        type(self).register_pg_composite_type_adapters(curs.connection)
-        super()._create_table(curs)
-
-    # https://www.psycopg.org/psycopg3/docs/basic/pgtypes.html#composite-types-casting
-    # This is all a little bit awkward. Adapters are registered in a "context", and
-    # we can't register them if the types haven't been created, and registering type
-    # adapters doesn't affect objects already created, so each connection needs to
-    # try to register type adapters. And the connection that creates the types also
-    # needs to register type adapters, in case it will be used again. And to avoid
-    # circular references in the datastore, this function, which is registered to
-    # be called after connection is created, cannot be an object method. And anyway,
-    # it can't be an object method because we need to create the datastore before we
-    # create the DCB event store. Hence, it is a class method, and so necessarily the
-    # type adapter objects are remembered on a class attribute. There might be a
-    # better way........ :-)
-    @classmethod
-    def register_pg_composite_type_adapters(cls, conn: Connection[Any]) -> None:
-        type_names = [
-            cls.dcb_event_type_name,
-            cls.dcb_query_item_type_name,
-        ]
-        for name in type_names:
-            info = CompositeInfo.fetch(conn, name)
-            if info is not None:
-                register_composite(info, conn)
-                cls.pg_composite_type_adapters[name] = info
+        super().create_table()
 
     def read(
         self,
@@ -530,14 +508,14 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         data: bytes,
         tags: list[str],
     ) -> PgDCBEvent:
-        return self.pg_composite_type_adapters[self.dcb_event_type_name].python_type(
+        return self.datastore.pg_type_adapters[self.dcb_event_type_name].python_type(
             type, data, tags, self.construct_text_vector(type, tags)
         )
 
     def construct_pg_query_item(
         self, types: list[str], tags: list[str], text_query: str = ""
     ) -> PgDCBQueryItem:
-        return self.pg_composite_type_adapters[
+        return self.datastore.pg_type_adapters[
             self.dcb_query_item_type_name
         ].python_type(types, tags, text_query)
 

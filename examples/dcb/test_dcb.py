@@ -339,7 +339,6 @@ class WithPostgres(TestCase):
             port=5432,
             user="eventsourcing",
             password="eventsourcing",  # noqa:  S106
-            after_connect=PostgresDCBEventStore.register_pg_composite_type_adapters,
         )
         self.eventstore = PostgresDCBEventStore(self.datastore)
         self.eventstore.create_table()
@@ -825,14 +824,13 @@ def eventstore() -> Iterator[DCBEventStore]:
         port=5432,
         user="eventsourcing",
         password="eventsourcing",  # noqa:  S106
-        after_connect=PostgresDCBEventStore.register_pg_composite_type_adapters,
     )
-    eventstore = PostgresDCBEventStore(datastore)
-    eventstore.create_table()
-    yield eventstore
+    recorder = PostgresDCBEventStore(datastore)
+    recorder.create_table()
+    yield recorder
 
     drop_tables()
-    drop_functions_and_types(eventstore)
+    drop_functions_and_types(recorder)
 
 
 @pytest.mark.benchmark(group="dcb-append-one-event")
