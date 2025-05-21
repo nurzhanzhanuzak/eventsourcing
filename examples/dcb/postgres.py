@@ -42,7 +42,6 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self.datastore.pg_type_names.update(
             [
                 self.dcb_event_type_name,
-                self.dcb_query_item_type_name,
             ]
         )
         self.check_table_name_length(dcb_table_name)
@@ -85,13 +84,6 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             schema=Identifier(self.datastore.schema),
             name=Identifier(self.dcb_event_type_name),
         )
-        self.sql_create_type_dcb_query_item = SQL(
-            "CREATE TYPE {schema}.{name} "
-            "AS (types TEXT[], tags TEXT[], text_query tsquery)"
-        ).format(
-            schema=Identifier(self.datastore.schema),
-            name=Identifier(self.dcb_query_item_type_name),
-        )
 
         self.pg_function_name_insert_events = "dcb_insert_events"
 
@@ -129,7 +121,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
 
         self.sql_create_pg_function_select_events = SQL(
             "CREATE OR REPLACE FUNCTION {select_events} ("
-            "    query_item {query_item}, "
+            "    text_query tsquery, "
             "    after BIGINT, "
             "    max_results BIGINT DEFAULT NULL "
             ") "
@@ -144,11 +136,11 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "$BODY$ "
             "BEGIN"
             "    after = COALESCE(after, 0);"
-            "    IF query_item IS NOT NULL THEN "
+            "    IF text_query <> '' THEN "
             "        RETURN QUERY "
             "        SELECT t.position, t.type, t.data, t.tags "
             "        FROM {schema}.{table} t "
-            "        WHERE t.text_vector @@ query_item.text_query "
+            "        WHERE t.text_vector @@ text_query "
             "        AND t.position > after "
             "        ORDER BY t.position ASC "
             "        LIMIT max_results;"
@@ -163,7 +155,6 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "$BODY$;"
         ).format(
             select_events=Identifier(self.pg_function_name_select_events),
-            query_item=Identifier(self.dcb_query_item_type_name),
             schema=Identifier(self.datastore.schema),
             table=Identifier(self.dcb_events_table_name),
         )
@@ -179,7 +170,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self.sql_create_pg_procedure_append_events = SQL(
             "CREATE OR REPLACE PROCEDURE {append_events} ("
             "    in events dcb_event[],"
-            "    in query_item {query_item},"
+            "    in text_query tsquery,"
             "    inout after BIGINT"
             ") "
             "LANGUAGE plpgsql "
@@ -188,7 +179,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "BEGIN "
             "    IF (after < 0) "
             "    OR (NOT EXISTS ("
-            "        SELECT FROM {select_events}(query_item, after, 1)"
+            "        SELECT FROM {select_events}(text_query, after, 1)"
             "    )) "
             "    THEN"
             "        SELECT MAX(posn) FROM {insert_events}(events) INTO after;"
@@ -201,7 +192,6 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "$BODY$; "
         ).format(
             append_events=Identifier(self.pg_procedure_name_append_events),
-            query_item=Identifier(self.dcb_query_item_type_name),
             select_events=Identifier(self.pg_function_name_select_events),
             insert_events=Identifier(self.pg_function_name_insert_events),
             schema=Identifier(self.datastore.schema),
@@ -230,11 +220,6 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             contextlib.suppress(DuplicateObject),
         ):
             curs.execute(self.sql_create_type_dcb_event_type)
-        with (
-            self.datastore.transaction(commit=True) as curs,
-            contextlib.suppress(DuplicateObject),
-        ):
-            curs.execute(self.sql_create_type_dcb_query_item)
         super().create_table()
 
     def read(
@@ -244,13 +229,10 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         limit: int | None = None,
     ) -> Iterator[DCBSequencedEvent]:
         # Prepare arguments and invoke pg function.
-        # TODO: Clean this up.
         if not query or not query.items:
-            pg_dcb_query_item = None
+            text_query = ""
         else:
-            pg_dcb_query_item = self.construct_dcb_query_item_with_text_query(
-                query_items=query.items,
-            )
+            text_query = self.construct_text_query(query.items)
         return (
             DCBSequencedEvent(
                 event=DCBEvent(
@@ -261,7 +243,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                 position=row["posn"],
             )
             for row in self.invoke_pg_select_events_function(
-                query_item=pg_dcb_query_item,
+                text_query=text_query,
                 after=after,
                 limit=limit,
             )
@@ -285,10 +267,10 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         ]
 
         # Prepare query and after argument.
-        pg_dcb_query_item: PgDCBQueryItem | None = None
+        text_query = ""
         if condition:
             if condition.fail_if_events_match.items:
-                pg_dcb_query_item = self.construct_dcb_query_item_with_text_query(
+                text_query = self.construct_text_query(
                     condition.fail_if_events_match.items,
                 )
             after = condition.after
@@ -298,7 +280,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         # Invoke pg procedure.
         last_new_position = self.invoke_pg_append_events_procedure(
             events=pg_dcb_events,
-            query_item=pg_dcb_query_item,
+            text_query=text_query,
             after=after,
         )
         assert last_new_position is not None  # Because 'events' wasn't empty.
@@ -320,28 +302,27 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
 
     def invoke_pg_select_events_function(
         self,
-        query_item: PgDCBQueryItem | None,
-        after: int | None,
+        text_query: str = "",
+        after: int | None = None,
         limit: int | None = None,
     ) -> Iterator[PgDCBEventRow]:
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             curs.execute(
                 self.sql_invoke_pg_select_events_function,
-                (query_item, after, limit),
+                (text_query, after, limit),
             )
             return cast("Iterator[PgDCBEventRow]", curs.fetchall())
 
     def invoke_pg_append_events_procedure(
         self,
         events: list[PgDCBEvent],
-        query_item: PgDCBQueryItem | None,
-        after: int | None,
+        text_query: str = "",
+        after: int | None = None,
     ) -> int | None:
-        # with self.datastore.transaction(commit=True) as curs:
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             result = curs.execute(
                 self.sql_invoke_pg_append_events_procedure,
-                [events, query_item, after],
+                [events, text_query, after],
             )
             return result.fetchall()[-1]["after"]
 
@@ -374,14 +355,16 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         # Prefix and join.
         return " ".join([f"TYPE-{type}"] + [f"TAG-{tag}" for tag in tags])
 
-    def construct_dcb_query_item_with_text_query(
-        self, query_items: list[DCBQueryItem]
-    ) -> PgDCBQueryItem:
-        text_queries = [self.construct_text_query(q.types, q.tags) for q in query_items]
-        text_query = " | ".join([f"({t})" for t in text_queries])
-        return cast(PgDCBQueryItem, self.construct_pg_query_item([], [], text_query))
+    def construct_text_query(self, query_items: list[DCBQueryItem]) -> str:
+        text_queries = [
+            self.construct_text_query_from_types_and_tags(types=q.types, tags=q.tags)
+            for q in query_items
+        ]
+        return " | ".join([f"({t})" for t in text_queries])
 
-    def construct_text_query(self, types: list[str], tags: list[str]) -> str:
+    def construct_text_query_from_types_and_tags(
+        self, types: list[str], tags: list[str]
+    ) -> str:
         assert types or tags
         # TODO: Check for reserved prefixes, chars, words.
         tstags = [t.replace(":", "-") for t in tags]
@@ -395,13 +378,6 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         else:
             text_query = types_query or tags_query
         return text_query
-
-    def construct_pg_query_item(
-        self, types: list[str], tags: list[str], text_query: str = ""
-    ) -> PgDCBQueryItem:
-        return self.datastore.pg_type_adapters[
-            self.dcb_query_item_type_name
-        ].python_type(types, tags, text_query)
 
 
 class PgDCBEvent(NamedTuple):
