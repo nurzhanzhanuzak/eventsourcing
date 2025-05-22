@@ -620,6 +620,12 @@ class CommandMethodDecorator:
         if instance:
             return BoundCommandMethodDecorator(self, instance)
 
+        if "SPHINX_BUILD" in os.environ:  # pragma: no cover
+            # Sphinx hack: use the original function when sphinx is running so that the
+            # documentation ends up with the correct function signatures.
+            # See 'SPHINX_BUILD' in conf.py.
+            return self.decorated_func
+
         # Return an "unbound" command method decorator if we have no instance.
         return UnboundCommandMethodDecorator(self)
 
