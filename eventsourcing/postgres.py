@@ -99,6 +99,7 @@ class PostgresDatastore:
         get_password_func: Callable[[], str] | None = None,
         single_row_tracking: bool = True,
         originator_id_type: Literal["uuid", "text"] = "uuid",
+        enable_db_functions: bool = False,
     ):
         self.idle_in_transaction_session_timeout = idle_in_transaction_session_timeout
         self.pre_ping = pre_ping
@@ -113,6 +114,8 @@ class PostgresDatastore:
             )
             raise ValueError(msg)
         self.originator_id_type = originator_id_type.lower()
+
+        self.enable_db_functions = enable_db_functions
 
         check = ConnectionPool.check_connection if pre_ping else None
         self.pg_type_names = set[str]()
@@ -959,6 +962,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
     POSTGRES_SCHEMA = "POSTGRES_SCHEMA"
     POSTGRES_SINGLE_ROW_TRACKING = "SINGLE_ROW_TRACKING"
     POSTGRES_ORIGINATOR_ID_TYPE = "POSTGRES_ORIGINATOR_ID_TYPE"
+    POSTGRES_ENABLE_DB_FUNCTIONS = "POSTGRES_ENABLE_DB_FUNCTIONS"
     CREATE_TABLE = "CREATE_TABLE"
 
     aggregate_recorder_class = PostgresAggregateRecorder
@@ -1135,6 +1139,10 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
             )
             raise OSError(msg)
 
+        enable_db_functions = strtobool(
+            self.env.get(self.POSTGRES_ENABLE_DB_FUNCTIONS) or "no"
+        )
+
         self.datastore = PostgresDatastore(
             dbname=dbname,
             host=host,
@@ -1153,6 +1161,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
             get_password_func=get_password_func,
             single_row_tracking=single_row_tracking,
             originator_id_type=originator_id_type,
+            enable_db_functions=enable_db_functions,
         )
 
     def env_create_table(self) -> bool:

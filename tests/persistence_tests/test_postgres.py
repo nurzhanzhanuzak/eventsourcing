@@ -1630,7 +1630,15 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
 
         self.env[PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE] = "integer"
         with self.assertRaises(OSError):
-            factory = PostgresFactory(self.env)
+            PostgresFactory(self.env)
+
+    def test_use_db_functions(self) -> None:
+        factory = PostgresFactory(self.env)
+        self.assertFalse(factory.datastore.enable_db_functions)
+
+        self.env[PostgresFactory.POSTGRES_ENABLE_DB_FUNCTIONS] = "t"
+        factory = PostgresFactory(self.env)
+        self.assertTrue(factory.datastore.enable_db_functions)
 
 
 del AggregateRecorderTestCase
