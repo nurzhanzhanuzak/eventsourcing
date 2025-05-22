@@ -41,14 +41,6 @@ class DCBSequencedEvent:
 
 
 class DCBEventStore(ABC):
-    def get(
-        self,
-        query: DCBQuery | None = None,
-        after: int | None = None,
-        limit: int | None = None,
-    ) -> Sequence[DCBSequencedEvent]:
-        return list(self.read(query=query, after=after, limit=limit))
-
     @abstractmethod
     def read(
         self,
@@ -63,6 +55,17 @@ class DCBEventStore(ABC):
         is in the item types or there are no item types, and if all the item tags are
         in the event tags.
         """
+
+    def get(
+        self,
+        query: DCBQuery | None = None,
+        after: int | None = None,
+        limit: int | None = None,
+    ) -> Sequence[DCBSequencedEvent]:
+        """
+        A convenient method to get a sequence of events rather than an iterator.
+        """
+        return list(self.read(query=query, after=after, limit=limit))
 
     @abstractmethod
     def append(

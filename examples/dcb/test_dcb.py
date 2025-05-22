@@ -22,7 +22,7 @@ from examples.dcb.api import (
     DCBSequencedEvent,
 )
 from examples.dcb.popo import InMemoryDCBEventStore
-from examples.dcb.postgres import DCBPostgresFactory, PostgresDCBEventStore
+from examples.dcb.postgres import DCBPostgresFactory, PgDCBEvent, PostgresDCBEventStore
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -344,35 +344,8 @@ class WithPostgres(TestCase):
         self.eventstore.create_table()
 
     def tearDown(self) -> None:
-        # Drop functions and types.
-        drop_functions_and_types(self.eventstore)
-
         # Drop tables.
         drop_tables()
-
-
-def drop_functions_and_types(eventstore: PostgresDCBEventStore) -> None:
-    with eventstore.datastore.get_connection() as conn:
-        conn.execute(
-            SQL("DROP PROCEDURE IF EXISTS {0}").format(
-                Identifier(eventstore.pg_procedure_name_append_events)
-            )
-        )
-        conn.execute(
-            SQL("DROP FUNCTION IF EXISTS {0}").format(
-                Identifier(eventstore.pg_function_name_insert_events)
-            )
-        )
-        conn.execute(
-            SQL("DROP FUNCTION IF EXISTS {0}").format(
-                Identifier(eventstore.pg_function_name_select_events)
-            )
-        )
-        conn.execute(
-            SQL("DROP TYPE IF EXISTS {0} CASCADE").format(
-                Identifier(eventstore.dcb_event_type_name)
-            )
-        )
 
 
 class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
@@ -440,7 +413,7 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
 
         # Insert 20 events.
         events = [event1, event2] * 10
-        positions = self.eventstore.invoke_pg_insert_events_function(events)
+        positions = self.invoke_pg_insert_events_function(events)
         self.assertEqual(20, len(positions))
         self.assertEqual(1, positions[0])
         self.assertEqual(20, positions[19])
@@ -527,6 +500,25 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
 
         rows = list(self.eventstore.invoke_pg_select_events_function(text_query, 0))
         self.assertEqual(0, len(rows))
+
+    def invoke_pg_insert_events_function(
+        self,
+        events: list[PgDCBEvent],
+    ) -> list[int]:
+
+        sql_invoke_pg_function_insert_events = SQL(
+            "SELECT * FROM {insert_events}((%s))"
+        ).format(
+            insert_events=Identifier(self.eventstore.pg_function_name_insert_events)
+        )
+
+        with self.eventstore.datastore.get_connection() as conn:
+            results = conn.execute(
+                sql_invoke_pg_function_insert_events,
+                (events,),
+            ).fetchall()
+            assert results is not None
+            return [r["posn"] for r in results]
 
     def test_append_events_procedure(self) -> None:
 
@@ -720,7 +712,6 @@ def eventstore() -> Iterator[DCBEventStore]:
     yield recorder
 
     drop_tables()
-    drop_functions_and_types(recorder)
 
 
 @pytest.mark.benchmark(group="dcb-append-one-event")
@@ -940,7 +931,6 @@ def test_recorder_read_events_one_query_two_tags(
 #
 #     def tearDown(self) -> None:
 #         drop_tables()
-#         drop_functions_and_types(self.eventstore)
 
 
 def generate_events(num_events: int) -> list[DCBEvent]:

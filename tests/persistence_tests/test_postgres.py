@@ -543,7 +543,7 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         recorder = self.create_recorder()
 
         # Mess up the statement.
-        recorder.create_table_statements = [SQL("BLAH").format()]
+        recorder.sql_create_statements = [SQL("BLAH").format()]
         with self.assertRaises(ProgrammingError):
             recorder.create_table()
 
@@ -1237,7 +1237,7 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         super().test_create_tracking_recorder()
         self.factory.datastore.schema = "myschema"
         recorder = self.factory.tracking_recorder()
-        self.assertIn('"myschema".', recorder.create_table_statements[0].as_string())
+        self.assertIn('"myschema".', recorder.sql_create_statements[0].as_string())
 
     def expected_process_recorder_class(self) -> type[ProcessRecorder]:
         return PostgresProcessRecorder
@@ -1519,7 +1519,7 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         self.assertEqual(recorder.events_table_name, "testcase_events")
         self.assertIn(
             '"public"."testcase_events"',
-            recorder.create_table_statements[0].as_string(),
+            recorder.sql_create_statements[0].as_string(),
         )
 
         # Check by default the table name is not qualified.
@@ -1528,7 +1528,7 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         self.assertEqual(recorder.events_table_name, "testcase_snapshots")
         self.assertIn(
             '"public"."testcase_snapshots"',
-            recorder.create_table_statements[0].as_string(),
+            recorder.sql_create_statements[0].as_string(),
         )
 
         # Set schema in environment.
@@ -1542,7 +1542,7 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         self.assertEqual(recorder.events_table_name, "testcase_events")
         self.assertIn(
             '"myschema"."testcase_events"',
-            recorder.create_table_statements[0].as_string(),
+            recorder.sql_create_statements[0].as_string(),
         )
 
         # Check by default the table name is qualified.
@@ -1551,25 +1551,21 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         self.assertEqual(recorder.events_table_name, "testcase_snapshots")
         self.assertIn(
             '"myschema"."testcase_snapshots"',
-            recorder.create_table_statements[0].as_string(),
+            recorder.sql_create_statements[0].as_string(),
         )
 
-    def test_scheme_adjusts_table_name_on_application_recorder(self) -> None:
+    def test_schema_in_sql_create_statements_for_application_recorder(self) -> None:
         factory = PostgresFactory(self.env)
 
-        # Check by default the table name is not qualified.
+        # Check by default tables and indexes are created in "public" schema.
         recorder = factory.application_recorder()
         assert isinstance(recorder, PostgresApplicationRecorder)
         self.assertEqual(factory.datastore.schema, "public")
         self.assertEqual(recorder.events_table_name, "testcase_events")
-        self.assertIn(
-            '"public"."testcase_events"',
-            recorder.create_table_statements[0].as_string(),
-        )
-        self.assertIn(
-            '"public"."testcase_events"',
-            recorder.create_table_statements[1].as_string(),
-        )
+        for statement in recorder.sql_create_statements:
+            sql_string = statement.as_string()
+            if "CREATE " in sql_string:
+                self.assertIn('"public".', sql_string)
 
         # Set schema in environment.
         self.env[PostgresFactory.POSTGRES_SCHEMA] = "myschema"
@@ -1579,16 +1575,12 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         # Check by default the table name is qualified.
         recorder = factory.application_recorder()
         assert isinstance(recorder, PostgresApplicationRecorder)
-        self.assertIn(
-            '"myschema"."testcase_events"',
-            recorder.create_table_statements[0].as_string(),
-        )
-        self.assertIn(
-            '"myschema"."testcase_events"',
-            recorder.create_table_statements[1].as_string(),
-        )
+        for statement in recorder.sql_create_statements:
+            sql_string = statement.as_string()
+            if "CREATE " in sql_string:
+                self.assertIn('"myschema".', sql_string)
 
-    def test_scheme_adjusts_table_names_on_process_recorder(self) -> None:
+    def test_schema_adjusts_table_names_on_process_recorder(self) -> None:
         factory = PostgresFactory(self.env)
 
         # Check by default the table name is not qualified.
@@ -1596,18 +1588,10 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         assert isinstance(recorder, PostgresProcessRecorder)
         self.assertEqual(recorder.events_table_name, "testcase_events")
         self.assertEqual(recorder.tracking_table_name, "testcase_tracking")
-        self.assertIn(
-            '"public"."testcase_events"',
-            recorder.create_table_statements[0].as_string(),
-        )
-        self.assertIn(
-            '"public"."testcase_events"',
-            recorder.create_table_statements[1].as_string(),
-        )
-        self.assertIn(
-            '"public"."testcase_tracking"',
-            recorder.create_table_statements[2].as_string(),
-        )
+        for statement in recorder.sql_create_statements:
+            sql_string = statement.as_string()
+            if "CREATE " in sql_string:
+                self.assertIn('"public".', sql_string)
 
         # Set schema in environment.
         self.env[PostgresFactory.POSTGRES_SCHEMA] = "myschema"
@@ -1619,18 +1603,10 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         assert isinstance(recorder, PostgresProcessRecorder)
         self.assertEqual(recorder.events_table_name, "testcase_events")
         self.assertEqual(recorder.tracking_table_name, "testcase_tracking")
-        self.assertIn(
-            '"myschema"."testcase_events"',
-            recorder.create_table_statements[0].as_string(),
-        )
-        self.assertIn(
-            '"myschema"."testcase_events"',
-            recorder.create_table_statements[1].as_string(),
-        )
-        self.assertIn(
-            '"myschema"."testcase_tracking"',
-            recorder.create_table_statements[2].as_string(),
-        )
+        for statement in recorder.sql_create_statements:
+            sql_string = statement.as_string()
+            if "CREATE " in sql_string:
+                self.assertIn('"myschema".', sql_string)
 
     def test_single_row_tracking(self) -> None:
         factory = PostgresFactory(self.env)

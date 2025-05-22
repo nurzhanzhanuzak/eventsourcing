@@ -1,6 +1,6 @@
 .. _DCB example 3:
 
-3 - Course booking - refactored DCB
+DCB 3 - Course booking - refactored
 ===================================
 
 This example shows the same "course booking" example as the :doc:`previous example </topics/examples/coursebooking-dcb>`,
@@ -40,7 +40,7 @@ and :func:`~examples.coursebookingdcbrefactored.eventstore.EventStore.get` metho
 :class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class support passing either a single instance
 of :class:`~examples.coursebookingdcbrefactored.eventstore.Selector` or a sequence, which simplifies code statements.
 
-The :func:`EventStore.get <examples.coursebookingdcbrefactored.eventstore.EventStore.get>` method is overloaded with
+The :func:`EventStore.get() <examples.coursebookingdcbrefactored.eventstore.EventStore.get>` method is overloaded with
 three method signatures. It returns only domain events by default. But has optional arguments to request the
 return of events each with their sequenced position. And alternatively, to return a sequence of events with
 along with a single position indicating the last known position. This last option is most useful in a command

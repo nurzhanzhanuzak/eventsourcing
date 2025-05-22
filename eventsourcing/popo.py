@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 from collections import defaultdict
-from threading import Event, Lock
+from threading import Event, RLock
 from typing import TYPE_CHECKING, Any
 
 from eventsourcing.persistence import (
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 class POPORecorder:
     def __init__(self) -> None:
-        self._database_lock = Lock()
+        self._database_lock = RLock()
 
 
 class POPOAggregateRecorder(POPORecorder, AggregateRecorder):

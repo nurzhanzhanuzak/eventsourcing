@@ -35,7 +35,7 @@ class PostgresFtsRecorder(
         super().__init__(datastore, **kwargs)
         self.check_table_name_length(fts_table_name)
         self.fts_table_name = fts_table_name
-        self.create_table_statements.append(
+        self.sql_create_statements.append(
             SQL(
                 "CREATE TABLE IF NOT EXISTS "
                 "{0}.{1} ("
@@ -50,7 +50,7 @@ class PostgresFtsRecorder(
                 Identifier(self.fts_table_name),
             )
         )
-        self.create_table_statements.append(
+        self.sql_create_statements.append(
             SQL(
                 "CREATE INDEX IF NOT EXISTS {0} "
                 "ON {1}.{2} "

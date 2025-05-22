@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import contextlib
-from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, TypedDict, cast
+from typing import TYPE_CHECKING, NamedTuple, TypedDict, cast
 
-from psycopg.errors import DuplicateObject
 from psycopg.sql import SQL, Identifier
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
@@ -28,8 +26,6 @@ if TYPE_CHECKING:
 
 
 class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
-    pg_composite_type_adapters: ClassVar[dict[str, Any]] = {}
-
     def __init__(
         self,
         datastore: PostgresDatastore,
@@ -37,30 +33,24 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         dcb_table_name: str = "dcb_events",
     ):
         super().__init__(datastore)
-        self.dcb_event_type_name = "dcb_event"
-        self.dcb_query_item_type_name = "dcb_query_item"
-        self.datastore.pg_type_names.update(
-            [
-                self.dcb_event_type_name,
-            ]
-        )
         self.check_table_name_length(dcb_table_name)
         self.dcb_events_table_name = dcb_table_name
         self.dcb_channel_name = dcb_table_name.replace(".", "_")
+        self.dcb_event_type_name = "dcb_event"
+        self.datastore.pg_type_names.add(self.dcb_event_type_name)
 
         self.sql_create_table = SQL(
             "CREATE TABLE IF NOT EXISTS {schema}.{table} ("
-            "position BIGSERIAL PRIMARY KEY, "
-            "type TEXT NOT NULL, "
+            "position bigserial PRIMARY KEY, "
+            "type text NOT NULL, "
             "data bytea, "
-            "tags TEXT[] NOT NULL,"
+            "tags text[] NOT NULL,"
             "text_vector tsvector) "
             "WITH (autovacuum_enabled=false)"
         ).format(
             schema=Identifier(self.datastore.schema),
             table=Identifier(self.dcb_events_table_name),
         )
-
         self.sql_create_index_on_text_vector = SQL(
             "CREATE INDEX IF NOT EXISTS {index} "
             "ON {schema}.{table} "
@@ -71,41 +61,30 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             table=Identifier(self.dcb_events_table_name),
         )
 
-        # https://www.psycopg.org/psycopg3/docs/basic/pgtypes.html
-        # #composite-types-casting
-        # Can't do 'CREATE TYPE IF NOT EXISTS', but if exists we get a DuplicateObject
-        # error from psycopg (which terminates the transaction), but maybe do:
-        # https://stackoverflow.com/questions/7624919/
-        # check-if-a-user-defined-type-already-exists-in-postgresql
-        self.sql_create_type_dcb_event_type = SQL(
+        self.sql_create_type_dcb_event = SQL(
             "CREATE TYPE {schema}.{name} "
-            "AS (type TEXT, data bytea, tags TEXT[], text_vector tsvector)"
+            "AS (type text, data bytea, tags text[], text_vector tsvector)"
         ).format(
             schema=Identifier(self.datastore.schema),
             name=Identifier(self.dcb_event_type_name),
         )
 
         self.pg_function_name_insert_events = "dcb_insert_events"
-
-        self.sql_invoke_pg_insert_events_function = SQL(
-            "SELECT * FROM {insert_events}((%s))"
-        ).format(insert_events=Identifier(self.pg_function_name_insert_events))
-
         self.sql_create_pg_function_insert_events = SQL(
-            "CREATE OR REPLACE FUNCTION {insert_events} ( events {event}[] ) "
-            "RETURNS TABLE ( "
-            "    posn bigint "
+            "CREATE OR REPLACE FUNCTION {insert_events}(events {event}[]) "
+            "RETURNS TABLE ("
+            "    posn bigint"
             ") "
             "LANGUAGE plpgsql "
             "AS "
-            "$BODY$ "
-            "BEGIN "
-            "    RETURN QUERY "
-            "    INSERT INTO {schema}.{table} (type, data, tags, text_vector) "
-            "    SELECT type, data, tags, text_vector from unnest(events) "
-            "    RETURNING position; "
-            "END; "
-            "$BODY$; "
+            "$BODY$"
+            "BEGIN"
+            "    RETURN QUERY"
+            "    INSERT INTO {schema}.{table} (type, data, tags, text_vector)"
+            "    SELECT type, data, tags, text_vector from unnest(events)"
+            "    RETURNING position;"
+            "END;"
+            "$BODY$"
         ).format(
             insert_events=Identifier(self.pg_function_name_insert_events),
             event=Identifier(self.dcb_event_type_name),
@@ -114,61 +93,62 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         )
 
         self.pg_function_name_select_events = "dcb_select_events"
-
-        self.sql_invoke_pg_select_events_function = SQL(
+        self.sql_invoke_pg_function_select_events = SQL(
             "SELECT * FROM {select_events}((%s), (%s), (%s))"
         ).format(select_events=Identifier(self.pg_function_name_select_events))
-
         self.sql_create_pg_function_select_events = SQL(
             "CREATE OR REPLACE FUNCTION {select_events} ("
-            "    text_query tsquery, "
-            "    after BIGINT, "
-            "    max_results BIGINT DEFAULT NULL, "
-            "    unsorted boolean DEFAULT FALSE "
+            "    text_query tsquery,"
+            "    after bigint,"
+            "    max_results bigint DEFAULT NULL,"
+            "    unsorted boolean DEFAULT FALSE"
             ") "
-            "RETURNS TABLE ( "
-            "    posn BIGINT, "
-            "    type TEXT, "
-            "    data bytea, "
-            "    tags TEXT[] "
+            "RETURNS TABLE ("
+            "    posn bigint,"
+            "    type text,"
+            "    data bytea,"
+            "    tags text[]"
             ") "
             "LANGUAGE plpgsql "
             "AS "
-            "$BODY$ "
+            "$BODY$"
             "BEGIN"
-            "    IF text_query <> '' THEN "
-            "        IF after is NULL THEN "
-            "            RETURN QUERY "
-            "            SELECT t.position, t.type, t.data, t.tags "
-            "            FROM {schema}.{table} t "
-            "            WHERE t.text_vector @@ text_query "
-            "            ORDER BY t.position ASC "
+            "    IF text_query <> '' THEN"
+            "        IF unsorted THEN"
+            "            /* for append condition query */"
+            "            RETURN QUERY"
+            "            SELECT t.position, t.type, t.data, t.tags"
+            "            FROM {schema}.{table} t"
+            "            WHERE t.text_vector @@ text_query"
+            "            AND t.position > COALESCE(after, 0)"
             "            LIMIT max_results;"
-            "        ELSIF unsorted THEN"
-            "            RETURN QUERY "
-            "            SELECT t.position, t.type, t.data, t.tags "
-            "            FROM {schema}.{table} t "
-            "            WHERE t.text_vector @@ text_query "
-            "            AND t.position > COALESCE(after, 0) "
+            "        ELSIF after is NULL THEN"
+            "            /* for initial command query */"
+            "            RETURN QUERY"
+            "            SELECT t.position, t.type, t.data, t.tags"
+            "            FROM {schema}.{table} t"
+            "            WHERE t.text_vector @@ text_query"
+            "            ORDER BY t.position ASC"
             "            LIMIT max_results;"
             "        ELSE"
-            "            RETURN QUERY "
-            "            SELECT t.position, t.type, t.data, t.tags "
-            "            FROM {schema}.{table} t "
-            "            WHERE t.text_vector @@ text_query "
-            "            AND t.position > COALESCE(after, 0) "
-            "            ORDER BY t.position ASC "
+            "            /* more unusual to get here */"
+            "            RETURN QUERY"
+            "            SELECT t.position, t.type, t.data, t.tags"
+            "            FROM {schema}.{table} t"
+            "            WHERE t.text_vector @@ text_query"
+            "            AND t.position > COALESCE(after, 0)"
+            "            ORDER BY t.position ASC"
             "            LIMIT max_results;"
             "        END IF;"
             "    ELSE"
             "        /* no text query - return limited sorted rows from table */"
-            "        RETURN QUERY SELECT t.position, t.type, t.data, t.tags "
-            "        FROM {schema}.{table} t "
-            "        WHERE t.position > COALESCE(after, 0) "
+            "        RETURN QUERY SELECT t.position, t.type, t.data, t.tags"
+            "        FROM {schema}.{table} t"
+            "        WHERE t.position > COALESCE(after, 0)"
             "        ORDER BY t.position ASC LIMIT max_results;"
             "    END IF;"
-            "END; "
-            "$BODY$;"
+            "END;"
+            "$BODY$"
         ).format(
             select_events=Identifier(self.pg_function_name_select_events),
             schema=Identifier(self.datastore.schema),
@@ -176,27 +156,25 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         )
 
         self.pg_procedure_name_append_events = "dcb_append_events"
-
-        self.sql_invoke_pg_append_events_procedure = SQL(
+        self.sql_invoke_pg_procedure_append_events = SQL(
             "CALL {append_events}((%s), (%s), (%s))"
         ).format(
             append_events=Identifier(self.pg_procedure_name_append_events),
         )
-
         self.sql_create_pg_procedure_append_events = SQL(
             "CREATE OR REPLACE PROCEDURE {append_events} ("
             "    in events dcb_event[],"
             "    in text_query tsquery,"
-            "    inout after BIGINT"
+            "    inout after bigint"
             ") "
             "LANGUAGE plpgsql "
             "AS "
             "$BODY$ "
-            "DECLARE "
-            "    num_rows integer;"
+            "DECLARE"
+            "    num_rows integer; "
             "BEGIN "
             "    IF (after < 0) OR (SELECT COUNT(*) FROM"
-            "    {select_events}(text_query, after, 1, TRUE)) = 0 "
+            "    {select_events}(text_query, after, 1, TRUE)) = 0"
             "    THEN"
             "        SELECT MAX(posn) FROM {insert_events}(events) INTO after;"
             "        NOTIFY {channel};"
@@ -204,8 +182,8 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "        after = -1;"
             "    END IF;"
             "    RETURN;"
-            "END; "
-            "$BODY$; "
+            "END;"
+            "$BODY$"
         ).format(
             append_events=Identifier(self.pg_procedure_name_append_events),
             select_events=Identifier(self.pg_function_name_select_events),
@@ -216,27 +194,16 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             channel=Identifier(self.dcb_channel_name),
         )
 
-        # Extend statements executed when create_table() is called. Don't do any
-        # 'CREATE TYPE' statements in that transaction because if types exist, the
-        # transaction is aborted, causing opaque errors when running the test suite.
-        self.create_table_statements.extend(
+        self.sql_create_statements.extend(
             [
                 self.sql_create_table,
                 self.sql_create_index_on_text_vector,
+                self.sql_create_type_dcb_event,
                 self.sql_create_pg_function_insert_events,
                 self.sql_create_pg_function_select_events,
                 self.sql_create_pg_procedure_append_events,
             ]
         )
-
-    def create_table(self) -> None:
-        # Create types each in their own transaction (see above).
-        with (
-            self.datastore.transaction(commit=True) as curs,
-            contextlib.suppress(DuplicateObject),
-        ):
-            curs.execute(self.sql_create_type_dcb_event_type)
-        super().create_table()
 
     def read(
         self,
@@ -272,7 +239,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             msg = "Should be at least one event. Avoid this elsewhere"
             raise ProgrammingError(msg)
 
-        # Prepare events argument.
+        # Prepare 'events' argument.
         pg_dcb_events = [
             self.construct_pg_dcb_event(
                 type=event.type,
@@ -282,7 +249,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             for event in events
         ]
 
-        # Prepare query and after argument.
+        # Prepare 'text_query' and 'after' arguments.
         text_query = ""
         if condition:
             if condition.fail_if_events_match.items:
@@ -304,17 +271,42 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             raise IntegrityError
         return last_new_position
 
-    def invoke_pg_insert_events_function(
-        self,
-        events: list[PgDCBEvent],
-    ) -> list[int]:
-        with self.datastore.get_connection() as conn:
-            results = conn.execute(
-                self.sql_invoke_pg_insert_events_function,
-                (events,),
-            ).fetchall()
-            assert results is not None
-            return [r["posn"] for r in results]
+    def construct_text_query(self, query_items: list[DCBQueryItem]) -> str:
+        text_queries = [
+            self.construct_text_query_from_query_item(query_item)
+            for query_item in query_items
+        ]
+        return " | ".join([f"({t})" for t in text_queries])
+
+    def construct_text_query_from_query_item(self, query_item: DCBQueryItem) -> str:
+        types = self.prefix_types(self.replace_reserved_chars(query_item.types))
+        tags = self.prefix_tags(self.replace_reserved_chars(query_item.tags))
+        types_tq = " | ".join(types)
+        tags_tq = " & ".join(tags)
+        return f"({types_tq}) & {tags_tq}" if types and tags else types_tq or tags_tq
+
+    def construct_text_vector(self, type: str, tags: list[str]) -> str:  # noqa: A002
+        self.assert_no_reserved_prefixes([type, *tags])
+        type = self.prefix_types(self.replace_reserved_chars([type]))[0]  # noqa: A001
+        tags = self.prefix_tags(self.replace_reserved_chars(tags))
+        return " ".join([type, *tags])
+
+    def assert_no_reserved_prefixes(self, all_tokens: list[str]) -> None:
+        for reserved_prefix in ["TYPE-", "TAG-"]:
+            assert not any(
+                t.startswith(reserved_prefix) for t in all_tokens
+            ), reserved_prefix
+
+    def replace_reserved_chars(self, all_tokens: list[str]) -> list[str]:
+        for reserved in ":&|()":
+            all_tokens = [t.replace(reserved, "-") for t in all_tokens]
+        return all_tokens
+
+    def prefix_types(self, all_tokens: list[str]) -> list[str]:
+        return [f"TYPE-{t}" for t in all_tokens]
+
+    def prefix_tags(self, all_tokens: list[str]) -> list[str]:
+        return [f"TAG-{t}" for t in all_tokens]
 
     def invoke_pg_select_events_function(
         self,
@@ -324,7 +316,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
     ) -> Iterator[PgDCBEventRow]:
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             curs.execute(
-                self.sql_invoke_pg_select_events_function,
+                self.sql_invoke_pg_function_select_events,
                 (text_query, after, limit),
             )
             return cast("Iterator[PgDCBEventRow]", curs.fetchall())
@@ -337,7 +329,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
     ) -> int | None:
         with self.datastore.get_connection() as conn, conn.cursor() as curs:
             result = curs.execute(
-                self.sql_invoke_pg_append_events_procedure,
+                self.sql_invoke_pg_procedure_append_events,
                 [events, text_query, after],
             )
             return result.fetchall()[-1]["after"]
@@ -352,61 +344,12 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             type, data, tags, self.construct_text_vector(type, tags)
         )
 
-    def construct_text_vector(self, type: str, tags: list[str]) -> str:  # noqa: A002
-        assert type or tags
-        type = type.replace(":", "-")  # noqa: A001
-        tags = [t.replace(":", "-") for t in tags]
-        all_tokens = [type, *tags]
-        # Check for reserved prefixes.
-        for reserved_prefix in ["TYPE-", "TAG-"]:
-            assert not any(
-                t.startswith(reserved_prefix) for t in all_tokens
-            ), reserved_prefix
-        # Check for reserved chars.
-        for reserved_char in ":&|()":
-            assert not any(reserved_char in t for t in all_tokens), (
-                reserved_char,
-                all_tokens,
-            )
-        # Prefix and join.
-        return " ".join([f"TYPE-{type}"] + [f"TAG-{tag}" for tag in tags])
-
-    def construct_text_query(self, query_items: list[DCBQueryItem]) -> str:
-        text_queries = [
-            self.construct_text_query_from_types_and_tags(types=q.types, tags=q.tags)
-            for q in query_items
-        ]
-        return " | ".join([f"({t})" for t in text_queries])
-
-    def construct_text_query_from_types_and_tags(
-        self, types: list[str], tags: list[str]
-    ) -> str:
-        assert types or tags
-        # TODO: Check for reserved prefixes, chars, words.
-        tstags = [t.replace(":", "-") for t in tags]
-        tstypes = [t.replace(":", "-") for t in types]
-        prefixed_types = [f"TYPE-{type}" for type in tstypes]  # noqa: A001
-        prefixed_tags = [f"TAG-{tag}" for tag in tstags]
-        types_query = " | ".join(prefixed_types)
-        tags_query = " & ".join(prefixed_tags)
-        if types_query and tags_query:
-            text_query = f"({types_query}) & {tags_query}"
-        else:
-            text_query = types_query or tags_query
-        return text_query
-
 
 class PgDCBEvent(NamedTuple):
     type: str
     data: bytes
     tags: list[str]
     text_vector: str
-
-
-class PgDCBQueryItem(NamedTuple):
-    types: list[str]
-    tags: list[str]
-    text_query: str
 
 
 class PgDCBEventRow(TypedDict):

@@ -71,8 +71,37 @@ def drop_tables() -> None:
                 # print(f"Dropped table '{table_name}' in schema '{schema}'")
 
             # Also drop composite types.
-            statement = SQL("DROP TYPE IF EXISTS {schema}.{type}").format(
-                schema=Identifier(datastore.schema),
-                type=Identifier("stored_event"),
-            )
-            curs.execute(statement, prepare=False)
+            compsite_types = ["stored_event", "dcb_event"]
+            for name in compsite_types:
+                statement = SQL("DROP TYPE IF EXISTS {schema}.{type} CASCADE").format(
+                    schema=Identifier(datastore.schema),
+                    type=Identifier(name),
+                )
+                curs.execute(statement, prepare=False)
+
+            # Also drop functions.
+            functions = [
+                "dcb_insert_events",
+                "dcb_select_events",
+            ]
+            for name in functions:
+                statement = SQL(
+                    "DROP FUNCTION IF EXISTS {schema}.{type} CASCADE"
+                ).format(
+                    schema=Identifier(datastore.schema),
+                    type=Identifier(name),
+                )
+                curs.execute(statement, prepare=False)
+
+            # Also drop procedures.
+            procedures = [
+                "dcb_append_events",
+            ]
+            for name in procedures:
+                statement = SQL(
+                    "DROP PROCEDURE IF EXISTS {schema}.{type} CASCADE"
+                ).format(
+                    schema=Identifier(datastore.schema),
+                    type=Identifier(name),
+                )
+                curs.execute(statement, prepare=False)

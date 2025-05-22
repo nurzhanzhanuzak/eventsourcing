@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from threading import RLock
 from typing import TYPE_CHECKING
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
-from eventsourcing.popo import POPOFactory, POPOTrackingRecorder
+from eventsourcing.popo import POPOFactory, POPORecorder, POPOTrackingRecorder
 from examples.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
@@ -19,11 +18,11 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
 
-class InMemoryDCBEventStore(DCBEventStore):
+class InMemoryDCBEventStore(DCBEventStore, POPORecorder):
     def __init__(self) -> None:
+        super().__init__()
         self.events: list[DCBSequencedEvent] = []
         self.position_sequence = self._position_sequence_generator()
-        self._lock = RLock()
 
     def read(
         self,
@@ -32,7 +31,7 @@ class InMemoryDCBEventStore(DCBEventStore):
         limit: int | None = None,
     ) -> Iterator[DCBSequencedEvent]:
         query = query or DCBQuery()
-        with self._lock:
+        with self._database_lock:
             events = (
                 event
                 for event in self.events
@@ -57,7 +56,7 @@ class InMemoryDCBEventStore(DCBEventStore):
         if len(events) == 0:
             msg = "Should be at least one event. Avoid this elsewhere"
             raise ProgrammingError(msg)
-        with self._lock:
+        with self._database_lock:
             if condition is not None:
                 try:
                     next(

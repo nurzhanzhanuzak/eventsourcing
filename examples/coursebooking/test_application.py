@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest import TestCase
+from unittest import TestCase, TestLoader, TestSuite
 
 from eventsourcing.persistence import IntegrityError
 from eventsourcing.tests.postgres_utils import drop_tables
 from examples.coursebooking.application import (
-    Enrolment,
+    EnrolmentWithAggregates,
 )
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
@@ -17,15 +17,15 @@ from examples.coursebooking.interface import (
 )
 
 if TYPE_CHECKING:
-    from examples.coursebooking.interface import EnrolmentProtocol
+    from examples.coursebooking.interface import Enrolment
 
 
 class TestEnrolment(TestCase):
     def setUp(self) -> None:
         self.env: dict[str, str] = {}
 
-    def construct_app(self) -> EnrolmentProtocol:
-        return Enrolment(self.env)
+    def construct_app(self) -> Enrolment:
+        raise NotImplementedError
 
     def test_enrolment(self) -> None:
         # Construct application object.
@@ -99,21 +99,28 @@ class TestEnrolment(TestCase):
         self.assertEqual(courses, ["French", "Spanish", "Maths"])
 
     def test_enrolment_with_postgres(self) -> None:
-        if "PERSISTENCE_MODULE" not in self.env:
-            self.env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
         self.env["POSTGRES_DBNAME"] = "eventsourcing"
         self.env["POSTGRES_HOST"] = "127.0.0.1"
         self.env["POSTGRES_PORT"] = "5432"
         self.env["POSTGRES_USER"] = "eventsourcing"
         self.env["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
-        self.env["POSTGRES_ORIGINATOR_ID_TYPE"] = "text"
         try:
             self.test_enrolment()
         finally:
             drop_tables()
 
 
-class TestEnrolmentConsistency(TestEnrolment):
+class TestEnrolmentWithAggregates(TestEnrolment):
+    def construct_app(self) -> Enrolment:
+        return EnrolmentWithAggregates(self.env)
+
+    def test_enrolment_with_postgres(self) -> None:
+        self.env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
+        self.env["POSTGRES_ORIGINATOR_ID_TYPE"] = "text"
+        super().test_enrolment_with_postgres()
+
+
+class TestEnrolmentConsistency(TestEnrolmentWithAggregates):
     def test_enrolment(self) -> None:
         # Construct application object.
         app = self.construct_app()
@@ -126,7 +133,7 @@ class TestEnrolmentConsistency(TestEnrolment):
         bastian = app.register_student("Bastian", max_courses=3)
 
         # Try to break recorded consistency with concurrent operation.
-        assert isinstance(app, Enrolment)
+        assert isinstance(app, EnrolmentWithAggregates)
         student = app.get_student(sara)
         course = app.get_course(french)
         student.join_course(course.id)
@@ -142,3 +149,14 @@ class TestEnrolmentConsistency(TestEnrolment):
         # Check Sara doesn't have French, and French doesn't have Sara.
         self.assertNotIn("Sara", app.list_students_for_course(french))
         self.assertNotIn("French", app.list_courses_for_student(sara))
+
+
+test_cases = (TestEnrolmentWithAggregates, TestEnrolmentConsistency)
+
+
+def load_tests(loader: TestLoader, _: TestSuite, __: str | None) -> TestSuite:
+    suite = TestSuite()
+    for test_class in test_cases:
+        tests = loader.loadTestsFromTestCase(test_class)
+        suite.addTests(tests)
+    return suite

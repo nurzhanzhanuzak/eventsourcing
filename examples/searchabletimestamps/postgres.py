@@ -35,7 +35,7 @@ class SearchableTimestampsApplicationRecorder(
         self.check_table_name_length(event_timestamps_table_name)
         self.event_timestamps_table_name = event_timestamps_table_name
 
-        self.create_table_statements.append(
+        self.sql_create_statements.append(
             SQL(
                 "CREATE TABLE IF NOT EXISTS {0}.{1} ("
                 "originator_id uuid NOT NULL, "

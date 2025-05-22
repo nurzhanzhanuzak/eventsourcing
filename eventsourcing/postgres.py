@@ -248,7 +248,7 @@ class PostgresRecorder:
         datastore: PostgresDatastore,
     ):
         self.datastore = datastore
-        self.create_table_statements = self.construct_create_table_statements()
+        self.sql_create_statements: list[Composed] = []
 
     @staticmethod
     def check_table_name_length(table_name: str) -> None:
@@ -256,10 +256,18 @@ class PostgresRecorder:
             msg = f"Table name too long: {table_name}"
             raise ProgrammingError(msg)
 
-    def construct_create_table_statements(self) -> list[Composed]:
-        return []
-
     def create_table(self) -> None:
+        # Create composite types.
+        for statement in self.sql_create_statements:
+            if "CREATE TYPE" not in statement.as_string():
+                continue
+            with (
+                self.datastore.transaction(commit=True) as curs,
+                contextlib.suppress(DuplicateObject),
+            ):
+                curs.execute(statement, prepare=False)
+
+        # Create tables, indexes, types, functions, and procedures.
         with self.datastore.transaction(commit=True) as curs:
             self._create_table(curs)
 
@@ -273,7 +281,9 @@ class PostgresRecorder:
             )
 
     def _create_table(self, curs: Cursor[DictRow]) -> None:
-        for statement in self.create_table_statements:
+        for statement in self.sql_create_statements:
+            if "CREATE TYPE" in statement.as_string():
+                continue
             curs.execute(statement, prepare=False)
 
 
@@ -294,25 +304,9 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         )
 
         self.stored_event_type_name = "stored_event"
-        self.datastore.pg_type_names.update(
-            [
-                self.stored_event_type_name,
-            ]
-        )
-
-        self.sql_create_type_stored_event = SQL(
-            "CREATE TYPE {schema}.{name} "
-            "AS (originator_id {originator_id_type}, "
-            "originator_version bigint, "
-            "topic text, "
-            "state bytea)"
-        ).format(
-            schema=Identifier(self.datastore.schema),
-            name=Identifier(self.stored_event_type_name),
-            originator_id_type=Identifier(self.datastore.originator_id_type),
-        )
-
-        self.create_table_statements.append(
+        self.datastore.pg_type_names.add(self.stored_event_type_name)
+        self.create_table_statement_index = len(self.sql_create_statements)
+        self.sql_create_statements.append(
             SQL(
                 "CREATE TABLE IF NOT EXISTS {schema}.{table} ("
                 "originator_id {originator_id_type} NOT NULL, "
@@ -345,14 +339,19 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
 
         self.lock_table_statements: list[Query] = []
 
-    def create_table(self) -> None:
-        # Create types each in their own transaction (see above).
-        with (
-            self.datastore.transaction(commit=True) as curs,
-            contextlib.suppress(DuplicateObject),
-        ):
-            curs.execute(self.sql_create_type_stored_event)
-        super().create_table()
+        self.sql_create_statements.append(
+            SQL(
+                "CREATE TYPE {schema}.{name} "
+                "AS (originator_id {originator_id_type}, "
+                "originator_version bigint, "
+                "topic text, "
+                "state bytea)"
+            ).format(
+                schema=Identifier(self.datastore.schema),
+                name=Identifier(self.stored_event_type_name),
+                originator_id_type=Identifier(self.datastore.originator_id_type),
+            )
+        )
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_events(
@@ -481,7 +480,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         events_table_name: str = "stored_events",
     ):
         super().__init__(datastore, events_table_name=events_table_name)
-        self.create_table_statements[-1] = SQL(
+        self.sql_create_statements[self.create_table_statement_index] = SQL(
             "CREATE TABLE IF NOT EXISTS {schema}.{table} ("
             "originator_id {originator_id_type} NOT NULL, "
             "originator_version bigint NOT NULL, "
@@ -497,7 +496,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
             originator_id_type=Identifier(self.datastore.originator_id_type),
         )
 
-        self.create_table_statements.append(
+        self.sql_create_statements.append(
             SQL(
                 "CREATE UNIQUE INDEX IF NOT EXISTS {index} "
                 "ON {schema}.{table} (notification_id ASC);"
@@ -715,7 +714,7 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
         self.has_checked_for_multi_row_tracking_table: bool = False
         if self.datastore.single_row_tracking:
             # For single-row tracking.
-            self.create_table_statements.append(
+            self.sql_create_statements.append(
                 SQL(
                     "CREATE TABLE IF NOT EXISTS {0}.{1} ("
                     "application_name text, "
@@ -740,7 +739,7 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
             )
         else:
             # For legacy multi-row tracking.
-            self.create_table_statements.append(
+            self.sql_create_statements.append(
                 SQL(
                     "CREATE TABLE IF NOT EXISTS {0}.{1} ("
                     "application_name text, "

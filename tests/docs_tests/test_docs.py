@@ -1,4 +1,5 @@
 import os
+import signal
 import sys
 import traceback
 from pathlib import Path
@@ -23,11 +24,15 @@ class TestDocs(TestCase):
         self.uris = tmpfile_uris()
         self.os_environ_copy = os.environ.copy()
         self.orig_main = sys.modules["__main__"]
+        self.original_sigint_handler = signal.getsignal(signal.SIGINT)
+
+        # Then, later...
 
     def tearDown(self) -> None:
         self.restore_environ()
 
     def restore_environ(self) -> None:
+        signal.signal(signal.SIGINT, self.original_sigint_handler)
         sys.modules["__main__"] = self.orig_main
         for key in list(os.environ.keys()):
             if key not in self.os_environ_copy:

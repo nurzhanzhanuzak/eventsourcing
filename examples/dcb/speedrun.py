@@ -2,8 +2,8 @@ import sys
 from collections.abc import Iterator
 
 from eventsourcing.domain import datetime_now_with_tzinfo
-from examples.coursebooking.application import Enrolment
-from examples.coursebooking.interface import EnrolmentProtocol
+from examples.coursebooking.application import EnrolmentWithAggregates
+from examples.coursebooking.interface import Enrolment
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
 
 # CREATE DATABASE large_test_dcb_db;
@@ -28,10 +28,10 @@ def inf_range() -> Iterator[int]:
 if __name__ == "__main__":
     if "dcb" in sys.argv:
         env["PERSISTENCE_MODULE"] = "examples.dcb.postgres"
-        app: EnrolmentProtocol = EnrolmentWithDCBRefactored(env)
+        app: Enrolment = EnrolmentWithDCBRefactored(env)
     elif "agg" in sys.argv:
         env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
-        app = Enrolment(env)
+        app = EnrolmentWithAggregates(env)
     else:
         print(f"Usage: {__file__} dcb | agg")  # noqa: T201
         sys.exit(1)

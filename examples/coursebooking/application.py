@@ -5,7 +5,7 @@ from examples.coursebooking.domainmodel import Course, Student
 from examples.coursebooking.interface import CourseNotFoundError, StudentNotFoundError
 
 
-class Enrolment(Application[str]):
+class EnrolmentWithAggregates(Application[str]):
     def register_student(self, name: str, max_courses: int) -> str:
         student = Student(name, max_courses=max_courses)
         self.save(student)

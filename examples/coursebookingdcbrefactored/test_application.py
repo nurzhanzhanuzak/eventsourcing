@@ -6,11 +6,11 @@ from examples.coursebookingdcb.test_application import TestEnrolmentWithDCB
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
 
 if TYPE_CHECKING:
-    from examples.coursebooking.interface import EnrolmentProtocol
+    from examples.coursebooking.interface import Enrolment
 
 
 class TestEnrolmentWithDCBRefactored(TestEnrolmentWithDCB):
-    def construct_app(self) -> EnrolmentProtocol:
+    def construct_app(self) -> Enrolment:
         return EnrolmentWithDCBRefactored(self.env)
 
 

@@ -179,7 +179,7 @@ class PostgresEventCounters(PostgresTrackingRecorder, EventCountersInterface):
         assert self.tracking_table_name.endswith("_tracking")  # Because we replace it.
         self.counters_table_name = self.tracking_table_name.replace("_tracking", "")
         self.check_table_name_length(self.counters_table_name)
-        self.create_table_statements.append(
+        self.sql_create_statements.append(
             SQL(
                 "CREATE TABLE IF NOT EXISTS {0}.{1} ("
                 "counter_name text, "

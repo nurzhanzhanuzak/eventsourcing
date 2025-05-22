@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 
-class EnrolmentProtocol(Protocol):
+class Enrolment(Protocol):
     def register_student(self, name: str, max_courses: int) -> str:
         raise NotImplementedError
 
