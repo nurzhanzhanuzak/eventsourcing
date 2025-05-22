@@ -52,9 +52,9 @@ the recorded events, and so call :func:`~examples.coursebookingdcbrefactored.eve
 returning domain events.
 
 These refactorings improve the readability and integrity of the code, reducing the source lines of code by 34%
-(from 167 sloc to 107). However, it's worth noting that this example application code still has greater than 50%
+(from 164 sloc to 109). However, it's worth noting that this example application code still has 47%
 more code than the domain model and application code using aggregates in the
-:doc:`first example </topics/examples/coursebooking>` (70 sloc).
+:doc:`first example </topics/examples/coursebooking>` (74 sloc).
 
 Application
 -----------
