@@ -81,7 +81,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "BEGIN"
             "    RETURN QUERY"
             "    INSERT INTO {schema}.{table} (type, data, tags, text_vector)"
-            "    SELECT type, data, tags, text_vector from unnest(events)"
+            "    SELECT type, data, tags, text_vector FROM unnest(events)"
             "    RETURNING position;"
             "END;"
             "$BODY$"
