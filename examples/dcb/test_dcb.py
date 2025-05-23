@@ -433,8 +433,8 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         # After 5. Default limit (=> NULL / unlimited).
         rows = list(self.eventstore.invoke_pg_select_events_function("", 5))
         self.assertEqual(15, len(rows))
-        self.assertEqual(6, rows[0]["posn"])
-        self.assertEqual(20, rows[14]["posn"])
+        self.assertEqual(6, rows[0]["sequence_position"])
+        self.assertEqual(20, rows[14]["sequence_position"])
 
         # Select with one event type, expect rows, should be in asc order.
         text_query = self.eventstore.construct_text_query(
@@ -442,9 +442,9 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         )
         rows = list(self.eventstore.invoke_pg_select_events_function(text_query, 0))
         self.assertEqual(10, len(rows))
-        self.assertEqual(1, rows[0]["posn"])
-        self.assertEqual(3, rows[1]["posn"])
-        self.assertEqual(19, rows[9]["posn"])
+        self.assertEqual(1, rows[0]["sequence_position"])
+        self.assertEqual(3, rows[1]["sequence_position"])
+        self.assertEqual(19, rows[9]["sequence_position"])
 
         # Select with event types, expect rows, should be in asc order.
         text_query = self.eventstore.construct_text_query(
@@ -452,10 +452,10 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         )
         rows = list(self.eventstore.invoke_pg_select_events_function(text_query, 0))
         self.assertEqual(20, len(rows))
-        self.assertEqual(1, rows[0]["posn"])
-        self.assertEqual(2, rows[1]["posn"])
-        self.assertEqual(19, rows[18]["posn"])
-        self.assertEqual(20, rows[19]["posn"])
+        self.assertEqual(1, rows[0]["sequence_position"])
+        self.assertEqual(2, rows[1]["sequence_position"])
+        self.assertEqual(19, rows[18]["sequence_position"])
+        self.assertEqual(20, rows[19]["sequence_position"])
 
         # Select with query items and limit.
         rows = list(self.eventstore.invoke_pg_select_events_function(text_query, 0, 5))
@@ -474,19 +474,19 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         )
         rows = list(self.eventstore.invoke_pg_select_events_function(text_query, 0))
         self.assertEqual(20, len(rows))
-        self.assertEqual(1, rows[0]["posn"])
+        self.assertEqual(1, rows[0]["sequence_position"])
         self.assertEqual(["tagA", "tagB"], rows[0]["tags"])
-        self.assertEqual(2, rows[1]["posn"])
+        self.assertEqual(2, rows[1]["sequence_position"])
         self.assertEqual(["tagC", "tagD"], rows[1]["tags"])
-        self.assertEqual(19, rows[18]["posn"])
+        self.assertEqual(19, rows[18]["sequence_position"])
         self.assertEqual(["tagA", "tagB"], rows[18]["tags"])
-        self.assertEqual(20, rows[19]["posn"])
+        self.assertEqual(20, rows[19]["sequence_position"])
         self.assertEqual(["tagC", "tagD"], rows[19]["tags"])
 
         # Select with query item after position 10 - match.
         rows = list(self.eventstore.invoke_pg_select_events_function(text_query, 10))
         self.assertEqual(10, len(rows))
-        self.assertEqual(11, rows[0]["posn"])
+        self.assertEqual(11, rows[0]["sequence_position"])
 
         # Select with query item - no match, wrong types.
         text_query = self.eventstore.construct_text_query(
@@ -518,7 +518,7 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
                 (events,),
             ).fetchall()
             assert results is not None
-            return [r["posn"] for r in results]
+            return [r["sequence_position"] for r in results]
 
     def test_append_events_procedure(self) -> None:
 

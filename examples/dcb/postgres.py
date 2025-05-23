@@ -41,7 +41,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
 
         self.sql_create_table = SQL(
             "CREATE TABLE IF NOT EXISTS {schema}.{table} ("
-            "position bigserial PRIMARY KEY, "
+            "sequence_position bigserial PRIMARY KEY, "
             "type text NOT NULL, "
             "data bytea, "
             "tags text[] NOT NULL,"
@@ -75,16 +75,16 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "    events {schema}.{event_type}[]"
             ") "
             "RETURNS TABLE ("
-            "    posn bigint"
+            "    sequence_position bigint"
             ") "
             "LANGUAGE plpgsql "
             "AS "
             "$BODY$"
             "BEGIN"
             "    RETURN QUERY"
-            "    INSERT INTO {schema}.{table} (type, data, tags, text_vector)"
+            "    INSERT INTO {schema}.{table} AS t (type, data, tags, text_vector)"
             "    SELECT type, data, tags, text_vector FROM unnest(events)"
-            "    RETURNING position;"
+            "    RETURNING t.sequence_position;"
             "END;"
             "$BODY$"
         ).format(
@@ -106,7 +106,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "    unsorted boolean DEFAULT FALSE"
             ") "
             "RETURNS TABLE ("
-            "    posn bigint,"
+            "    sequence_position bigint,"
             "    type text,"
             "    data bytea,"
             "    tags text[]"
@@ -119,35 +119,35 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "        IF unsorted THEN"
             "            /* for append condition query */"
             "            RETURN QUERY"
-            "            SELECT t.position, t.type, t.data, t.tags"
+            "            SELECT t.sequence_position, t.type, t.data, t.tags"
             "            FROM {schema}.{table} t"
-            "            WHERE t.text_vector @@ text_query"
-            "            AND t.position > COALESCE(after, 0)"
+            "            WHERE t.sequence_position > COALESCE(after, 0)"
+            "            AND t.text_vector @@ text_query"
             "            LIMIT max_results;"
             "        ELSIF after is NULL THEN"
             "            /* for initial command query */"
             "            RETURN QUERY"
-            "            SELECT t.position, t.type, t.data, t.tags"
+            "            SELECT t.sequence_position, t.type, t.data, t.tags"
             "            FROM {schema}.{table} t"
             "            WHERE t.text_vector @@ text_query"
-            "            ORDER BY t.position ASC"
+            "            ORDER BY t.sequence_position ASC"
             "            LIMIT max_results;"
             "        ELSE"
             "            /* more unusual to get here */"
             "            RETURN QUERY"
-            "            SELECT t.position, t.type, t.data, t.tags"
+            "            SELECT t.sequence_position, t.type, t.data, t.tags"
             "            FROM {schema}.{table} t"
             "            WHERE t.text_vector @@ text_query"
-            "            AND t.position > COALESCE(after, 0)"
-            "            ORDER BY t.position ASC"
+            "            AND t.sequence_position > COALESCE(after, 0)"
+            "            ORDER BY t.sequence_position ASC"
             "            LIMIT max_results;"
             "        END IF;"
             "    ELSE"
             "        /* no text query - return limited sorted rows from table */"
-            "        RETURN QUERY SELECT t.position, t.type, t.data, t.tags"
+            "        RETURN QUERY SELECT t.sequence_position, t.type, t.data, t.tags"
             "        FROM {schema}.{table} t"
-            "        WHERE t.position > COALESCE(after, 0)"
-            "        ORDER BY t.position ASC LIMIT max_results;"
+            "        WHERE t.sequence_position > COALESCE(after, 0)"
+            "        ORDER BY t.sequence_position ASC LIMIT max_results;"
             "    END IF;"
             "END;"
             "$BODY$"
@@ -178,7 +178,9 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "    IF (after < 0) OR (SELECT COUNT(*) FROM"
             "        {select_events}(text_query, after, 1, TRUE)) = 0"
             "    THEN"
-            "        SELECT MAX(posn) FROM {insert_events}(events) INTO after;"
+            "        SELECT MAX(sequence_position) "
+            "        FROM {insert_events}(events) "
+            "        INTO after;"
             "        NOTIFY {channel};"
             "    ELSE"
             "        after = -1;"
@@ -224,7 +226,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                     data=row["data"],
                     tags=row["tags"],
                 ),
-                position=row["posn"],
+                position=row["sequence_position"],
             )
             for row in self.invoke_pg_select_events_function(
                 text_query=text_query,
@@ -258,19 +260,20 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                     condition.fail_if_events_match.items,
                 )
             after = condition.after
+            print("Append condition after:", after)  # noqa: T201
         else:
             after = -1  # Indicates no "fail condition".
 
         # Invoke pg procedure.
-        last_new_position = self.invoke_pg_append_events_procedure(
+        last_new_sequence_position = self.invoke_pg_append_events_procedure(
             events=pg_dcb_events,
             text_query=text_query,
             after=after,
         )
-        assert last_new_position is not None  # Because 'events' wasn't empty.
-        if last_new_position == -1:  # Indicates "fail condition" failed.
+        assert last_new_sequence_position is not None  # Because 'events' wasn't empty.
+        if last_new_sequence_position == -1:  # Indicates "fail condition" failed.
             raise IntegrityError
-        return last_new_position
+        return last_new_sequence_position
 
     def construct_text_query(self, query_items: list[DCBQueryItem]) -> str:
         text_queries = [
@@ -354,7 +357,7 @@ class PgDCBEvent(NamedTuple):
 
 
 class PgDCBEventRow(TypedDict):
-    posn: int
+    sequence_position: int
     type: str
     data: bytes
     tags: list[str]
