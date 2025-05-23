@@ -75,7 +75,7 @@ def drop_tables() -> None:
                 "stored_event_uuid",
                 "stored_event_text",
                 "dcb_event",
-                "dcb_event",
+                "dcb_sequenced_event",
             ]
             for name in composite_types:
                 statement = SQL("DROP TYPE IF EXISTS {schema}.{name} CASCADE").format(
@@ -90,6 +90,7 @@ def drop_tables() -> None:
                 "es_insert_events_text",
                 "dcb_insert_events",
                 "dcb_select_events",
+                "dcb_select_events2",
             ]
             for name in functions:
                 statement = SQL(

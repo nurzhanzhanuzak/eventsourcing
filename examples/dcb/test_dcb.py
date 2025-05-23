@@ -22,7 +22,8 @@ from examples.dcb.api import (
     DCBSequencedEvent,
 )
 from examples.dcb.popo import InMemoryDCBEventStore
-from examples.dcb.postgres import DCBPostgresFactory, PgDCBEvent, PostgresDCBEventStore
+from examples.dcb.postgres import DCBPostgresFactory, PgDCBEvent, PostgresDCBEventStore, \
+    PgDCBSequencedEvent
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -519,6 +520,114 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
             ).fetchall()
             assert results is not None
             return [r["sequence_position"] for r in results]
+
+    def invoke_pg_select_events2_function(
+        self,
+        text_query: str,
+        after: int | None = None,
+        limit: int | None = None,
+        *,
+        unsorted: bool = False,
+    ) -> tuple[list[PgDCBSequencedEvent], int]:
+        with self.eventstore.datastore.get_connection() as conn:
+            result = conn.execute(
+                self.eventstore.sql_invoke_pg_function_select_events2,
+                (text_query, after, limit, 'true' if unsorted else 'false'),
+            ).fetchone()
+            assert result is not None
+            return result["result_array"], result["result_integer"]
+
+    def test_select_events2(self) -> None:
+        a, i = self.invoke_pg_select_events2_function('', 1, 1, unsorted=True)
+        self.assertIsNone(a)
+        self.assertIsNone(i)
+
+        event1 = self.eventstore.construct_pg_dcb_event(
+            type="EventTypeA",
+            data=b"dataA",
+            tags=["tagA", "tagB"],
+        )
+        event2 = self.eventstore.construct_pg_dcb_event(
+            type="EventTypeB",
+            data=b"dataB",
+            tags=["tagC", "tagD"],
+        )
+
+        # Insert 20 events.
+        events = [event1, event2] * 10
+        self.invoke_pg_insert_events_function(events)
+
+        # Select for "propagating state of application" (no query).
+        a, i = self.invoke_pg_select_events2_function('', after=0, limit=10)
+        self.assertEqual(10, len(a))
+        self.assertEqual(1, a[0].sequence_position)
+        self.assertEqual(event1.type, a[0].type)
+        self.assertEqual(event1.data, a[0].data)
+        self.assertEqual(event1.tags, a[0].tags)
+        self.assertEqual(event2.type, a[1].type)
+        self.assertEqual(event2.data, a[1].data)
+        self.assertEqual(event2.tags, a[1].tags)
+        self.assertEqual(i, 20)
+
+        a, i = self.invoke_pg_select_events2_function('', after=a[-1].sequence_position, limit=10)
+        self.assertEqual(10, len(a))
+        self.assertEqual(11, a[0].sequence_position)
+        self.assertEqual(event1.type, a[0].type)
+        self.assertEqual(event1.data, a[0].data)
+        self.assertEqual(event1.tags, a[0].tags)
+        self.assertEqual(event2.type, a[1].type)
+        self.assertEqual(event2.data, a[1].data)
+        self.assertEqual(event2.tags, a[1].tags)
+        self.assertEqual(i, 20)
+
+        # Select for decision model with query tags.
+        query = self.eventstore.construct_text_query(
+            [DCBQueryItem(tags=event1.tags)],
+        )
+        a, i = self.invoke_pg_select_events2_function(query)
+        self.assertEqual(10, len(a))
+        for e in a:
+            self.assertEqual(event1.type, e.type)
+            self.assertEqual(event1.tags, e.tags)
+            self.assertEqual(event1.data, e.data)
+
+        # Select for decision model with query types.
+        query = self.eventstore.construct_text_query(
+            [DCBQueryItem(types=[event1.type])],
+        )
+        a, i = self.invoke_pg_select_events2_function(query)
+        self.assertEqual(10, len(a))
+        for e in a:
+            self.assertEqual(event1.type, e.type)
+            self.assertEqual(event1.tags, e.tags)
+            self.assertEqual(event1.data, e.data)
+        self.assertEqual(i, 20)
+
+        # Select for append condition with same query and last position.
+        query = self.eventstore.construct_text_query(
+            [DCBQueryItem(types=[event1.type])],
+        )
+        a, i = self.invoke_pg_select_events2_function(query, after=i)
+        self.assertIsNone(a)
+        self.assertEqual(i, 20)
+
+        # Select for append condition after more events written - returns an event.
+        self.invoke_pg_insert_events_function([event1, event2])
+        query = self.eventstore.construct_text_query(
+            [DCBQueryItem(types=[event1.type])],
+        )
+        a, i = self.invoke_pg_select_events2_function(query, after=i, limit=1, unsorted=True)
+        self.assertEqual(1, len(a))
+        self.assertEqual(i, 22)
+
+        # Unusual select, with query and after, and not unsorted.
+        self.invoke_pg_insert_events_function([event1, event2])
+        query = self.eventstore.construct_text_query(
+            [DCBQueryItem(types=[event1.type])],
+        )
+        a, i = self.invoke_pg_select_events2_function(query, after=1, limit=100)
+        self.assertEqual(11, len(a))
+        self.assertEqual(i, 24)
 
     def test_append_events_procedure(self) -> None:
 

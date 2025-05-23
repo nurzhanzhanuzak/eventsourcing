@@ -37,7 +37,9 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self.dcb_events_table_name = dcb_table_name
         self.dcb_channel_name = dcb_table_name.replace(".", "_")
         self.dcb_event_type_name = "dcb_event"
+        self.dcb_sequenced_event_type_name = "dcb_sequenced_event"
         self.datastore.pg_type_names.add(self.dcb_event_type_name)
+        self.datastore.pg_type_names.add(self.dcb_sequenced_event_type_name)
 
         self.sql_create_table = SQL(
             "CREATE TABLE IF NOT EXISTS {schema}.{table} ("
@@ -67,6 +69,14 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         ).format(
             schema=Identifier(self.datastore.schema),
             type_name=Identifier(self.dcb_event_type_name),
+        )
+
+        self.sql_create_type_dcb_sequenced_event = SQL(
+            "CREATE TYPE {schema}.{type_name} "
+            "AS (sequence_position bigint, type text, data bytea, tags text[])"
+        ).format(
+            schema=Identifier(self.datastore.schema),
+            type_name=Identifier(self.dcb_sequenced_event_type_name),
         )
 
         self.pg_function_name_insert_events = "dcb_insert_events"
@@ -157,6 +167,108 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             table=Identifier(self.dcb_events_table_name),
         )
 
+        self.pg_function_name_select_events2 = "dcb_select_events2"
+        self.sql_invoke_pg_function_select_events2 = SQL(
+            "SELECT * FROM {select_events2}((%s), (%s), (%s), (%s))"
+        ).format(select_events2=Identifier(self.pg_function_name_select_events2))
+        self.sql_create_pg_function_select_events2 = SQL(
+            "CREATE OR REPLACE FUNCTION {select_events2} ("
+            "    text_query tsquery,"
+            "    after bigint,"
+            "    max_results bigint DEFAULT NULL,"
+            "    unsorted boolean DEFAULT FALSE,"
+            "    OUT result_array {sequenced_event_type}[],"
+            "    OUT result_integer integer"
+            ") "
+            "LANGUAGE plpgsql "
+            "AS "
+            "$BODY$ "
+            "BEGIN "
+            # "    result_array := ARRAY[(1, NULL, NULL, NULL)::{sequenced_event_type}, (2, NULL, NULL, NULL)::{sequenced_event_type}];"
+            # "    result_integer := 42; "
+            "    SELECT MAX(sequence_position) "
+            "    FROM {schema}.{table}"
+            "    INTO result_integer;"
+            "    IF text_query <> '' THEN"
+            "        IF unsorted THEN"
+            "            /* for append condition query - no ordering */"
+            "            SELECT ARRAY_AGG("
+            "                ("
+            "                    subq.sequence_position,"
+            "                    subq.type, "
+            "                    subq.data,"
+            "                    subq.tags"
+            "                )::{sequenced_event_type}"
+            "            )"
+            "            FROM ("
+            "                SELECT sequence_position, type, data, tags"
+            "                FROM {schema}.{table}"
+            "                WHERE sequence_position > COALESCE(after, 0)"
+            "                AND text_vector @@ text_query"
+            "                LIMIT max_results"
+            "            ) AS subq"
+            "            INTO result_array;"
+            "        ELSIF after is NULL THEN"
+            # "            /* for initial command query - no 'after' */"
+            "            SELECT ARRAY_AGG("
+            "                ("
+            "                    subq.sequence_position,"
+            "                    subq.type, "
+            "                    subq.data,"
+            "                    subq.tags"
+            "                )::{sequenced_event_type}"
+            "            )"
+            "            FROM ("
+            "                SELECT sequence_position, type, data, tags"
+            "                FROM {schema}.{table}"
+            "                WHERE text_vector @@ text_query"
+            "                ORDER BY sequence_position ASC"
+            "                LIMIT max_results"
+            "            ) AS subq"
+            "            INTO result_array;"
+            "        ELSE"
+            "            /* more unusual to get here - query after and ordered */"
+            "            SELECT ARRAY_AGG("
+            "                ("
+            "                    subq.sequence_position,"
+            "                    subq.type, "
+            "                    subq.data,"
+            "                    subq.tags"
+            "                )::{sequenced_event_type}"
+            "            )"
+            "            FROM ("
+            "                SELECT sequence_position, type, data, tags"
+            "                FROM {schema}.{table}"
+            "                WHERE text_vector @@ text_query"
+            "                AND sequence_position > COALESCE(after, 0)"
+            "                ORDER BY sequence_position ASC"
+            "                LIMIT max_results"
+            "            ) AS subq"
+            "            INTO result_array;"
+            "        END IF;"
+            "    ELSE"
+            "        /* no text query - return limited sorted rows from table */"
+            "        SELECT ARRAY_AGG("
+            "            (subq.sequence_position, subq.type, subq.data, subq.tags)::{sequenced_event_type}"
+            "        )"
+            "        FROM ("
+            "            SELECT sequence_position, type, data, tags"
+            "            FROM {schema}.{table}"
+            "            WHERE sequence_position > COALESCE(after, 0)"
+            "            ORDER BY sequence_position ASC"
+            "            LIMIT max_results"
+            "        ) AS subq"
+            "        INTO result_array;"
+            "END IF;"
+            "END;"
+            "$BODY$"
+        ).format(
+            select_events2=Identifier(self.pg_function_name_select_events2),
+            sequenced_event_type=Identifier(self.dcb_sequenced_event_type_name),
+            schema=Identifier(self.datastore.schema),
+            table=Identifier(self.dcb_events_table_name),
+        )
+
         self.pg_procedure_name_append_events = "dcb_append_events"
         self.sql_invoke_pg_procedure_append_events = SQL(
             "CALL {append_events}((%s), (%s), (%s))"
@@ -202,8 +314,10 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                 self.sql_create_table,
                 self.sql_create_index_on_text_vector,
                 self.sql_create_type_dcb_event,
+                self.sql_create_type_dcb_sequenced_event,
                 self.sql_create_pg_function_insert_events,
                 self.sql_create_pg_function_select_events,
+                self.sql_create_pg_function_select_events2,
                 self.sql_create_pg_procedure_append_events,
             ]
         )
@@ -354,6 +468,13 @@ class PgDCBEvent(NamedTuple):
     data: bytes
     tags: list[str]
     text_vector: str
+
+
+class PgDCBSequencedEvent(NamedTuple):
+    sequence_position: int
+    type: str
+    data: bytes
+    tags: list[str]
 
 
 class PgDCBEventRow(TypedDict):
