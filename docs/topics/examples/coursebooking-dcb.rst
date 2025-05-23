@@ -30,7 +30,7 @@ event-sourced aggregate recorders.
     :pyobject: EnrolmentWithDCB
 
 
-The test case is the same enrolement test case used in the :doc:`previous example </topics/examples/coursebooking>`,
+The test case is the same enrolment test case used in the :doc:`previous example </topics/examples/coursebooking>`,
 but this time executed with the :class:`~examples.coursebookingdcb.application.EnrolmentWithDCB` class above rather than
 :class:`~examples.coursebooking.application.EnrolmentWithAggregates`. The test method is run twice, once with an
 in-memory implementation of the DCB event store, and again with a PostgreSQL implementation (see below).
