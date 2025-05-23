@@ -106,7 +106,7 @@ pytest:
 
 
 # The pytest-benchmark docs are here: https://pytest-benchmark.readthedocs.io/en/latest/usage.html
-BENCHMARK_OPTIONS= --benchmark-only --benchmark-warmup=on --benchmark-disable-gc --benchmark-columns=min,mean,max,ops,rounds,iterations --benchmark-group-by=group --benchmark-time-unit=auto --benchmark-sort=min
+BENCHMARK_OPTIONS= --benchmark-only --benchmark-warmup=on --benchmark-disable-gc --benchmark-columns=min,mean,max,ops,rounds,iterations --benchmark-group-by=group --benchmark-time-unit=auto --benchmark-sort=min --benchmark-histogram
 
 .PHONY: benchmark
 #benchmark: benchmark-persistence benchmark-domain benchmark-application

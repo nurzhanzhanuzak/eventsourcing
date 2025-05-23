@@ -15,7 +15,6 @@ env["POSTGRES_HOST"] = "127.0.0.1"
 env["POSTGRES_PORT"] = "5432"
 env["POSTGRES_USER"] = "eventsourcing"
 env["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
-env["POSTGRES_ORIGINATOR_ID_TYPE"] = "text"
 
 
 def inf_range() -> Iterator[int]:
@@ -31,6 +30,8 @@ if __name__ == "__main__":
         app: Enrolment = EnrolmentWithDCBRefactored(env)
     elif "agg" in sys.argv:
         env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
+        env["POSTGRES_ORIGINATOR_ID_TYPE"] = "text"
+        env["POSTGRES_ENABLE_DB_FUNCTIONS"] = "y"
         app = EnrolmentWithAggregates(env)
     else:
         print(f"Usage: {__file__} dcb | agg")  # noqa: T201
@@ -47,7 +48,7 @@ if __name__ == "__main__":
         num_students = 10
         students_per_course = 10
         course_ids = [
-            app.register_course(f"course-{next(r_courses)}", students_per_course)
+            app.register_course(f"course-{next(r_courses)}", num_students)
             for _ in range(num_courses)
         ]
         student_ids = [

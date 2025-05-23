@@ -54,7 +54,7 @@ class TestDocs(TestCase):
 
         started = datetime_now_with_tzinfo()
         try:
-            self.check_code_snippets_in_file(path)
+            self.check_code_snippets_in_file(path, failures=[])
         except:
             duration = datetime_now_with_tzinfo() - started
             print(f"FAIL after {duration}s")
@@ -112,9 +112,8 @@ class TestDocs(TestCase):
                     file_paths.append(file_path)
 
         file_paths = sorted(file_paths)
-        failures = []
+        failures: list[tuple[Path, str]] = []
         passed = []
-        failed = []
         print("Testing code snippets in docs:")
         for path in file_paths:
             print(path)
@@ -126,14 +125,11 @@ class TestDocs(TestCase):
             try:
                 try:
                     os.environ["EVENTSOURCING_DISABLE_REDEFINITION_CHECK"] = "y"
-                    self.check_code_snippets_in_file(path)
+                    self.check_code_snippets_in_file(path, failures=failures)
                 finally:
                     del os.environ["EVENTSOURCING_DISABLE_REDEFINITION_CHECK"]
 
-            except self.failureException as e:
-                failures.append(e)
-                failed.append(path)
-                print(str(e).strip("\n"))
+            except self.failureException:
                 duration = (datetime_now_with_tzinfo() - started).total_seconds()
                 total_duration += duration
                 print(f"FAIL after {duration}s")
@@ -147,13 +143,21 @@ class TestDocs(TestCase):
             finally:
                 self.restore_environ()
 
-        print(f"{len(failed)} failed, {len(passed)} passed")
+        print(f"{len(failures)} failed, {len(passed)} passed")
         print(f"total duration: {total_duration}s")
 
         if failures:
-            self.fail(f"{len(failures)} failed docs - see above for details")
+            report = "\n"
+            for doc_path, error in failures:
+                report += f"FAILED DOC: {doc_path}\nERROR: {error}\n"
+            self.fail(
+                f"\n{report}\nFAILED DOCS: {len(failures)} "
+                f"docs failed (see above for details)"
+            )
 
-    def check_code_snippets_in_file(self, doc_path: Path) -> None:
+    def check_code_snippets_in_file(
+        self, doc_path: Path, failures: list[tuple[Path, str]]
+    ) -> None:
         # Extract lines of Python code from the README.md file.
 
         lines = []
@@ -279,9 +283,10 @@ class TestDocs(TestCase):
             sys.modules["__main__"] = exec_module
             exec(code, exec_module.__dict__)  # noqa: S102
         except BaseException:
-            print(
-                traceback.format_exc().replace('File "__main__",', f'File "{doc_path}"')
-            )
+            error = traceback.format_exc()
+            error = error.replace('File "__main__",', f'File "{doc_path}"')
+            print(f"FAILED DOC: {doc_path}\nERROR: {error}\n")
+            failures.append((doc_path, error))
             raise self.failureException from None
 
         print("Code executed OK")

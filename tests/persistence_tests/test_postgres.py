@@ -3,10 +3,10 @@ from __future__ import annotations
 from concurrent.futures.thread import ThreadPoolExecutor
 from threading import Event, Thread
 from time import sleep
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from unittest import TestCase
 from unittest.mock import Mock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import psycopg
 from psycopg import Connection
@@ -33,6 +33,7 @@ from eventsourcing.persistence import (
     TrackingRecorder,
 )
 from eventsourcing.postgres import (
+    PgStoredEvent,
     PostgresAggregateRecorder,
     PostgresApplicationRecorder,
     PostgresDatastore,
@@ -404,6 +405,8 @@ class SetupPostgresDatastore(TestCase):
     pool_size = 1
     max_overflow = 0
     max_waiting = 0
+    originator_id_type: Literal["uuid", "text"] = "uuid"
+    enable_db_functions = False
 
     def setUp(self) -> None:
         drop_tables()
@@ -418,6 +421,8 @@ class SetupPostgresDatastore(TestCase):
             max_overflow=self.max_overflow,
             max_waiting=self.max_waiting,
             schema=self.schema,
+            originator_id_type=self.originator_id_type,
+            enable_db_functions=self.enable_db_functions,
         )
 
     def tearDown(self) -> None:
@@ -431,6 +436,23 @@ class WithSchema(SetupPostgresDatastore):
 
     def test_datastore_has_schema(self) -> None:
         self.assertEqual(self.datastore.schema, self.schema)
+
+
+class WithTextOriginatorID(SetupPostgresDatastore):
+    originator_id_type = "text"
+
+    def new_originator_id(self) -> UUID | str:
+        return "test-" + str(uuid4())
+
+    def test_datastore_has_originator_id_type(self) -> None:
+        self.assertEqual(self.datastore.originator_id_type, self.originator_id_type)
+
+
+class WithDbFunctions(SetupPostgresDatastore):
+    enable_db_functions = True
+
+    def test_datastore_has_enable_db_functions_true(self) -> None:
+        self.assertTrue(self.datastore.enable_db_functions)
 
 
 class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTestCase):
@@ -524,6 +546,24 @@ class TestPostgresAggregateRecorderWithSchema(
     pass
 
 
+class TestPostgresAggregateRecorderWithTextOriginatorID(
+    WithTextOriginatorID, TestPostgresAggregateRecorder
+):
+    pass
+
+
+class TestPostgresAggregateRecorderWithDbFunctions(
+    WithDbFunctions, TestPostgresAggregateRecorder
+):
+    pass
+
+
+class TestPostgresAggregateRecorderWithDbFunctionsAndTextOriginatorID(
+    WithTextOriginatorID, TestPostgresAggregateRecorderWithDbFunctions
+):
+    pass
+
+
 class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
     def create_recorder(
         self, table_name: str = EVENTS_TABLE_NAME
@@ -554,14 +594,37 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
         recorder = self.create_recorder()
 
         # Write a stored event without creating the table.
+        # This should firstly fail because the composite type isn't registered.
         stored_event1 = StoredEvent(
             originator_id=uuid4(),
             originator_version=0,
             topic="topic1",
             state=b"state1",
         )
-        with self.assertRaises(ProgrammingError):
+        with self.assertRaises(ProgrammingError) as cm:
             recorder.insert_events([stored_event1])
+
+        self.assertIn("Composite type", str(cm.exception))
+
+        # Call create_table() and then drop the table. The composite type is registered.
+        recorder.create_table()
+        schema = recorder.datastore.schema
+        table_name = recorder.events_table_name
+        with recorder.datastore.transaction(commit=True) as curs:
+            curs.execute(
+                SQL("DROP TABLE {schema}.{table}").format(
+                    schema=Identifier(schema),
+                    table=Identifier(table_name),
+                )
+            )
+
+        with self.assertRaises(ProgrammingError) as cm:
+            recorder.insert_events([stored_event1])
+
+        self.assertIn(
+            f'relation "{schema}.{table_name}" does not exist',
+            str(cm.exception),
+        )
 
     def test_insert_events_raises_programming_error_when_sql_is_broken(self) -> None:
         # Construct the recorder.
@@ -606,55 +669,6 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder.select_events(originator_id=originator_id)
 
 
-class TestPostgresAggregateRecorderWithTextOriginatorID(TestCase):
-    def test(self) -> None:
-        with PostgresDatastore(
-            dbname="eventsourcing",
-            host="127.0.0.1",
-            port="5432",
-            user="eventsourcing",
-            password="eventsourcing",  # noqa: S106
-            originator_id_type="text",
-        ) as datastore:
-            recorder = PostgresAggregateRecorder(datastore=datastore)
-            recorder.create_table()
-
-            # Pass in a str.
-            originator_id1 = str(uuid4())
-            recorder.insert_events(
-                [
-                    StoredEvent(
-                        originator_id=originator_id1,
-                        originator_version=1,
-                        topic="topic1",
-                        state=b"state1",
-                    )
-                ]
-            )
-            events = recorder.select_events(originator_id=originator_id1)
-            self.assertIsInstance(events[0].originator_id, str)
-
-            # Passing a UUID.
-            originator_id2 = uuid4()
-            # - can insert
-            recorder.insert_events(
-                [
-                    StoredEvent(
-                        originator_id=originator_id2,
-                        originator_version=1,
-                        topic="topic1",
-                        state=b"state1",
-                    )
-                ]
-            )
-            # - can't select
-            with self.assertRaises(ProgrammingError):
-                recorder.select_events(originator_id=originator_id2)
-
-    def tearDown(self) -> None:
-        drop_tables()
-
-
 class TestPostgresSubscription(TestCase):
     def test_listen_catches_error(self) -> None:
         mock_recorder = Mock(spec=PostgresApplicationRecorder)
@@ -687,6 +701,9 @@ class TestPostgresApplicationRecorder(
 
     def test_insert_select(self) -> None:
         super().test_insert_select()
+
+    def test_performance(self) -> None:
+        super().test_performance()
 
     def test_insert_subscribe(self) -> None:
         self.datastore.pool.open()
@@ -725,7 +742,7 @@ class TestPostgresApplicationRecorder(
                 events = []
                 for _ in range(batch_size):
                     stored_event = StoredEvent(
-                        originator_id=uuid4(),
+                        originator_id=self.new_originator_id(),
                         originator_version=self.INITIAL_VERSION,
                         topic="topic1",
                         state=b"state1",
@@ -781,7 +798,7 @@ class TestPostgresApplicationRecorder(
         self.assertFalse(self.datastore.pool._pool[0].closed)
 
         # Write a stored event.
-        originator_id = uuid4()
+        originator_id = self.new_originator_id()
         stored_event1 = StoredEvent(
             originator_id=originator_id,
             originator_version=0,
@@ -816,7 +833,7 @@ class TestPostgresApplicationRecorder(
         conn_id_before = id(self.datastore.pool._pool[0])
 
         # Write a stored event.
-        originator_id = uuid4()
+        originator_id = self.new_originator_id()
         stored_event1 = StoredEvent(
             originator_id=originator_id,
             originator_version=0,
@@ -899,6 +916,25 @@ class TestPostgresApplicationRecorderWithSchema(
     pass
 
 
+class TestPostgresApplicationRecorderWithTextOriginatorID(
+    WithTextOriginatorID, TestPostgresApplicationRecorder
+):
+    pass
+
+
+class TestPostgresApplicationRecorderWithDbFunctions(
+    WithDbFunctions, TestPostgresApplicationRecorder
+):
+    pass
+
+
+class TestPostgresApplicationRecorderWithDbFunctionsAndTextOriginatorID(
+    WithTextOriginatorID, TestPostgresApplicationRecorderWithDbFunctions
+):
+    def test_performance(self) -> None:
+        super().test_performance()
+
+
 class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
     def create_recorder(
         self, table_name: str = EVENTS_TABLE_NAME
@@ -935,9 +971,14 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
             recorder.max_notification_id()
 
     def test_fetch_ids_after_insert_events(self) -> None:
-        def make_events() -> Sequence[StoredEvent]:
+        recorder = PostgresApplicationRecorder(
+            datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
+        )
+        recorder.create_table()
+
+        def make_events() -> Sequence[PgStoredEvent]:
             return [
-                StoredEvent(
+                recorder.construct_pg_stored_event(
                     originator_id=uuid4(),
                     originator_version=1,
                     state=b"",
@@ -946,77 +987,28 @@ class TestPostgresApplicationRecorderErrors(SetupPostgresDatastore, TestCase):
             ]
 
         # Check it actually works.
-        recorder = PostgresApplicationRecorder(
-            datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
-        )
-        recorder.create_table()
         notification_ids = recorder.insert_events(make_events())
         self.assertEqual(len(notification_ids), 1)
         self.assertEqual(1, notification_ids[0])
 
-        # Check error handling for incorrect number of returned notification IDs:
-        #  - break insert statement so it has no RETURNING clause.
+        # Break insert statement (no RETURNING clause) and check error handling.
         recorder = PostgresApplicationRecorder(
             datastore=self.datastore, events_table_name=EVENTS_TABLE_NAME
         )
         recorder.insert_events_statement = SQL(
-            "INSERT INTO {0}.{1} VALUES (%s, %s, %s, %s)"
+            "    INSERT INTO {schema}.{table} AS t ("
+            "    originator_id, originator_version, topic, state)"
+            "    SELECT originator_id, originator_version, topic, state"
+            "    FROM unnest(%s)"
         ).format(
-            Identifier(recorder.datastore.schema),
-            Identifier(recorder.events_table_name),
+            schema=Identifier(recorder.datastore.schema),
+            table=Identifier(recorder.events_table_name),
         )
         recorder.create_table()
-        with self.assertRaises(ProgrammingError):
+        with self.assertRaises(ProgrammingError) as cm:
             recorder.insert_events(make_events())
 
-
-class TestPostgresApplicationRecorderWithTextOriginatorID(TestCase):
-    def test(self) -> None:
-        with PostgresDatastore(
-            dbname="eventsourcing",
-            host="127.0.0.1",
-            port="5432",
-            user="eventsourcing",
-            password="eventsourcing",  # noqa: S106
-            originator_id_type="text",
-        ) as datastore:
-            recorder = PostgresApplicationRecorder(datastore=datastore)
-            recorder.create_table()
-
-            # Pass in a str.
-            originator_id1 = str(uuid4())
-            recorder.insert_events(
-                [
-                    StoredEvent(
-                        originator_id=originator_id1,
-                        originator_version=1,
-                        topic="topic1",
-                        state=b"state1",
-                    )
-                ]
-            )
-            events = recorder.select_events(originator_id=originator_id1)
-            self.assertIsInstance(events[0].originator_id, str)
-
-            # Passing a UUID.
-            originator_id2 = uuid4()
-            # - can insert
-            recorder.insert_events(
-                [
-                    StoredEvent(
-                        originator_id=originator_id2,
-                        originator_version=1,
-                        topic="topic1",
-                        state=b"state1",
-                    )
-                ]
-            )
-            # - can't select
-            with self.assertRaises(ProgrammingError):
-                recorder.select_events(originator_id=originator_id2)
-
-    def tearDown(self) -> None:
-        drop_tables()
+        self.assertIn("Couldn't get all notification IDs", str(cm.exception))
 
 
 TRACKING_TABLE_NAME = "n" * 42 + "notification_tracking"
@@ -1629,8 +1621,12 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         self.assertEqual(factory.datastore.originator_id_type, "text")
 
         self.env[PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE] = "integer"
-        with self.assertRaises(OSError):
+        with self.assertRaises(OSError) as cm:
             PostgresFactory(self.env)
+
+        self.assertIn(
+            f"Invalid {PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE}", str(cm.exception)
+        )
 
     def test_use_db_functions(self) -> None:
         factory = PostgresFactory(self.env)

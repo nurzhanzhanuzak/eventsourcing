@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import sqlite3
 from sqlite3 import Connection
-from typing import Any
+from typing import Any, Literal
 from unittest import TestCase
 from unittest.mock import Mock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from eventsourcing.persistence import (
     AggregateRecorder,
@@ -181,10 +181,31 @@ class TestSqliteDatastore(TestCase):
 
 
 class TestSQLiteAggregateRecorder(AggregateRecorderTestCase):
+    db_name = ":memory:"
+    originator_id_type: Literal["uuid", "text"] = "uuid"
+
     def create_recorder(self) -> AggregateRecorder:
-        recorder = SQLiteAggregateRecorder(SQLiteDatastore(":memory:"))
+        recorder = SQLiteAggregateRecorder(
+            SQLiteDatastore(
+                db_name=self.db_name,
+                originator_id_type=self.originator_id_type,
+            )
+        )
         recorder.create_table()
         return recorder
+
+
+class WithTextOriginatorID:
+    originator_id_type: Literal["uuid", "text"] = "text"
+
+    def new_originator_id(self) -> UUID | str:
+        return "test-" + str(uuid4())
+
+
+class TestSQLiteAggregateRecorderWithTextOriginatorID(
+    WithTextOriginatorID, TestSQLiteAggregateRecorder
+):
+    pass
 
 
 class TestSQLiteAggregateRecorderErrors(TestCase):
@@ -211,15 +232,21 @@ class TestSQLiteAggregateRecorderErrors(TestCase):
 class TestSQLiteApplicationRecorder(
     ApplicationRecorderTestCase[SQLiteApplicationRecorder]
 ):
+    db_uri = ":memory:"
+    originator_id_type: Literal["uuid", "text"] = "uuid"
+
     def create_recorder(self) -> SQLiteApplicationRecorder:
         recorder = SQLiteApplicationRecorder(
-            SQLiteDatastore(db_name=self.db_uri, pool_size=100)
+            SQLiteDatastore(
+                db_name=self.db_uri,
+                pool_size=100,
+                originator_id_type=self.originator_id_type,
+            )
         )
         recorder.create_table()
         return recorder
 
     def test_insert_select(self) -> None:
-        self.db_uri = ":memory:"
         super().test_insert_select()
 
     def test_concurrent_no_conflicts(self) -> None:
@@ -239,6 +266,12 @@ class TestSQLiteApplicationRecorder(
     def test_concurrent_throughput_in_memory_db(self) -> None:
         self.db_uri = "file::memory:?cache=shared"
         super().test_concurrent_throughput()
+
+
+class TestSQLiteApplicationRecorderWithTextOriginatorID(
+    WithTextOriginatorID, TestSQLiteApplicationRecorder
+):
+    pass
 
 
 class TestSQLiteApplicationRecorderErrors(TestCase):
@@ -373,10 +406,23 @@ class TestSQLiteTrackingRecorder(TrackingRecorderTestCase):
 
 
 class TestSQLiteProcessRecorder(ProcessRecorderTestCase):
+    originator_id_type: Literal["uuid", "text"] = "uuid"
+
     def create_recorder(self) -> ProcessRecorder:
-        recorder = SQLiteProcessRecorder(SQLiteDatastore(":memory:"))
+        recorder = SQLiteProcessRecorder(
+            SQLiteDatastore(
+                db_name=":memory:",
+                originator_id_type=self.originator_id_type,
+            )
+        )
         recorder.create_table()
         return recorder
+
+
+class TestSQLiteProcessRecorderWithTextOriginatorID(
+    WithTextOriginatorID, TestSQLiteProcessRecorder
+):
+    pass
 
 
 class TestSQLiteProcessRecorderErrors(TestCase):
@@ -474,6 +520,20 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase[SQLiteFactor
         self.env[SQLiteFactory.SQLITE_SINGLE_ROW_TRACKING] = "f"
         factory = SQLiteFactory(self.env)
         self.assertEqual(factory.datastore.single_row_tracking, False)
+
+    def test_originator_id_type(self) -> None:
+        factory = SQLiteFactory(self.env)
+        self.assertEqual(factory.datastore.originator_id_type, "uuid")
+
+        self.env[SQLiteFactory.SQLITE_ORIGINATOR_ID_TYPE] = "text"
+        factory = SQLiteFactory(self.env)
+        self.assertEqual(factory.datastore.originator_id_type, "text")
+
+        self.env[SQLiteFactory.SQLITE_ORIGINATOR_ID_TYPE] = "int"
+        with self.assertRaises(OSError) as cm:
+            SQLiteFactory(self.env)
+
+        self.assertIn("Invalid SQLITE_ORIGINATOR_ID_TYPE", str(cm.exception))
 
 
 del AggregateRecorderTestCase

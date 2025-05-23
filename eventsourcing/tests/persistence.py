@@ -45,9 +45,14 @@ if TYPE_CHECKING:
     from typing_extensions import Never
 
 
-class AggregateRecorderTestCase(TestCase, ABC):
+class RecorderTestCase(TestCase, ABC):
     INITIAL_VERSION = 1
 
+    def new_originator_id(self) -> UUID | str:
+        return uuid4()
+
+
+class AggregateRecorderTestCase(RecorderTestCase, ABC):
     @abstractmethod
     def create_recorder(self) -> AggregateRecorder:
         """"""
@@ -61,7 +66,7 @@ class AggregateRecorderTestCase(TestCase, ABC):
         self.assertEqual(notification_ids, None)
 
         # Select stored events, expect empty list.
-        originator_id1 = uuid4()
+        originator_id1 = self.new_originator_id()
         self.assertEqual(
             recorder.select_events(originator_id1, desc=True, limit=1),
             [],
@@ -79,7 +84,6 @@ class AggregateRecorderTestCase(TestCase, ABC):
 
         # Select stored events, expect list of one.
         stored_events = recorder.select_events(originator_id1)
-        stored_events = convert_stored_event_originator_ids(stored_events)
         self.assertEqual(len(stored_events), 1)
         self.assertEqual(stored_events[0].originator_id, originator_id1)
         self.assertEqual(stored_events[0].originator_version, self.INITIAL_VERSION)
@@ -106,7 +110,6 @@ class AggregateRecorderTestCase(TestCase, ABC):
 
         # Check still only have one record.
         stored_events = recorder.select_events(originator_id1)
-        stored_events = convert_stored_event_originator_ids(stored_events)
         self.assertEqual(len(stored_events), 1)
         self.assertEqual(stored_events[0].originator_id, stored_event1.originator_id)
         self.assertEqual(
@@ -126,7 +129,6 @@ class AggregateRecorderTestCase(TestCase, ABC):
 
         # Check we got what was written.
         stored_events = recorder.select_events(originator_id1)
-        stored_events = convert_stored_event_originator_ids(stored_events)
         self.assertEqual(len(stored_events), 3)
         self.assertEqual(stored_events[0].originator_id, originator_id1)
         self.assertEqual(stored_events[0].originator_version, self.INITIAL_VERSION)
@@ -143,7 +145,6 @@ class AggregateRecorderTestCase(TestCase, ABC):
 
         # Check we can get the last one recorded (used to get last snapshot).
         stored_events = recorder.select_events(originator_id1, desc=True, limit=1)
-        stored_events = convert_stored_event_originator_ids(stored_events)
         self.assertEqual(len(stored_events), 1)
         self.assertEqual(
             stored_events[0],
@@ -154,7 +155,6 @@ class AggregateRecorderTestCase(TestCase, ABC):
         stored_events = recorder.select_events(
             originator_id1, lte=self.INITIAL_VERSION + 1, desc=True, limit=1
         )
-        stored_events = convert_stored_event_originator_ids(stored_events)
         self.assertEqual(len(stored_events), 1)
         self.assertEqual(
             stored_events[0],
@@ -165,7 +165,6 @@ class AggregateRecorderTestCase(TestCase, ABC):
         stored_events = recorder.select_events(
             originator_id1, gt=self.INITIAL_VERSION, lte=self.INITIAL_VERSION + 1
         )
-        stored_events = convert_stored_event_originator_ids(stored_events)
         self.assertEqual(len(stored_events), 1)
         self.assertEqual(
             stored_events[0],
@@ -173,7 +172,7 @@ class AggregateRecorderTestCase(TestCase, ABC):
         )
 
         # Check aggregate sequences are distinguished.
-        originator_id2 = uuid4()
+        originator_id2 = self.new_originator_id()
         self.assertEqual(
             recorder.select_events(originator_id2),
             [],
@@ -188,7 +187,6 @@ class AggregateRecorderTestCase(TestCase, ABC):
         )
         recorder.insert_events([stored_event4])
         stored_events = recorder.select_events(originator_id2)
-        stored_events = convert_stored_event_originator_ids(stored_events)
         self.assertEqual(
             stored_events,
             [stored_event4],
@@ -199,7 +197,7 @@ class AggregateRecorderTestCase(TestCase, ABC):
         recorder = self.create_recorder()
 
         def insert() -> None:
-            originator_id = uuid4()
+            originator_id = self.new_originator_id()
 
             stored_event = StoredEvent(
                 originator_id=originator_id,
@@ -227,41 +225,9 @@ _TApplicationRecorder = TypeVar(
 )
 
 
-def convert_notification_originator_ids(
-    notifications: Sequence[Notification],
-) -> Sequence[Notification]:
-    return [
-        Notification(
-            originator_id=convert_originator_id(n.originator_id),
-            originator_version=n.originator_version,
-            topic=n.topic,
-            state=n.state,
-            id=n.id,
-        )
-        for n in notifications
-    ]
-
-
-def convert_stored_event_originator_ids(
-    stored_events: Sequence[StoredEvent],
-) -> Sequence[StoredEvent]:
-    return [
-        StoredEvent(
-            originator_id=convert_originator_id(s.originator_id),
-            originator_version=s.originator_version,
-            topic=s.topic,
-            state=s.state,
-        )
-        for s in stored_events
-    ]
-
-
-def convert_originator_id(originator_id: UUID | str) -> UUID:
-    return originator_id if isinstance(originator_id, UUID) else UUID(originator_id)
-
-
-class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder]):
-    INITIAL_VERSION = 1
+class ApplicationRecorderTestCase(
+    RecorderTestCase, ABC, Generic[_TApplicationRecorder]
+):
     EXPECT_CONTIGUOUS_NOTIFICATION_IDS = True
 
     @abstractmethod
@@ -282,8 +248,8 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         self.assertIsNone(recorder.max_notification_id())
 
         # Write two stored events.
-        originator_id1 = uuid4()
-        originator_id2 = uuid4()
+        originator_id1 = self.new_originator_id()
+        originator_id2 = self.new_originator_id()
 
         stored_event1 = StoredEvent(
             originator_id=originator_id1,
@@ -324,7 +290,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
 
         # sleep(1)  # Added to make eventsourcing-axon tests work.
         notifications = recorder.select_notifications(start=None, limit=10)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 3)
         self.assertEqual(notifications[0].id, 1)
         self.assertEqual(notifications[0].originator_id, originator_id1)
@@ -340,7 +305,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         self.assertEqual(notifications[2].state, b"state3")
 
         notifications = recorder.select_notifications(start=1, limit=10)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 3)
         self.assertEqual(notifications[0].id, 1)
         self.assertEqual(notifications[0].originator_id, originator_id1)
@@ -356,7 +320,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         self.assertEqual(notifications[2].state, b"state3")
 
         notifications = recorder.select_notifications(start=None, stop=2, limit=10)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 2)
         self.assertEqual(notifications[0].id, 1)
         self.assertEqual(notifications[0].originator_id, originator_id1)
@@ -370,7 +333,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         notifications = recorder.select_notifications(
             start=1, limit=10, inclusive_of_start=False
         )
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 2)
         self.assertEqual(notifications[0].id, 2)
         self.assertEqual(notifications[0].originator_id, originator_id1)
@@ -384,7 +346,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         notifications = recorder.select_notifications(
             start=2, limit=10, inclusive_of_start=False
         )
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1)
         self.assertEqual(notifications[0].id, 3)
         self.assertEqual(notifications[0].originator_id, originator_id2)
@@ -394,7 +355,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         notifications = recorder.select_notifications(
             start=None, limit=10, topics=["topic1", "topic2", "topic3"]
         )
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 3)
         self.assertEqual(notifications[0].id, 1)
         self.assertEqual(notifications[0].originator_id, originator_id1)
@@ -410,7 +370,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         self.assertEqual(notifications[2].state, b"state3")
 
         notifications = recorder.select_notifications(1, 10, topics=["topic1"])
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1)
         self.assertEqual(notifications[0].id, 1)
         self.assertEqual(notifications[0].originator_id, originator_id1)
@@ -418,7 +377,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         self.assertEqual(notifications[0].state, b"state1")
 
         notifications = recorder.select_notifications(1, 3, topics=["topic2"])
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1)
         self.assertEqual(notifications[0].id, 2)
         self.assertEqual(notifications[0].originator_id, originator_id1)
@@ -426,7 +384,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         self.assertEqual(notifications[0].state, b"state2")
 
         notifications = recorder.select_notifications(1, 3, topics=["topic3"])
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1)
         self.assertEqual(notifications[0].id, 3)
         self.assertEqual(notifications[0].originator_id, originator_id2)
@@ -434,7 +391,6 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         self.assertEqual(notifications[0].state, b"state3")
 
         notifications = recorder.select_notifications(1, 3, topics=["topic1", "topic3"])
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 2)
         self.assertEqual(notifications[0].id, 1)
         self.assertEqual(notifications[0].originator_id, originator_id1)
@@ -448,42 +404,34 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
 
         # Check limit is working
         notifications = recorder.select_notifications(None, 1)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1)
         self.assertEqual(notifications[0].id, 1)
 
         notifications = recorder.select_notifications(2, 1)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1)
         self.assertEqual(notifications[0].id, 2)
 
         notifications = recorder.select_notifications(1, 1, inclusive_of_start=False)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1)
         self.assertEqual(notifications[0].id, 2)
 
         notifications = recorder.select_notifications(2, 2)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 2)
         self.assertEqual(notifications[0].id, 2)
         self.assertEqual(notifications[1].id, 3)
 
         notifications = recorder.select_notifications(3, 1)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1)
         self.assertEqual(notifications[0].id, 3)
 
         notifications = recorder.select_notifications(3, 1, inclusive_of_start=False)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 0)
 
         notifications = recorder.select_notifications(start=2, limit=10, stop=2)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1)
         self.assertEqual(notifications[0].id, 2)
 
         notifications = recorder.select_notifications(start=1, limit=10, stop=2)
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 2, len(notifications))
         self.assertEqual(notifications[0].id, 1)
         self.assertEqual(notifications[1].id, 2)
@@ -491,9 +439,35 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         notifications = recorder.select_notifications(
             start=1, limit=10, stop=2, inclusive_of_start=False
         )
-        notifications = convert_notification_originator_ids(notifications)
         self.assertEqual(len(notifications), 1, len(notifications))
         self.assertEqual(notifications[0].id, 2)
+
+    def test_performance(self) -> None:
+        # Construct the recorder.
+        recorder = self.create_recorder()
+
+        def insert() -> None:
+            originator_id = self.new_originator_id()
+
+            stored_event = StoredEvent(
+                originator_id=originator_id,
+                originator_version=self.INITIAL_VERSION,
+                topic="topic1",
+                state=b"state1",
+            )
+            recorder.insert_events([stored_event])
+
+        # Warm up.
+        number = 10
+        timeit(insert, number=number)
+
+        number = 100
+        duration = timeit(insert, number=number)
+        print(
+            self,
+            f"\n{1000000 * duration / number:.1f} μs per insert, "
+            f"{number / duration:.0f} inserts per second",
+        )
 
     def test_concurrent_no_conflicts(self) -> None:
         print(self)
@@ -525,7 +499,7 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
             # thread_num = threads[thread_id]
             # count = counts[thread_id]
 
-            originator_id = uuid4()
+            originator_id = self.new_originator_id()
             stored_events = [
                 StoredEvent(
                     originator_id=originator_id,
@@ -612,7 +586,7 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         num_workers = 4
 
         def insert_events() -> None:
-            originator_id = uuid4()
+            originator_id = self.new_originator_id()
             stored_events = [
                 StoredEvent(
                     originator_id=originator_id,
@@ -663,8 +637,8 @@ class ApplicationRecorderTestCase(TestCase, ABC, Generic[_TApplicationRecorder])
         max_notification_id1 = recorder.max_notification_id()
 
         # Write two stored events.
-        originator_id1 = uuid4()
-        originator_id2 = uuid4()
+        originator_id1 = self.new_originator_id()
+        originator_id2 = self.new_originator_id()
 
         stored_event1 = StoredEvent(
             originator_id=originator_id1,
@@ -893,7 +867,7 @@ class TrackingRecorderTestCase(TestCase, ABC):
             tracking_recorder.wait("upstream1", 22, interrupt=interrupt)
 
 
-class ProcessRecorderTestCase(TestCase, ABC):
+class ProcessRecorderTestCase(RecorderTestCase, ABC):
     @abstractmethod
     def create_recorder(self) -> ProcessRecorder:
         """"""
@@ -906,8 +880,8 @@ class ProcessRecorderTestCase(TestCase, ABC):
         self.assertIsNone(recorder.max_tracking_id("upstream_app"))
 
         # Write two stored events.
-        originator_id1 = uuid4()
-        originator_id2 = uuid4()
+        originator_id1 = self.new_originator_id()
+        originator_id2 = self.new_originator_id()
 
         stored_event1 = StoredEvent(
             originator_id=originator_id1,
@@ -1086,7 +1060,7 @@ class ProcessRecorderTestCase(TestCase, ABC):
         notification_ids = iter(range(1, number + 1))
 
         def insert_events() -> None:
-            originator_id = uuid4()
+            originator_id = self.new_originator_id()
 
             stored_event = StoredEvent(
                 originator_id=originator_id,
@@ -1114,7 +1088,7 @@ class ProcessRecorderTestCase(TestCase, ABC):
         )
 
 
-class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
+class NonInterleavingNotificationIDsBaseCase(RecorderTestCase, ABC):
     insert_num = 1000
 
     def test(self) -> None:
@@ -1124,8 +1098,8 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
 
         race_started = Event()
 
-        originator1_id = uuid4()
-        originator2_id = uuid4()
+        originator1_id = self.new_originator_id()
+        originator2_id = self.new_originator_id()
 
         stack1 = self.create_stack(originator1_id)
         stack2 = self.create_stack(originator2_id)
@@ -1159,7 +1133,6 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
             limit=2 * self.insert_num,
             inclusive_of_start=False,
         )
-        notifications = convert_notification_originator_ids(notifications)
         ids_for_sequence1 = [
             e.id for e in notifications if e.originator_id == originator1_id
         ]
@@ -1179,7 +1152,7 @@ class NonInterleavingNotificationIDsBaseCase(ABC, TestCase):
         else:
             self.assertGreater(min_id_for_sequence2, max_id_for_sequence1)
 
-    def create_stack(self, originator_id: UUID) -> Sequence[StoredEvent]:
+    def create_stack(self, originator_id: UUID | str) -> Sequence[StoredEvent]:
         return [
             StoredEvent(
                 originator_id=originator_id,

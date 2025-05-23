@@ -51,6 +51,16 @@ class TestDogSchool(TestCase):
     def test_dog_school_with_sqlite(self) -> None:
         self.env["PERSISTENCE_MODULE"] = "eventsourcing.sqlite"
         self.env["SQLITE_DBNAME"] = ":memory:"
+        self.env["SQLITE_ORIGINATOR_ID_TYPE"] = "text"
+        self.test_dog_school()
+
+    def test_dog_school_with_postgres(self) -> None:
+        self.env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
+        self.env["POSTGRES_DBNAME"] = "eventsourcing"
+        self.env["POSTGRES_HOST"] = "127.0.0.1"
+        self.env["POSTGRES_USER"] = "eventsourcing"
+        self.env["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
+        self.env["POSTGRES_ORIGINATOR_ID_TYPE"] = "text"
         self.test_dog_school()
 
     @skipIf("eventsourcing_kurrentdb" not in sys.modules, "KurrentDB not installed")

@@ -62,16 +62,18 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         )
 
         self.sql_create_type_dcb_event = SQL(
-            "CREATE TYPE {schema}.{name} "
+            "CREATE TYPE {schema}.{type_name} "
             "AS (type text, data bytea, tags text[], text_vector tsvector)"
         ).format(
             schema=Identifier(self.datastore.schema),
-            name=Identifier(self.dcb_event_type_name),
+            type_name=Identifier(self.dcb_event_type_name),
         )
 
         self.pg_function_name_insert_events = "dcb_insert_events"
         self.sql_create_pg_function_insert_events = SQL(
-            "CREATE OR REPLACE FUNCTION {insert_events}(events {event}[]) "
+            "CREATE OR REPLACE FUNCTION {insert_events}("
+            "    events {schema}.{event_type}[]"
+            ") "
             "RETURNS TABLE ("
             "    posn bigint"
             ") "
@@ -87,8 +89,8 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "$BODY$"
         ).format(
             insert_events=Identifier(self.pg_function_name_insert_events),
-            event=Identifier(self.dcb_event_type_name),
             schema=Identifier(self.datastore.schema),
+            event_type=Identifier(self.dcb_event_type_name),
             table=Identifier(self.dcb_events_table_name),
         )
 
@@ -163,7 +165,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         )
         self.sql_create_pg_procedure_append_events = SQL(
             "CREATE OR REPLACE PROCEDURE {append_events} ("
-            "    in events dcb_event[],"
+            "    in events {schema}.{event_type}[],"
             "    in text_query tsquery,"
             "    inout after bigint"
             ") "
@@ -174,7 +176,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "    num_rows integer; "
             "BEGIN "
             "    IF (after < 0) OR (SELECT COUNT(*) FROM"
-            "    {select_events}(text_query, after, 1, TRUE)) = 0"
+            "        {select_events}(text_query, after, 1, TRUE)) = 0"
             "    THEN"
             "        SELECT MAX(posn) FROM {insert_events}(events) INTO after;"
             "        NOTIFY {channel};"
@@ -186,11 +188,10 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "$BODY$"
         ).format(
             append_events=Identifier(self.pg_procedure_name_append_events),
+            schema=Identifier(self.datastore.schema),
+            event_type=Identifier(self.dcb_event_type_name),
             select_events=Identifier(self.pg_function_name_select_events),
             insert_events=Identifier(self.pg_function_name_insert_events),
-            schema=Identifier(self.datastore.schema),
-            table=Identifier(self.dcb_events_table_name),
-            lock_timeout=self.datastore.lock_timeout,
             channel=Identifier(self.dcb_channel_name),
         )
 

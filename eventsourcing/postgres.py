@@ -5,7 +5,7 @@ import logging
 from asyncio import CancelledError
 from contextlib import contextmanager
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Callable, Literal, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, cast
 
 import psycopg
 import psycopg.errors
@@ -59,6 +59,13 @@ logging.getLogger("psycopg").setLevel(logging.ERROR)
 # to get the high level information about where the exception was raised, for
 # instance in a certain `Cursor.execute()`."
 NO_TRACEBACK = (Error, KeyboardInterrupt, CancelledError)
+
+
+class PgStoredEvent(NamedTuple):
+    originator_id: UUID | str
+    originator_version: int
+    topic: str
+    state: bytes
 
 
 class ConnectionPool(psycopg_pool.ConnectionPool[Any]):
@@ -161,7 +168,10 @@ class PostgresDatastore:
 
             # Register type adapters for custom pg types.
             PostgresDatastore.register_type_adapters(
-                conn, schema, pg_type_names, pg_type_adapters
+                conn,
+                schema,
+                pg_type_names,
+                pg_type_adapters,
             )
 
         return after_connect
@@ -172,17 +182,23 @@ class PostgresDatastore:
         schema: str,
         pg_type_names: set[str],
         pg_type_adapters: dict[str, Any],
+        *,
+        after_create: bool = False,
     ) -> None:
-        # Fetch and register type adapters for custom pg types
-        # on the connection, and cache them in this object so
-        # we can avoid fetching the types from the database.
+        # Construct and/or register composite type adapters.
         for name in pg_type_names:
             info = pg_type_adapters.get(name)
-            if info is None:
+            if after_create or info is None:
+                # Construct type adapter from database info.
                 info = CompositeInfo.fetch(conn, f"{schema}.{name}")
-            if info is not None:
+                if info is None:
+                    continue
                 register_composite(info, conn)
+                # Cache the type adapter.
                 pg_type_adapters[name] = info
+            else:
+                # Register type adapter with the connection.
+                register_composite(info, conn)
 
     @contextmanager
     def get_connection(self) -> Iterator[Connection[DictRow]]:
@@ -281,6 +297,7 @@ class PostgresRecorder:
                 schema=self.datastore.schema,
                 pg_type_names=self.datastore.pg_type_names,
                 pg_type_adapters=self.datastore.pg_type_adapters,
+                after_create=True,  # avoid psycopg cache error with persistence.rst
             )
 
     def _create_table(self, curs: Cursor[DictRow]) -> None:
@@ -306,7 +323,9 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
             f"{self.events_table_name}_notification_id_idx"
         )
 
-        self.stored_event_type_name = "stored_event"
+        self.stored_event_type_name = (
+            f"stored_event_{self.datastore.originator_id_type}"
+        )
         self.datastore.pg_type_names.add(self.stored_event_type_name)
         self.create_table_statement_index = len(self.sql_create_statements)
         self.sql_create_statements.append(
@@ -327,10 +346,14 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         )
 
         self.insert_events_statement = SQL(
-            "INSERT INTO {schema}.{table} VALUES (%s, %s, %s, %s)"
+            "    INSERT INTO {schema}.{table} AS t ("
+            "    originator_id, originator_version, topic, state)"
+            "    SELECT originator_id, originator_version, topic, state"
+            "    FROM unnest(%s::{schema}.{stored_event_type}[])"
         ).format(
             schema=Identifier(self.datastore.schema),
             table=Identifier(self.events_table_name),
+            stored_event_type=Identifier(self.stored_event_type_name),
         )
 
         self.select_events_statement = SQL(
@@ -356,43 +379,31 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
             )
         )
 
+    def construct_pg_stored_event(
+        self,
+        originator_id: UUID | str,
+        originator_version: int,
+        topic: str,
+        state: bytes,
+    ) -> PgStoredEvent:
+        try:
+            return self.datastore.pg_type_adapters[
+                self.stored_event_type_name
+            ].python_type(originator_id, originator_version, topic, state)
+        except KeyError:
+            msg = f"Composite type '{self.stored_event_type_name}' not found"
+            raise ProgrammingError(msg) from None
+
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def insert_events(
         self, stored_events: Sequence[StoredEvent], **kwargs: Any
     ) -> Sequence[int] | None:
-        exc: Exception | None = None
-        notification_ids: Sequence[int] | None = None
-        with self.datastore.get_connection() as conn:
-            with conn.pipeline() as pipeline, conn.transaction():
-                # Do other things first, so they can be pipelined too.
-                with conn.cursor() as curs:
-                    self._insert_events(curs, stored_events, **kwargs)
-                # Then use a different cursor for the executemany() call.
-                with conn.cursor() as curs:
-                    try:
-                        self._insert_stored_events(curs, stored_events, **kwargs)
-                        # Sync now, so any uniqueness constraint violation causes an
-                        # IntegrityError to be raised here, rather an InternalError
-                        # being raised sometime later e.g. when commit() is called.
-                        pipeline.sync()
-                        notification_ids = self._fetch_ids_after_insert_events(
-                            curs, stored_events, **kwargs
-                        )
-                    except Exception as e:
-                        # Avoid psycopg emitting a pipeline warning.
-                        exc = e
-            if exc:
-                # Reraise exception after pipeline context manager has exited.
-                raise exc
-        return notification_ids
-
-    def _insert_events(
-        self,
-        curs: Cursor[DictRow],
-        stored_events: Sequence[StoredEvent],
-        **_: Any,
-    ) -> None:
-        pass
+        # Only do something if there is something to do.
+        if len(stored_events) > 0:
+            with self.datastore.get_connection() as conn, conn.cursor() as curs:
+                assert conn.autocommit
+                self._insert_stored_events(curs, stored_events, **kwargs)
+        return None
 
     def _insert_stored_events(
         self,
@@ -400,40 +411,21 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         stored_events: Sequence[StoredEvent],
         **_: Any,
     ) -> None:
-        # Only do something if there is something to do.
-        if len(stored_events) > 0:
-            self._lock_table(curs)
-
-            self._notify_channel(curs)
-
-            # Insert events.
-            curs.executemany(
-                query=self.insert_events_statement,
-                params_seq=[
-                    (
-                        stored_event.originator_id,
-                        stored_event.originator_version,
-                        stored_event.topic,
-                        stored_event.state,
-                    )
-                    for stored_event in stored_events
-                ],
-                returning="RETURNING" in self.insert_events_statement.as_string(),
+        # Construct composite type.
+        pg_stored_events = [
+            self.construct_pg_stored_event(
+                stored_event.originator_id,
+                stored_event.originator_version,
+                stored_event.topic,
+                stored_event.state,
             )
-
-    def _lock_table(self, curs: Cursor[DictRow]) -> None:
-        pass
-
-    def _notify_channel(self, curs: Cursor[DictRow]) -> None:
-        pass
-
-    def _fetch_ids_after_insert_events(
-        self,
-        curs: Cursor[DictRow],
-        stored_events: Sequence[StoredEvent],
-        **kwargs: Any,
-    ) -> Sequence[int] | None:
-        return None
+            for stored_event in stored_events
+        ]
+        # Insert events.
+        curs.execute(
+            query=self.insert_events_statement,
+            params=(pg_stored_events,),
+        )
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def select_events(
@@ -511,9 +503,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         )
 
         self.channel_name = self.events_table_name.replace(".", "_")
-        self.insert_events_statement = self.insert_events_statement + SQL(
-            " RETURNING notification_id"
-        )
+        self.insert_events_statement += SQL(" RETURNING notification_id")
 
         self.max_notification_id_statement = SQL(
             "SELECT MAX(notification_id) FROM {schema}.{table}"
@@ -529,6 +519,108 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
                 Identifier(self.events_table_name),
             ),
         ]
+
+        self.pg_function_name_insert_events = (
+            f"es_insert_events_{self.datastore.originator_id_type}"
+        )
+        self.sql_invoke_pg_function_insert_events = SQL(
+            "SELECT * FROM {insert_events}((%s))"
+        ).format(insert_events=Identifier(self.pg_function_name_insert_events))
+
+        self.sql_create_pg_function_insert_events = SQL(
+            "CREATE OR REPLACE FUNCTION {insert_events}(events {schema}.{event}[]) "
+            "RETURNS SETOF bigint "
+            "LANGUAGE plpgsql "
+            "AS "
+            "$BODY$"
+            "BEGIN"
+            "    SET LOCAL lock_timeout = '{lock_timeout}s';"
+            "    NOTIFY {channel};"
+            "    RETURN QUERY"
+            "    INSERT INTO {schema}.{table} AS t ("
+            "    originator_id, originator_version, topic, state)"
+            "    SELECT originator_id, originator_version, topic, state"
+            "    FROM unnest(events)"
+            "    RETURNING notification_id;"
+            "END;"
+            "$BODY$"
+        ).format(
+            insert_events=Identifier(self.pg_function_name_insert_events),
+            lock_timeout=self.datastore.lock_timeout,
+            channel=Identifier(self.channel_name),
+            event=Identifier(self.stored_event_type_name),
+            schema=Identifier(self.datastore.schema),
+            table=Identifier(self.events_table_name),
+        )
+        self.create_insert_function_statement_index = len(self.sql_create_statements)
+        self.sql_create_statements.append(self.sql_create_pg_function_insert_events)
+
+    @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
+    def insert_events(
+        self, stored_events: Sequence[StoredEvent], **kwargs: Any
+    ) -> Sequence[int] | None:
+        if self.datastore.enable_db_functions:
+            pg_stored_events = [
+                self.construct_pg_stored_event(
+                    originator_id=e.originator_id,
+                    originator_version=e.originator_version,
+                    topic=e.topic,
+                    state=e.state,
+                )
+                for e in stored_events
+            ]
+            with self.datastore.get_connection() as conn, conn.cursor() as curs:
+                curs.execute(
+                    self.sql_invoke_pg_function_insert_events,
+                    (pg_stored_events,),
+                    prepare=True,
+                )
+                return [r[self.pg_function_name_insert_events] for r in curs.fetchall()]
+
+        exc: Exception | None = None
+        notification_ids: Sequence[int] | None = None
+        with self.datastore.get_connection() as conn:
+            with conn.pipeline() as pipeline, conn.transaction():
+                # Do other things first, so they can be pipelined too.
+                with conn.cursor() as curs:
+                    self._insert_events(curs, stored_events, **kwargs)
+                # Then use a different cursor for the executemany() call.
+                if len(stored_events) > 0:
+                    with conn.cursor() as curs:
+                        try:
+                            self._insert_stored_events(curs, stored_events, **kwargs)
+                            # Sync now, so any uniqueness constraint violation causes an
+                            # IntegrityError to be raised here, rather an InternalError
+                            # being raised sometime later e.g. when commit() is called.
+                            pipeline.sync()
+                            notification_ids = self._fetch_ids_after_insert_events(
+                                curs, stored_events, **kwargs
+                            )
+                        except Exception as e:
+                            # Avoid psycopg emitting a pipeline warning.
+                            exc = e
+            if exc:
+                # Reraise exception after pipeline context manager has exited.
+                raise exc
+        return notification_ids
+
+    def _insert_events(
+        self,
+        curs: Cursor[DictRow],
+        stored_events: Sequence[StoredEvent],
+        **_: Any,
+    ) -> None:
+        pass
+
+    def _insert_stored_events(
+        self,
+        curs: Cursor[DictRow],
+        stored_events: Sequence[StoredEvent],
+        **kwargs: Any,
+    ) -> None:
+        self._lock_table(curs)
+        self._notify_channel(curs)
+        super()._insert_stored_events(curs, stored_events, **kwargs)
 
     @retry((InterfaceError, OperationalError), max_attempts=10, wait=0.2)
     def select_notifications(
@@ -637,20 +729,18 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
         self,
         curs: Cursor[DictRow],
         stored_events: Sequence[StoredEvent],
-        **kwargs: Any,
+        **_: Any,
     ) -> Sequence[int] | None:
         notification_ids: list[int] = []
-        len_events = len(stored_events)
-        if len_events:
-            while curs.nextset() and len(notification_ids) != len_events:
-                if curs.statusmessage and curs.statusmessage.startswith("INSERT"):
-                    row = curs.fetchone()
-                    assert row is not None
-                    notification_ids.append(row["notification_id"])
-            if len(notification_ids) != len_events:
-                msg = "Couldn't get all notification IDs "
-                msg += f"(got {len(notification_ids)}, expected {len_events})"
-                raise ProgrammingError(msg)
+        assert curs.statusmessage and curs.statusmessage.startswith(
+            "INSERT"
+        ), curs.statusmessage
+        try:
+            notification_ids = [row["notification_id"] for row in curs.fetchall()]
+        except psycopg.ProgrammingError as e:
+            msg = "Couldn't get all notification IDs "
+            msg += f"(got {len(notification_ids)}, expected {len(stored_events)})"
+            raise ProgrammingError(msg) from e
         return notification_ids
 
     def subscribe(
@@ -1134,7 +1224,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
         )
         if originator_id_type.lower() not in ("uuid", "text"):
             msg = (
-                f"Invalid originator_id_type '{originator_id_type}', "
+                f"Invalid {self.POSTGRES_ORIGINATOR_ID_TYPE} '{originator_id_type}', "
                 f"must be 'uuid' or 'text'"
             )
             raise OSError(msg)

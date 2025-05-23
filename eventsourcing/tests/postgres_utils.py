@@ -71,25 +71,32 @@ def drop_tables() -> None:
                 # print(f"Dropped table '{table_name}' in schema '{schema}'")
 
             # Also drop composite types.
-            compsite_types = ["stored_event", "dcb_event"]
-            for name in compsite_types:
-                statement = SQL("DROP TYPE IF EXISTS {schema}.{type} CASCADE").format(
+            composite_types = [
+                "stored_event_uuid",
+                "stored_event_text",
+                "dcb_event",
+                "dcb_event",
+            ]
+            for name in composite_types:
+                statement = SQL("DROP TYPE IF EXISTS {schema}.{name} CASCADE").format(
                     schema=Identifier(datastore.schema),
-                    type=Identifier(name),
+                    name=Identifier(name),
                 )
                 curs.execute(statement, prepare=False)
 
             # Also drop functions.
             functions = [
+                "es_insert_events_uuid",
+                "es_insert_events_text",
                 "dcb_insert_events",
                 "dcb_select_events",
             ]
             for name in functions:
                 statement = SQL(
-                    "DROP FUNCTION IF EXISTS {schema}.{type} CASCADE"
+                    "DROP FUNCTION IF EXISTS {schema}.{name} CASCADE"
                 ).format(
                     schema=Identifier(datastore.schema),
-                    type=Identifier(name),
+                    name=Identifier(name),
                 )
                 curs.execute(statement, prepare=False)
 
@@ -99,9 +106,9 @@ def drop_tables() -> None:
             ]
             for name in procedures:
                 statement = SQL(
-                    "DROP PROCEDURE IF EXISTS {schema}.{type} CASCADE"
+                    "DROP PROCEDURE IF EXISTS {schema}.{name} CASCADE"
                 ).format(
                     schema=Identifier(datastore.schema),
-                    type=Identifier(name),
+                    name=Identifier(name),
                 )
                 curs.execute(statement, prepare=False)

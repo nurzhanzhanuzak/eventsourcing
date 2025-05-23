@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID
 
 from eventsourcing.persistence import (
@@ -213,6 +213,7 @@ class SQLiteDatastore:
         max_age: float | None = None,
         pre_ping: bool = False,
         single_row_tracking: bool = True,
+        originator_id_type: Literal["uuid", "text"] = "uuid",
     ):
         self.pool = SQLiteConnectionPool(
             db_name=db_name,
@@ -224,6 +225,7 @@ class SQLiteDatastore:
             pre_ping=pre_ping,
         )
         self.single_row_tracking = single_row_tracking
+        self.originator_id_type = originator_id_type
 
     @contextmanager
     def transaction(self, *, commit: bool) -> Iterator[SQLiteCursor]:
@@ -267,6 +269,13 @@ class SQLiteRecorder(Recorder):
     def _create_table(self, c: SQLiteCursor) -> None:
         for statement in self.create_table_statements:
             c.execute(statement)
+
+    def convert_originator_id(self, originator_id: str) -> UUID | str:
+        return (
+            UUID(originator_id)
+            if self.datastore.originator_id_type == "uuid"
+            else originator_id
+        )
 
 
 class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
@@ -358,7 +367,7 @@ class SQLiteAggregateRecorder(SQLiteRecorder, AggregateRecorder):
             c.execute(statement, params)
             return [
                 StoredEvent(
-                    originator_id=row["originator_id"],
+                    originator_id=self.convert_originator_id(row["originator_id"]),
                     originator_version=row["originator_version"],
                     topic=row["topic"],
                     state=row["state"],
@@ -467,7 +476,7 @@ class SQLiteApplicationRecorder(
             return [
                 Notification(
                     id=row["rowid"],
-                    originator_id=row["originator_id"],
+                    originator_id=self.convert_originator_id(row["originator_id"]),
                     originator_version=row["originator_version"],
                     topic=row["topic"],
                     state=row["state"],
@@ -674,6 +683,7 @@ class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
     SQLITE_DBNAME = "SQLITE_DBNAME"
     SQLITE_LOCK_TIMEOUT = "SQLITE_LOCK_TIMEOUT"
     SQLITE_SINGLE_ROW_TRACKING = "SINGLE_ROW_TRACKING"
+    SQLITE_ORIGINATOR_ID_TYPE = "SQLITE_ORIGINATOR_ID_TYPE"
     CREATE_TABLE = "CREATE_TABLE"
 
     aggregate_recorder_class = SQLiteAggregateRecorder
@@ -713,10 +723,22 @@ class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
             self.env.get(self.SQLITE_SINGLE_ROW_TRACKING, "t")
         )
 
+        originator_id_type = cast(
+            Literal["uuid", "text"],
+            self.env.get(self.SQLITE_ORIGINATOR_ID_TYPE, "uuid"),
+        )
+        if originator_id_type.lower() not in ("uuid", "text"):
+            msg = (
+                f"Invalid {self.SQLITE_ORIGINATOR_ID_TYPE} '{originator_id_type}', "
+                f"must be 'uuid' or 'text'"
+            )
+            raise OSError(msg)
+
         self.datastore = SQLiteDatastore(
             db_name=db_name,
             lock_timeout=lock_timeout,
             single_row_tracking=single_row_tracking,
+            originator_id_type=originator_id_type,
         )
 
     def aggregate_recorder(self, purpose: str = "events") -> AggregateRecorder:
