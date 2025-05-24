@@ -249,7 +249,12 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "    ELSE"
             "        /* no text query - return limited sorted rows from table */"
             "        SELECT ARRAY_AGG("
-            "            (subq.sequence_position, subq.type, subq.data, subq.tags)::{sequenced_event_type}"
+            "            ("
+            "                subq.sequence_position,"
+            "                subq.type,"
+            "                subq.data,"
+            "                subq.tags"
+            "            )::{sequenced_event_type}"
             "        )"
             "        FROM ("
             "            SELECT sequence_position, type, data, tags"
@@ -342,7 +347,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                 ),
                 position=row["sequence_position"],
             )
-            for row in self.invoke_pg_select_events_function(
+            for row in self.invoke_pg_function_select_events(
                 text_query=text_query,
                 after=after,
                 limit=limit,
@@ -379,7 +384,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             after = -1  # Indicates no "fail condition".
 
         # Invoke pg procedure.
-        last_new_sequence_position = self.invoke_pg_append_events_procedure(
+        last_new_sequence_position = self.invoke_pg_procedure_append_events(
             events=pg_dcb_events,
             text_query=text_query,
             after=after,
@@ -426,7 +431,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
     def prefix_tags(self, all_tokens: list[str]) -> list[str]:
         return [f"TAG-{t}" for t in all_tokens]
 
-    def invoke_pg_select_events_function(
+    def invoke_pg_function_select_events(
         self,
         text_query: str = "",
         after: int | None = None,
@@ -439,7 +444,23 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             )
             return cast("Iterator[PgDCBEventRow]", curs.fetchall())
 
-    def invoke_pg_append_events_procedure(
+    def invoke_pg_function_select_events2(
+        self,
+        text_query: str,
+        after: int | None = None,
+        limit: int | None = None,
+        *,
+        unsorted: bool = False,
+    ) -> tuple[list[PgDCBSequencedEvent], int]:
+        with self.datastore.get_connection() as conn:
+            result = conn.execute(
+                self.sql_invoke_pg_function_select_events2,
+                (text_query, after, limit, "true" if unsorted else "false"),
+            ).fetchone()
+            assert result is not None
+            return result["result_array"], result["result_integer"]
+
+    def invoke_pg_procedure_append_events(
         self,
         events: list[PgDCBEvent],
         text_query: str = "",
