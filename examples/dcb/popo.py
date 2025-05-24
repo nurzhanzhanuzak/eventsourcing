@@ -29,10 +29,10 @@ class InMemoryDCBEventStore(DCBEventStore, POPORecorder):
         query: DCBQuery | None = None,
         after: int | None = None,
         limit: int | None = None,
-    ) -> Iterator[DCBSequencedEvent]:
+    ) -> tuple[Sequence[DCBSequencedEvent], int | None]:
         query = query or DCBQuery()
         with self._database_lock:
-            events = (
+            events_generator = (
                 event
                 for event in self.events
                 if (after is None or event.position > after)
@@ -45,10 +45,13 @@ class InMemoryDCBEventStore(DCBEventStore, POPORecorder):
                     )
                 )
             )
-            for i, event in enumerate(events):
+
+            events = []            
+            for i, event in enumerate(events_generator):
                 if limit is not None and i >= limit:
-                    return
-                yield deepcopy(event)
+                    break
+                events.append(deepcopy(event))
+            return events, self.events[-1].position if self.events else None
 
     def append(
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None
@@ -59,13 +62,13 @@ class InMemoryDCBEventStore(DCBEventStore, POPORecorder):
         with self._database_lock:
             if condition is not None:
                 try:
-                    next(
-                        self.read(
-                            query=condition.fail_if_events_match,
-                            after=condition.after,
-                        )
+                    matched, head = self.read(
+                        query=condition.fail_if_events_match,
+                        after=condition.after,
+                        limit=1,
                     )
-                    raise IntegrityError
+                    if matched:
+                        raise IntegrityError
                 except StopIteration:
                     pass
             self.events.extend(

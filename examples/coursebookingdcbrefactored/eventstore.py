@@ -85,7 +85,7 @@ class EventStore:
         *,
         with_last_position: Literal[True],
         after: int | None = None,
-    ) -> tuple[Sequence[DomainEvent], int]:
+    ) -> tuple[Sequence[DomainEvent], int | None]:
         pass  # pragma: no cover
 
     @overload
@@ -107,11 +107,11 @@ class EventStore:
         with_last_position: bool = False,
     ) -> (
         Sequence[tuple[DomainEvent, int]]
-        | tuple[Sequence[DomainEvent], int]
+        | tuple[Sequence[DomainEvent], int | None]
         | Sequence[DomainEvent]
     ):
         query = self._cb_to_dcb_query(cb)
-        dcb_sequenced_events = self.recorder.read(
+        dcb_sequenced_events, head = self.recorder.read(
             query=query,
             after=after,
         )
@@ -119,15 +119,14 @@ class EventStore:
             return tuple(
                 self.mapper.to_domain_event(s.event) for s in dcb_sequenced_events
             )
-        events_and_positions = tuple(
+        if with_last_position:
+            return tuple(
+                [self.mapper.to_domain_event(s.event) for s in dcb_sequenced_events]
+            ), head
+        return tuple(
             (self.mapper.to_domain_event(s.event), s.position)
             for s in dcb_sequenced_events
         )
-        if with_last_position:
-            domain_events = [ep[0] for ep in events_and_positions]
-            last_position = max([ep[1] for ep in events_and_positions])
-            return domain_events, last_position
-        return events_and_positions
 
     @staticmethod
     def _cb_to_dcb_query(

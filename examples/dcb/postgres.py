@@ -333,7 +333,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         query: DCBQuery | None = None,
         after: int | None = None,
         limit: int | None = None,
-    ) -> Iterator[DCBSequencedEvent]:
+    ) -> tuple[Sequence[DCBSequencedEvent], int | None]:
         # Prepare arguments and invoke pg function.
         if not query or not query.items:
             text_query = ""
@@ -345,8 +345,8 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             limit=limit,
         )
         if result_array is None:
-            return iter([])
-        return (
+            return [], result_integer
+        return tuple(
             DCBSequencedEvent(
                 event=DCBEvent(
                     type=sequenced_event.type,
@@ -356,7 +356,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                 position=sequenced_event.sequence_position,
             )
             for sequenced_event in result_array 
-        )
+        ), result_integer
 
     def append(
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None

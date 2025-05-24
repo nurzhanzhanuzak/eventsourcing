@@ -47,7 +47,7 @@ class DCBEventStore(ABC):
         query: DCBQuery | None = None,
         after: int | None = None,
         limit: int | None = None,
-    ) -> Iterator[DCBSequencedEvent]:
+    ) -> tuple[Sequence[DCBSequencedEvent], int | None]:
         """
         Returns all events, unless 'after' is given then only those with position
         greater than 'after', and unless any query items are given, then only those
@@ -55,17 +55,6 @@ class DCBEventStore(ABC):
         is in the item types or there are no item types, and if all the item tags are
         in the event tags.
         """
-
-    def get(
-        self,
-        query: DCBQuery | None = None,
-        after: int | None = None,
-        limit: int | None = None,
-    ) -> Sequence[DCBSequencedEvent]:
-        """
-        A convenient method to get a sequence of events rather than an iterator.
-        """
-        return list(self.read(query=query, after=after, limit=limit))
 
     @abstractmethod
     def append(
