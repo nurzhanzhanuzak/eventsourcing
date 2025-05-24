@@ -5,10 +5,10 @@ from psycopg.sql import SQL, Identifier
 
 from eventsourcing.postgres import PostgresDatastore
 from examples.dcb.postgres import (
-    PG_FUNCTION_NAME_INSERT_EVENTS,
-    PG_FUNCTION_NAME_SELECT_EVENTS,
-    PG_PROCEDURE_NAME_APPEND_EVENTS,
-    PG_TYPE_NAME_DCB_EVENT,
+    PG_FUNCTION_NAME_DCB_INSERT_EVENTS,
+    PG_FUNCTION_NAME_DCB_SELECT_EVENTS,
+    PG_PROCEDURE_NAME_DCB_APPEND_EVENTS,
+    PG_TYPE_NAME_DCB_EVENT, PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION,
 )
 
 
@@ -93,8 +93,9 @@ def drop_tables() -> None:
             functions = [
                 "es_insert_events_uuid",
                 "es_insert_events_text",
-                PG_FUNCTION_NAME_INSERT_EVENTS,
-                PG_FUNCTION_NAME_SELECT_EVENTS,
+                PG_FUNCTION_NAME_DCB_INSERT_EVENTS,
+                PG_FUNCTION_NAME_DCB_SELECT_EVENTS,
+                PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION,
             ]
             for name in functions:
                 statement = SQL(
@@ -107,7 +108,7 @@ def drop_tables() -> None:
 
             # Also drop procedures.
             procedures = [
-                PG_PROCEDURE_NAME_APPEND_EVENTS,
+                PG_PROCEDURE_NAME_DCB_APPEND_EVENTS,
             ]
             for name in procedures:
                 statement = SQL(

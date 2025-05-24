@@ -538,6 +538,7 @@ class WithPostgres(TestCase):
         self.eventstore.create_table()
 
     def tearDown(self) -> None:
+        self.datastore.close()
         # Drop tables.
         drop_tables()
 
