@@ -64,10 +64,16 @@ class EventStore:
                 fail_if_events_match=query,
                 after=after,
             )
+        # started = datetime_now_with_tzinfo()
         return self.recorder.append(
             events=[self.mapper.to_dcb_event(e) for e in events],
             condition=condition,
         )
+        # duration = int(
+        #     (datetime_now_with_tzinfo() - started).total_seconds() * 1000000
+        # )
+        # print("Appendeded", events, "at position", position, f"in {duration} us")
+        # return position
 
     @overload
     def get(
@@ -120,9 +126,12 @@ class EventStore:
                 self.mapper.to_domain_event(s.event) for s in dcb_sequenced_events
             )
         if with_last_position:
-            return tuple(
-                [self.mapper.to_domain_event(s.event) for s in dcb_sequenced_events]
-            ), head
+            return (
+                tuple(
+                    [self.mapper.to_domain_event(s.event) for s in dcb_sequenced_events]
+                ),
+                head,
+            )
         return tuple(
             (self.mapper.to_domain_event(s.event), s.position)
             for s in dcb_sequenced_events

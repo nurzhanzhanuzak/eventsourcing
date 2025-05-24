@@ -154,10 +154,6 @@ class PostgresDatastore:
             "SET idle_in_transaction_session_timeout = '{0}ms'"
         ).format(int(self.idle_in_transaction_session_timeout * 1000))
 
-        schema = self.schema
-        pg_type_names = self.pg_type_names
-        pg_type_adapters = self.pg_type_adapters
-
         # Avoid passing a bound method to the pool,
         # to avoid creating a circular ref to self.
         def after_connect(conn: Connection[DictRow]) -> None:
@@ -176,7 +172,6 @@ class PostgresDatastore:
         ]
         if not unregistered_names:
             return
-        any_registered = False
         with self.get_connection() as conn:
             for name in unregistered_names:
                 # Construct type adapter from database info.
@@ -189,8 +184,6 @@ class PostgresDatastore:
                 self.pg_type_adapters[name] = info
                 assert info.python_type is not None, info
                 self.pg_python_types[name] = info.python_type
-            if not any_registered:
-                conn.close()
 
     @contextmanager
     def get_connection(self) -> Iterator[Connection[DictRow]]:
@@ -378,9 +371,9 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         state: bytes,
     ) -> PgStoredEvent:
         try:
-            return self.datastore.pg_python_types[
-                self.stored_event_type_name
-            ](originator_id, originator_version, topic, state)
+            return self.datastore.pg_python_types[self.stored_event_type_name](
+                originator_id, originator_version, topic, state
+            )
         except KeyError:
             msg = f"Composite type '{self.stored_event_type_name}' not found"
             raise ProgrammingError(msg) from None

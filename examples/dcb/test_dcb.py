@@ -26,7 +26,6 @@ from examples.dcb.popo import InMemoryDCBEventStore
 from examples.dcb.postgres import (
     DCBPostgresFactory,
     PgDCBEvent,
-    PgDCBSequencedEvent,
     PostgresDCBEventStore,
 )
 
@@ -133,7 +132,9 @@ class DCBEventStoreTestCase(TestCase):
         self.assertEqual(3, len(result))
 
         # Can query for type "EventType1".
-        result, head = eventstore.read(DCBQuery(items=[DCBQueryItem(types=["EventType1"])]))
+        result, head = eventstore.read(
+            DCBQuery(items=[DCBQueryItem(types=["EventType1"])])
+        )
         self.assertEqual(1, len(result))
         self.assertEqual(1, result[0].position)
         self.assertEqual("EventType1", result[0].event.type)
@@ -141,7 +142,9 @@ class DCBEventStoreTestCase(TestCase):
         self.assertEqual([], result[0].event.tags)
 
         # Can query for type "EventType2".
-        result, head = eventstore.read(DCBQuery(items=[DCBQueryItem(types=["EventType2"])]))
+        result, head = eventstore.read(
+            DCBQuery(items=[DCBQueryItem(types=["EventType2"])])
+        )
         self.assertEqual(1, len(result))
         self.assertEqual(2, result[0].position)
         self.assertEqual("EventType2", result[0].event.type)
@@ -183,13 +186,17 @@ class DCBEventStoreTestCase(TestCase):
         self.assertEqual("EventType3", result[0].event.type)
 
         # Can query for tags "tagA" and tagB" - one event has both.
-        result, head = eventstore.read(DCBQuery(items=[DCBQueryItem(tags=["tagA", "tagB"])]))
+        result, head = eventstore.read(
+            DCBQuery(items=[DCBQueryItem(tags=["tagA", "tagB"])])
+        )
         self.assertEqual(1, len(result))
         self.assertEqual(2, result[0].position)
         self.assertEqual("EventType2", result[0].event.type)
 
         # Can query for tags "tagB" and tagC" - no events have both.
-        result, head = eventstore.read(DCBQuery(items=[DCBQueryItem(tags=["tagB", "tagC"])]))
+        result, head = eventstore.read(
+            DCBQuery(items=[DCBQueryItem(tags=["tagB", "tagC"])])
+        )
         self.assertEqual(0, len(result))
 
         # Can query for tags "tagB" or tagC" - two events have one or the other.
@@ -345,15 +352,14 @@ class DCBEventStoreTestCase(TestCase):
         )
         student_joined_course = DCBEvent(
             type="StudentJoinedCourse",
-            data=json.dumps({"student_id": student_id, "course_id": course_id}).encode(),
+            data=json.dumps(
+                {"student_id": student_id, "course_id": course_id}
+            ).encode(),
             tags=[course_id, student_id],
         )
 
-
         eventstore.append(
-            events=[
-                student_registered
-            ],
+            events=[student_registered],
             condition=DCBAppendCondition(
                 fail_if_events_match=DCBQuery(
                     items=[DCBQueryItem(tags=student_registered.tags)],
@@ -362,9 +368,7 @@ class DCBEventStoreTestCase(TestCase):
             ),
         )
         eventstore.append(
-            events=[
-                course_registered
-            ],
+            events=[course_registered],
             condition=DCBAppendCondition(
                 fail_if_events_match=DCBQuery(
                     items=[DCBQueryItem(tags=course_registered.tags)],
@@ -373,9 +377,7 @@ class DCBEventStoreTestCase(TestCase):
             ),
         )
         eventstore.append(
-            events=[
-                student_joined_course
-            ],
+            events=[student_joined_course],
             condition=DCBAppendCondition(
                 fail_if_events_match=DCBQuery(
                     items=[DCBQueryItem(tags=student_joined_course.tags)],
@@ -484,7 +486,6 @@ class DCBEventStoreTestCase(TestCase):
             query=consistency_boundary,
         )
         self.assertEqual(3, len(result))
-
 
 
 class TestInMemoryDCBEventStore(DCBEventStoreTestCase):
@@ -682,7 +683,9 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
             return [r["sequence_position"] for r in results]
 
     def test_select_events2(self) -> None:
-        a, i = self.eventstore.invoke_pg_function_select_events2("", 1, 1, unsorted=True)
+        a, i = self.eventstore.invoke_pg_function_select_events2(
+            "", 1, 1, unsorted=True
+        )
         self.assertIsNone(a)
         self.assertIsNone(i)
 
@@ -773,7 +776,9 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         query = self.eventstore.construct_text_query(
             [DCBQueryItem(types=[event1.type])],
         )
-        a, i = self.eventstore.invoke_pg_function_select_events2(query, after=1, limit=100)
+        a, i = self.eventstore.invoke_pg_function_select_events2(
+            query, after=1, limit=100
+        )
         self.assertEqual(11, len(a))
         self.assertEqual(i, 24)
 
@@ -792,7 +797,9 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         )
         student_joined_course = DCBEvent(
             type="StudentJoinedCourse",
-            data=json.dumps({"student_id": student_id, "course_id": course_id}).encode(),
+            data=json.dumps(
+                {"student_id": student_id, "course_id": course_id}
+            ).encode(),
             tags=[course_id, student_id],
         )
         pg_dcb_student_registered = self.eventstore.construct_pg_dcb_event(
@@ -814,7 +821,7 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         query = self.eventstore.construct_text_query(
             [DCBQueryItem(types=[student_registered.type])],
         )
-        for i in range(10):
+        for _ in range(10):
             a, i = self.eventstore.invoke_pg_function_select_events2(query)
             self.assertEqual(1, len(a))
             self.assertEqual(i, 25)
@@ -823,7 +830,7 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         query = self.eventstore.construct_text_query(
             [DCBQueryItem(types=[course_registered.type])],
         )
-        for i in range(10):
+        for _ in range(10):
             a, i = self.eventstore.invoke_pg_function_select_events2(query)
             self.assertEqual(1, len(a))
             self.assertEqual(i, 26)
@@ -832,7 +839,7 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         query = self.eventstore.construct_text_query(
             [DCBQueryItem(types=[student_joined_course.type])],
         )
-        for i in range(10):
+        for _ in range(10):
             a, i = self.eventstore.invoke_pg_function_select_events2(query)
             self.assertEqual(1, len(a))
             self.assertEqual(i, 27)

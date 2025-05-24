@@ -1,14 +1,49 @@
 from __future__ import annotations
 
+from datetime import datetime  # noqa: TC003
+from typing import Any
 from uuid import uuid4
 
-from eventsourcing.domain import event
-from examples.aggregate11.domainmodel import Aggregate
+import msgspec
+
+from eventsourcing.domain import (
+    BaseAggregate,
+    CanInitAggregate,
+    CanMutateAggregate,
+    event,
+)
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
     FullyBookedError,
     TooManyCoursesError,
 )
+
+
+class DomainEvent(msgspec.Struct, frozen=True):
+    originator_id: str
+    originator_version: int
+    timestamp: datetime
+
+
+class MsgspecStringIDEvent(DomainEvent, CanMutateAggregate[str], frozen=True):
+    def _as_dict(self) -> dict[str, Any]:
+        return {key: getattr(self, key) for key in self.__struct_fields__}
+
+
+class MsgspecStringIDCreatedEvent(DomainEvent, CanInitAggregate[str], frozen=True):
+    originator_topic: str
+
+
+class MsgspecStringIDAggregate(BaseAggregate[str]):
+    class Event(MsgspecStringIDEvent, frozen=True):
+        pass
+
+    class Created(Event, MsgspecStringIDCreatedEvent, frozen=True):
+        pass
+
+
+class Aggregate(MsgspecStringIDAggregate):
+    pass
 
 
 class Student(Aggregate):

@@ -5,6 +5,7 @@ from uuid import uuid4
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
     CourseNotFoundError,
+    Enrolment,
     FullyBookedError,
     StudentNotFoundError,
     TooManyCoursesError,
@@ -34,7 +35,7 @@ class StudentJoinedCourse(DomainEvent):
     pass
 
 
-class EnrolmentWithDCBRefactored(DCBApplication):
+class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
     def __init__(self, env: dict[str, str]):
         super().__init__(env=env)
         self.events = EventStore(Mapper(), self.recorder)

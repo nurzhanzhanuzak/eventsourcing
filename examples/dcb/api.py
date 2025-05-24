@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from eventsourcing.persistence import InfrastructureFactory, TTrackingRecorder
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Sequence
 
 
 @dataclass

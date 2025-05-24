@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 from eventsourcing.application import AggregateNotFoundError, Application
+from eventsourcing.utils import get_topic
+from examples.aggregate9.msgspecstructs import MsgspecMapper
 from examples.coursebooking.domainmodel import Course, Student
-from examples.coursebooking.interface import CourseNotFoundError, StudentNotFoundError
+from examples.coursebooking.interface import (
+    CourseNotFoundError,
+    Enrolment,
+    StudentNotFoundError,
+)
 
 
-class EnrolmentWithAggregates(Application[str]):
+class EnrolmentWithAggregates(Application[str], Enrolment):
+    env: ClassVar[dict[str, str]] = {
+        "MAPPER_TOPIC": get_topic(MsgspecMapper),
+    }
+
     def register_student(self, name: str, max_courses: int) -> str:
         student = Student(name, max_courses=max_courses)
         self.save(student)

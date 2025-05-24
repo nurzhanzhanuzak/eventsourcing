@@ -54,6 +54,8 @@ from eventsourcing.utils import Environment, EnvType, strtobool
 if TYPE_CHECKING:
     from uuid import UUID
 
+    from typing_extensions import Self
+
 ProjectorFunction = Callable[
     [Optional[TMutableOrImmutableAggregate], Iterable[TDomainEvent]],
     Optional[TMutableOrImmutableAggregate],
@@ -874,6 +876,15 @@ class Application(Generic[TAggregateID]):
     def close(self) -> None:
         self.closing.set()
         self.factory.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        self.close()
 
 
 TApplication = TypeVar("TApplication", bound=Application[Any])

@@ -46,7 +46,7 @@ class InMemoryDCBEventStore(DCBEventStore, POPORecorder):
                 )
             )
 
-            events = []            
+            events = []
             for i, event in enumerate(events_generator):
                 if limit is not None and i >= limit:
                     break

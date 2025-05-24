@@ -27,3 +27,6 @@ class DCBApplication:
         if env is not None:
             _env.update(env)
         return Environment(name, _env)
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        self.factory.close()

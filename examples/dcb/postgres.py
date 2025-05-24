@@ -182,11 +182,11 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "    OUT result_integer integer"
             ") "
             "LANGUAGE plpgsql "
+            # "STABLE "
+            # "PARALLEL SAFE "
             "AS "
             "$BODY$ "
             "BEGIN "
-            # "    result_array := ARRAY[(1, NULL, NULL, NULL)::{sequenced_event_type}, (2, NULL, NULL, NULL)::{sequenced_event_type}];"
-            # "    result_integer := 42; "
             "    SELECT MAX(sequence_position) "
             "    FROM {schema}.{table}"
             "    INTO result_integer;"
@@ -195,19 +195,26 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             "            /* for append condition query - no ordering */"
             "            SELECT ARRAY_AGG("
             "                ("
-            "                    subq.sequence_position,"
-            "                    subq.type, "
-            "                    subq.data,"
-            "                    subq.tags"
+            "                    subq1.sequence_position,"
+            "                    subq1.type, "
+            "                    subq1.data,"
+            "                    subq1.tags"
             "                )::{sequenced_event_type}"
             "            )"
             "            FROM ("
-            "                SELECT sequence_position, type, data, tags"
-            "                FROM {schema}.{table}"
-            "                WHERE sequence_position > COALESCE(after, 0)"
-            "                AND text_vector @@ text_query"
+            "                SELECT"
+            "                    subq2.sequence_position,"
+            "                    subq2.type, "
+            "                    subq2.data,"
+            "                    subq2.tags"
+            "                FROM ("
+            "                    SELECT sequence_position, type, data, tags"
+            "                    FROM {schema}.{table}"
+            "                    WHERE sequence_position > COALESCE(after, 0)"
             "                LIMIT max_results"
-            "            ) AS subq"
+            "                ) AS subq2"
+            "                WHERE subq2.text_vector @@ text_query"
+            "            ) AS subq1"
             "            INTO result_array;"
             "        ELSIF after is NULL THEN"
             # "            /* for initial command query - no 'after' */"
@@ -346,17 +353,20 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         )
         if result_array is None:
             return [], result_integer
-        return tuple(
-            DCBSequencedEvent(
-                event=DCBEvent(
-                    type=sequenced_event.type,
-                    data=sequenced_event.data,
-                    tags=sequenced_event.tags,
-                ),
-                position=sequenced_event.sequence_position,
-            )
-            for sequenced_event in result_array 
-        ), result_integer
+        return (
+            tuple(
+                DCBSequencedEvent(
+                    event=DCBEvent(
+                        type=sequenced_event.type,
+                        data=sequenced_event.data,
+                        tags=sequenced_event.tags,
+                    ),
+                    position=sequenced_event.sequence_position,
+                )
+                for sequenced_event in result_array
+            ),
+            result_integer,
+        )
 
     def append(
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None

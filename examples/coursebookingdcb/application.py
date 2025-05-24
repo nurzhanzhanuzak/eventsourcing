@@ -7,9 +7,10 @@ from uuid import uuid4
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
     CourseNotFoundError,
+    Enrolment,
     FullyBookedError,
     StudentNotFoundError,
-    TooManyCoursesError, Enrolment,
+    TooManyCoursesError,
 )
 from examples.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
 from examples.dcb.application import DCBApplication
