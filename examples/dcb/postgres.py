@@ -144,23 +144,30 @@ $BODY$
 DECLARE
     append_condition_failed boolean;
 BEGIN
+    after = COALESCE(after, 0);
     IF (text_query = '') THEN
-        SELECT EXISTS (SELECT 1
-        FROM {schema}.{table}
-        WHERE sequence_position > after
+        SELECT EXISTS (
+            SELECT 1
+            FROM {schema}.{table}
+            WHERE sequence_position > after
+            LIMIT 1
         )
         INTO append_condition_failed;
     ELSIF (after = 0) THEN
-        SELECT EXISTS (SELECT 1
-        FROM {schema}.{table}
-        WHERE text_vector @@ text_query
+        SELECT EXISTS (
+            SELECT 1
+            FROM {schema}.{table}
+            WHERE text_vector @@ text_query
+            LIMIT 1
         )
         INTO append_condition_failed;
     ELSE
-        SELECT EXISTS (SELECT 1
-        FROM {schema}.{table}
-        WHERE sequence_position > after
-        AND text_vector @@ text_query
+        SELECT EXISTS (
+            SELECT 1
+            FROM {schema}.{table}
+            WHERE sequence_position > after
+            AND text_vector @@ text_query
+            LIMIT 1
         )
         INTO append_condition_failed;
     END IF;
