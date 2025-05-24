@@ -260,9 +260,9 @@ class PostgresRecorder:
         self.sql_create_statements: list[Composed] = []
 
     @staticmethod
-    def check_table_name_length(table_name: str) -> None:
+    def check_identifier_length(table_name: str) -> None:
         if len(table_name) > PostgresRecorder.MAX_IDENTIFIER_LEN:
-            msg = f"Table name too long: {table_name}"
+            msg = f"Identifier too long: {table_name}"
             raise ProgrammingError(msg)
 
     def create_table(self) -> None:
@@ -287,7 +287,11 @@ class PostgresRecorder:
         for statement in self.sql_create_statements:
             if "CREATE TYPE" in statement.as_string():
                 continue
-            curs.execute(statement, prepare=False)
+            try:
+                curs.execute(statement, prepare=False)
+            except psycopg.errors.SyntaxError as e:
+                msg = f"Syntax error: '{e}' in: {statement.as_string()}"
+                raise ProgrammingError(msg) from e
 
 
 class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
@@ -298,7 +302,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         events_table_name: str = "stored_events",
     ):
         super().__init__(datastore)
-        self.check_table_name_length(events_table_name)
+        self.check_identifier_length(events_table_name)
         self.events_table_name = events_table_name
         # Index names can't be qualified names, but
         # are created in the same schema as the table.
@@ -782,7 +786,7 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
         **kwargs: Any,
     ):
         super().__init__(datastore, **kwargs)
-        self.check_table_name_length(tracking_table_name)
+        self.check_identifier_length(tracking_table_name)
         self.tracking_table_name = tracking_table_name
         self.tracking_table_exists: bool = False
         self.tracking_migration_previous: int | None = None

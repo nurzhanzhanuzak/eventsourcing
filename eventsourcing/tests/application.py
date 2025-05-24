@@ -165,6 +165,10 @@ class ApplicationTestCase(TestCase):
 
         self.assertEqual(MyApplication2.name, "MyBoundedContext")
 
+    def test_as_context_manager(self) -> None:
+        with Application[UUID]():
+            pass
+
     def test_resolve_persistence_topics(self) -> None:
         # None specified.
         app = Application[UUID]()

@@ -1283,6 +1283,9 @@ by combining and extending :class:`~eventsourcing.postgres.PostgresApplicationRe
     #include-when-testing
 ..
     drop_tables()
+    datastore.pg_type_adapters.clear()
+    datastore.pg_python_types.clear()
+
 
 
 .. code-block:: python
@@ -1800,6 +1803,8 @@ constructed and used in a standard way.
     #include-when-testing
 ..
     drop_tables()
+    datastore.pg_type_adapters.clear()
+    datastore.pg_python_types.clear()
 
 
 
@@ -1824,11 +1829,6 @@ constructed and used in a standard way.
 As above, the optional environment variables ``COMPRESSOR_TOPIC``, ``CIPHER_KEY``,
 and ``CIPHER_TOPIC`` may be used to enable compression and encryption of stored
 events recorded in PostgreSQL.
-
-..
-    #include-when-testing
-..
-    drop_tables()
 
 
 Code reference

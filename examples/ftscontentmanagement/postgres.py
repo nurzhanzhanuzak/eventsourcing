@@ -33,7 +33,7 @@ class PostgresFtsRecorder(
         **kwargs: Any,
     ):
         super().__init__(datastore, **kwargs)
-        self.check_table_name_length(fts_table_name)
+        self.check_identifier_length(fts_table_name)
         self.fts_table_name = fts_table_name
         self.sql_create_statements.append(
             SQL(

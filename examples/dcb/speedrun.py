@@ -1,23 +1,29 @@
 # ruff: noqa: T201
+from __future__ import annotations
+
 import signal
 import sys
-import time
-from collections.abc import Iterator
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from psycopg.sql import SQL, Identifier
 
 from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.postgres import PostgresDatastore
 from examples.coursebooking.application import EnrolmentWithAggregates
-from examples.coursebooking.interface import Enrolment
-from examples.coursebookingdcb.application import EnrolmentWithDCB
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from examples.coursebooking.interface import Enrolment
 
 env = {}
 SPEEDRUN_DB_NAME = "course_subscriptions_speedrun"
 SPEEDRUN_DB_USER = "eventsourcing"
-SPEEDRUN_DB_PASSWORD = "eventsourcing"
+SPEEDRUN_DB_PASSWORD = "eventsourcing"  # noqa: S105
+
+NUM_COURSES = 1
+NUM_STUDENTS = 1
 
 
 def inf_range() -> Iterator[int]:
@@ -29,8 +35,8 @@ def inf_range() -> Iterator[int]:
 
 config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
     "dcb-pg": (
-        EnrolmentWithDCB,
-        # EnrolmentWithDCBRefactored,
+        # EnrolmentWithDCB,
+        EnrolmentWithDCBRefactored,
         10,
         {
             "PERSISTENCE_MODULE": "examples.dcb.postgres",
@@ -72,32 +78,27 @@ config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
     ),
 }
 
-NUM_COURSES = 5
-NUM_STUDENTS = 5
 
 interrupted = False
 
 
 def sigint_handler(*_: Any) -> None:
-    global interrupted
+    global interrupted  # noqa: PLW0603
     interrupted = True
+
 
 signal.signal(signal.SIGINT, sigint_handler)
 
 
-
 if __name__ == "__main__":
     modes = ["dcb-pg", "dcb-mem", "agg-pg", "agg-mem", "help", "new-db"]
-    if len(sys.argv) > 1:
-        mode = sys.argv[1]
-    else:
-        mode = "help"
+    mode = sys.argv[1] if len(sys.argv) > 1 else "help"
     if mode == "help" or mode not in modes:
         print(f"Usage: {sys.argv[0]} [{' | '.join(modes)}]")
         sys.exit(0)
     if len(sys.argv) > 2:
         try:
-            duration = int(cast(int, sys.argv[2]))
+            duration: int | None = int(cast(int, sys.argv[2]))
         except ValueError:
             print("Invalid duration:", sys.argv[2])
             sys.exit(1)
@@ -105,24 +106,25 @@ if __name__ == "__main__":
         duration = None
 
     if mode == "new-db":
-        with PostgresDatastore(
-            dbname="postgres",
-            host="127.0.0.1",
-            port=5432,
-            user="postgres",
-            password="postgres",
-        ) as datastore, datastore.get_connection() as conn:
+        with (
+            PostgresDatastore(
+                dbname="postgres",
+                host="127.0.0.1",
+                port=5432,
+                user="postgres",
+                password="postgres",  # noqa: S106
+            ) as datastore,
+            datastore.get_connection() as conn,
+        ):
             statements = [
                 SQL("DROP DATABASE IF EXISTS {db}").format(
                     db=Identifier(SPEEDRUN_DB_NAME)
                 ),
-                SQL("CREATE DATABASE {db}").format(
-                    db=Identifier(SPEEDRUN_DB_NAME)
-                ),
+                SQL("CREATE DATABASE {db}").format(db=Identifier(SPEEDRUN_DB_NAME)),
                 SQL("ALTER DATABASE {db} OWNER TO {user}").format(
                     db=Identifier(SPEEDRUN_DB_NAME),
                     user=Identifier(SPEEDRUN_DB_USER),
-                )
+                ),
             ]
             for statement in statements:
                 print(f"{statement.as_string()};")
@@ -139,7 +141,10 @@ if __name__ == "__main__":
     print(" ==============================================================")
     print()
     ops_per_iteration = NUM_COURSES + NUM_STUDENTS + NUM_COURSES * NUM_STUDENTS
-    print(f" Per iteration: {NUM_COURSES} courses, {NUM_STUDENTS} students ({ops_per_iteration} ops)")
+    print(
+        f" Per iteration: {NUM_COURSES} courses,"
+        f" {NUM_STUDENTS} students ({ops_per_iteration} ops)"
+    )
     print()
     print(f" Running '{mode}' mode: {cls.__name__}")
     for key, value in env.items():
@@ -201,12 +206,9 @@ if __name__ == "__main__":
                 if interrupted:
                     break
 
-            # x = datetime_now_with_tzinfo()
-
             total_timedelta = datetime_now_with_tzinfo() - started_script
             total_seconds = total_timedelta.total_seconds()
             if total_seconds / (report_counter + 1) > 1:
-            # if not i % reporting_interval:
                 report_counter += 1
                 total_ops += report_ops
                 report_timedelta = (

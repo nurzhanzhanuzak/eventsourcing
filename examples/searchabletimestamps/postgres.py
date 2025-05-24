@@ -32,7 +32,7 @@ class SearchableTimestampsApplicationRecorder(
         event_timestamps_table_name: str = "event_timestamps",
     ):
         super().__init__(datastore, events_table_name=events_table_name)
-        self.check_table_name_length(event_timestamps_table_name)
+        self.check_identifier_length(event_timestamps_table_name)
         self.event_timestamps_table_name = event_timestamps_table_name
 
         self.sql_create_statements.append(

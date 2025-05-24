@@ -4,6 +4,12 @@ import psycopg
 from psycopg.sql import SQL, Identifier
 
 from eventsourcing.postgres import PostgresDatastore
+from examples.dcb.postgres import (
+    PG_FUNCTION_NAME_INSERT_EVENTS,
+    PG_FUNCTION_NAME_SELECT_EVENTS,
+    PG_PROCEDURE_NAME_APPEND_EVENTS,
+    PG_TYPE_NAME_DCB_EVENT,
+)
 
 
 def pg_close_all_connections(
@@ -74,8 +80,7 @@ def drop_tables() -> None:
             composite_types = [
                 "stored_event_uuid",
                 "stored_event_text",
-                "dcb_event",
-                "dcb_sequenced_event",
+                PG_TYPE_NAME_DCB_EVENT,
             ]
             for name in composite_types:
                 statement = SQL("DROP TYPE IF EXISTS {schema}.{name} CASCADE").format(
@@ -88,9 +93,8 @@ def drop_tables() -> None:
             functions = [
                 "es_insert_events_uuid",
                 "es_insert_events_text",
-                "dcb_insert_events",
-                "dcb_select_events",
-                "dcb_select_events2",
+                PG_FUNCTION_NAME_INSERT_EVENTS,
+                PG_FUNCTION_NAME_SELECT_EVENTS,
             ]
             for name in functions:
                 statement = SQL(
@@ -103,7 +107,7 @@ def drop_tables() -> None:
 
             # Also drop procedures.
             procedures = [
-                "dcb_append_events",
+                PG_PROCEDURE_NAME_APPEND_EVENTS,
             ]
             for name in procedures:
                 statement = SQL(

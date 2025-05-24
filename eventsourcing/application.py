@@ -637,6 +637,7 @@ class Application(Generic[TAggregateID]):
         a :class:`~eventsourcing.application.Repository`, and
         a :class:`~eventsourcing.application.LocalNotificationLog`.
         """
+        self.closing = Event()
         self.env = self.construct_env(self.name, env)  # type: ignore[misc]
         self.factory = self.construct_factory(self.env)
         self.mapper: Mapper[TAggregateID] = self.construct_mapper()
@@ -647,7 +648,6 @@ class Application(Generic[TAggregateID]):
             self.snapshots = self.construct_snapshot_store()
         self._repository: Repository[TAggregateID] = self.construct_repository()
         self._notification_log = self.construct_notification_log()
-        self.closing = Event()
 
     @property
     def repository(self) -> Repository[TAggregateID]:
@@ -884,7 +884,8 @@ class Application(Generic[TAggregateID]):
         self.close()
 
     def __del__(self) -> None:
-        self.close()
+        with contextlib.suppress(AttributeError):
+            self.close()
 
 
 TApplication = TypeVar("TApplication", bound=Application[Any])
