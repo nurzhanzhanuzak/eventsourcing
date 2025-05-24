@@ -40,6 +40,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self.dcb_sequenced_event_type_name = "dcb_sequenced_event"
         self.datastore.pg_type_names.add(self.dcb_event_type_name)
         self.datastore.pg_type_names.add(self.dcb_sequenced_event_type_name)
+        self.datastore.register_type_adapters()
 
         self.sql_create_table = SQL(
             "CREATE TABLE IF NOT EXISTS {schema}.{table} ("
@@ -338,20 +339,23 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
             text_query = ""
         else:
             text_query = self.construct_text_query(query.items)
+        result_array, result_integer = self.invoke_pg_function_select_events2(
+            text_query=text_query,
+            after=after,
+            limit=limit,
+        )
+        if result_array is None:
+            return iter([])
         return (
             DCBSequencedEvent(
                 event=DCBEvent(
-                    type=row["type"],
-                    data=row["data"],
-                    tags=row["tags"],
+                    type=sequenced_event.type,
+                    data=sequenced_event.data,
+                    tags=sequenced_event.tags,
                 ),
-                position=row["sequence_position"],
+                position=sequenced_event.sequence_position,
             )
-            for row in self.invoke_pg_function_select_events(
-                text_query=text_query,
-                after=after,
-                limit=limit,
-            )
+            for sequenced_event in result_array 
         )
 
     def append(
@@ -379,7 +383,6 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                     condition.fail_if_events_match.items,
                 )
             after = condition.after
-            print("Append condition after:", after)  # noqa: T201
         else:
             after = -1  # Indicates no "fail condition".
 
@@ -479,7 +482,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         data: bytes,
         tags: list[str],
     ) -> PgDCBEvent:
-        return self.datastore.pg_type_adapters[self.dcb_event_type_name].python_type(
+        return self.datastore.pg_python_types[self.dcb_event_type_name](
             type, data, tags, self.construct_text_vector(type, tags)
         )
 

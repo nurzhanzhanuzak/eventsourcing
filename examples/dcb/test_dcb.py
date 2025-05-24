@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from threading import Event, Thread
 from time import sleep
 from typing import TYPE_CHECKING, Any
@@ -330,6 +331,161 @@ class DCBEventStoreTestCase(TestCase):
         )
         self.assertEqual(2, len(result))
 
+        student_id = f"student1-{uuid4()}"
+        student_registered = DCBEvent(
+            type="StudentRegistered",
+            data=json.dumps({"name": "Student1", "max_courses": 10}).encode(),
+            tags=[student_id],
+        )
+        course_id = f"course1-{uuid4()}"
+        course_registered = DCBEvent(
+            type="CourseRegistered",
+            data=json.dumps({"name": "Course1", "places": 10}).encode(),
+            tags=[course_id],
+        )
+        student_joined_course = DCBEvent(
+            type="StudentJoinedCourse",
+            data=json.dumps({"student_id": student_id, "course_id": course_id}).encode(),
+            tags=[course_id, student_id],
+        )
+
+
+        eventstore.append(
+            events=[
+                student_registered
+            ],
+            condition=DCBAppendCondition(
+                fail_if_events_match=DCBQuery(
+                    items=[DCBQueryItem(tags=student_registered.tags)],
+                ),
+                after=3,
+            ),
+        )
+        eventstore.append(
+            events=[
+                course_registered
+            ],
+            condition=DCBAppendCondition(
+                fail_if_events_match=DCBQuery(
+                    items=[DCBQueryItem(tags=course_registered.tags)],
+                ),
+                after=3,
+            ),
+        )
+        eventstore.append(
+            events=[
+                student_joined_course
+            ],
+            condition=DCBAppendCondition(
+                fail_if_events_match=DCBQuery(
+                    items=[DCBQueryItem(tags=student_joined_course.tags)],
+                ),
+                after=3,
+            ),
+        )
+
+        result = eventstore.get()
+        self.assertEqual(10, len(result))
+        self.assertEqual(result[-3].event.type, student_registered.type)
+        self.assertEqual(result[-2].event.type, course_registered.type)
+        self.assertEqual(result[-1].event.type, student_joined_course.type)
+        self.assertEqual(result[-3].event.data, student_registered.data)
+        self.assertEqual(result[-2].event.data, course_registered.data)
+        self.assertEqual(result[-1].event.data, student_joined_course.data)
+        self.assertEqual(result[-3].event.tags, student_registered.tags)
+        self.assertEqual(result[-2].event.tags, course_registered.tags)
+        self.assertEqual(result[-1].event.tags, student_joined_course.tags)
+
+        result = eventstore.get(
+            query=DCBQuery(
+                items=[DCBQueryItem(tags=student_registered.tags)],
+            )
+        )
+        self.assertEqual(2, len(result))
+
+        result = eventstore.get(
+            query=DCBQuery(
+                items=[DCBQueryItem(tags=course_registered.tags)],
+            )
+        )
+        self.assertEqual(2, len(result))
+
+        result = eventstore.get(
+            query=DCBQuery(
+                items=[DCBQueryItem(tags=student_joined_course.tags)],
+            )
+        )
+        self.assertEqual(1, len(result))
+
+        result = eventstore.get(
+            query=DCBQuery(
+                items=[DCBQueryItem(tags=student_registered.tags)],
+            ),
+            after=2,
+        )
+        self.assertEqual(2, len(result))
+
+        result = eventstore.get(
+            query=DCBQuery(
+                items=[DCBQueryItem(tags=course_registered.tags)],
+            ),
+            after=2,
+        )
+        self.assertEqual(2, len(result))
+
+        result = eventstore.get(
+            query=DCBQuery(
+                items=[DCBQueryItem(tags=student_joined_course.tags)],
+            ),
+            after=2,
+        )
+        self.assertEqual(1, len(result))
+
+        result = eventstore.get(
+            query=DCBQuery(
+                items=[DCBQueryItem(tags=student_registered.tags)],
+            ),
+            after=2,
+            limit=1,
+        )
+        self.assertEqual(1, len(result))
+
+        result = eventstore.get(
+            query=DCBQuery(
+                items=[DCBQueryItem(tags=course_registered.tags)],
+            ),
+            after=2,
+            limit=1,
+        )
+        self.assertEqual(1, len(result))
+
+        result = eventstore.get(
+            query=DCBQuery(
+                items=[DCBQueryItem(tags=student_joined_course.tags)],
+            ),
+            after=2,
+            limit=1,
+        )
+        self.assertEqual(1, len(result))
+        
+        consistency_boundary = DCBQuery(
+            items=[
+                DCBQueryItem(
+                    types=["StudentRegistered", "StudentJoinedCourse"],
+                    tags=[student_id],
+                ),
+                DCBQueryItem(
+                    types=["CourseRegistered", "StudentJoinedCourse"],
+                    tags=[course_id],
+                ),
+            ]
+        )
+        result = eventstore.get(
+            query=consistency_boundary,
+        )
+        self.assertEqual(3, len(result))
+
+
 
 class TestInMemoryDCBEventStore(DCBEventStoreTestCase):
     def test_in_memory_event_store(self) -> None:
@@ -620,6 +776,66 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         a, i = self.eventstore.invoke_pg_function_select_events2(query, after=1, limit=100)
         self.assertEqual(11, len(a))
         self.assertEqual(i, 24)
+
+        # Check we can do more realistic events.
+        student_id = f"student1-{uuid4()}"
+        student_registered = DCBEvent(
+            type="StudentRegistered",
+            data=json.dumps({"name": "Student1", "max_courses": 10}).encode(),
+            tags=[student_id],
+        )
+        course_id = f"course1-{uuid4()}"
+        course_registered = DCBEvent(
+            type="CourseRegistered",
+            data=json.dumps({"name": "Course1", "places": 10}).encode(),
+            tags=[course_id],
+        )
+        student_joined_course = DCBEvent(
+            type="StudentJoinedCourse",
+            data=json.dumps({"student_id": student_id, "course_id": course_id}).encode(),
+            tags=[course_id, student_id],
+        )
+        pg_dcb_student_registered = self.eventstore.construct_pg_dcb_event(
+            type=student_registered.type,
+            data=student_registered.data,
+            tags=student_registered.tags,
+        )
+        pg_dcb_course_registered = self.eventstore.construct_pg_dcb_event(
+            type=course_registered.type,
+            data=course_registered.data,
+            tags=course_registered.tags,
+        )
+        pg_dcb_student_joined_course = self.eventstore.construct_pg_dcb_event(
+            type=student_joined_course.type,
+            data=student_joined_course.data,
+            tags=student_joined_course.tags,
+        )
+        self.invoke_pg_insert_events_function([pg_dcb_student_registered])
+        query = self.eventstore.construct_text_query(
+            [DCBQueryItem(types=[student_registered.type])],
+        )
+        for i in range(10):
+            a, i = self.eventstore.invoke_pg_function_select_events2(query)
+            self.assertEqual(1, len(a))
+            self.assertEqual(i, 25)
+
+        self.invoke_pg_insert_events_function([pg_dcb_course_registered])
+        query = self.eventstore.construct_text_query(
+            [DCBQueryItem(types=[course_registered.type])],
+        )
+        for i in range(10):
+            a, i = self.eventstore.invoke_pg_function_select_events2(query)
+            self.assertEqual(1, len(a))
+            self.assertEqual(i, 26)
+
+        self.invoke_pg_insert_events_function([pg_dcb_student_joined_course])
+        query = self.eventstore.construct_text_query(
+            [DCBQueryItem(types=[student_joined_course.type])],
+        )
+        for i in range(10):
+            a, i = self.eventstore.invoke_pg_function_select_events2(query)
+            self.assertEqual(1, len(a))
+            self.assertEqual(i, 27)
 
     def test_append_events_procedure(self) -> None:
 

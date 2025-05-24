@@ -9,13 +9,13 @@ from examples.coursebooking.interface import (
     CourseNotFoundError,
     FullyBookedError,
     StudentNotFoundError,
-    TooManyCoursesError,
+    TooManyCoursesError, Enrolment,
 )
 from examples.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
 from examples.dcb.application import DCBApplication
 
 
-class EnrolmentWithDCB(DCBApplication):
+class EnrolmentWithDCB(DCBApplication, Enrolment):
     def register_student(self, name: str, max_courses: int) -> str:
         student_id = f"student-{uuid4()}"
         consistency_boundary = DCBQuery(

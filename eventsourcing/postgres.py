@@ -126,7 +126,8 @@ class PostgresDatastore:
 
         check = ConnectionPool.check_connection if pre_ping else None
         self.pg_type_names = set[str]()
-        self.pg_type_adapters: dict[str, Any] = {}
+        self.pg_type_adapters: dict[str, CompositeInfo] = {}
+        self.pg_python_types: dict[str, Any] = {}
         self.pool = ConnectionPool(
             get_password_func=get_password_func,
             connection_class=Connection[DictRow],
@@ -166,39 +167,30 @@ class PostgresDatastore:
             # Set idle in transaction session timeout.
             conn.cursor().execute(set_idle_in_transaction_session_timeout_statement)
 
-            # Register type adapters for custom pg types.
-            PostgresDatastore.register_type_adapters(
-                conn,
-                schema,
-                pg_type_names,
-                pg_type_adapters,
-            )
-
         return after_connect
 
-    @staticmethod
-    def register_type_adapters(
-        conn: Connection[DictRow],
-        schema: str,
-        pg_type_names: set[str],
-        pg_type_adapters: dict[str, Any],
-        *,
-        after_create: bool = False,
-    ) -> None:
+    def register_type_adapters(self) -> None:
         # Construct and/or register composite type adapters.
-        for name in pg_type_names:
-            info = pg_type_adapters.get(name)
-            if after_create or info is None:
+        unregistered_names = [
+            name for name in self.pg_type_names if name not in self.pg_type_adapters
+        ]
+        if not unregistered_names:
+            return
+        any_registered = False
+        with self.get_connection() as conn:
+            for name in unregistered_names:
                 # Construct type adapter from database info.
-                info = CompositeInfo.fetch(conn, f"{schema}.{name}")
+                info = CompositeInfo.fetch(conn, f"{self.schema}.{name}")
                 if info is None:
                     continue
+                # Register the type adapter centrally.
                 register_composite(info, conn)
-                # Cache the type adapter.
-                pg_type_adapters[name] = info
-            else:
-                # Register type adapter with the connection.
-                register_composite(info, conn)
+                # Cache the python type for our own use.
+                self.pg_type_adapters[name] = info
+                assert info.python_type is not None, info
+                self.pg_python_types[name] = info.python_type
+            if not any_registered:
+                conn.close()
 
     @contextmanager
     def get_connection(self) -> Iterator[Connection[DictRow]]:
@@ -208,6 +200,11 @@ class PostgresDatastore:
             self.pool.open(wait, timeout)
 
             with self.pool.connection() as conn:
+                # Make sure the connection has the type adapters.
+                for info in self.pg_type_adapters.values():
+                    if not conn.adapters.types.get(info.oid):
+                        register_composite(info, conn)
+                # Yield connection.
                 yield conn
         except psycopg.InterfaceError as e:
             # conn.close()
@@ -291,14 +288,7 @@ class PostgresRecorder:
             self._create_table(curs)
 
         # Register type adapters.
-        with self.datastore.get_connection() as conn:
-            self.datastore.register_type_adapters(
-                conn=conn,
-                schema=self.datastore.schema,
-                pg_type_names=self.datastore.pg_type_names,
-                pg_type_adapters=self.datastore.pg_type_adapters,
-                after_create=True,  # avoid psycopg cache error with persistence.rst
-            )
+        self.datastore.register_type_adapters()
 
     def _create_table(self, curs: Cursor[DictRow]) -> None:
         for statement in self.sql_create_statements:
@@ -327,6 +317,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
             f"stored_event_{self.datastore.originator_id_type}"
         )
         self.datastore.pg_type_names.add(self.stored_event_type_name)
+        self.datastore.register_type_adapters()
         self.create_table_statement_index = len(self.sql_create_statements)
         self.sql_create_statements.append(
             SQL(
@@ -387,9 +378,9 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
         state: bytes,
     ) -> PgStoredEvent:
         try:
-            return self.datastore.pg_type_adapters[
+            return self.datastore.pg_python_types[
                 self.stored_event_type_name
-            ].python_type(originator_id, originator_version, topic, state)
+            ](originator_id, originator_version, topic, state)
         except KeyError:
             msg = f"Composite type '{self.stored_event_type_name}' not found"
             raise ProgrammingError(msg) from None
