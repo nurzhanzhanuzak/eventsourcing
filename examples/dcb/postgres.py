@@ -293,7 +293,9 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                     table=Identifier(self.pg_table_name_events),
                 ),
                 PG_FUNCTION_DCB_CHECK_APPEND_CONDITION.format(
-                    check_append_condition=Identifier(PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION),
+                    check_append_condition=Identifier(
+                        PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION
+                    ),
                     schema=Identifier(self.datastore.schema),
                     table=Identifier(self.pg_table_name_events),
                 ),
@@ -301,7 +303,9 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                     append_events=Identifier(PG_PROCEDURE_NAME_DCB_APPEND_EVENTS),
                     schema=Identifier(self.datastore.schema),
                     event_type=Identifier(PG_TYPE_NAME_DCB_EVENT),
-                    check_append_condition=Identifier(PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION),
+                    check_append_condition=Identifier(
+                        PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION
+                    ),
                     table=Identifier(self.pg_table_name_events),
                     insert_events=Identifier(PG_FUNCTION_NAME_DCB_INSERT_EVENTS),
                     channel=Identifier(self.pg_channel_name),

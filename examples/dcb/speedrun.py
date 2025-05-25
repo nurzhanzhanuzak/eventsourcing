@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import signal
+import subprocess
 import sys
 from typing import TYPE_CHECKING, Any, cast
 
@@ -12,8 +13,12 @@ from eventsourcing.persistence import ProgrammingError
 from eventsourcing.postgres import PostgresDatastore
 from examples.coursebooking.application import EnrolmentWithAggregates
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
-from examples.dcb.postgres import PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION, PG_PROCEDURE_NAME_DCB_APPEND_EVENTS, \
-    PG_FUNCTION_NAME_DCB_INSERT_EVENTS, PG_FUNCTION_NAME_DCB_SELECT_EVENTS
+from examples.dcb.postgres import (
+    PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION,
+    PG_FUNCTION_NAME_DCB_INSERT_EVENTS,
+    PG_FUNCTION_NAME_DCB_SELECT_EVENTS,
+    PG_PROCEDURE_NAME_DCB_APPEND_EVENTS,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -94,7 +99,17 @@ signal.signal(signal.SIGINT, sigint_handler)
 
 
 if __name__ == "__main__":
-    modes = ["dcb-pg", "dcb-mem", "agg-pg", "agg-mem", "help", "new-db", "drop-funcs", "new-plans"]
+    modes = [
+        "dcb-pg",
+        "dcb-mem",
+        "agg-pg",
+        "agg-mem",
+        "help",
+        "new-db",
+        "drop-funcs",
+        "new-plans",
+        "psql",
+    ]
     mode = sys.argv[1] if len(sys.argv) > 1 else "help"
     if mode == "help" or mode not in modes:
         print(f"Usage: {sys.argv[0]} [{' | '.join(modes)}]")
@@ -136,11 +151,11 @@ if __name__ == "__main__":
 
     if mode == "drop-funcs":
         with PostgresDatastore(
-                dbname=SPEEDRUN_DB_NAME,
-                host="127.0.0.1",
-                port=5432,
-                user=SPEEDRUN_DB_USER,
-                password=SPEEDRUN_DB_PASSWORD,  # noqa: S106
+            dbname=SPEEDRUN_DB_NAME,
+            host="127.0.0.1",
+            port=5432,
+            user=SPEEDRUN_DB_USER,
+            password=SPEEDRUN_DB_PASSWORD,
         ) as datastore:
             statement_template = SQL("DROP FUNCTION {schema}.{name}")
             function_names = [
@@ -148,7 +163,6 @@ if __name__ == "__main__":
                 PG_FUNCTION_NAME_DCB_INSERT_EVENTS,
                 PG_FUNCTION_NAME_DCB_SELECT_EVENTS,
                 PG_PROCEDURE_NAME_DCB_APPEND_EVENTS,
-
             ]
             for function_name in function_names:
                 statement = statement_template.format(
@@ -160,7 +174,7 @@ if __name__ == "__main__":
                     with datastore.transaction(commit=True) as curs:
                         curs.execute(statement)
                 except ProgrammingError as e:
-                    print("Function not found:", function_name)
+                    print(f"Function '{function_name}' not found:", e)
             procedure_names = [
                 PG_PROCEDURE_NAME_DCB_APPEND_EVENTS,
             ]
@@ -176,7 +190,7 @@ if __name__ == "__main__":
                         with datastore.transaction(commit=True) as curs:
                             curs.execute(statement)
                     except ProgrammingError as e:
-                        print("Function not found:", function_name)
+                        print(f"Procedure '{function_name}' not found:", e)
         sys.exit(0)
 
     if mode == "new-plans":
@@ -186,7 +200,7 @@ if __name__ == "__main__":
                 host="127.0.0.1",
                 port=5432,
                 user=SPEEDRUN_DB_USER,
-                password=SPEEDRUN_DB_PASSWORD,  # noqa: S106
+                password=SPEEDRUN_DB_PASSWORD,
             ) as datastore,
             datastore.get_connection() as conn,
         ):
@@ -194,6 +208,9 @@ if __name__ == "__main__":
             print(discard_statement.as_string())
             conn.execute(discard_statement)
             sys.exit(0)
+
+    if mode == "psql":
+        subprocess.run(["psql", "--dbname", SPEEDRUN_DB_NAME])
 
 
     if mode not in modes:

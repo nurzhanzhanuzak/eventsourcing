@@ -5,10 +5,11 @@ from psycopg.sql import SQL, Identifier
 
 from eventsourcing.postgres import PostgresDatastore
 from examples.dcb.postgres import (
+    PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION,
     PG_FUNCTION_NAME_DCB_INSERT_EVENTS,
     PG_FUNCTION_NAME_DCB_SELECT_EVENTS,
     PG_PROCEDURE_NAME_DCB_APPEND_EVENTS,
-    PG_TYPE_NAME_DCB_EVENT, PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION,
+    PG_TYPE_NAME_DCB_EVENT,
 )
 
 
