@@ -13,7 +13,7 @@ from eventsourcing.persistence import ProgrammingError
 from eventsourcing.postgres import PostgresDatastore
 from examples.coursebooking.application import EnrolmentWithAggregates
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
-from examples.dcb.postgres_textsearch import (
+from examples.dcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS,
     PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
     PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
@@ -26,7 +26,8 @@ if TYPE_CHECKING:
     from examples.coursebooking.interface import Enrolment
 
 env = {}
-SPEEDRUN_DB_NAME = "course_subscriptions_speedrun"
+# SPEEDRUN_DB_NAME = "course_subscriptions_speedrun"
+SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt"
 SPEEDRUN_DB_USER = "eventsourcing"
 SPEEDRUN_DB_PASSWORD = "eventsourcing"  # noqa: S105
 
@@ -47,7 +48,7 @@ config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
         EnrolmentWithDCBRefactored,
         10,
         {
-            "PERSISTENCE_MODULE": "examples.dcb.postgres",
+            "PERSISTENCE_MODULE": "examples.dcb.postgres_tt",
             "POSTGRES_DBNAME": SPEEDRUN_DB_NAME,
             "POSTGRES_HOST": "127.0.0.1",
             "POSTGRES_PORT": "5432",
@@ -90,12 +91,13 @@ config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
 interrupted = False
 
 
-def sigint_handler(*_: Any) -> None:
-    global interrupted  # noqa: PLW0603
-    interrupted = True
+def set_signal_handler() -> None:
 
-
-signal.signal(signal.SIGINT, sigint_handler)
+    def sigint_handler(*_: Any) -> None:
+        global interrupted  # noqa: PLW0603
+        interrupted = True
+    
+    signal.signal(signal.SIGINT, sigint_handler)
 
 
 if __name__ == "__main__":
@@ -242,6 +244,8 @@ if __name__ == "__main__":
         print()
 
     with cls(env=env) as app:
+        
+        set_signal_handler()
 
         r_students = inf_range()
         r_courses = inf_range()

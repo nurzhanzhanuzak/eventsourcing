@@ -279,6 +279,8 @@ class PostgresRecorder:
                 except psycopg.errors.SyntaxError as e:
                     msg = f"Syntax error: '{e}' in: {statement.as_string()}"
                     raise ProgrammingError(msg) from e
+                else:
+                    print(statement.as_string())
 
         # Create tables, indexes, types, functions, and procedures.
         with self.datastore.transaction(commit=True) as curs:
@@ -296,6 +298,8 @@ class PostgresRecorder:
             except psycopg.errors.SyntaxError as e:
                 msg = f"Syntax error: '{e}' in: {statement.as_string()}"
                 raise ProgrammingError(msg) from e
+            else:
+                print(statement.as_string())
 
 
 class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):

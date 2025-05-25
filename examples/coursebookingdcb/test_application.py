@@ -18,7 +18,7 @@ class TestEnrolmentWithDCB(TestEnrolment):
         return EnrolmentWithDCB(self.env)
 
     def test_enrolment_with_postgres(self) -> None:
-        self.env["PERSISTENCE_MODULE"] = "examples.dcb.postgres"
+        self.env["PERSISTENCE_MODULE"] = "examples.dcb.postgres_tt"
         super().test_enrolment_with_postgres()
 
 

@@ -454,7 +454,7 @@ class PgDCBEventRow(TypedDict):
     tags: list[str]
 
 
-class PostgresTextSearchDCBFactory(
+class PostgresTSDCBFactory(
     PostgresFactory,
     DCBInfrastructureFactory[PostgresTrackingRecorder],
 ):

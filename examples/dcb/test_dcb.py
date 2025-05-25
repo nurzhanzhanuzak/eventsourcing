@@ -22,11 +22,11 @@ from examples.dcb.api import (
     DCBSequencedEvent,
 )
 from examples.dcb.popo import InMemoryDCBEventStore
-from examples.dcb.postgres_tagtable import PostgresDCBEventStoreTT
-from examples.dcb.postgres_textsearch import (
+from examples.dcb.postgres_tt import PostgresDCBEventStoreTT
+from examples.dcb.postgres_ts import (
     PostgresDCBEventStore,
     PostgresDCBEventStoreTS,
-    PostgresTextSearchDCBFactory,
+    PostgresTSDCBFactory,
 )
 
 if TYPE_CHECKING:
@@ -109,7 +109,7 @@ class DCBEventStoreTestCase(TestCase):
 
         # Must atomically persist one or many events.
         position = eventstore.append(
-            events=(DCBEvent(type="EventType1", data=b"data1"),),
+            events=(DCBEvent(type="EventType1", data=b"data1", tags=["tagX"]),),
         )
         self.assertEqual(1, position)
 
@@ -143,7 +143,7 @@ class DCBEventStoreTestCase(TestCase):
         self.assertEqual(1, result[0].position)
         self.assertEqual("EventType1", result[0].event.type)
         self.assertEqual(b"data1", result[0].event.data)
-        self.assertEqual([], result[0].event.tags)
+        self.assertEqual(["tagX"], result[0].event.tags)
         self.assertEqual(3, head)
 
         # Can query for type "EventType2".
@@ -310,7 +310,8 @@ class DCBEventStoreTestCase(TestCase):
                 ],
                 condition=DCBAppendCondition(
                     fail_if_events_match=DCBQuery(
-                        items=[DCBQueryItem(types=["EventType4", "EventType5"])],
+                        # items=[DCBQueryItem(types=["EventType4", "EventType5"])],
+                        items=[DCBQueryItem(types=["EventType4"])],
                     ),
                     after=3,
                 ),
@@ -324,7 +325,8 @@ class DCBEventStoreTestCase(TestCase):
             ],
             condition=DCBAppendCondition(
                 fail_if_events_match=DCBQuery(
-                    items=[DCBQueryItem(types=["EventType6", "EventType7"])],
+                    # items=[DCBQueryItem(types=["EventType6", "EventType7"])],
+                    items=[DCBQueryItem(types=["EventType6"])],
                 ),
                 after=3,
             ),
@@ -603,7 +605,7 @@ class TestPostgresDCBEventStoreTS(DCBEventStoreTestCase, WithPostgres):
         )
 
 
-class TestPostgresTagTableDCBEventStore(DCBEventStoreTestCase, WithPostgres):
+class TestPostgresDCBEventStoreTT(DCBEventStoreTestCase, WithPostgres):
     postgres_dcb_eventstore_class = PostgresDCBEventStoreTT
 
     def test_postgres_event_store(self) -> None:
@@ -613,7 +615,7 @@ class TestPostgresTagTableDCBEventStore(DCBEventStoreTestCase, WithPostgres):
 class TestDCBPostgresFactory(TestCase):
     def test(self) -> None:
         # For now, just cover the case of not creating a table.
-        factory = PostgresTextSearchDCBFactory(
+        factory = PostgresTSDCBFactory(
             Environment(
                 name="test",
                 env={
