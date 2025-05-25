@@ -34,7 +34,7 @@ are converted to :class:`~examples.dcb.api.DCBQuery` objects by the :class:`~exa
 The abstract :class:`~examples.dcb.api.DCBEventStore` interface is encapsulated by the
 :class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class, which uses the
 same concrete :class:`~examples.dcb.popo.InMemoryDCBEventStore` and
-:class:`~examples.dcb.postgres.PostgresDCBEventStore` classes introduced in the previous example.
+:class:`~examples.dcb.postgres.PostgresDCBEventStoreTS` classes introduced in the previous example.
 The :func:`~examples.coursebookingdcbrefactored.eventstore.EventStore.put`
 and :func:`~examples.coursebookingdcbrefactored.eventstore.EventStore.get` methods of the
 :class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class support passing either a single instance

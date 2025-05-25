@@ -13,11 +13,11 @@ from eventsourcing.persistence import ProgrammingError
 from eventsourcing.postgres import PostgresDatastore
 from examples.coursebooking.application import EnrolmentWithAggregates
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
-from examples.dcb.postgres import (
-    PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION,
-    PG_FUNCTION_NAME_DCB_INSERT_EVENTS,
-    PG_FUNCTION_NAME_DCB_SELECT_EVENTS,
-    PG_PROCEDURE_NAME_DCB_APPEND_EVENTS,
+from examples.dcb.postgres_textsearch import (
+    PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS,
+    PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
+    PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
+    PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
 )
 
 if TYPE_CHECKING:
@@ -159,10 +159,10 @@ if __name__ == "__main__":
         ) as datastore:
             statement_template = SQL("DROP FUNCTION {schema}.{name}")
             function_names = [
-                PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION,
-                PG_FUNCTION_NAME_DCB_INSERT_EVENTS,
-                PG_FUNCTION_NAME_DCB_SELECT_EVENTS,
-                PG_PROCEDURE_NAME_DCB_APPEND_EVENTS,
+                PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS,
+                PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
+                PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
+                PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
             ]
             for function_name in function_names:
                 statement = statement_template.format(
@@ -176,7 +176,7 @@ if __name__ == "__main__":
                 except ProgrammingError as e:
                     print(f"Function '{function_name}' not found:", e)
             procedure_names = [
-                PG_PROCEDURE_NAME_DCB_APPEND_EVENTS,
+                PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
             ]
             statement_template = SQL("DROP PROCEDURE {name}")
             for function_name in function_names:
@@ -211,7 +211,6 @@ if __name__ == "__main__":
 
     if mode == "psql":
         subprocess.run(["psql", "--dbname", SPEEDRUN_DB_NAME])
-
 
     if mode not in modes:
         print(f"Unknown mode: {mode}. Usage: {sys.argv[0]} [{' | '.join(modes)}]")

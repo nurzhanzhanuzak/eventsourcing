@@ -274,7 +274,11 @@ class PostgresRecorder:
                 self.datastore.transaction(commit=True) as curs,
                 contextlib.suppress(DuplicateObject),
             ):
-                curs.execute(statement, prepare=False)
+                try:
+                    curs.execute(statement, prepare=False)
+                except psycopg.errors.SyntaxError as e:
+                    msg = f"Syntax error: '{e}' in: {statement.as_string()}"
+                    raise ProgrammingError(msg) from e
 
         # Create tables, indexes, types, functions, and procedures.
         with self.datastore.transaction(commit=True) as curs:

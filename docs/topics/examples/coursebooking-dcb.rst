@@ -91,7 +91,7 @@ of sequenced events.
 Postgres DCB event store
 ------------------------
 
-The :class:`~examples.dcb.postgres.PostgresDCBEventStore` class implements the DCB event store interface
+The :class:`~examples.dcb.postgres.PostgresDCBEventStoreTS` class implements the DCB event store interface
 using Postgres. After experimenting with different approaches, this version implements the complex DCB
 query logic in the database with the Postgres ``tsvector`` and ``tsquery`` types. The type and tags of a
 DCB event are prefixed and concatenated into a ``tsvector`` string. A set of DCB query items is similarly
@@ -101,7 +101,7 @@ DCB events to the database. In this way, both the read and the append operations
 be executed as fast as possible with a single database round-trip.
 
 .. literalinclude:: ../../../examples/dcb/postgres.py
-    :pyobject: PostgresDCBEventStore
+    :pyobject: PostgresDCBEventStoreTS
 
 
 Code reference

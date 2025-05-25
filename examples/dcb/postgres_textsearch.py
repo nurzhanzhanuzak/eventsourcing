@@ -24,7 +24,12 @@ from examples.dcb.api import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-PG_TYPE_NAME_DCB_EVENT = "dcb_event"
+
+class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
+    pass
+
+
+PG_TYPE_NAME_DCB_EVENT_TS = "dcb_event"
 
 PG_TYPE_DCB_EVENT = SQL(
     """
@@ -56,7 +61,7 @@ ON {schema}.{table} USING GIN (text_vector)
 """
 )
 
-PG_FUNCTION_NAME_DCB_SELECT_EVENTS = "dcb_select_events"
+PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS = "dcb_select_events"
 
 SQL_STATEMENT_DCB_SELECT_EVENTS = SQL(
     """
@@ -127,7 +132,7 @@ $BODY$;
 """
 )
 
-PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION = "dcb_check_append_condition"
+PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS = "dcb_check_append_condition"
 
 PG_FUNCTION_DCB_CHECK_APPEND_CONDITION = SQL(
     """
@@ -177,7 +182,7 @@ $BODY$;
 """
 )
 
-PG_FUNCTION_NAME_DCB_INSERT_EVENTS = "dcb_insert_events"
+PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS = "dcb_insert_events"
 
 PG_FUNCTION_DCB_INSERT_EVENTS = SQL(
     """
@@ -200,7 +205,7 @@ $BODY$
 """
 )
 
-PG_PROCEDURE_NAME_DCB_APPEND_EVENTS = "dcb_append_events"
+PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS = "dcb_append_events"
 
 SQL_STATEMENT_CALL_DCB_APPEND_EVENTS = SQL(
     """
@@ -244,7 +249,7 @@ $BODY$
 )
 
 
-class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
+class PostgresDCBEventStoreTS(PostgresDCBEventStore):
     def __init__(
         self,
         datastore: PostgresDatastore,
@@ -257,14 +262,14 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         self.pg_index_name_text_vector = self.pg_table_name_events + "_text_vector_idx"
         self.check_identifier_length(self.pg_index_name_text_vector)
         self.pg_channel_name = events_table_name.replace(".", "_")
-        self.datastore.pg_type_names.add(PG_TYPE_NAME_DCB_EVENT)
+        self.datastore.pg_type_names.add(PG_TYPE_NAME_DCB_EVENT_TS)
         self.datastore.register_type_adapters()
 
         self.sql_statement_select_events = SQL_STATEMENT_DCB_SELECT_EVENTS.format(
-            select_events=Identifier(PG_FUNCTION_NAME_DCB_SELECT_EVENTS)
+            select_events=Identifier(PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS)
         )
         self.sql_call_append_events = SQL_STATEMENT_CALL_DCB_APPEND_EVENTS.format(
-            append_events=Identifier(PG_PROCEDURE_NAME_DCB_APPEND_EVENTS),
+            append_events=Identifier(PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS),
         )
         self.sql_create_statements.extend(
             [
@@ -279,35 +284,35 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
                 ),
                 PG_TYPE_DCB_EVENT.format(
                     schema=Identifier(self.datastore.schema),
-                    type_name=Identifier(PG_TYPE_NAME_DCB_EVENT),
+                    type_name=Identifier(PG_TYPE_NAME_DCB_EVENT_TS),
                 ),
                 PG_FUNCTION_DCB_INSERT_EVENTS.format(
-                    insert_events=Identifier(PG_FUNCTION_NAME_DCB_INSERT_EVENTS),
+                    insert_events=Identifier(PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS),
                     schema=Identifier(self.datastore.schema),
-                    event_type=Identifier(PG_TYPE_NAME_DCB_EVENT),
+                    event_type=Identifier(PG_TYPE_NAME_DCB_EVENT_TS),
                     table=Identifier(self.pg_table_name_events),
                 ),
                 PG_FUNCTION_DCB_SELECT_EVENTS.format(
-                    select_events=Identifier(PG_FUNCTION_NAME_DCB_SELECT_EVENTS),
+                    select_events=Identifier(PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS),
                     schema=Identifier(self.datastore.schema),
                     table=Identifier(self.pg_table_name_events),
                 ),
                 PG_FUNCTION_DCB_CHECK_APPEND_CONDITION.format(
                     check_append_condition=Identifier(
-                        PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION
+                        PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS
                     ),
                     schema=Identifier(self.datastore.schema),
                     table=Identifier(self.pg_table_name_events),
                 ),
                 PG_PROCEDURE_DCB_APPEND_EVENTS.format(
-                    append_events=Identifier(PG_PROCEDURE_NAME_DCB_APPEND_EVENTS),
+                    append_events=Identifier(PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS),
                     schema=Identifier(self.datastore.schema),
-                    event_type=Identifier(PG_TYPE_NAME_DCB_EVENT),
+                    event_type=Identifier(PG_TYPE_NAME_DCB_EVENT_TS),
                     check_append_condition=Identifier(
-                        PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION
+                        PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS
                     ),
                     table=Identifier(self.pg_table_name_events),
-                    insert_events=Identifier(PG_FUNCTION_NAME_DCB_INSERT_EVENTS),
+                    insert_events=Identifier(PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS),
                     channel=Identifier(self.pg_channel_name),
                 ),
             ]
@@ -430,7 +435,7 @@ class PostgresDCBEventStore(DCBEventStore, PostgresRecorder):
         data: bytes,
         tags: list[str],
     ) -> PgDCBEvent:
-        return self.datastore.pg_python_types[PG_TYPE_NAME_DCB_EVENT](
+        return self.datastore.pg_python_types[PG_TYPE_NAME_DCB_EVENT_TS](
             type, data, tags, self.construct_text_vector(type, tags)
         )
 
@@ -449,7 +454,7 @@ class PgDCBEventRow(TypedDict):
     tags: list[str]
 
 
-class DCBPostgresFactory(
+class PostgresTextSearchDCBFactory(
     PostgresFactory,
     DCBInfrastructureFactory[PostgresTrackingRecorder],
 ):
@@ -457,7 +462,7 @@ class DCBPostgresFactory(
         prefix = self.env.name.lower() or "dcb"
 
         dcb_table_name = prefix + "_events"
-        recorder = PostgresDCBEventStore(
+        recorder = PostgresDCBEventStoreTS(
             datastore=self.datastore,
             events_table_name=dcb_table_name,
         )

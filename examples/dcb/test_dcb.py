@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from threading import Event, Thread
 from time import sleep
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from unittest import TestCase
 from uuid import uuid4
 
@@ -22,9 +22,11 @@ from examples.dcb.api import (
     DCBSequencedEvent,
 )
 from examples.dcb.popo import InMemoryDCBEventStore
-from examples.dcb.postgres import (
-    DCBPostgresFactory,
+from examples.dcb.postgres_tagtable import PostgresDCBEventStoreTT
+from examples.dcb.postgres_textsearch import (
     PostgresDCBEventStore,
+    PostgresDCBEventStoreTS,
+    PostgresTextSearchDCBFactory,
 )
 
 if TYPE_CHECKING:
@@ -526,6 +528,8 @@ class TestInMemoryDCBEventStore(DCBEventStoreTestCase):
 
 
 class WithPostgres(TestCase):
+    postgres_dcb_eventstore_class: type[PostgresDCBEventStore]
+
     def setUp(self) -> None:
         self.datastore = PostgresDatastore(
             dbname="eventsourcing",
@@ -534,7 +538,7 @@ class WithPostgres(TestCase):
             user="eventsourcing",
             password="eventsourcing",  # noqa:  S106
         )
-        self.eventstore = PostgresDCBEventStore(self.datastore)
+        self.eventstore = self.postgres_dcb_eventstore_class(self.datastore)
         self.eventstore.create_table()
 
     def tearDown(self) -> None:
@@ -543,13 +547,17 @@ class WithPostgres(TestCase):
         drop_tables()
 
 
-class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
+class TestPostgresDCBEventStoreTS(DCBEventStoreTestCase, WithPostgres):
+    postgres_dcb_eventstore_class = PostgresDCBEventStoreTS
+
     def test_postgres_event_store(self) -> None:
         self._test_event_store(self.eventstore)
 
     def test_pg_type_dcb_event(self) -> None:
         # Check "dcb_event" type.
-        event = self.eventstore.construct_pg_dcb_event(
+        event = cast(
+            PostgresDCBEventStoreTS, self.eventstore
+        ).construct_pg_dcb_event(
             type="EventType1",
             data=b"data",
             tags=["tag1", "tag2"],
@@ -595,10 +603,17 @@ class TestPostgresDCBEventStore(DCBEventStoreTestCase, WithPostgres):
         )
 
 
-class TestPostgresFactory(TestCase):
+class TestPostgresTagTableDCBEventStore(DCBEventStoreTestCase, WithPostgres):
+    postgres_dcb_eventstore_class = PostgresDCBEventStoreTT
+
+    def test_postgres_event_store(self) -> None:
+        self._test_event_store(self.eventstore)
+
+
+class TestDCBPostgresFactory(TestCase):
     def test(self) -> None:
         # For now, just cover the case of not creating a table.
-        factory = DCBPostgresFactory(
+        factory = PostgresTextSearchDCBFactory(
             Environment(
                 name="test",
                 env={
@@ -736,7 +751,11 @@ class ConcurrentAppendTestCase(TestCase):
         ]
 
 
-class TestPostgresCommitOrderVsInsertOrder(ConcurrentAppendTestCase, WithPostgres):
+class TestPostgresDCBEventStoreTSCommitOrderVsInsertOrder(
+    ConcurrentAppendTestCase, WithPostgres
+):
+    postgres_dcb_eventstore_class = PostgresDCBEventStoreTS
+
     def test_commit_vs_insert_order(self) -> None:
         self._test_commit_vs_insert_order(self.eventstore)
 
@@ -753,7 +772,7 @@ def eventstore() -> Iterator[DCBEventStore]:
         user="eventsourcing",
         password="eventsourcing",  # noqa:  S106
     )
-    recorder = PostgresDCBEventStore(datastore)
+    recorder = PostgresDCBEventStoreTS(datastore)
     recorder.create_table()
     yield recorder
 
@@ -964,9 +983,9 @@ def test_recorder_read_events_one_query_two_tags(
 #             port=5432,
 #             user="eventsourcing",
 #             password="eventsourcing",  # no qa:  S106
-#             after_connect=PostgresDCBEventStore.register_pg_composite_type_adapters,
+#             after_connect=PostgresDCBEventStoreTS.register_pg_composite_type_adapters,
 #         )
-#         self.eventstore = PostgresDCBEventStore(datastore)
+#         self.eventstore = PostgresDCBEventStoreTS(datastore)
 #         self.eventstore.create_table()
 #
 #     def test(self):
