@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Sequence, NamedTuple
+from typing import Sequence, NamedTuple
 
-from docutils.nodes import row
 from psycopg.sql import SQL, Identifier
 
 from eventsourcing.persistence import ProgrammingError, IntegrityError
@@ -71,6 +70,8 @@ CREATE INDEX IF NOT EXISTS {index_name} ON
 """
 )
 
+SQL_EXPLAIN = SQL("EXPLAIN ANALYSE")
+
 SQL_STATEMENT_DCB_INSERT_EVENTS = SQL(
     """
 WITH input AS (
@@ -89,13 +90,13 @@ expanded_tags AS (
     tag
   FROM inserted ins,
        unnest(ins.tags) AS tag
-),    
+),
 tag_insert AS (
   INSERT INTO {schema}.{tag_table} (tag, type, main_id)
   SELECT tag, type, main_id
   FROM expanded_tags
 )
-SELECT id FROM inserted 
+SELECT id FROM inserted
 """
 )
 
@@ -129,7 +130,7 @@ matched_events AS (
   SELECT m.*
   FROM {schema}.{main_table} m
   JOIN qualified_main_ids q ON q.main_id = m.id
-  WHERE m.id > COALESCE(%(after)s, 0) 
+  WHERE m.id > COALESCE(%(after)s, 0)
 )
 SELECT * FROM matched_events
 ORDER BY id ASC
@@ -203,7 +204,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                 )
             ]
         )
-        
+
         self.sql_statement_insert_events = SQL_STATEMENT_DCB_INSERT_EVENTS.format(
             event_type=Identifier(PG_TYPE_NAME_DCB_EVENT_TT),
             schema=Identifier(self.datastore.schema),
@@ -220,6 +221,10 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             )
         )
         print(self.sql_statement_select_events_by_tags.as_string())
+        self.explain_sql_statement_select_events_by_tags = (
+            SQL_EXPLAIN + self.sql_statement_select_events_by_tags
+        )
+        print(self.explain_sql_statement_select_events_by_tags.as_string())
         self.sql_statement_select_events_all = (
             SQL_STATEMENT_SELECT_EVENTS_ALL.format(
                 schema=Identifier(self.datastore.schema),
@@ -284,6 +289,17 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                     self.construct_pg_dcb_query_item(q) for q in query.items
                 ]
                 curs.execute(
+                    self.explain_sql_statement_select_events_by_tags,
+                    {
+                        "query_items": pg_dcb_query_items,
+                        "after": after,
+                        "limit": limit,
+                    },
+                    prepare=True,
+                )
+                rows = curs.fetchall()
+                print("\n".join([r["QUERY PLAN"] for r in rows]))
+                curs.execute(
                     self.sql_statement_select_events_by_tags,
                     {
                         "query_items": pg_dcb_query_items,
@@ -295,7 +311,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                 rows = curs.fetchall()
         else:
             raise ProgrammingError("Unsupported query: %s" % query)
-        
+
         # Get max id.
         # TODO: This needs to be atomic, but good enough for testing with single thread.
         with self.datastore.get_connection() as conn:
