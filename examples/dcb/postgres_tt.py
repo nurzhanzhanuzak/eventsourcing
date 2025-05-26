@@ -267,6 +267,9 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             main_table=Identifier(self.pg_main_table_name),
             tag_table=Identifier(self.pg_tag_table_name),
         )
+        self.explain_sql_statement_insert_events = (
+            SQL_EXPLAIN + self.sql_statement_insert_events
+        )
         self.sql_statement_select_events_by_tags = (
             SQL_STATEMENT_SELECT_EVENTS_BY_TAGS.format(
                 query_item_type=Identifier(PG_TYPE_NAME_DCB_QUERY_ITEM_TT),
@@ -299,7 +302,6 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         *,
         after: int | None = None,
         limit: int | None = None,
-        return_head: bool = True,
     ) -> tuple[Sequence[DCBSequencedEvent], int | None]:
         with self.datastore.cursor() as curs:
             return self._read(
@@ -307,7 +309,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                 query=query,
                 after=after,
                 limit=limit,
-                return_head=return_head,
+                return_head=True,
             )
 
     def _read(
@@ -356,6 +358,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             pg_dcb_query_items = [
                 self.construct_pg_dcb_query_item(q) for q in query.items
             ]
+            
             # # Run EXPLAIN ANALYZE and print report...
             # print()
             # for q in query.items:
@@ -422,6 +425,20 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                 )
                 if failed:
                     raise IntegrityError(failed)
+                
+            # # Run EXPLAIN ANALYZE and print report...
+            # print()
+            # curs.execute(
+            #     self.explain_sql_statement_insert_events,
+            #     {
+            #         "events": pg_dcb_events,
+            #     },
+            #     prepare=True,
+            # )
+            # rows = curs.fetchall()
+            # print("\n".join([r["QUERY PLAN"] for r in rows]))
+            # print()
+
             curs.execute(
                 self.sql_statement_insert_events,
                 {

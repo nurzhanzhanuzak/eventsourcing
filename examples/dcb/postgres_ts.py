@@ -327,6 +327,7 @@ class PostgresDCBEventStoreTS(PostgresDCBEventStore):
     def read(
         self,
         query: DCBQuery | None = None,
+        *,
         after: int | None = None,
         limit: int | None = None,
     ) -> tuple[Sequence[DCBSequencedEvent], int | None]:
@@ -354,7 +355,12 @@ class PostgresDCBEventStoreTS(PostgresDCBEventStore):
                 )
                 for row in result[1:]
             ]
-            return events, max_position
+            if limit is None:
+                head = max_position
+            else:
+                head = events[-1].position if events else None
+
+            return events, head
 
     def append(
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None

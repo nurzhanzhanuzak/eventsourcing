@@ -27,6 +27,7 @@ class InMemoryDCBEventStore(DCBEventStore, POPORecorder):
     def read(
         self,
         query: DCBQuery | None = None,
+        *,
         after: int | None = None,
         limit: int | None = None,
     ) -> tuple[Sequence[DCBSequencedEvent], int | None]:
@@ -51,7 +52,11 @@ class InMemoryDCBEventStore(DCBEventStore, POPORecorder):
                 if limit is not None and i >= limit:
                     break
                 events.append(deepcopy(event))
-            return events, self.events[-1].position if self.events else None
+            if limit is None:
+                head = self.events[-1].position if self.events else None
+            else:
+                head = events[-1].position if events else None
+            return events, head
 
     def append(
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None
