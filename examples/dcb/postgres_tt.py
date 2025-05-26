@@ -223,17 +223,26 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         events_table_name: str = "dcb_events",
     ):
         super().__init__(datastore)
+        # Define identifiers.
         self.events_table_name = events_table_name + "_tt_main"
         self.tags_table_name = events_table_name + "_tt_tag"
         self.index_name_id_cover_type = self.events_table_name + "_idx_id_type"
         self.index_name_tag_main_id = self.tags_table_name + "_idx_tag_main_id"
+        
+        # Check identifier lengths.
         self.check_identifier_length(self.events_table_name)
         self.check_identifier_length(self.tags_table_name)
         self.check_identifier_length(self.index_name_id_cover_type)
         self.check_identifier_length(self.index_name_tag_main_id)
+        self.check_identifier_length(DB_TYPE_NAME_DCB_EVENT_TT)
+        self.check_identifier_length(DB_TYPE_NAME_DCB_QUERY_ITEM_TT)
+        
+        # Register composite database types.
         self.datastore.pg_type_names.add(DB_TYPE_NAME_DCB_EVENT_TT)
         self.datastore.pg_type_names.add(DB_TYPE_NAME_DCB_QUERY_ITEM_TT)
         self.datastore.register_type_adapters()
+        
+        # Define SQL template keyword arguments.
         self.sql_kwargs = {
             "schema": Identifier(self.datastore.schema),
             "events_table": Identifier(self.events_table_name),
@@ -243,7 +252,8 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             "id_cover_type_index": Identifier(self.index_name_id_cover_type),
             "tag_main_id_index": Identifier(self.index_name_tag_main_id),
         }
-
+        
+        # Format and extend SQL create statements.
         self.sql_create_statements.extend(
             [
                 self.format(DB_TYPE_DCB_EVENT),
@@ -254,7 +264,8 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                 self.format(DB_INDEX_TAG_MAIN_ID),
             ]
         )
-
+        
+        # Format other SQL statements.
         self.sql_select_by_tags = self.format(SQL_SELECT_BY_TAGS)
         self.sql_select_all = self.format(SQL_SELECT_ALL)
         self.sql_select_by_type = self.format(SQL_SELECT_EVENTS_BY_TYPE)
