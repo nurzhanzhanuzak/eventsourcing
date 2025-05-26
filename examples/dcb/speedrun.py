@@ -213,6 +213,7 @@ if __name__ == "__main__":
 
     if mode == "psql":
         subprocess.run(["psql", "--dbname", SPEEDRUN_DB_NAME])
+        sys.exit(0)
 
     if mode not in modes:
         print(f"Unknown mode: {mode}. Usage: {sys.argv[0]} [{' | '.join(modes)}]")

@@ -50,7 +50,13 @@ CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
     data bytea,
     tags text[] NOT NULL,
     text_vector tsvector
-) WITH (autovacuum_enabled=false)
+) WITH (
+  autovacuum_enabled = true,
+  autovacuum_vacuum_threshold = 100000000,  -- Effectively disables VACUUM
+  autovacuum_vacuum_scale_factor = 0.5,     -- Same here, high scale factor
+  autovacuum_analyze_threshold = 1000,      -- Triggers ANALYZE more often
+  autovacuum_analyze_scale_factor = 0.01    -- Triggers after 1% new rows
+)
 """
 )
 

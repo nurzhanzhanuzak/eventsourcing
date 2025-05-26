@@ -351,7 +351,7 @@ class DCBEventStoreTestCase(TestCase):
         # Can query without query items and limit.
         result, head = eventstore.read(limit=2)
         self.assertEqual(2, len(result))
-        self.assertEqual(7, head)
+        self.assertEqual(2, head)
 
         # Can query with query items and limit.
         result, head = eventstore.read(
@@ -361,7 +361,7 @@ class DCBEventStoreTestCase(TestCase):
             limit=2,
         )
         self.assertEqual(2, len(result))
-        self.assertEqual(7, head)
+        self.assertEqual(3, head)
 
         student_id = f"student1-{uuid4()}"
         student_registered = DCBEvent(
@@ -483,7 +483,7 @@ class DCBEventStoreTestCase(TestCase):
             limit=1,
         )
         self.assertEqual(1, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(8, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -493,7 +493,7 @@ class DCBEventStoreTestCase(TestCase):
             limit=1,
         )
         self.assertEqual(1, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(9, head)
 
         result, head = eventstore.read(
             query=DCBQuery(

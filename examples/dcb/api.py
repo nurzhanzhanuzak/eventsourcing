@@ -41,12 +41,16 @@ class DCBSequencedEvent:
 
 
 class DCBEventStore(ABC):
+    
+    
     @abstractmethod
     def read(
         self,
         query: DCBQuery | None = None,
+        *,
         after: int | None = None,
         limit: int | None = None,
+        return_head: bool = True,
     ) -> tuple[Sequence[DCBSequencedEvent], int | None]:
         """
         Returns all events, unless 'after' is given then only those with position

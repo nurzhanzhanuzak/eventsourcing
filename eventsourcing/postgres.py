@@ -225,6 +225,11 @@ class PostgresDatastore:
             raise
 
     @contextmanager
+    def cursor(self) -> Iterator[Cursor[DictRow]]:
+        with self.get_connection() as conn:
+            yield conn.cursor()
+
+    @contextmanager
     def transaction(self, *, commit: bool = False) -> Iterator[Cursor[DictRow]]:
         with self.get_connection() as conn, conn.transaction(force_rollback=not commit):
             yield conn.cursor()
@@ -279,8 +284,8 @@ class PostgresRecorder:
                 except psycopg.errors.SyntaxError as e:
                     msg = f"Syntax error: '{e}' in: {statement.as_string()}"
                     raise ProgrammingError(msg) from e
-                else:
-                    print(statement.as_string())
+                # else:
+                #     print(statement.as_string())
 
         # Create tables, indexes, types, functions, and procedures.
         with self.datastore.transaction(commit=True) as curs:
@@ -298,8 +303,8 @@ class PostgresRecorder:
             except psycopg.errors.SyntaxError as e:
                 msg = f"Syntax error: '{e}' in: {statement.as_string()}"
                 raise ProgrammingError(msg) from e
-            else:
-                print(statement.as_string())
+            # else:
+            #     print(statement.as_string())
 
 
 class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
@@ -333,7 +338,13 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
                 "state bytea, "
                 "PRIMARY KEY "
                 "(originator_id, originator_version)) "
-                "WITH (autovacuum_enabled=false)"
+                "WITH ("
+                "    autovacuum_enabled = true,"
+                "    autovacuum_vacuum_threshold,"
+                "    autovacuum_vacuum_scale_factor = 0.5,"
+                "    autovacuum_analyze_threshold = 1000,"
+                "    autovacuum_analyze_scale_factor = 0.01"
+                ")"
             ).format(
                 schema=Identifier(self.datastore.schema),
                 table=Identifier(self.events_table_name),
@@ -480,7 +491,13 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
             "notification_id bigserial, "
             "PRIMARY KEY "
             "(originator_id, originator_version)) "
-            "WITH (autovacuum_enabled=false)"
+            "WITH ("
+            "    autovacuum_enabled = true,"
+            "    autovacuum_vacuum_threshold,"
+            "    autovacuum_vacuum_scale_factor = 0.5,"
+            "    autovacuum_analyze_threshold = 1000,"
+            "    autovacuum_analyze_scale_factor = 0.01"
+            ")"
         ).format(
             schema=Identifier(self.datastore.schema),
             table=Identifier(self.events_table_name),
@@ -810,6 +827,13 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
                     "notification_id bigint, "
                     "PRIMARY KEY "
                     "(application_name))"
+                    "WITH ("
+                    "    autovacuum_enabled = true,"
+                    "    autovacuum_vacuum_threshold,"
+                    "    autovacuum_vacuum_scale_factor = 0.5,"
+                    "    autovacuum_analyze_threshold = 1000,"
+                    "    autovacuum_analyze_scale_factor = 0.01"
+                    ")"
                 ).format(
                     Identifier(self.datastore.schema),
                     Identifier(self.tracking_table_name),
@@ -835,6 +859,13 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
                     "notification_id bigint, "
                     "PRIMARY KEY "
                     "(application_name, notification_id))"
+                    "WITH ("
+                    "    autovacuum_enabled = true,"
+                    "    autovacuum_vacuum_threshold,"
+                    "    autovacuum_vacuum_scale_factor = 0.5,"
+                    "    autovacuum_analyze_threshold = 1000,"
+                    "    autovacuum_analyze_scale_factor = 0.01"
+                    ")"
                 ).format(
                     Identifier(self.datastore.schema),
                     Identifier(self.tracking_table_name),
