@@ -41,8 +41,7 @@ class DCBSequencedEvent:
 
 
 class DCBEventStore(ABC):
-    
-    
+
     @abstractmethod
     def read(
         self,

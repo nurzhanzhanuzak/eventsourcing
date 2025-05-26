@@ -22,12 +22,12 @@ from examples.dcb.api import (
     DCBSequencedEvent,
 )
 from examples.dcb.popo import InMemoryDCBEventStore
-from examples.dcb.postgres_tt import PostgresDCBEventStoreTT
 from examples.dcb.postgres_ts import (
     PostgresDCBEventStore,
     PostgresDCBEventStoreTS,
     PostgresTSDCBFactory,
 )
+from examples.dcb.postgres_tt import PostgresDCBEventStoreTT
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -557,9 +557,7 @@ class TestPostgresDCBEventStoreTS(DCBEventStoreTestCase, WithPostgres):
 
     def test_pg_type_dcb_event(self) -> None:
         # Check "dcb_event" type.
-        event = cast(
-            PostgresDCBEventStoreTS, self.eventstore
-        ).construct_pg_dcb_event(
+        event = cast(PostgresDCBEventStoreTS, self.eventstore).construct_pg_dcb_event(
             type="EventType1",
             data=b"data",
             tags=["tag1", "tag2"],

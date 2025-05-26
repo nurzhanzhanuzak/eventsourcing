@@ -96,7 +96,7 @@ def set_signal_handler() -> None:
     def sigint_handler(*_: Any) -> None:
         global interrupted  # noqa: PLW0603
         interrupted = True
-    
+
     signal.signal(signal.SIGINT, sigint_handler)
 
 
@@ -245,7 +245,7 @@ if __name__ == "__main__":
         print()
 
     with cls(env=env) as app:
-        
+
         set_signal_handler()
 
         r_students = inf_range()

@@ -4,14 +4,16 @@ import psycopg
 from psycopg.sql import SQL, Identifier
 
 from eventsourcing.postgres import PostgresDatastore
-from examples.dcb.postgres_tt import PG_TYPE_NAME_DCB_EVENT_TT, \
-    PG_TYPE_NAME_DCB_QUERY_ITEM_TT
 from examples.dcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS,
     PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
     PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
     PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
     PG_TYPE_NAME_DCB_EVENT_TS,
+)
+from examples.dcb.postgres_tt import (
+    PG_TYPE_NAME_DCB_EVENT_TT,
+    PG_TYPE_NAME_DCB_QUERY_ITEM_TT,
 )
 
 
