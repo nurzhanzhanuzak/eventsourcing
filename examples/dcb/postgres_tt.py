@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 
-from psycopg.sql import SQL, Composed, Identifier, Composable
+from psycopg.sql import SQL, Composed, Identifier
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.postgres import (
@@ -123,34 +123,6 @@ SELECT MAX(id) FROM {schema}.{events_table}
 """
 )
 
-SQL_INSERT_EVENTS = SQL(
-    """
-WITH input AS (
-      SELECT * FROM unnest(%(events)s::{event_type}[])
-),
-inserted AS (
-    INSERT INTO {schema}.{events_table} (type, data, tags)
-    SELECT i.type, i.data, i.tags
-    FROM input i
-    RETURNING id, type, tags
-),
-expanded_tags AS (
-    SELECT
-        ins.id AS main_id,
-        ins.type,
-        tag
-    FROM inserted ins,
-       unnest(ins.tags) AS tag
-),
-tag_insert AS (
-    INSERT INTO {schema}.{tags_table} (tag, type, main_id)
-    SELECT tag, type, main_id
-    FROM expanded_tags
-)
-SELECT id FROM inserted
-"""
-)
-
 SQL_SELECT_BY_TAGS = SQL(
     """
 WITH query_items AS (
@@ -169,6 +141,7 @@ initial_matches AS (
     FROM query_items qi
     JOIN {schema}.{tags_table} t
       ON t.tag = ANY(qi.tags)
+   WHERE t.main_id > COALESCE(%(after)s, 0)
 ),
 matched_groups AS (
     SELECT
@@ -206,13 +179,112 @@ ORDER BY m.id ASC;
 """
 )
 
+SQL_INSERT_EVENTS = SQL(
+    """
+WITH input AS (
+      SELECT * FROM unnest(%(events)s::{event_type}[])
+),
+inserted AS (
+    INSERT INTO {schema}.{events_table} (type, data, tags)
+    SELECT i.type, i.data, i.tags
+    FROM input i
+    RETURNING id, type, tags
+),
+expanded_tags AS (
+    SELECT
+        ins.id AS main_id,
+        ins.type,
+        tag
+    FROM inserted ins,
+       unnest(ins.tags) AS tag
+),
+tag_insert AS (
+    INSERT INTO {schema}.{tags_table} (tag, type, main_id)
+    SELECT tag, type, main_id
+    FROM expanded_tags
+)
+SELECT id FROM inserted
+"""
+)
+
 SQL_CONDITIONAL_APPEND = SQL(
     """
+WITH query_items AS (
+    SELECT * FROM unnest(
+        %(query_items)s::{schema}.{query_item_type}[]
+    ) WITH ORDINALITY
+),
+initial_matches AS (
+    SELECT
+        t.main_id,
+        qi.ordinality,
+        t.type,
+        t.tag,
+        qi.tags AS required_tags,
+        qi.types AS allowed_types
+    FROM query_items qi
+    JOIN {schema}.{tags_table} t
+      ON t.tag = ANY(qi.tags)
+   WHERE t.main_id > COALESCE(%(after)s, 0)
+),
+matched_groups AS (
+    SELECT
+        main_id,
+        ordinality,
+    COUNT(DISTINCT tag) AS matched_tag_count,
+        array_length(required_tags, 1) AS required_tag_count,
+        allowed_types
+    FROM initial_matches
+    GROUP BY main_id, ordinality, required_tag_count, allowed_types
+),
+qualified_ids AS (
+    SELECT main_id, allowed_types
+    FROM matched_groups
+    WHERE matched_tag_count = required_tag_count
+),
+filtered_ids AS (
+    SELECT m.id
+    FROM {schema}.{events_table} m
+    JOIN qualified_ids q ON q.main_id = m.id
+    WHERE
+        m.id > COALESCE(%(after)s, 0)
+        AND (
+            array_length(q.allowed_types, 1) IS NULL
+            OR array_length(q.allowed_types, 1) = 0
+            OR m.type = ANY(q.allowed_types)
+        )
+    LIMIT 1
+),
+new_events AS (
+      SELECT * FROM unnest(%(events)s::{event_type}[])
+),
+inserted AS (
+    INSERT INTO {schema}.{events_table} (type, data, tags)
+    SELECT e.type, e.data, e.tags
+    FROM new_events e
+    WHERE NOT EXISTS (SELECT 1 FROM filtered_ids)
+    RETURNING id, type, tags
+),
+expanded_tags AS (
+    SELECT
+        ins.id AS main_id,
+        ins.type,
+        tag
+    FROM inserted ins,
+       unnest(ins.tags) AS tag
+),
+tag_insert AS (
+    INSERT INTO {schema}.{tags_table} (tag, type, main_id)
+    SELECT tag, type, main_id
+    FROM expanded_tags
+)
+SELECT COALESCE(MAX(id), -1) AS result
+FROM inserted;
 """
 )
 
 SQL_EXPLAIN = SQL("EXPLAIN")
-SQL_EXPLAIN_ANALYZE = SQL("EXPLAIN ANALYZE")
+SQL_EXPLAIN_ANALYZE = SQL("EXPLAIN (ANALYZE, BUFFERS, VERBOSE)")
 
 
 class PostgresDCBEventStoreTT(PostgresDCBEventStore):
@@ -228,7 +300,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         self.tags_table_name = events_table_name + "_tt_tag"
         self.index_name_id_cover_type = self.events_table_name + "_idx_id_type"
         self.index_name_tag_main_id = self.tags_table_name + "_idx_tag_main_id"
-        
+
         # Check identifier lengths.
         self.check_identifier_length(self.events_table_name)
         self.check_identifier_length(self.tags_table_name)
@@ -236,12 +308,12 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         self.check_identifier_length(self.index_name_tag_main_id)
         self.check_identifier_length(DB_TYPE_NAME_DCB_EVENT_TT)
         self.check_identifier_length(DB_TYPE_NAME_DCB_QUERY_ITEM_TT)
-        
+
         # Register composite database types.
         self.datastore.pg_type_names.add(DB_TYPE_NAME_DCB_EVENT_TT)
         self.datastore.pg_type_names.add(DB_TYPE_NAME_DCB_QUERY_ITEM_TT)
         self.datastore.register_type_adapters()
-        
+
         # Define SQL template keyword arguments.
         self.sql_kwargs = {
             "schema": Identifier(self.datastore.schema),
@@ -252,7 +324,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             "id_cover_type_index": Identifier(self.index_name_id_cover_type),
             "tag_main_id_index": Identifier(self.index_name_tag_main_id),
         }
-        
+
         # Format and extend SQL create statements.
         self.sql_create_statements.extend(
             [
@@ -264,7 +336,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                 self.format(DB_INDEX_TAG_MAIN_ID),
             ]
         )
-        
+
         # Format other SQL statements.
         self.sql_select_by_tags = self.format(SQL_SELECT_BY_TAGS)
         self.sql_select_all = self.format(SQL_SELECT_ALL)
@@ -272,7 +344,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         self.sql_select_max_id = self.format(SQL_SELECT_MAX_ID)
         self.sql_insert_events = self.format(SQL_INSERT_EVENTS)
         self.sql_conditional_append = self.format(SQL_CONDITIONAL_APPEND)
-        
+
     def format(self, sql: SQL) -> Composed:
         return sql.format(**self.sql_kwargs)
 
@@ -378,21 +450,31 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
     ) -> int:
         assert len(events) > 0
         pg_dcb_events = [self.construct_pg_dcb_event(e) for e in events]
-        # if condition and self.has_all_query_items_have_tags(condition.fail_if_events_match):
-        #     with self.datastore.cursor() as curs:
-        #         self.execute(
-        #             curs,
-        #             self.sql_statement_conditional_append,
-        #             {
-        #                 "events": pg_dcb_events,
-        #             },
-        #             explain=True,
-        #         )
-        #         rows = curs.fetchall()
-        #         if len(rows) > 0:
-        #             return max(row["id"] for row in rows)
-        #         else:
-        #             raise IntegrityError
+
+        # Maybe do single-statement "conditional append".
+        if condition and self.has_all_query_items_have_tags(
+            condition.fail_if_events_match
+        ):
+            pg_dcb_query_items = self.construct_db_query_items(
+                condition.fail_if_events_match.items
+            )
+            with self.datastore.cursor() as curs:
+                self.execute(
+                    curs,
+                    self.sql_conditional_append,
+                    {
+                        "query_items": pg_dcb_query_items,
+                        "events": pg_dcb_events,
+                        "after": condition.after,
+                    },
+                    explain=False,
+                )
+                row = curs.fetchone()
+                assert row is not None
+                result = row["result"]
+                if result == -1:
+                    raise IntegrityError
+                return result
 
         with self.datastore.transaction(commit=True) as curs:
             if condition is not None:
@@ -457,16 +539,16 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         explain: bool = False,
     ) -> None:
         if explain:
-            self.datastore.pool.resize(2, 2)
-            print()
-            print("Statement:", statement.as_string())
-            print("Params:", params)
+            # self.datastore.pool.resize(2, 2)
+            print()  # noqa: T201
+            print("Statement:", statement.as_string())  # noqa: T201
+            print("Params:", params)  # noqa: T201
             with self.datastore.transaction(commit=False) as explain_cursor:
-                explain_cursor.execute(SQL_EXPLAIN + statement, params)
+                explain_cursor.execute(SQL_EXPLAIN_ANALYZE + statement, params)
                 rows = explain_cursor.fetchall()
-                print("\n".join([r["QUERY PLAN"] for r in rows]))
-                print()
-            self.datastore.pool.resize(1, 1)
+                print("\n".join([r["QUERY PLAN"] for r in rows]))  # noqa: T201
+                print()  # noqa: T201
+            # self.datastore.pool.resize(1, 1)
         cursor.execute(statement, params, prepare=True)
 
 
