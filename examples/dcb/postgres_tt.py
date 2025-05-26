@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 
-from psycopg.sql import SQL, Identifier
+from psycopg.sql import SQL, Composed, Identifier
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.postgres import (
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from psycopg import Cursor
+    from psycopg.abc import Params
     from psycopg.rows import DictRow
 
 PG_TYPE_NAME_DCB_EVENT_TT = "dcb_event_tt"
@@ -97,9 +98,32 @@ CREATE INDEX IF NOT EXISTS {tag_main_id_index} ON
 """
 )
 
-SQL_EXPLAIN = SQL("EXPLAIN ANALYSE")
+SQL_STATEMENT_SELECT_EVENTS_ALL = SQL(
+    """
+SELECT * FROM {schema}.{events_table}
+WHERE id > COALESCE(%(after)s, 0)
+ORDER BY id ASC
+LIMIT COALESCE(%(limit)s, 9223372036854775807)
+"""
+)
 
-SQL_STATEMENT_DCB_INSERT_EVENTS = SQL(
+SQL_STATEMENT_SELECT_EVENTS_BY_TYPE = SQL(
+    """
+SELECT * FROM {schema}.{events_table}
+WHERE type = %(event_type)s
+AND id > COALESCE(%(after)s, 0)
+ORDER BY id ASC
+LIMIT COALESCE(%(limit)s, 9223372036854775807)
+"""
+)
+
+SQL_STATEMENT_SELECT_MAX_ID = SQL(
+    """
+SELECT MAX(id) FROM {schema}.{events_table}
+"""
+)
+
+SQL_STATEMENT_INSERT_EVENTS = SQL(
     """
 WITH input AS (
       SELECT * FROM unnest(%(events)s::{event_type}[])
@@ -187,31 +211,8 @@ SQL_STATEMENT_CONDITIONAL_APPEND = SQL(
 """
 )
 
-
-SQL_STATEMENT_SELECT_EVENTS_ALL = SQL(
-    """
-SELECT * FROM {schema}.{events_table}
-WHERE id > COALESCE(%(after)s, 0)
-ORDER BY id ASC
-LIMIT COALESCE(%(limit)s, 9223372036854775807)
-"""
-)
-
-SQL_STATEMENT_SELECT_EVENTS_BY_TYPE = SQL(
-    """
-SELECT * FROM {schema}.{events_table}
-WHERE type = %(event_type)s
-AND id > COALESCE(%(after)s, 0)
-ORDER BY id ASC
-LIMIT COALESCE(%(limit)s, 9223372036854775807)
-"""
-)
-
-SQL_STATEMENT_SELECT_MAX_ID = SQL(
-    """
-SELECT MAX(id) FROM {schema}.{events_table}
-"""
-)
+SQL_EXPLAIN = SQL("EXPLAIN")
+SQL_EXPLAIN_ANALYZE = SQL("EXPLAIN ANALYZE")
 
 
 class PostgresDCBEventStoreTT(PostgresDCBEventStore):
@@ -254,17 +255,11 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             ]
         )
 
-        self.sql_statement_insert_events = SQL_STATEMENT_DCB_INSERT_EVENTS.format(
-            **self.sql_kwargs
-        )
-        self.explain_sql_statement_insert_events = (
-            SQL_EXPLAIN + self.sql_statement_insert_events
-        )
         self.sql_statement_select_events_by_tags = (
             SQL_STATEMENT_SELECT_EVENTS_BY_TAGS.format(**self.sql_kwargs)
         )
         self.explain_sql_statement_select_events_by_tags = (
-            SQL_EXPLAIN + self.sql_statement_select_events_by_tags
+            SQL_EXPLAIN_ANALYZE + self.sql_statement_select_events_by_tags
         )
         self.sql_statement_select_events_all = SQL_STATEMENT_SELECT_EVENTS_ALL.format(
             **self.sql_kwargs
@@ -273,6 +268,12 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             SQL_STATEMENT_SELECT_EVENTS_BY_TYPE.format(**self.sql_kwargs)
         )
         self.sql_statement_select_max_id = SQL_STATEMENT_SELECT_MAX_ID.format(
+            **self.sql_kwargs
+        )
+        self.sql_statement_insert_events = SQL_STATEMENT_INSERT_EVENTS.format(
+            **self.sql_kwargs
+        )
+        self.sql_statement_conditional_append = SQL_STATEMENT_CONDITIONAL_APPEND.format(
             **self.sql_kwargs
         )
 
@@ -302,7 +303,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         return_head: bool = True,
     ) -> tuple[Sequence[DCBSequencedEvent], int | None]:
         if return_head and limit is None:
-            curs.execute(self.sql_statement_select_max_id, prepare=True)
+            self.execute(curs, self.sql_statement_select_max_id, explain=False)
             row = curs.fetchone()
             head = None if row is None else row["max"]
         else:
@@ -310,61 +311,47 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
 
         if not query or not query.items:
             # Select all.
-            curs.execute(
+            self.execute(
+                curs,
                 self.sql_statement_select_events_all,
                 {
                     "after": after,
                     "limit": limit,
                 },
-                prepare=True,
+                explain=False,
             )
             rows = curs.fetchall()
 
-        elif self.one_query_item_one_type(query):
-            # Select for one type.
-            curs.execute(
-                self.sql_statement_select_events_by_type,
-                {
-                    "event_type": query.items[0].types[0],
-                    "after": after,
-                    "limit": limit,
-                },
-                prepare=True,
-            )
-            rows = curs.fetchall()
-
-        elif self.all_query_items_have_tags(query):
+        elif self.has_all_query_items_have_tags(query):
             # Select with tags.
             pg_dcb_query_items = self.construct_db_query_items(query.items)
-            
-            # # Run EXPLAIN ANALYZE and print report...
-            # print()
-            # for q in query.items:
-            #     print("Query item tags:", q.tags, "types:", q.types)
-            # print("After:", after, "Limit:", limit)
-            # curs.execute(
-            #     self.explain_sql_statement_select_events_by_tags,
-            #     {
-            #         "query_items": pg_dcb_query_items,
-            #         "after": after,
-            #         "limit": limit,
-            #     },
-            #     prepare=True,
-            # )
-            # rows = curs.fetchall()
-            # print("\n".join([r["QUERY PLAN"] for r in rows]))
-            # print()
 
-            curs.execute(
+            self.execute(
+                curs,
                 self.sql_statement_select_events_by_tags,
                 {
                     "query_items": pg_dcb_query_items,
                     "after": after,
                     "limit": limit,
                 },
-                prepare=True,
+                explain=False,
             )
             rows = curs.fetchall()
+
+        elif self.has_one_query_item_one_type(query):
+            # Select for one type.
+            self.execute(
+                curs,
+                self.sql_statement_select_events_by_type,
+                {
+                    "event_type": query.items[0].types[0],
+                    "after": after,
+                    "limit": limit,
+                },
+                explain=False,
+            )
+            rows = curs.fetchall()
+
         else:
             msg = f"Unsupported query: {query}"
             raise ProgrammingError(msg)
@@ -387,14 +374,27 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
 
         return events, head
 
-    def construct_db_query_items(self, query_items: Sequence[DCBQueryItem]) -> list[PgDCBQueryItem]:
-        return [self.construct_pg_dcb_query_item(q) for q in query_items]
-
     def append(
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None
     ) -> int:
         assert len(events) > 0
         pg_dcb_events = [self.construct_pg_dcb_event(e) for e in events]
+        # if condition and self.has_all_query_items_have_tags(condition.fail_if_events_match):
+        #     with self.datastore.cursor() as curs:
+        #         self.execute(
+        #             curs,
+        #             self.sql_statement_conditional_append,
+        #             {
+        #                 "events": pg_dcb_events,
+        #             },
+        #             explain=True,
+        #         )
+        #         rows = curs.fetchall()
+        #         if len(rows) > 0:
+        #             return max(row["id"] for row in rows)
+        #         else:
+        #             raise IntegrityError
+
         with self.datastore.transaction(commit=True) as curs:
             if condition is not None:
                 failed, head = self._read(
@@ -406,26 +406,14 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                 )
                 if failed:
                     raise IntegrityError(failed)
-                
-            # # Run EXPLAIN ANALYZE and print report...
-            # print()
-            # curs.execute(
-            #     self.explain_sql_statement_insert_events,
-            #     {
-            #         "events": pg_dcb_events,
-            #     },
-            #     prepare=True,
-            # )
-            # rows = curs.fetchall()
-            # print("\n".join([r["QUERY PLAN"] for r in rows]))
-            # print()
 
-            curs.execute(
+            self.execute(
+                curs,
                 self.sql_statement_insert_events,
                 {
                     "events": pg_dcb_events,
                 },
-                prepare=True,
+                explain=False,
             )
             rows = curs.fetchall()
             assert len(rows) > 0
@@ -438,6 +426,11 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             tags=dcb_event.tags,
         )
 
+    def construct_db_query_items(
+        self, query_items: Sequence[DCBQueryItem]
+    ) -> list[PgDCBQueryItem]:
+        return [self.construct_pg_dcb_query_item(q) for q in query_items]
+
     def construct_pg_dcb_query_item(
         self, dcb_query_item: DCBQueryItem
     ) -> PgDCBQueryItem:
@@ -446,15 +439,36 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             tags=dcb_query_item.tags,
         )
 
-    def one_query_item_one_type(self, query: DCBQuery) -> bool:
+    def has_one_query_item_one_type(self, query: DCBQuery) -> bool:
         return (
             len(query.items) == 1
             and len(query.items[0].types) == 1
             and len(query.items[0].tags) == 0
         )
 
-    def all_query_items_have_tags(self, query: DCBQuery) -> bool:
-        return all(len(q.tags) > 0 for q in query.items)
+    def has_all_query_items_have_tags(self, query: DCBQuery) -> bool:
+        return all(len(q.tags) > 0 for q in query.items) and len(query.items) > 0
+
+    def execute(
+        self,
+        cursor: Cursor[DictRow],
+        statement: Composed,
+        params: Params | None = None,
+        *,
+        explain: bool = False,
+    ) -> None:
+        if explain:
+            self.datastore.pool.resize(2, 2)
+            print()
+            print("Statement:", statement.as_string())
+            print("Params:", params)
+            with self.datastore.transaction(commit=False) as explain_cursor:
+                explain_cursor.execute(SQL_EXPLAIN + statement, params)
+                rows = explain_cursor.fetchall()
+                print("\n".join([r["QUERY PLAN"] for r in rows]))
+                print()
+            self.datastore.pool.resize(1, 1)
+        cursor.execute(statement, params, prepare=True)
 
 
 class PgDCBEvent(NamedTuple):
