@@ -302,11 +302,11 @@ if __name__ == "__main__":
                 ).total_seconds()
                 report_rate = report_ops / report_timedelta
                 print(
-                    f" [{str(total_timedelta).split('.')[0]}s]",
-                    f"{i} iterations,",
-                    f"{total_ops} ops total,",
-                    f"{int(report_rate)} ops/s",
-                    f"{int(1000000 / report_rate)} μs/op",
+                    f" [{str(total_timedelta).split('.')[0]}s] ",
+                    f"{i:>8} iterations ",
+                    f"{str(total_ops):>8} ops ",
+                    f"{str(int(1000000 / report_rate)):>7} μs/op",
+                    f"{str(int(report_rate)):>7} ops/s ",
                 )
                 report_ops = 0
                 started_report = datetime_now_with_tzinfo()
