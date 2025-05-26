@@ -12,8 +12,8 @@ from examples.dcb.postgres_ts import (
     PG_TYPE_NAME_DCB_EVENT_TS,
 )
 from examples.dcb.postgres_tt import (
-    PG_TYPE_NAME_DCB_EVENT_TT,
-    PG_TYPE_NAME_DCB_QUERY_ITEM_TT,
+    DB_TYPE_NAME_DCB_EVENT_TT,
+    DB_TYPE_NAME_DCB_QUERY_ITEM_TT,
 )
 
 
@@ -86,8 +86,8 @@ def drop_tables() -> None:
                 "stored_event_uuid",
                 "stored_event_text",
                 PG_TYPE_NAME_DCB_EVENT_TS,
-                PG_TYPE_NAME_DCB_EVENT_TT,
-                PG_TYPE_NAME_DCB_QUERY_ITEM_TT,
+                DB_TYPE_NAME_DCB_EVENT_TT,
+                DB_TYPE_NAME_DCB_QUERY_ITEM_TT,
             ]
             for name in composite_types:
                 statement = SQL("DROP TYPE IF EXISTS {schema}.{name} CASCADE").format(

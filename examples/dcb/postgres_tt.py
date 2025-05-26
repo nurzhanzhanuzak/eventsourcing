@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 
-from psycopg.sql import SQL, Composed, Identifier
+from psycopg.sql import SQL, Composed, Identifier, Composable
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.postgres import (
@@ -28,9 +28,9 @@ if TYPE_CHECKING:
     from psycopg.abc import Params
     from psycopg.rows import DictRow
 
-PG_TYPE_NAME_DCB_EVENT_TT = "dcb_event_tt"
+DB_TYPE_NAME_DCB_EVENT_TT = "dcb_event_tt"
 
-PG_TYPE_DCB_EVENT = SQL(
+DB_TYPE_DCB_EVENT = SQL(
     """
 CREATE TYPE {schema}.{event_type} AS (
     type text,
@@ -40,9 +40,9 @@ CREATE TYPE {schema}.{event_type} AS (
 """
 )
 
-PG_TYPE_NAME_DCB_QUERY_ITEM_TT = "query_item_tt"
+DB_TYPE_NAME_DCB_QUERY_ITEM_TT = "query_item_tt"
 
-PG_TYPE_DCB_QUERY_ITEM = SQL(
+DB_TYPE_DCB_QUERY_ITEM = SQL(
     """
 CREATE TYPE {schema}.{query_item_type} AS (
     types text[],
@@ -51,7 +51,7 @@ CREATE TYPE {schema}.{query_item_type} AS (
 """
 )
 
-PG_TABLE_DCB_EVENTS = SQL(
+DB_TABLE_DCB_EVENTS = SQL(
     """
 CREATE TABLE IF NOT EXISTS {schema}.{events_table} (
     id bigserial,
@@ -68,14 +68,14 @@ CREATE TABLE IF NOT EXISTS {schema}.{events_table} (
 """
 )
 
-PG_INDEX_UNIQUE_ID_COVER_TYPE = SQL(
+DB_INDEX_UNIQUE_ID_COVER_TYPE = SQL(
     """
 CREATE UNIQUE INDEX IF NOT EXISTS {id_cover_type_index} ON
 {schema}.{events_table} (id) INCLUDE (type)
 """
 )
 
-PG_TABLE_DCB_TAGS = SQL(
+DB_TABLE_DCB_TAGS = SQL(
     """
 CREATE TABLE IF NOT EXISTS {schema}.{tags_table} (
     tag text,
@@ -91,14 +91,14 @@ CREATE TABLE IF NOT EXISTS {schema}.{tags_table} (
 """
 )
 
-PG_INDEX_TAG_MAIN_ID = SQL(
+DB_INDEX_TAG_MAIN_ID = SQL(
     """
 CREATE INDEX IF NOT EXISTS {tag_main_id_index} ON
 {schema}.{tags_table} (tag, main_id)
 """
 )
 
-SQL_STATEMENT_SELECT_EVENTS_ALL = SQL(
+SQL_SELECT_ALL = SQL(
     """
 SELECT * FROM {schema}.{events_table}
 WHERE id > COALESCE(%(after)s, 0)
@@ -107,7 +107,7 @@ LIMIT COALESCE(%(limit)s, 9223372036854775807)
 """
 )
 
-SQL_STATEMENT_SELECT_EVENTS_BY_TYPE = SQL(
+SQL_SELECT_EVENTS_BY_TYPE = SQL(
     """
 SELECT * FROM {schema}.{events_table}
 WHERE type = %(event_type)s
@@ -117,13 +117,13 @@ LIMIT COALESCE(%(limit)s, 9223372036854775807)
 """
 )
 
-SQL_STATEMENT_SELECT_MAX_ID = SQL(
+SQL_SELECT_MAX_ID = SQL(
     """
 SELECT MAX(id) FROM {schema}.{events_table}
 """
 )
 
-SQL_STATEMENT_INSERT_EVENTS = SQL(
+SQL_INSERT_EVENTS = SQL(
     """
 WITH input AS (
       SELECT * FROM unnest(%(events)s::{event_type}[])
@@ -151,7 +151,7 @@ SELECT id FROM inserted
 """
 )
 
-SQL_STATEMENT_SELECT_EVENTS_BY_TAGS = SQL(
+SQL_SELECT_BY_TAGS = SQL(
     """
 WITH query_items AS (
     SELECT * FROM unnest(
@@ -206,7 +206,7 @@ ORDER BY m.id ASC;
 """
 )
 
-SQL_STATEMENT_CONDITIONAL_APPEND = SQL(
+SQL_CONDITIONAL_APPEND = SQL(
     """
 """
 )
@@ -231,51 +231,39 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         self.check_identifier_length(self.tags_table_name)
         self.check_identifier_length(self.index_name_id_cover_type)
         self.check_identifier_length(self.index_name_tag_main_id)
-        self.datastore.pg_type_names.add(PG_TYPE_NAME_DCB_EVENT_TT)
-        self.datastore.pg_type_names.add(PG_TYPE_NAME_DCB_QUERY_ITEM_TT)
+        self.datastore.pg_type_names.add(DB_TYPE_NAME_DCB_EVENT_TT)
+        self.datastore.pg_type_names.add(DB_TYPE_NAME_DCB_QUERY_ITEM_TT)
         self.datastore.register_type_adapters()
         self.sql_kwargs = {
             "schema": Identifier(self.datastore.schema),
             "events_table": Identifier(self.events_table_name),
             "tags_table": Identifier(self.tags_table_name),
-            "event_type": Identifier(PG_TYPE_NAME_DCB_EVENT_TT),
-            "query_item_type": Identifier(PG_TYPE_NAME_DCB_QUERY_ITEM_TT),
+            "event_type": Identifier(DB_TYPE_NAME_DCB_EVENT_TT),
+            "query_item_type": Identifier(DB_TYPE_NAME_DCB_QUERY_ITEM_TT),
             "id_cover_type_index": Identifier(self.index_name_id_cover_type),
             "tag_main_id_index": Identifier(self.index_name_tag_main_id),
         }
 
         self.sql_create_statements.extend(
             [
-                PG_TYPE_DCB_EVENT.format(**self.sql_kwargs),
-                PG_TYPE_DCB_QUERY_ITEM.format(**self.sql_kwargs),
-                PG_TABLE_DCB_EVENTS.format(**self.sql_kwargs),
-                PG_INDEX_UNIQUE_ID_COVER_TYPE.format(**self.sql_kwargs),
-                PG_TABLE_DCB_TAGS.format(**self.sql_kwargs),
-                PG_INDEX_TAG_MAIN_ID.format(**self.sql_kwargs),
+                self.format(DB_TYPE_DCB_EVENT),
+                self.format(DB_TYPE_DCB_QUERY_ITEM),
+                self.format(DB_TABLE_DCB_EVENTS),
+                self.format(DB_INDEX_UNIQUE_ID_COVER_TYPE),
+                self.format(DB_TABLE_DCB_TAGS),
+                self.format(DB_INDEX_TAG_MAIN_ID),
             ]
         )
 
-        self.sql_statement_select_events_by_tags = (
-            SQL_STATEMENT_SELECT_EVENTS_BY_TAGS.format(**self.sql_kwargs)
-        )
-        self.explain_sql_statement_select_events_by_tags = (
-            SQL_EXPLAIN_ANALYZE + self.sql_statement_select_events_by_tags
-        )
-        self.sql_statement_select_events_all = SQL_STATEMENT_SELECT_EVENTS_ALL.format(
-            **self.sql_kwargs
-        )
-        self.sql_statement_select_events_by_type = (
-            SQL_STATEMENT_SELECT_EVENTS_BY_TYPE.format(**self.sql_kwargs)
-        )
-        self.sql_statement_select_max_id = SQL_STATEMENT_SELECT_MAX_ID.format(
-            **self.sql_kwargs
-        )
-        self.sql_statement_insert_events = SQL_STATEMENT_INSERT_EVENTS.format(
-            **self.sql_kwargs
-        )
-        self.sql_statement_conditional_append = SQL_STATEMENT_CONDITIONAL_APPEND.format(
-            **self.sql_kwargs
-        )
+        self.sql_select_by_tags = self.format(SQL_SELECT_BY_TAGS)
+        self.sql_select_all = self.format(SQL_SELECT_ALL)
+        self.sql_select_by_type = self.format(SQL_SELECT_EVENTS_BY_TYPE)
+        self.sql_select_max_id = self.format(SQL_SELECT_MAX_ID)
+        self.sql_insert_events = self.format(SQL_INSERT_EVENTS)
+        self.sql_conditional_append = self.format(SQL_CONDITIONAL_APPEND)
+        
+    def format(self, sql: SQL) -> Composed:
+        return sql.format(**self.sql_kwargs)
 
     def read(
         self,
@@ -303,7 +291,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         return_head: bool = True,
     ) -> tuple[Sequence[DCBSequencedEvent], int | None]:
         if return_head and limit is None:
-            self.execute(curs, self.sql_statement_select_max_id, explain=False)
+            self.execute(curs, self.sql_select_max_id, explain=False)
             row = curs.fetchone()
             head = None if row is None else row["max"]
         else:
@@ -313,7 +301,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             # Select all.
             self.execute(
                 curs,
-                self.sql_statement_select_events_all,
+                self.sql_select_all,
                 {
                     "after": after,
                     "limit": limit,
@@ -328,7 +316,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
 
             self.execute(
                 curs,
-                self.sql_statement_select_events_by_tags,
+                self.sql_select_by_tags,
                 {
                     "query_items": pg_dcb_query_items,
                     "after": after,
@@ -342,7 +330,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             # Select for one type.
             self.execute(
                 curs,
-                self.sql_statement_select_events_by_type,
+                self.sql_select_by_type,
                 {
                     "event_type": query.items[0].types[0],
                     "after": after,
@@ -409,7 +397,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
 
             self.execute(
                 curs,
-                self.sql_statement_insert_events,
+                self.sql_insert_events,
                 {
                     "events": pg_dcb_events,
                 },
@@ -420,7 +408,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             return max(row["id"] for row in rows)
 
     def construct_pg_dcb_event(self, dcb_event: DCBEvent) -> PgDCBEvent:
-        return self.datastore.pg_python_types[PG_TYPE_NAME_DCB_EVENT_TT](
+        return self.datastore.pg_python_types[DB_TYPE_NAME_DCB_EVENT_TT](
             type=dcb_event.type,
             data=dcb_event.data,
             tags=dcb_event.tags,
@@ -434,7 +422,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
     def construct_pg_dcb_query_item(
         self, dcb_query_item: DCBQueryItem
     ) -> PgDCBQueryItem:
-        return self.datastore.pg_python_types[PG_TYPE_NAME_DCB_QUERY_ITEM_TT](
+        return self.datastore.pg_python_types[DB_TYPE_NAME_DCB_QUERY_ITEM_TT](
             types=dcb_query_item.types,
             tags=dcb_query_item.tags,
         )
