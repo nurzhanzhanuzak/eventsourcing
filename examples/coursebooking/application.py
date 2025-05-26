@@ -16,6 +16,7 @@ from examples.coursebooking.interface import (
 class EnrolmentWithAggregates(Application[str], Enrolment):
     env: ClassVar[dict[str, str]] = {
         "MAPPER_TOPIC": get_topic(MsgspecMapper),
+        "ORIGINATOR_ID_TYPE": "text",
     }
 
     def register_student(self, name: str, max_courses: int) -> str:

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from typing import NamedTuple, Sequence
+from typing import TYPE_CHECKING, NamedTuple
 
-from psycopg import Cursor
-from psycopg.rows import DictRow
 from psycopg.sql import SQL, Identifier
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
@@ -22,6 +20,12 @@ from examples.dcb.api import (
     DCBSequencedEvent,
 )
 from examples.dcb.postgres_ts import PostgresDCBEventStore
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from psycopg import Cursor
+    from psycopg.rows import DictRow
 
 PG_TYPE_NAME_DCB_EVENT_TT = "dcb_event_tt"
 
@@ -318,10 +322,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         if return_head and limit is None:
             curs.execute(self.sql_statement_select_max_id, prepare=True)
             row = curs.fetchone()
-            if row is None:
-                head = None
-            else:
-                head = row["max"]
+            head = None if row is None else row["max"]
         else:
             head = None
 
@@ -384,7 +385,8 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             )
             rows = curs.fetchall()
         else:
-            raise ProgrammingError("Unsupported query: %s" % query)
+            msg = f"Unsupported query: {query}"
+            raise ProgrammingError(msg)
 
         events = [
             DCBSequencedEvent(
@@ -400,10 +402,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
 
         # Maybe update head.
         if return_head and events:
-            try:
-                head = max(head or 0, *[e.position for e in events])
-            except TypeError:
-                raise
+            head = max(head or 0, *[e.position for e in events])
 
         return events, head
 
@@ -432,8 +431,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             )
             rows = curs.fetchall()
             assert len(rows) > 0
-            max_position = max(row["id"] for row in rows)
-            return max_position
+            return max(row["id"] for row in rows)
 
     def construct_pg_dcb_event(self, dcb_event: DCBEvent) -> PgDCBEvent:
         return self.datastore.pg_python_types[PG_TYPE_NAME_DCB_EVENT_TT](

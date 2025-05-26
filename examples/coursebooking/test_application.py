@@ -116,7 +116,6 @@ class TestEnrolmentWithAggregates(TestEnrolment):
 
     def test_enrolment_with_postgres(self) -> None:
         self.env["PERSISTENCE_MODULE"] = "eventsourcing.postgres"
-        self.env["POSTGRES_ORIGINATOR_ID_TYPE"] = "text"
         super().test_enrolment_with_postgres()
 
 

@@ -525,15 +525,15 @@ class TestSQLiteInfrastructureFactory(InfrastructureFactoryTestCase[SQLiteFactor
         factory = SQLiteFactory(self.env)
         self.assertEqual(factory.datastore.originator_id_type, "uuid")
 
-        self.env[SQLiteFactory.SQLITE_ORIGINATOR_ID_TYPE] = "text"
+        self.env[SQLiteFactory.ORIGINATOR_ID_TYPE] = "text"
         factory = SQLiteFactory(self.env)
         self.assertEqual(factory.datastore.originator_id_type, "text")
 
-        self.env[SQLiteFactory.SQLITE_ORIGINATOR_ID_TYPE] = "int"
+        self.env[SQLiteFactory.ORIGINATOR_ID_TYPE] = "int"
         with self.assertRaises(OSError) as cm:
             SQLiteFactory(self.env)
 
-        self.assertIn("Invalid SQLITE_ORIGINATOR_ID_TYPE", str(cm.exception))
+        self.assertIn("Invalid ORIGINATOR_ID_TYPE", str(cm.exception))
 
 
 del AggregateRecorderTestCase

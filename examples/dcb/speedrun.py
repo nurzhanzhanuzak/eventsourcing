@@ -1,6 +1,7 @@
 # ruff: noqa: T201
 from __future__ import annotations
 
+import locale
 import signal
 import subprocess
 import sys
@@ -10,7 +11,7 @@ from psycopg.sql import SQL, Identifier
 
 from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.persistence import ProgrammingError
-from eventsourcing.postgres import PostgresDatastore
+from eventsourcing.postgres import PostgresApplicationRecorder, PostgresDatastore
 from examples.coursebooking.application import EnrolmentWithAggregates
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
 from examples.dcb.postgres_ts import (
@@ -19,6 +20,9 @@ from examples.dcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
     PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
 )
+from examples.dcb.postgres_tt import PostgresDCBEventStoreTT
+
+locale.setlocale(locale.LC_ALL, "")
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -73,7 +77,6 @@ config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
             "POSTGRES_PORT": "5432",
             "POSTGRES_USER": SPEEDRUN_DB_USER,
             "POSTGRES_PASSWORD": SPEEDRUN_DB_PASSWORD,
-            "POSTGRES_ORIGINATOR_ID_TYPE": "text",
             "POSTGRES_ENABLE_DB_FUNCTIONS": "y",
         },
     ),
@@ -82,7 +85,6 @@ config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
         1000,
         {
             "PERSISTENCE_MODULE": "eventsourcing.popo",
-            "POSTGRES_ORIGINATOR_ID_TYPE": "text",
         },
     ),
 }
@@ -98,6 +100,42 @@ def set_signal_handler() -> None:
         interrupted = True
 
     signal.signal(signal.SIGINT, sigint_handler)
+
+
+SQL_SELECT_COUNT_ROWS = SQL("SELECT COUNT(*) FROM {schema}.{table_name}")
+
+
+def count_events(app: Enrolment) -> int:
+    if isinstance(app, EnrolmentWithAggregates):
+        recorder: Any = app.recorder
+        assert isinstance(recorder, PostgresApplicationRecorder)
+        datastore = recorder.datastore
+        table_name = recorder.events_table_name
+        statement = SQL_SELECT_COUNT_ROWS.format(
+            schema=Identifier(datastore.schema),
+            table_name=Identifier(table_name),
+        )
+        with datastore.get_connection() as conn:
+            result = conn.execute(statement).fetchone()
+            count = result["count"] if result is not None else 0
+
+    elif isinstance(app, EnrolmentWithDCBRefactored):
+        recorder = app.recorder
+        assert isinstance(recorder, PostgresDCBEventStoreTT)
+        datastore = recorder.datastore
+        table_name = recorder.pg_main_table_name
+        statement = SQL_SELECT_COUNT_ROWS.format(
+            schema=Identifier(datastore.schema),
+            table_name=Identifier(table_name),
+        )
+        with datastore.get_connection() as conn:
+            result = conn.execute(statement).fetchone()
+            count = result["count"] if result is not None else 0
+    else:
+        msg = f"TODO implement counting rows for app type: {type(app)}"
+        raise NotImplementedError(msg)
+
+    return count
 
 
 if __name__ == "__main__":
@@ -118,12 +156,12 @@ if __name__ == "__main__":
         sys.exit(0)
     if len(sys.argv) > 2:
         try:
-            duration: int | None = int(cast(int, sys.argv[2]))
+            speedrun_duration: int | None = int(cast(int, sys.argv[2]))
         except ValueError:
             print("Invalid duration:", sys.argv[2])
             sys.exit(1)
     else:
-        duration = None
+        speedrun_duration = None
 
     if mode == "new-db":
         with (
@@ -173,8 +211,8 @@ if __name__ == "__main__":
                 )
                 print(statement.as_string())
                 try:
-                    with datastore.transaction(commit=True) as curs:
-                        curs.execute(statement)
+                    with datastore.get_connection() as conn:
+                        conn.execute(statement)
                 except ProgrammingError as e:
                     print(f"Function '{function_name}' not found:", e)
             procedure_names = [
@@ -189,8 +227,8 @@ if __name__ == "__main__":
                     )
                     print(statement.as_string())
                     try:
-                        with datastore.transaction(commit=True) as curs:
-                            curs.execute(statement)
+                        with datastore.get_connection() as conn:
+                            conn.execute(statement)
                     except ProgrammingError as e:
                         print(f"Procedure '{function_name}' not found:", e)
         sys.exit(0)
@@ -212,7 +250,9 @@ if __name__ == "__main__":
             sys.exit(0)
 
     if mode == "psql":
-        subprocess.run(["psql", "--dbname", SPEEDRUN_DB_NAME])
+        subprocess.run(  # noqa: S603
+            ["psql", "--dbname", SPEEDRUN_DB_NAME], check=True  # noqa: S607
+        )
         sys.exit(0)
 
     if mode not in modes:
@@ -240,11 +280,16 @@ if __name__ == "__main__":
     # print(f"Reporting interval: every {reporting_interval} iterations...")
     # print()
 
-    if duration is not None:
-        print(f" Stopping after: {duration}s")
+    with cls(env=env) as app:
+
+        started_event_count = count_events(app)
+        print(f" Events in database at start: {started_event_count:>12n} events")
+        print()
         print()
 
-    with cls(env=env) as app:
+        if speedrun_duration is not None:
+            print(f" Stopping after: {speedrun_duration}s")
+            print()
 
         set_signal_handler()
 
@@ -259,8 +304,15 @@ if __name__ == "__main__":
         for i in inf_range():
             if interrupted:
                 print()
+                finished_event_count = count_events(app)
                 print()
-                print(" Stopping...")
+                print(
+                    f" Events in database at end:   "
+                    f"{finished_event_count:>12n} events "
+                    f"({(finished_event_count - started_event_count):n} new)"
+                )
+                print()
+                # print(" Interrupted, stopping...")
                 print()
                 break
             course_ids = []
@@ -268,7 +320,6 @@ if __name__ == "__main__":
                 course_ids.append(
                     app.register_course(f"course-{next(r_courses)}", NUM_STUDENTS)
                 )
-                total_ops += 1
                 report_ops += 1
                 if interrupted:
                     break
@@ -277,7 +328,6 @@ if __name__ == "__main__":
                 student_ids.append(
                     app.register_student(f"student-{next(r_students)}", NUM_COURSES)
                 )
-                total_ops += 1
                 report_ops += 1
                 if interrupted:
                     break
@@ -285,7 +335,6 @@ if __name__ == "__main__":
             for course_id in course_ids:
                 for student_id in student_ids:
                     app.join_course(course_id, student_id)
-                    total_ops += 1
                     report_ops += 1
                     if interrupted:
                         break
@@ -304,13 +353,20 @@ if __name__ == "__main__":
                 print(
                     f" [{str(total_timedelta).split('.')[0]}s] ",
                     f"{i:>8} iterations ",
-                    f"{str(total_ops):>8} ops ",
-                    f"{str(int(1000000 / report_rate)):>7} μs/op",
-                    f"{str(int(report_rate)):>7} ops/s ",
+                    f"{total_ops:>8} ops ",
+                    f"{int(1000000 / report_rate):>7} μs/op",
+                    f"{int(report_rate):>7} ops/s ",
                 )
                 report_ops = 0
                 started_report = datetime_now_with_tzinfo()
 
-            if duration is not None and total_seconds > duration:
+            if speedrun_duration is not None and total_seconds > speedrun_duration:
+                print()
+                finished_event_count = count_events(app)
+                print(
+                    f" Events in database at end:   "
+                    f"{finished_event_count:>12n} events "
+                    f"({finished_event_count - started_event_count:n} new)"
+                )
                 print()
                 break

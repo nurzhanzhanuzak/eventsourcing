@@ -1078,7 +1078,7 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
     )
     POSTGRES_SCHEMA = "POSTGRES_SCHEMA"
     POSTGRES_SINGLE_ROW_TRACKING = "SINGLE_ROW_TRACKING"
-    POSTGRES_ORIGINATOR_ID_TYPE = "POSTGRES_ORIGINATOR_ID_TYPE"
+    ORIGINATOR_ID_TYPE = "ORIGINATOR_ID_TYPE"
     POSTGRES_ENABLE_DB_FUNCTIONS = "POSTGRES_ENABLE_DB_FUNCTIONS"
     CREATE_TABLE = "CREATE_TABLE"
 
@@ -1247,11 +1247,11 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
 
         originator_id_type = cast(
             Literal["uuid", "text"],
-            self.env.get(self.POSTGRES_ORIGINATOR_ID_TYPE, "uuid"),
+            self.env.get(self.ORIGINATOR_ID_TYPE, "uuid"),
         )
         if originator_id_type.lower() not in ("uuid", "text"):
             msg = (
-                f"Invalid {self.POSTGRES_ORIGINATOR_ID_TYPE} '{originator_id_type}', "
+                f"Invalid {self.ORIGINATOR_ID_TYPE} '{originator_id_type}', "
                 f"must be 'uuid' or 'text'"
             )
             raise OSError(msg)

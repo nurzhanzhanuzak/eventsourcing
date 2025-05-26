@@ -1612,20 +1612,20 @@ class TestPostgresFactory(InfrastructureFactoryTestCase[PostgresFactory]):
         factory = PostgresFactory(self.env)
         self.assertEqual(factory.datastore.originator_id_type, "uuid")
 
-        self.env[PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE] = "uuid"
+        self.env[PostgresFactory.ORIGINATOR_ID_TYPE] = "uuid"
         factory = PostgresFactory(self.env)
         self.assertEqual(factory.datastore.originator_id_type, "uuid")
 
-        self.env[PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE] = "text"
+        self.env[PostgresFactory.ORIGINATOR_ID_TYPE] = "text"
         factory = PostgresFactory(self.env)
         self.assertEqual(factory.datastore.originator_id_type, "text")
 
-        self.env[PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE] = "integer"
+        self.env[PostgresFactory.ORIGINATOR_ID_TYPE] = "integer"
         with self.assertRaises(OSError) as cm:
             PostgresFactory(self.env)
 
         self.assertIn(
-            f"Invalid {PostgresFactory.POSTGRES_ORIGINATOR_ID_TYPE}", str(cm.exception)
+            f"Invalid {PostgresFactory.ORIGINATOR_ID_TYPE}", str(cm.exception)
         )
 
     def test_use_db_functions(self) -> None:

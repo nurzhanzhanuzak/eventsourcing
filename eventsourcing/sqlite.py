@@ -683,7 +683,7 @@ class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
     SQLITE_DBNAME = "SQLITE_DBNAME"
     SQLITE_LOCK_TIMEOUT = "SQLITE_LOCK_TIMEOUT"
     SQLITE_SINGLE_ROW_TRACKING = "SINGLE_ROW_TRACKING"
-    SQLITE_ORIGINATOR_ID_TYPE = "SQLITE_ORIGINATOR_ID_TYPE"
+    ORIGINATOR_ID_TYPE = "ORIGINATOR_ID_TYPE"
     CREATE_TABLE = "CREATE_TABLE"
 
     aggregate_recorder_class = SQLiteAggregateRecorder
@@ -725,11 +725,11 @@ class SQLiteFactory(InfrastructureFactory[SQLiteTrackingRecorder]):
 
         originator_id_type = cast(
             Literal["uuid", "text"],
-            self.env.get(self.SQLITE_ORIGINATOR_ID_TYPE, "uuid"),
+            self.env.get(self.ORIGINATOR_ID_TYPE, "uuid"),
         )
         if originator_id_type.lower() not in ("uuid", "text"):
             msg = (
-                f"Invalid {self.SQLITE_ORIGINATOR_ID_TYPE} '{originator_id_type}', "
+                f"Invalid {self.ORIGINATOR_ID_TYPE} '{originator_id_type}', "
                 f"must be 'uuid' or 'text'"
             )
             raise OSError(msg)
