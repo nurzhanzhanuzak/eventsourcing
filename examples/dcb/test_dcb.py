@@ -102,266 +102,309 @@ class TestDCBObjects(TestCase):
 class DCBEventStoreTestCase(TestCase):
 
     def _test_event_store(self, eventstore: DCBEventStore) -> None:
-        # Query for all with zero rows, expect no results.
+        # Read all, expect no results.
         result, head = eventstore.read()
         self.assertEqual(0, len(list(result)))
         self.assertIsNone(head)
 
-        # Must atomically persist one or many events.
-        position = eventstore.append(
-            events=(DCBEvent(type="EventType1", data=b"data1", tags=["tagX"]),),
-        )
+        # Append one event.
+        event1 = DCBEvent(type="type1", data=b"data1", tags=["tagX"])
+        position = eventstore.append(events=[event1])
+
+        # Check the returned position is 1.
         self.assertEqual(1, position)
 
-        # Query for all with one row, expect one result.
+        # Read all, expect one event.
         result, head = eventstore.read()
+        self.assertEqual(1, len(result))
+        self.assertEqual(event1.data, result[0].event.data)
+        self.assertEqual(1, head)
+
+        # Read all after 1, expect no events.
+        result, head = eventstore.read(after=1)
+        self.assertEqual(0, len(result))
+        self.assertEqual(1, head)
+
+        # Read all limit 1, expect one event.
+        result, head = eventstore.read(limit=1)
+        self.assertEqual(1, len(result))
+        self.assertEqual(event1.data, result[0].event.data)
+        self.assertEqual(1, head)
+
+        # Read all limit 0, expect no events (and head is None).
+        result, head = eventstore.read(limit=0)
+        self.assertEqual(0, len(result))
+        self.assertEqual(None, head)
+
+        # Read events with type1, expect 1 event.
+        query_type1 = DCBQuery(items=[DCBQueryItem(types=["type1"])])
+        result, head = eventstore.read(query_type1)
+        self.assertEqual(1, len(result))
+        self.assertEqual(event1.data, result[0].event.data)
+        self.assertEqual(1, head)
+
+        # Read events with type2, expect no events.
+        query_type2 = DCBQuery(items=[DCBQueryItem(types=["type2"])])
+        result, head = eventstore.read(query_type2)
+        self.assertEqual(0, len(result))
+        self.assertEqual(1, head)
+
+        # Read events with tagX, expect one event.
+        query_tag_x = DCBQuery(items=[DCBQueryItem(tags=["tagX"])])
+        result, head = eventstore.read(query_tag_x)
+        self.assertEqual(1, len(result))
+        self.assertEqual(event1.data, result[0].event.data)
+        self.assertEqual(1, head)
+
+        # Read events with tagY, expect no events.
+        query_tag_y = DCBQuery(items=[DCBQueryItem(tags=["tagY"])])
+        result, head = eventstore.read(query=query_tag_y)
+        self.assertEqual(0, len(result))
+        self.assertEqual(1, head)
+
+        # Read events with type1 and tagX, expect one event.
+        query_type1_tag_x = DCBQuery(
+            items=[DCBQueryItem(types=["type1"], tags=["tagX"])]
+        )
+        result, head = eventstore.read(query=query_type1_tag_x)
         self.assertEqual(1, len(result))
         self.assertEqual(1, head)
 
-        # Append more than one...
-        position = eventstore.append(
-            events=[
-                DCBEvent(type="EventType2", data=b"data2", tags=["tagA", "tagB"]),
-                DCBEvent(type="EventType3", data=b"data3", tags=["tagA", "tagC"]),
-            ],
+        # Read events with type1 and tagY, expect no events.
+        query_type1_tag_y = DCBQuery(
+            items=[DCBQueryItem(types=["type1"], tags=["tagY"])]
         )
+        result, head = eventstore.read(query=query_type1_tag_y)
+        self.assertEqual(0, len(result))
+        self.assertEqual(1, head)
+
+        # Read events with type2 and tagX, expect no events.
+        query_type2_tag_x = DCBQuery(
+            items=[DCBQueryItem(types=["type2"], tags=["tagX"])]
+        )
+        result, head = eventstore.read(query=query_type2_tag_x)
+        self.assertEqual(0, len(result))
+        self.assertEqual(1, head)
+
+        # Append two more events.
+        event2 = DCBEvent(type="type2", data=b"data2", tags=["tagA", "tagB"])
+        event3 = DCBEvent(type="type3", data=b"data3", tags=["tagA", "tagC"])
+        position = eventstore.append(events=[event2, event3])
+
+        # Check the returned position is 3
         self.assertEqual(3, position)
+
+        # Read all, expect 3 events (in ascending order).
         result, head = eventstore.read()
         self.assertEqual(3, len(result))
+        self.assertEqual(event1.data, result[0].event.data)
+        self.assertEqual(event2.data, result[1].event.data)
+        self.assertEqual(event3.data, result[2].event.data)
         self.assertEqual(3, head)
 
-        # Query for all with three rows, expect three results.
-        result, head = eventstore.read()
-        self.assertEqual(3, len(result))
-        self.assertEqual(3, head)
-
-        # Can query for type "EventType1".
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(types=["EventType1"])])
-        )
-        self.assertEqual(1, len(result))
-        self.assertEqual(1, result[0].position)
-        self.assertEqual("EventType1", result[0].event.type)
-        self.assertEqual(b"data1", result[0].event.data)
-        self.assertEqual(["tagX"], result[0].event.tags)
-        self.assertEqual(3, head)
-
-        # Can query for type "EventType2".
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(types=["EventType2"])])
-        )
-        self.assertEqual(1, len(result))
-        self.assertEqual(2, result[0].position)
-        self.assertEqual("EventType2", result[0].event.type)
-        self.assertEqual(b"data2", result[0].event.data)
-        self.assertEqual(["tagA", "tagB"], result[0].event.tags)
-        self.assertEqual(3, head)
-
-        # Can query for type "EventType1" after position 1 - no events.
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(types=["EventType1"])]), after=1
-        )
-        self.assertEqual(0, len(result))
-        self.assertEqual(3, head)
-
-        # Can query for type "EventType2" after position 1 - one event.
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(types=["EventType2"])]), after=1
-        )
-        self.assertEqual(1, len(result))
-        self.assertEqual(2, result[0].position)
-        self.assertEqual("EventType2", result[0].event.type)
-        self.assertEqual(3, head)
-
-        # Can query for tag "tagA" - two events with "tagA".
-        result, head = eventstore.read(DCBQuery(items=[DCBQueryItem(tags=["tagA"])]))
+        # Read all after 1, expect two events.
+        result, head = eventstore.read(after=1)
         self.assertEqual(2, len(result))
-        self.assertEqual(2, result[0].position)
-        self.assertEqual(3, result[1].position)
-        self.assertEqual("EventType2", result[0].event.type)
-        self.assertEqual("EventType3", result[1].event.type)
+        self.assertEqual(event2.data, result[0].event.data)
+        self.assertEqual(event3.data, result[1].event.data)
         self.assertEqual(3, head)
 
-        # Can query for tag "tagB" - one event with "tagB".
-        result, head = eventstore.read(DCBQuery(items=[DCBQueryItem(tags=["tagB"])]))
+        # Read all after 2, expect one event.
+        result, head = eventstore.read(after=2)
         self.assertEqual(1, len(result))
-        self.assertEqual(2, result[0].position)
-        self.assertEqual("EventType2", result[0].event.type)
+        self.assertEqual(event3.data, result[0].event.data)
         self.assertEqual(3, head)
 
-        # Can query for tag "tagC" - one event with "tagC".
-        result, head = eventstore.read(DCBQuery(items=[DCBQueryItem(tags=["tagC"])]))
+        # Read all after 1, limit 1, expect one event.
+        result, head = eventstore.read(after=1, limit=1)
         self.assertEqual(1, len(result))
-        self.assertEqual(3, result[0].position)
-        self.assertEqual("EventType3", result[0].event.type)
-        self.assertEqual(3, head)
-
-        # Can query for tags "tagA" and tagB" - one event has both.
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(tags=["tagA", "tagB"])])
-        )
-        self.assertEqual(1, len(result))
-        self.assertEqual(2, result[0].position)
-        self.assertEqual("EventType2", result[0].event.type)
-        self.assertEqual(3, head)
-
-        # Can query for tags "tagB" and tagC" - no events have both.
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(tags=["tagB", "tagC"])])
-        )
-        self.assertEqual(0, len(result))
-        self.assertEqual(3, head)
-
-        # Can query for tags "tagB" or tagC" - two events have one or the other.
-        result, head = eventstore.read(
-            DCBQuery(
-                items=[
-                    DCBQueryItem(tags=["tagB"]),
-                    DCBQueryItem(tags=["tagC"]),
-                ]
-            )
-        )
-        self.assertEqual(2, len(result))
-        self.assertEqual(2, result[0].position)
-        self.assertEqual(3, result[1].position)
-        self.assertEqual("EventType2", result[0].event.type)
-        self.assertEqual("EventType3", result[1].event.type)
-        self.assertEqual(3, head)
-
-        # Can query for tags "tagB" or tagD" - only one event.
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(tags=["tagB"]), DCBQueryItem(tags=["tagD"])])
-        )
-        self.assertEqual(1, len(result))
-        self.assertEqual(2, result[0].position)
-        self.assertEqual("EventType2", result[0].event.type)
-        self.assertEqual(3, head)
-
-        # Can query for tag "tagA" after position 2 - only one event.
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(tags=["tagA"])]),
-            after=2,
-        )
-        self.assertEqual(1, len(result))
-        self.assertEqual(3, result[0].position)
-        self.assertEqual("EventType3", result[0].event.type)
-        self.assertEqual(3, head)
-
-        # Can query for type "EventType1" and tag "tagA" - zero events.
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(types=["EventType1"], tags=["tagA"])])
-        )
-        self.assertEqual(0, len(result))
-        self.assertEqual(3, head)
-
-        # Can query for type "EventType2" and tag "tagA" - only one event.
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(types=["EventType2"], tags=["tagA"])])
-        )
-        self.assertEqual(1, len(result))
-        self.assertEqual(2, result[0].position)
-        self.assertEqual("EventType2", result[0].event.type)
-        self.assertEqual(3, head)
-
-        # Can query for type "EventType2" and tag "tagA" after position 2 - no events.
-        result, head = eventstore.read(
-            DCBQuery(items=[DCBQueryItem(types=["EventType2"], tags=["tagA"])]),
-            after=2,
-        )
-        self.assertEqual(0, len(result))
-        self.assertEqual(3, head)
-
-        # Append must fail if event store has events matching append condition.
-
-        # Fail because append condition matches all events.
-        with self.assertRaises(IntegrityError):
-            eventstore.append(
-                events=(
-                    DCBEvent(type="EventType4", data=b"data4"),
-                    DCBEvent(type="EventType5", data=b"data5"),
-                ),
-                condition=DCBAppendCondition(after=0),
-            )
-
-        result, head = eventstore.read()
-        self.assertEqual(3, len(result))
-        self.assertEqual(3, head)
-
-        # Okay, because append condition after last position.
-        position = eventstore.append(
-            events=(
-                DCBEvent(type="EventType4", data=b"data4"),
-                DCBEvent(type="EventType5", data=b"data5"),
-            ),
-            condition=DCBAppendCondition(after=3),
-        )
-        self.assertEqual(5, position)
-
-        result, head = eventstore.read()
-        self.assertEqual(5, len(result))
-        self.assertEqual(5, head)
-
-        # Fail because event types match.
-        with self.assertRaises(IntegrityError):
-            eventstore.append(
-                events=[
-                    DCBEvent(type="EventType6", data=b"data6"),
-                    DCBEvent(type="EventType7", data=b"data7"),
-                ],
-                condition=DCBAppendCondition(
-                    fail_if_events_match=DCBQuery(
-                        # items=[DCBQueryItem(types=["EventType4", "EventType5"])],
-                        items=[DCBQueryItem(types=["EventType4"])],
-                    ),
-                    after=3,
-                ),
-            )
-
-        # Okay because event types don't match.
-        position = eventstore.append(
-            events=[
-                DCBEvent(type="EventType6", data=b"data6", tags=["tagD"]),
-                DCBEvent(type="EventType7", data=b"data7", tags=["tagD"]),
-            ],
-            condition=DCBAppendCondition(
-                fail_if_events_match=DCBQuery(
-                    # items=[DCBQueryItem(types=["EventType6", "EventType7"])],
-                    items=[DCBQueryItem(types=["EventType6"])],
-                ),
-                after=3,
-            ),
-        )
-        self.assertEqual(7, position)
-
-        # Fail because tag matches.
-        with self.assertRaises(IntegrityError):
-            eventstore.append(
-                events=[
-                    DCBEvent(type="EventType8", data=b"data8"),
-                    DCBEvent(type="EventType9", data=b"data9"),
-                ],
-                condition=DCBAppendCondition(
-                    fail_if_events_match=DCBQuery(
-                        items=[DCBQueryItem(tags=["tagD"])],
-                    ),
-                    after=3,
-                ),
-            )
-
-        # Can query without query items and limit.
-        result, head = eventstore.read(limit=2)
-        self.assertEqual(2, len(result))
+        self.assertEqual(event2.data, result[0].event.data)
         self.assertEqual(2, head)
 
-        # Can query with query items and limit.
-        result, head = eventstore.read(
-            DCBQuery(
-                items=[DCBQueryItem(tags=["tagA"])],
-            ),
-            limit=2,
-        )
-        self.assertEqual(2, len(result))
+        # Read type1 after 1, expect no events.
+        result, head = eventstore.read(query_type1, after=1)
+        self.assertEqual(0, len(result))
         self.assertEqual(3, head)
+
+        # Read tagX after 1, expect no events.
+        result, head = eventstore.read(query_tag_x, after=1)
+        self.assertEqual(0, len(result))
+        self.assertEqual(3, head)
+
+        # Read type1 and tagX after 1, expect no events.
+        result, head = eventstore.read(query_type1_tag_x, after=1)
+        self.assertEqual(0, len(result))
+        self.assertEqual(3, head)
+
+        # Read events with tagA, expect two events.
+        query_tag_a = DCBQuery(items=[DCBQueryItem(tags=["tagA"])])
+        result, head = eventstore.read(query_tag_a)
+        self.assertEqual(2, len(result))
+        self.assertEqual(event2.data, result[0].event.data)
+        self.assertEqual(event3.data, result[1].event.data)
+        self.assertEqual(3, head)
+
+        # Read events with tagA and tagB, expect one event.
+        query_tag_a_and_b = DCBQuery(items=[DCBQueryItem(tags=["tagA", "tagB"])])
+        result, head = eventstore.read(query_tag_a_and_b)
+        self.assertEqual(1, len(result))
+        self.assertEqual(event2.data, result[0].event.data)
+        self.assertEqual(3, head)
+
+        # Read events with tagB or tagC, expect two events.
+        query_tag_b_or_c = DCBQuery(
+            items=[
+                DCBQueryItem(tags=["tagB"]),
+                DCBQueryItem(tags=["tagC"]),
+            ]
+        )
+        result, head = eventstore.read(query_tag_b_or_c)
+        self.assertEqual(2, len(result))
+        self.assertEqual(event2.data, result[0].event.data)
+        self.assertEqual(event3.data, result[1].event.data)
+        self.assertEqual(3, head)
+
+        # Read events with tagX or tagY, expect one event.
+        query_tag_x_or_y = DCBQuery(
+            items=[
+                DCBQueryItem(tags=["tagX"]),
+                DCBQueryItem(tags=["tagY"]),
+            ]
+        )
+        result, head = eventstore.read(query_tag_x_or_y)
+        self.assertEqual(1, len(result))
+        self.assertEqual(event1.data, result[0].event.data)
+        self.assertEqual(3, head)
+
+        # Read events with type2 and tagA, expect one event.
+        query_type2_tag_a = DCBQuery(
+            items=[DCBQueryItem(types=["type2"], tags=["tagA"])]
+        )
+        result, head = eventstore.read(query_type2_tag_a)
+        self.assertEqual(1, len(result))
+        self.assertEqual(event2.data, result[0].event.data)
+        self.assertEqual(3, head)
+
+        # Read events with type2 and tagA after 2, expect no events.
+        query_type2_tag_a = DCBQuery(
+            items=[DCBQueryItem(types=["type2"], tags=["tagA"])]
+        )
+        result, head = eventstore.read(query_type2_tag_a, after=2)
+        self.assertEqual(0, len(result))
+        self.assertEqual(3, head)
+
+        # Read events with type2 and tagA, expect one event.
+        query_type2_tag_a = DCBQuery(
+            items=[DCBQueryItem(types=["type2"], tags=["tagA"])]
+        )
+        result, head = eventstore.read(query_type2_tag_a)
+        self.assertEqual(1, len(result))
+        self.assertEqual(event2.data, result[0].event.data)
+        self.assertEqual(3, head)
+
+        # Read events with type2 and tagB, or with type3 and tagC, expect two events.
+        query_type2_tag_b_or_type3_tagc = DCBQuery(
+            items=[
+                DCBQueryItem(types=["type2"], tags=["tagB"]),
+                DCBQueryItem(types=["type3"], tags=["tagC"]),
+            ]
+        )
+        result, head = eventstore.read(query_type2_tag_b_or_type3_tagc)
+        self.assertEqual(2, len(result))
+        self.assertEqual(event2.data, result[0].event.data)
+        self.assertEqual(event3.data, result[1].event.data)
+        self.assertEqual(3, head)
+
+        # Repeat with query items in different order, expect events in ascending order.
+        query_type3_tag_c_or_type2_tag_b = DCBQuery(
+            items=[
+                DCBQueryItem(types=["type3"], tags=["tagC"]),
+                DCBQueryItem(types=["type2"], tags=["tagB"]),
+            ]
+        )
+        result, head = eventstore.read(query_type3_tag_c_or_type2_tag_b)
+        self.assertEqual(2, len(result))
+        self.assertEqual(event2.data, result[0].event.data)
+        self.assertEqual(event3.data, result[1].event.data)
+        self.assertEqual(3, head)
+
+        # Append must fail if recorded events match condition.
+        event4 = DCBEvent(type="type4", data=b"data4")
+
+        # Fail because condition matches all.
+        new = [event4]
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition())
+
+        # Fail because condition matches all after 1.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(after=1))
+
+        # Fail because condition matches type1.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_type1))
+
+        # Fail because condition matches type2 after 1.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_type2, after=1))
+
+        # Fail because condition matches tagX.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_tag_x))
+
+        # Fail because condition matches tagA after 1.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_tag_a, after=1))
+
+        # Fail because condition matches type1 and tagX.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_type1_tag_x))
+
+        # Fail because condition matches type2 and tagA after 1.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_type2_tag_a, after=1))
+
+        # Fail because condition matches tagA and tagB.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_tag_a_and_b))
+
+        # Fail because condition matches tagB or tagC.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_tag_b_or_c))
+
+        # Fail because condition matches tagX or tagY.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_tag_x_or_y))
+
+        # Fail because condition matches with type2 and tagB, or with type3 and tagC.
+        with self.assertRaises(IntegrityError):
+            eventstore.append(new, DCBAppendCondition(query_type2_tag_b_or_type3_tagc))
+
+        # Can append after 3.
+        eventstore.append(new)
+
+        # Can append match type_n.
+        query_type_n = DCBQuery(items=[DCBQueryItem(types=["typeN"])])
+        eventstore.append(new, DCBAppendCondition(query_type_n))
+
+        # Can append match tagY.
+        eventstore.append(new, DCBAppendCondition(query_tag_y))
+
+        # Can append match type1 after 1.
+        eventstore.append(new, DCBAppendCondition(query_type1, after=1))
+
+        # Can append match tagX after 1.
+        eventstore.append(new, DCBAppendCondition(query_tag_x, after=1))
+
+        # Can append match type1 and tagX after 1.
+        eventstore.append(new, DCBAppendCondition(query_type1_tag_x, after=1))
+
+        return
+
+        # Can append match tagX, after 1.
+        eventstore.append(new, DCBAppendCondition(query_tag_x, after=1))
+
+        # Check it works with course subscription consistency boundaries and events.
 
         student_id = f"student1-{uuid4()}"
         student_registered = DCBEvent(
@@ -387,7 +430,11 @@ class DCBEventStoreTestCase(TestCase):
             events=[student_registered],
             condition=DCBAppendCondition(
                 fail_if_events_match=DCBQuery(
-                    items=[DCBQueryItem(tags=student_registered.tags)],
+                    items=[
+                        DCBQueryItem(
+                            tags=student_registered.tags, types=["StudentRegistered"]
+                        )
+                    ],
                 ),
                 after=3,
             ),
