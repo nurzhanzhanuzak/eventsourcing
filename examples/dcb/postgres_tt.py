@@ -31,7 +31,7 @@ PG_TYPE_NAME_DCB_EVENT_TT = "dcb_event_tt"
 
 PG_TYPE_DCB_EVENT = SQL(
     """
-CREATE TYPE {schema}.{type_name} AS (
+CREATE TYPE {schema}.{event_type} AS (
     type text,
     data bytea,
     tags text[]
@@ -43,7 +43,7 @@ PG_TYPE_NAME_DCB_QUERY_ITEM_TT = "query_item_tt"
 
 PG_TYPE_DCB_QUERY_ITEM = SQL(
     """
-CREATE TYPE {schema}.{type_name} AS (
+CREATE TYPE {schema}.{query_item_type} AS (
     types text[],
     tags text[]
 )
@@ -52,7 +52,7 @@ CREATE TYPE {schema}.{type_name} AS (
 
 PG_TABLE_DCB_EVENTS = SQL(
     """
-CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
+CREATE TABLE IF NOT EXISTS {schema}.{events_table} (
     id bigserial,
     type text NOT NULL ,
     data bytea,
@@ -69,17 +69,17 @@ CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
 
 PG_INDEX_UNIQUE_ID_COVER_TYPE = SQL(
     """
-CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON
-{schema}.{table_name} (id) INCLUDE (type)
+CREATE UNIQUE INDEX IF NOT EXISTS {id_cover_type_index} ON
+{schema}.{events_table} (id) INCLUDE (type)
 """
 )
 
 PG_TABLE_DCB_TAGS = SQL(
     """
-CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
+CREATE TABLE IF NOT EXISTS {schema}.{tags_table} (
     tag text,
     type text,
-    main_id bigint REFERENCES {main_table} (id)
+    main_id bigint REFERENCES {events_table} (id)
 ) WITH (
     autovacuum_enabled = true,
     autovacuum_vacuum_threshold = 100000000,  -- Effectively disables VACUUM
@@ -92,8 +92,8 @@ CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
 
 PG_INDEX_TAG_MAIN_ID = SQL(
     """
-CREATE INDEX IF NOT EXISTS {index_name} ON
-{schema}.{table_name} (tag, main_id)
+CREATE INDEX IF NOT EXISTS {tag_main_id_index} ON
+{schema}.{tags_table} (tag, main_id)
 """
 )
 
@@ -105,7 +105,7 @@ WITH input AS (
       SELECT * FROM unnest(%(events)s::{event_type}[])
 ),
 inserted AS (
-    INSERT INTO {schema}.{main_table} (type, data, tags)
+    INSERT INTO {schema}.{events_table} (type, data, tags)
     SELECT i.type, i.data, i.tags
     FROM input i
     RETURNING id, type, tags
@@ -119,7 +119,7 @@ expanded_tags AS (
        unnest(ins.tags) AS tag
 ),
 tag_insert AS (
-    INSERT INTO {schema}.{tag_table} (tag, type, main_id)
+    INSERT INTO {schema}.{tags_table} (tag, type, main_id)
     SELECT tag, type, main_id
     FROM expanded_tags
 )
@@ -143,7 +143,7 @@ initial_matches AS (
         qi.tags AS required_tags,
         qi.types AS allowed_types
     FROM query_items qi
-    JOIN {schema}.{tag_table} t
+    JOIN {schema}.{tags_table} t
       ON t.tag = ANY(qi.tags)
 ),
 matched_groups AS (
@@ -163,7 +163,7 @@ qualified_ids AS (
 ),
 filtered_ids AS (
     SELECT m.id
-    FROM {schema}.{main_table} m
+    FROM {schema}.{events_table} m
     JOIN qualified_ids q ON q.main_id = m.id
     WHERE
         m.id > COALESCE(%(after)s, 0)
@@ -176,16 +176,21 @@ filtered_ids AS (
     LIMIT COALESCE(%(limit)s, 9223372036854775807)
 )
 SELECT *
-FROM {schema}.{main_table}  m
+FROM {schema}.{events_table}  m
 WHERE m.id IN (SELECT id FROM filtered_ids)
 ORDER BY m.id ASC;
+"""
+)
+
+SQL_STATEMENT_CONDITIONAL_APPEND = SQL(
+    """
 """
 )
 
 
 SQL_STATEMENT_SELECT_EVENTS_ALL = SQL(
     """
-SELECT * FROM {schema}.{main_table}
+SELECT * FROM {schema}.{events_table}
 WHERE id > COALESCE(%(after)s, 0)
 ORDER BY id ASC
 LIMIT COALESCE(%(limit)s, 9223372036854775807)
@@ -194,7 +199,7 @@ LIMIT COALESCE(%(limit)s, 9223372036854775807)
 
 SQL_STATEMENT_SELECT_EVENTS_BY_TYPE = SQL(
     """
-SELECT * FROM {schema}.{main_table}
+SELECT * FROM {schema}.{events_table}
 WHERE type = %(event_type)s
 AND id > COALESCE(%(after)s, 0)
 ORDER BY id ASC
@@ -204,7 +209,7 @@ LIMIT COALESCE(%(limit)s, 9223372036854775807)
 
 SQL_STATEMENT_SELECT_MAX_ID = SQL(
     """
-SELECT MAX(id) FROM {schema}.{main_table}
+SELECT MAX(id) FROM {schema}.{events_table}
 """
 )
 
@@ -217,83 +222,58 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         events_table_name: str = "dcb_events",
     ):
         super().__init__(datastore)
-        self.pg_main_table_name = events_table_name + "_tt_main"
-        self.pg_tag_table_name = events_table_name + "_tt_tag"
-        self.pg_index_name_id_cover_type = self.pg_main_table_name + "_idx_id_type"
-        self.pg_index_name_tag_main_id = self.pg_tag_table_name + "_idx_tag_main_id"
-        self.check_identifier_length(self.pg_main_table_name)
-        self.check_identifier_length(self.pg_tag_table_name)
-        self.check_identifier_length(self.pg_index_name_id_cover_type)
-        self.check_identifier_length(self.pg_index_name_tag_main_id)
+        self.events_table_name = events_table_name + "_tt_main"
+        self.tags_table_name = events_table_name + "_tt_tag"
+        self.index_name_id_cover_type = self.events_table_name + "_idx_id_type"
+        self.index_name_tag_main_id = self.tags_table_name + "_idx_tag_main_id"
+        self.check_identifier_length(self.events_table_name)
+        self.check_identifier_length(self.tags_table_name)
+        self.check_identifier_length(self.index_name_id_cover_type)
+        self.check_identifier_length(self.index_name_tag_main_id)
         self.datastore.pg_type_names.add(PG_TYPE_NAME_DCB_EVENT_TT)
         self.datastore.pg_type_names.add(PG_TYPE_NAME_DCB_QUERY_ITEM_TT)
         self.datastore.register_type_adapters()
+        self.sql_kwargs = {
+            "schema": Identifier(self.datastore.schema),
+            "events_table": Identifier(self.events_table_name),
+            "tags_table": Identifier(self.tags_table_name),
+            "event_type": Identifier(PG_TYPE_NAME_DCB_EVENT_TT),
+            "query_item_type": Identifier(PG_TYPE_NAME_DCB_QUERY_ITEM_TT),
+            "id_cover_type_index": Identifier(self.index_name_id_cover_type),
+            "tag_main_id_index": Identifier(self.index_name_tag_main_id),
+        }
 
         self.sql_create_statements.extend(
             [
-                PG_TYPE_DCB_EVENT.format(
-                    schema=Identifier(self.datastore.schema),
-                    type_name=Identifier(PG_TYPE_NAME_DCB_EVENT_TT),
-                ),
-                PG_TYPE_DCB_QUERY_ITEM.format(
-                    schema=Identifier(self.datastore.schema),
-                    type_name=Identifier(PG_TYPE_NAME_DCB_QUERY_ITEM_TT),
-                ),
-                PG_TABLE_DCB_EVENTS.format(
-                    schema=Identifier(self.datastore.schema),
-                    table_name=Identifier(self.pg_main_table_name),
-                ),
-                PG_INDEX_UNIQUE_ID_COVER_TYPE.format(
-                    index_name=Identifier(self.pg_index_name_id_cover_type),
-                    schema=Identifier(self.datastore.schema),
-                    table_name=Identifier(self.pg_main_table_name),
-                ),
-                PG_TABLE_DCB_TAGS.format(
-                    schema=Identifier(self.datastore.schema),
-                    table_name=Identifier(self.pg_tag_table_name),
-                    main_table=Identifier(self.pg_main_table_name),
-                ),
-                PG_INDEX_TAG_MAIN_ID.format(
-                    index_name=Identifier(self.pg_index_name_tag_main_id),
-                    schema=Identifier(self.datastore.schema),
-                    table_name=Identifier(self.pg_tag_table_name),
-                ),
+                PG_TYPE_DCB_EVENT.format(**self.sql_kwargs),
+                PG_TYPE_DCB_QUERY_ITEM.format(**self.sql_kwargs),
+                PG_TABLE_DCB_EVENTS.format(**self.sql_kwargs),
+                PG_INDEX_UNIQUE_ID_COVER_TYPE.format(**self.sql_kwargs),
+                PG_TABLE_DCB_TAGS.format(**self.sql_kwargs),
+                PG_INDEX_TAG_MAIN_ID.format(**self.sql_kwargs),
             ]
         )
 
         self.sql_statement_insert_events = SQL_STATEMENT_DCB_INSERT_EVENTS.format(
-            event_type=Identifier(PG_TYPE_NAME_DCB_EVENT_TT),
-            schema=Identifier(self.datastore.schema),
-            main_table=Identifier(self.pg_main_table_name),
-            tag_table=Identifier(self.pg_tag_table_name),
+            **self.sql_kwargs
         )
         self.explain_sql_statement_insert_events = (
             SQL_EXPLAIN + self.sql_statement_insert_events
         )
         self.sql_statement_select_events_by_tags = (
-            SQL_STATEMENT_SELECT_EVENTS_BY_TAGS.format(
-                query_item_type=Identifier(PG_TYPE_NAME_DCB_QUERY_ITEM_TT),
-                schema=Identifier(self.datastore.schema),
-                tag_table=Identifier(self.pg_tag_table_name),
-                main_table=Identifier(self.pg_main_table_name),
-            )
+            SQL_STATEMENT_SELECT_EVENTS_BY_TAGS.format(**self.sql_kwargs)
         )
         self.explain_sql_statement_select_events_by_tags = (
             SQL_EXPLAIN + self.sql_statement_select_events_by_tags
         )
         self.sql_statement_select_events_all = SQL_STATEMENT_SELECT_EVENTS_ALL.format(
-            schema=Identifier(self.datastore.schema),
-            main_table=Identifier(self.pg_main_table_name),
+            **self.sql_kwargs
         )
         self.sql_statement_select_events_by_type = (
-            SQL_STATEMENT_SELECT_EVENTS_BY_TYPE.format(
-                schema=Identifier(self.datastore.schema),
-                main_table=Identifier(self.pg_main_table_name),
-            )
+            SQL_STATEMENT_SELECT_EVENTS_BY_TYPE.format(**self.sql_kwargs)
         )
         self.sql_statement_select_max_id = SQL_STATEMENT_SELECT_MAX_ID.format(
-            schema=Identifier(self.datastore.schema),
-            main_table=Identifier(self.pg_main_table_name),
+            **self.sql_kwargs
         )
 
     def read(

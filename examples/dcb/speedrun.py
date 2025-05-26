@@ -110,10 +110,9 @@ def count_events(app: Enrolment) -> int:
         recorder: Any = app.recorder
         assert isinstance(recorder, PostgresApplicationRecorder)
         datastore = recorder.datastore
-        table_name = recorder.events_table_name
         statement = SQL_SELECT_COUNT_ROWS.format(
             schema=Identifier(datastore.schema),
-            table_name=Identifier(table_name),
+            table_name=Identifier(recorder.events_table_name),
         )
         with datastore.get_connection() as conn:
             result = conn.execute(statement).fetchone()
@@ -123,10 +122,9 @@ def count_events(app: Enrolment) -> int:
         recorder = app.recorder
         assert isinstance(recorder, PostgresDCBEventStoreTT)
         datastore = recorder.datastore
-        table_name = recorder.pg_main_table_name
         statement = SQL_SELECT_COUNT_ROWS.format(
             schema=Identifier(datastore.schema),
-            table_name=Identifier(table_name),
+            table_name=Identifier(recorder.events_table_name),
         )
         with datastore.get_connection() as conn:
             result = conn.execute(statement).fetchone()
