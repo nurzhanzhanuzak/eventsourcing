@@ -355,9 +355,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
 
         elif self.all_query_items_have_tags(query):
             # Select with tags.
-            pg_dcb_query_items = [
-                self.construct_pg_dcb_query_item(q) for q in query.items
-            ]
+            pg_dcb_query_items = self.construct_db_query_items(query.items)
             
             # # Run EXPLAIN ANALYZE and print report...
             # print()
@@ -408,6 +406,9 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             head = max(head or 0, *[e.position for e in events])
 
         return events, head
+
+    def construct_db_query_items(self, query_items: Sequence[DCBQueryItem]) -> list[PgDCBQueryItem]:
+        return [self.construct_pg_dcb_query_item(q) for q in query_items]
 
     def append(
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None
