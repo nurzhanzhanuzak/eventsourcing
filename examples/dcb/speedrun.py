@@ -283,7 +283,7 @@ if __name__ == "__main__":
     with cls(env=env) as app:
 
         started_event_count = count_events(app)
-        print(f" Events in database at start: {started_event_count:>12n} events")
+        print(f" Events in database at start:  {started_event_count:n} events")
         print()
         print()
 
@@ -307,8 +307,8 @@ if __name__ == "__main__":
                 finished_event_count = count_events(app)
                 print()
                 print(
-                    f" Events in database at end:   "
-                    f"{finished_event_count:>12n} events "
+                    f" Events in database at end:  "
+                    f"{finished_event_count:n} events  "
                     f"({(finished_event_count - started_event_count):n} new)"
                 )
                 print()
@@ -364,8 +364,8 @@ if __name__ == "__main__":
                 print()
                 finished_event_count = count_events(app)
                 print(
-                    f" Events in database at end:   "
-                    f"{finished_event_count:>12n} events "
+                    f" Events in database at end:  "
+                    f"{finished_event_count:n} events  "
                     f"({finished_event_count - started_event_count:n} new)"
                 )
                 print()
