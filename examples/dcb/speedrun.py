@@ -19,6 +19,7 @@ from examples.dcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
     PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
     PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
+    PostgresDCBEventStoreTS,
 )
 from examples.dcb.postgres_tt import PostgresDCBEventStoreTT
 
@@ -47,8 +48,19 @@ def inf_range() -> Iterator[int]:
 
 
 config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
-    "dcb-pg": (
-        # EnrolmentWithDCB,
+    "dcb-pg-ts": (
+        EnrolmentWithDCBRefactored,
+        10,
+        {
+            "PERSISTENCE_MODULE": "examples.dcb.postgres_ts",
+            "POSTGRES_DBNAME": SPEEDRUN_DB_NAME,
+            "POSTGRES_HOST": "127.0.0.1",
+            "POSTGRES_PORT": "5432",
+            "POSTGRES_USER": SPEEDRUN_DB_USER,
+            "POSTGRES_PASSWORD": SPEEDRUN_DB_PASSWORD,
+        },
+    ),
+    "dcb-pg-tt": (
         EnrolmentWithDCBRefactored,
         10,
         {
@@ -122,7 +134,7 @@ def count_events(app: Enrolment) -> int:
 
     elif isinstance(app, EnrolmentWithDCBRefactored):
         recorder = app.recorder
-        assert isinstance(recorder, PostgresDCBEventStoreTT)
+        assert isinstance(recorder, (PostgresDCBEventStoreTS, PostgresDCBEventStoreTT))
         datastore = recorder.datastore
         statement = SQL_SELECT_COUNT_ROWS.format(
             schema=Identifier(datastore.schema),
@@ -140,7 +152,8 @@ def count_events(app: Enrolment) -> int:
 
 if __name__ == "__main__":
     modes = [
-        "dcb-pg",
+        "dcb-pg-ts",
+        "dcb-pg-tt",
         "dcb-mem",
         "agg-pg",
         "agg-mem",

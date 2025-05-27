@@ -264,8 +264,8 @@ class PostgresDCBEventStoreTS(PostgresDCBEventStore):
     ):
         super().__init__(datastore)
         self.check_identifier_length(events_table_name)
-        self.pg_table_name_events = events_table_name
-        self.pg_index_name_text_vector = self.pg_table_name_events + "_text_vector_idx"
+        self.events_table_name = events_table_name
+        self.pg_index_name_text_vector = self.events_table_name + "_text_vector_idx"
         self.check_identifier_length(self.pg_index_name_text_vector)
         self.pg_channel_name = events_table_name.replace(".", "_")
         self.datastore.db_type_names.add(PG_TYPE_NAME_DCB_EVENT_TS)
@@ -281,12 +281,12 @@ class PostgresDCBEventStoreTS(PostgresDCBEventStore):
             [
                 PG_TABLE_DCB_EVENTS.format(
                     schema=Identifier(self.datastore.schema),
-                    table_name=Identifier(self.pg_table_name_events),
+                    table_name=Identifier(self.events_table_name),
                 ),
                 PG_TABLE_INDEX_DCB_EVENT_TEXT_VECTOR.format(
                     index_name=Identifier(self.pg_index_name_text_vector),
                     schema=Identifier(self.datastore.schema),
-                    table=Identifier(self.pg_table_name_events),
+                    table=Identifier(self.events_table_name),
                 ),
                 PG_TYPE_DCB_EVENT.format(
                     schema=Identifier(self.datastore.schema),
@@ -296,19 +296,19 @@ class PostgresDCBEventStoreTS(PostgresDCBEventStore):
                     insert_events=Identifier(PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS),
                     schema=Identifier(self.datastore.schema),
                     event_type=Identifier(PG_TYPE_NAME_DCB_EVENT_TS),
-                    table=Identifier(self.pg_table_name_events),
+                    table=Identifier(self.events_table_name),
                 ),
                 PG_FUNCTION_DCB_SELECT_EVENTS.format(
                     select_events=Identifier(PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS),
                     schema=Identifier(self.datastore.schema),
-                    table=Identifier(self.pg_table_name_events),
+                    table=Identifier(self.events_table_name),
                 ),
                 PG_FUNCTION_DCB_CHECK_APPEND_CONDITION.format(
                     check_append_condition=Identifier(
                         PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS
                     ),
                     schema=Identifier(self.datastore.schema),
-                    table=Identifier(self.pg_table_name_events),
+                    table=Identifier(self.events_table_name),
                 ),
                 PG_PROCEDURE_DCB_APPEND_EVENTS.format(
                     append_events=Identifier(PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS),
@@ -317,7 +317,7 @@ class PostgresDCBEventStoreTS(PostgresDCBEventStore):
                     check_append_condition=Identifier(
                         PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS
                     ),
-                    table=Identifier(self.pg_table_name_events),
+                    table=Identifier(self.events_table_name),
                     insert_events=Identifier(PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS),
                     channel=Identifier(self.pg_channel_name),
                 ),
