@@ -283,6 +283,105 @@ FROM inserted;
 """
 )
 
+DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT = "conditional_append_tt"
+
+DB_FUNCTION_CONDITIONAL_APPEND = SQL(
+    """
+CREATE OR REPLACE FUNCTION {schema}.{conditional_append}(
+    query_items {schema}.{query_item_type}[],
+    after_id bigint,
+    new_events {schema}.{event_type}[]
+) RETURNS SETOF bigint
+LANGUAGE plpgsql AS $$
+DECLARE
+    conflict_exists boolean;
+BEGIN
+    -- Step 1: Check for conflicts
+    WITH query_items_cte AS (
+        SELECT * FROM unnest(query_items) WITH ORDINALITY
+    ),
+    initial_matches AS (
+        SELECT
+            t.main_id,
+            qi.ordinality,
+            t.type,
+            t.tag,
+            qi.tags AS required_tags,
+            qi.types AS allowed_types
+        FROM query_items_cte qi
+        JOIN {schema}.{tags_table} t
+          ON t.tag = ANY(qi.tags)
+        WHERE t.main_id > COALESCE(after_id, 0)
+    ),
+    matched_groups AS (
+        SELECT
+            main_id,
+            ordinality,
+            COUNT(DISTINCT tag) AS matched_tag_count,
+            array_length(required_tags, 1) AS required_tag_count,
+            allowed_types
+        FROM initial_matches
+        GROUP BY main_id, ordinality, required_tag_count, allowed_types
+    ),
+    qualified_ids AS (
+        SELECT main_id, allowed_types
+        FROM matched_groups
+        WHERE matched_tag_count = required_tag_count
+    ),
+    filtered_ids AS (
+        SELECT m.id
+        FROM {schema}.{events_table} m
+        JOIN qualified_ids q ON q.main_id = m.id
+        WHERE
+            m.id > COALESCE(after_id, 0)
+            AND (
+                array_length(q.allowed_types, 1) IS NULL
+                OR array_length(q.allowed_types, 1) = 0
+                OR m.type = ANY(q.allowed_types)
+            )
+        LIMIT 1
+    )
+    SELECT EXISTS (SELECT 1 FROM filtered_ids)
+    INTO conflict_exists;
+
+    -- Step 2: Insert if no conflicts
+    IF NOT conflict_exists THEN
+        RETURN QUERY
+        WITH new_data AS (
+            SELECT * FROM unnest(new_events)
+        ),
+        inserted AS (
+            INSERT INTO {schema}.{events_table} (type, data, tags)
+            SELECT type, data, tags
+            FROM new_data
+            RETURNING id, type, tags
+        ),
+        expanded_tags AS (
+            SELECT ins.id AS main_id, ins.type, tag
+            FROM inserted ins,
+                 unnest(ins.tags) AS tag
+        ),
+        tag_insert AS (
+            INSERT INTO {schema}.{tags_table} (tag, type, main_id)
+            SELECT tag, type, main_id
+            FROM expanded_tags
+        )
+        SELECT id FROM inserted;
+    END IF;
+
+    -- If conflict exists, return empty result
+    RETURN;
+END
+$$;
+"""
+)
+
+SQL_SELECT_FROM_CONDITIONAL_APPEND_FUNCTION = SQL(
+    """
+SELECT * FROM {schema}.{conditional_append}(%(query_items)s, %(after)s, %(events)s)
+"""
+)
+
 SQL_EXPLAIN = SQL("EXPLAIN")
 SQL_EXPLAIN_ANALYZE = SQL("EXPLAIN (ANALYZE, BUFFERS, VERBOSE)")
 
@@ -310,8 +409,8 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         self.check_identifier_length(DB_TYPE_NAME_DCB_QUERY_ITEM_TT)
 
         # Register composite database types.
-        self.datastore.pg_type_names.add(DB_TYPE_NAME_DCB_EVENT_TT)
-        self.datastore.pg_type_names.add(DB_TYPE_NAME_DCB_QUERY_ITEM_TT)
+        self.datastore.db_type_names.add(DB_TYPE_NAME_DCB_EVENT_TT)
+        self.datastore.db_type_names.add(DB_TYPE_NAME_DCB_QUERY_ITEM_TT)
         self.datastore.register_type_adapters()
 
         # Define SQL template keyword arguments.
@@ -323,6 +422,9 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             "query_item_type": Identifier(DB_TYPE_NAME_DCB_QUERY_ITEM_TT),
             "id_cover_type_index": Identifier(self.index_name_id_cover_type),
             "tag_main_id_index": Identifier(self.index_name_tag_main_id),
+            "conditional_append": Identifier(
+                DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT
+            ),
         }
 
         # Format and extend SQL create statements.
@@ -334,6 +436,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                 self.format(DB_INDEX_UNIQUE_ID_COVER_TYPE),
                 self.format(DB_TABLE_DCB_TAGS),
                 self.format(DB_INDEX_TAG_MAIN_ID),
+                self.format(DB_FUNCTION_CONDITIONAL_APPEND),
             ]
         )
 
@@ -344,6 +447,9 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         self.sql_select_max_id = self.format(SQL_SELECT_MAX_ID)
         self.sql_insert_events = self.format(SQL_INSERT_EVENTS)
         self.sql_conditional_append = self.format(SQL_CONDITIONAL_APPEND)
+        self.sql_select_from_conditional_append_function = self.format(
+            SQL_SELECT_FROM_CONDITIONAL_APPEND_FUNCTION
+        )
 
     def format(self, sql: SQL) -> Composed:
         return sql.format(**self.sql_kwargs)
@@ -395,13 +501,13 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
 
         elif self.has_all_query_items_have_tags(query):
             # Select with tags.
-            pg_dcb_query_items = self.construct_db_query_items(query.items)
+            psycopg_dcb_query_items = self.construct_psycopg_query_items(query.items)
 
             self.execute(
                 curs,
                 self.sql_select_by_tags,
                 {
-                    "query_items": pg_dcb_query_items,
+                    "query_items": psycopg_dcb_query_items,
                     "after": after,
                     "limit": limit,
                 },
@@ -449,32 +555,32 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         self, events: Sequence[DCBEvent], condition: DCBAppendCondition | None = None
     ) -> int:
         assert len(events) > 0
-        pg_dcb_events = [self.construct_pg_dcb_event(e) for e in events]
+        psycopg_dcb_events = self.construct_psycopg_dcb_events(events)
 
         # Maybe do single-statement "conditional append".
         if condition and self.has_all_query_items_have_tags(
             condition.fail_if_events_match
         ):
-            pg_dcb_query_items = self.construct_db_query_items(
+            psycopg_dcb_query_items = self.construct_psycopg_query_items(
                 condition.fail_if_events_match.items
             )
             with self.datastore.cursor() as curs:
                 self.execute(
                     curs,
-                    self.sql_conditional_append,
+                    # self.sql_conditional_append,  # Seems this doesn't work very well.
+                    self.sql_select_from_conditional_append_function,
                     {
-                        "query_items": pg_dcb_query_items,
-                        "events": pg_dcb_events,
+                        "query_items": psycopg_dcb_query_items,
                         "after": condition.after,
+                        "events": psycopg_dcb_events,
                     },
                     explain=False,
                 )
                 row = curs.fetchone()
-                assert row is not None
-                result = row["result"]
-                if result == -1:
+                if row is None:
                     raise IntegrityError
-                return result
+
+                return row[DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT]
 
         with self.datastore.transaction(commit=True) as curs:
             if condition is not None:
@@ -492,7 +598,7 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
                 curs,
                 self.sql_insert_events,
                 {
-                    "events": pg_dcb_events,
+                    "events": psycopg_dcb_events,
                 },
                 explain=False,
             )
@@ -500,25 +606,26 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             assert len(rows) > 0
             return max(row["id"] for row in rows)
 
-    def construct_pg_dcb_event(self, dcb_event: DCBEvent) -> PgDCBEvent:
-        return self.datastore.pg_python_types[DB_TYPE_NAME_DCB_EVENT_TT](
-            type=dcb_event.type,
-            data=dcb_event.data,
-            tags=dcb_event.tags,
-        )
+    def construct_psycopg_dcb_events(self, dcb_events: Sequence[DCBEvent]) -> list[PsycopgDCBEvent]:
+        return [
+            self.datastore.psycopg_python_types[DB_TYPE_NAME_DCB_EVENT_TT](
+                type=e.type,
+                data=e.data,
+                tags=e.tags,
+            )
+            for e in dcb_events
+        ]
 
-    def construct_db_query_items(
+    def construct_psycopg_query_items(
         self, query_items: Sequence[DCBQueryItem]
-    ) -> list[PgDCBQueryItem]:
-        return [self.construct_pg_dcb_query_item(q) for q in query_items]
-
-    def construct_pg_dcb_query_item(
-        self, dcb_query_item: DCBQueryItem
-    ) -> PgDCBQueryItem:
-        return self.datastore.pg_python_types[DB_TYPE_NAME_DCB_QUERY_ITEM_TT](
-            types=dcb_query_item.types,
-            tags=dcb_query_item.tags,
-        )
+    ) -> list[PsycopgDCBQueryItem]:
+        return [
+            self.datastore.psycopg_python_types[DB_TYPE_NAME_DCB_QUERY_ITEM_TT](
+                types=q.types,
+                tags=q.tags,
+            )
+            for q in query_items
+        ]
 
     def has_one_query_item_one_type(self, query: DCBQuery) -> bool:
         return (
@@ -539,26 +646,25 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
         explain: bool = False,
     ) -> None:
         if explain:
-            # self.datastore.pool.resize(2, 2)
             print()  # noqa: T201
-            print("Statement:", statement.as_string())  # noqa: T201
+            print("Statement:", statement.as_string().strip())  # noqa: T201
             print("Params:", params)  # noqa: T201
+            print()  # noqa: T201
             with self.datastore.transaction(commit=False) as explain_cursor:
                 explain_cursor.execute(SQL_EXPLAIN_ANALYZE + statement, params)
                 rows = explain_cursor.fetchall()
                 print("\n".join([r["QUERY PLAN"] for r in rows]))  # noqa: T201
                 print()  # noqa: T201
-            # self.datastore.pool.resize(1, 1)
         cursor.execute(statement, params, prepare=True)
 
 
-class PgDCBEvent(NamedTuple):
+class PsycopgDCBEvent(NamedTuple):
     type: str
     data: bytes
     tags: list[str]
 
 
-class PgDCBQueryItem(NamedTuple):
+class PsycopgDCBQueryItem(NamedTuple):
     types: list[str]
     tags: list[str]
 

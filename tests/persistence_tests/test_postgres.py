@@ -503,7 +503,7 @@ class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTes
 
     def test_pg_stored_event_type(self) -> None:
         # Check there are no type names registered with the datastore.
-        self.assertEqual(0, len(self.datastore.pg_type_names))
+        self.assertEqual(0, len(self.datastore.db_type_names))
 
         # Create recorder method should register type names with the datastore.
         recorder = self.create_recorder()
@@ -511,7 +511,7 @@ class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTes
         # Check the "stored event" type name is registered with the datastore.
         self.assertIn(
             recorder.stored_event_type_name,
-            recorder.datastore.pg_type_names,
+            recorder.datastore.db_type_names,
         )
 
         # Create table should also create the type in the db and register the adapter.
@@ -520,7 +520,7 @@ class TestPostgresAggregateRecorder(SetupPostgresDatastore, AggregateRecorderTes
         # Check the type adapter is registered.
         self.assertIn(
             recorder.stored_event_type_name,
-            recorder.datastore.pg_type_adapters,
+            recorder.datastore.psycopg_type_adapters,
         )
 
         # Check the type adapter is one of the connection's adapters.

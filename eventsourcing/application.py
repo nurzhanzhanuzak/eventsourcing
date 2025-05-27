@@ -281,6 +281,7 @@ class Repository(Generic[TAggregateID]):
                 if self.fastforward:
                     # Fast-forward cached aggregate.
                     fastforward_lock = self._use_fastforward_lock(aggregate_id)
+                    # TODO: Should this be 'fastforward or self.fastforward_skipping'?
                     blocking = not (fastforward_skipping or self.fastforward_skipping)
                     try:
                         if fastforward_lock.acquire(blocking=blocking):

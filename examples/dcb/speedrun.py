@@ -35,8 +35,8 @@ SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt"
 SPEEDRUN_DB_USER = "eventsourcing"
 SPEEDRUN_DB_PASSWORD = "eventsourcing"  # noqa: S105
 
-NUM_COURSES = 1
-NUM_STUDENTS = 1
+NUM_COURSES = 10
+NUM_STUDENTS = 10
 
 
 def inf_range() -> Iterator[int]:
@@ -78,6 +78,8 @@ config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
             "POSTGRES_USER": SPEEDRUN_DB_USER,
             "POSTGRES_PASSWORD": SPEEDRUN_DB_PASSWORD,
             "POSTGRES_ENABLE_DB_FUNCTIONS": "y",
+            # "AGGREGATE_CACHE_MAXSIZE": "100",
+            # "AGGREGATE_CACHE_FASTFORWARD": "f",
         },
     ),
     "agg-mem": (

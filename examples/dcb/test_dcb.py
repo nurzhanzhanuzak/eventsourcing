@@ -399,8 +399,6 @@ class DCBEventStoreTestCase(TestCase):
         # Can append match type1 and tagX after 1.
         eventstore.append(new, DCBAppendCondition(query_type1_tag_x, after=1))
 
-        return
-
         # Can append match tagX, after 1.
         eventstore.append(new, DCBAppendCondition(query_tag_x, after=1))
 
@@ -459,7 +457,7 @@ class DCBEventStoreTestCase(TestCase):
         )
 
         result, head = eventstore.read()
-        self.assertEqual(10, len(result))
+        self.assertEqual(13, len(result))
         self.assertEqual(result[-3].event.type, student_registered.type)
         self.assertEqual(result[-2].event.type, course_registered.type)
         self.assertEqual(result[-1].event.type, student_joined_course.type)
@@ -469,7 +467,7 @@ class DCBEventStoreTestCase(TestCase):
         self.assertEqual(result[-3].event.tags, student_registered.tags)
         self.assertEqual(result[-2].event.tags, course_registered.tags)
         self.assertEqual(result[-1].event.tags, student_joined_course.tags)
-        self.assertEqual(10, head)
+        self.assertEqual(13, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -477,7 +475,7 @@ class DCBEventStoreTestCase(TestCase):
             )
         )
         self.assertEqual(2, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(13, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -485,7 +483,7 @@ class DCBEventStoreTestCase(TestCase):
             )
         )
         self.assertEqual(2, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(13, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -493,7 +491,7 @@ class DCBEventStoreTestCase(TestCase):
             )
         )
         self.assertEqual(1, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(13, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -502,7 +500,7 @@ class DCBEventStoreTestCase(TestCase):
             after=2,
         )
         self.assertEqual(2, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(13, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -511,7 +509,7 @@ class DCBEventStoreTestCase(TestCase):
             after=2,
         )
         self.assertEqual(2, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(13, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -520,7 +518,7 @@ class DCBEventStoreTestCase(TestCase):
             after=2,
         )
         self.assertEqual(1, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(13, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -530,7 +528,7 @@ class DCBEventStoreTestCase(TestCase):
             limit=1,
         )
         self.assertEqual(1, len(result))
-        self.assertEqual(8, head)
+        self.assertEqual(11, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -540,7 +538,7 @@ class DCBEventStoreTestCase(TestCase):
             limit=1,
         )
         self.assertEqual(1, len(result))
-        self.assertEqual(9, head)
+        self.assertEqual(12, head)
 
         result, head = eventstore.read(
             query=DCBQuery(
@@ -550,7 +548,7 @@ class DCBEventStoreTestCase(TestCase):
             limit=1,
         )
         self.assertEqual(1, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(13, head)
 
         consistency_boundary = DCBQuery(
             items=[
@@ -568,7 +566,7 @@ class DCBEventStoreTestCase(TestCase):
             query=consistency_boundary,
         )
         self.assertEqual(3, len(result))
-        self.assertEqual(10, head)
+        self.assertEqual(13, head)
 
 
 class TestInMemoryDCBEventStore(DCBEventStoreTestCase):

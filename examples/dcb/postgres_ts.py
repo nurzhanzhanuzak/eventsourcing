@@ -268,7 +268,7 @@ class PostgresDCBEventStoreTS(PostgresDCBEventStore):
         self.pg_index_name_text_vector = self.pg_table_name_events + "_text_vector_idx"
         self.check_identifier_length(self.pg_index_name_text_vector)
         self.pg_channel_name = events_table_name.replace(".", "_")
-        self.datastore.pg_type_names.add(PG_TYPE_NAME_DCB_EVENT_TS)
+        self.datastore.db_type_names.add(PG_TYPE_NAME_DCB_EVENT_TS)
         self.datastore.register_type_adapters()
 
         self.sql_statement_select_events = SQL_STATEMENT_DCB_SELECT_EVENTS.format(
@@ -447,7 +447,7 @@ class PostgresDCBEventStoreTS(PostgresDCBEventStore):
         data: bytes,
         tags: list[str],
     ) -> PgDCBEvent:
-        return self.datastore.pg_python_types[PG_TYPE_NAME_DCB_EVENT_TS](
+        return self.datastore.psycopg_python_types[PG_TYPE_NAME_DCB_EVENT_TS](
             type, data, tags, self.construct_text_vector(type, tags)
         )
 
