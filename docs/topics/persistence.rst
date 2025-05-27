@@ -1283,8 +1283,8 @@ by combining and extending :class:`~eventsourcing.postgres.PostgresApplicationRe
     #include-when-testing
 ..
     drop_tables()
-    datastore.pg_type_adapters.clear()
-    datastore.pg_python_types.clear()
+    datastore.psycopg_type_adapters.clear()
+    datastore.psycopg_python_types.clear()
 
 
 
@@ -1803,8 +1803,8 @@ constructed and used in a standard way.
     #include-when-testing
 ..
     drop_tables()
-    datastore.pg_type_adapters.clear()
-    datastore.pg_python_types.clear()
+    datastore.psycopg_type_adapters.clear()
+    datastore.psycopg_python_types.clear()
 
 
 

@@ -606,7 +606,9 @@ class PostgresDCBEventStoreTT(PostgresDCBEventStore):
             assert len(rows) > 0
             return max(row["id"] for row in rows)
 
-    def construct_psycopg_dcb_events(self, dcb_events: Sequence[DCBEvent]) -> list[PsycopgDCBEvent]:
+    def construct_psycopg_dcb_events(
+        self, dcb_events: Sequence[DCBEvent]
+    ) -> list[PsycopgDCBEvent]:
         return [
             self.datastore.psycopg_python_types[DB_TYPE_NAME_DCB_EVENT_TT](
                 type=e.type,

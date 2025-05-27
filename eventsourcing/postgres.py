@@ -275,19 +275,19 @@ class PostgresRecorder:
     def create_table(self) -> None:
         # Create composite types.
         for statement in self.sql_create_statements:
-            if "CREATE TYPE" not in statement.as_string():
-                continue
-            with (
-                self.datastore.transaction(commit=True) as curs,
-                contextlib.suppress(DuplicateObject),
-            ):
-                try:
+            if "CREATE TYPE" in statement.as_string():
+                # Do in own transaction, because there is no 'IF NOT EXISTS' option
+                # when creating types, and if exists, then a DuplicateObject error
+                # is raised, terminating the transaction and causing an opaque error.
+                with (
+                    self.datastore.transaction(commit=True) as curs,
+                    contextlib.suppress(DuplicateObject),
+                ):
                     curs.execute(statement, prepare=False)
-                except psycopg.errors.SyntaxError as e:
-                    msg = f"Syntax error: '{e}' in: {statement.as_string()}"
-                    raise ProgrammingError(msg) from e
-                # else:
-                #     print(statement.as_string())
+                    # try:
+                    # except psycopg.errors.SyntaxError as e:
+                    #     msg = f"Syntax error: '{e}' in: {statement.as_string()}"
+                    #     raise ProgrammingError(msg) from e
 
         # Create tables, indexes, types, functions, and procedures.
         with self.datastore.transaction(commit=True) as curs:
@@ -298,15 +298,12 @@ class PostgresRecorder:
 
     def _create_table(self, curs: Cursor[DictRow]) -> None:
         for statement in self.sql_create_statements:
-            if "CREATE TYPE" in statement.as_string():
-                continue
-            try:
-                curs.execute(statement, prepare=False)
-            except psycopg.errors.SyntaxError as e:
-                msg = f"Syntax error: '{e}' in: {statement.as_string()}"
-                raise ProgrammingError(msg) from e
-            # else:
-            #     print(statement.as_string())
+            if "CREATE TYPE" not in statement.as_string():
+                try:
+                    curs.execute(statement, prepare=False)
+                except psycopg.errors.SyntaxError as e:
+                    msg = f"Syntax error: '{e}' in: {statement.as_string()}"
+                    raise ProgrammingError(msg) from e
 
 
 class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
@@ -342,7 +339,7 @@ class PostgresAggregateRecorder(PostgresRecorder, AggregateRecorder):
                 "(originator_id, originator_version)) "
                 "WITH ("
                 "    autovacuum_enabled = true,"
-                "    autovacuum_vacuum_threshold,"
+                "    autovacuum_vacuum_threshold = 100000000,"
                 "    autovacuum_vacuum_scale_factor = 0.5,"
                 "    autovacuum_analyze_threshold = 1000,"
                 "    autovacuum_analyze_scale_factor = 0.01"
@@ -495,7 +492,7 @@ class PostgresApplicationRecorder(PostgresAggregateRecorder, ApplicationRecorder
             "(originator_id, originator_version)) "
             "WITH ("
             "    autovacuum_enabled = true,"
-            "    autovacuum_vacuum_threshold,"
+            "    autovacuum_vacuum_threshold = 100000000,"
             "    autovacuum_vacuum_scale_factor = 0.5,"
             "    autovacuum_analyze_threshold = 1000,"
             "    autovacuum_analyze_scale_factor = 0.01"
@@ -831,7 +828,7 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
                     "(application_name))"
                     "WITH ("
                     "    autovacuum_enabled = true,"
-                    "    autovacuum_vacuum_threshold,"
+                    "    autovacuum_vacuum_threshold = 100000000,"
                     "    autovacuum_vacuum_scale_factor = 0.5,"
                     "    autovacuum_analyze_threshold = 1000,"
                     "    autovacuum_analyze_scale_factor = 0.01"
@@ -863,7 +860,7 @@ class PostgresTrackingRecorder(PostgresRecorder, TrackingRecorder):
                     "(application_name, notification_id))"
                     "WITH ("
                     "    autovacuum_enabled = true,"
-                    "    autovacuum_vacuum_threshold,"
+                    "    autovacuum_vacuum_threshold = 100000000,"
                     "    autovacuum_vacuum_scale_factor = 0.5,"
                     "    autovacuum_analyze_threshold = 1000,"
                     "    autovacuum_analyze_scale_factor = 0.01"

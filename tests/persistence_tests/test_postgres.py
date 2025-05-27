@@ -584,8 +584,22 @@ class TestPostgresAggregateRecorderErrors(SetupPostgresDatastore, TestCase):
 
         # Mess up the statement.
         recorder.sql_create_statements = [SQL("BLAH").format()]
-        with self.assertRaises(ProgrammingError):
+        with self.assertRaises(ProgrammingError) as e:
             recorder.create_table()
+
+        self.assertIn("syntax error", str(e.exception))
+
+    def test_create_table_raises_programming_error_when_sql_type_is_broken(
+        self,
+    ) -> None:
+        recorder = self.create_recorder()
+
+        # Mess up the statement.
+        recorder.sql_create_statements = [SQL("CREATE TYPE BLAH (").format()]
+        with self.assertRaises(ProgrammingError) as e:
+            recorder.create_table()
+
+        self.assertIn("syntax error", str(e.exception))
 
     def test_insert_events_raises_programming_error_when_table_not_created(
         self,
