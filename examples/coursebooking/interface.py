@@ -17,7 +17,7 @@ class Enrolment(AbstractContextManager["Enrolment"], ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def join_course(self, course_id: str, student_id: str) -> None:
+    def join_course(self, student_id: str, course_id: str) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -38,6 +38,10 @@ class FullyBookedError(Exception):
 
 
 class AlreadyJoinedError(Exception):
+    pass
+
+
+class NotAlreadyJoinedError(Exception):
     pass
 
 

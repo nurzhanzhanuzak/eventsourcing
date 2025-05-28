@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import cast, Union
+from typing import cast
 
 from eventsourcing.domain import event
 from examples.coursebooking.interface import (
@@ -9,15 +9,15 @@ from examples.coursebooking.interface import (
     Enrolment,
     FullyBookedError,
     StudentNotFoundError,
-    TooManyCoursesError,
+    TooManyCoursesError, NotAlreadyJoinedError,
 )
 from examples.coursebookingdcbrefactored.eventstore import (
-    DomainEvent,
+    Decision,
     EnduringObject,
     EventStore,
-    InitEvent,
+    Initialised,
     Mapper,
-    Repository,
+    Repository, Group,
 )
 from examples.dcb.application import (
     DCBApplication,
@@ -30,15 +30,15 @@ class Student(EnduringObject):
         self.max_courses = max_courses
         self.course_ids: list[str] = []
 
-    class Registered(InitEvent):
+    class Registered(Initialised):
         student_id: str
         name: str
         max_courses: int
 
-    class NameUpdated(DomainEvent):
+    class NameUpdated(Decision):
         name: str
 
-    class MaxCoursesUpdated(DomainEvent):
+    class MaxCoursesUpdated(Decision):
         max_courses: int
 
     @event(NameUpdated)
@@ -57,13 +57,13 @@ class Course(EnduringObject):
         self.student_ids: list[str] = []
 
 
-    class Registered(InitEvent):
+    class Registered(Initialised):
         course_id: str
         name: str
         places: int
 
 
-class StudentJoinedCourse(DomainEvent):
+class StudentJoinedCourse(Decision):
     student_id: str
     course_id: str
 
@@ -72,6 +72,58 @@ class StudentJoinedCourse(DomainEvent):
             obj.course_ids.append(self.course_id)
         elif isinstance(obj, Course):
             obj.student_ids.append(self.student_id)
+
+
+class StudentLeftCourse(Decision):
+    student_id: str
+    course_id: str
+
+    def apply(self, obj: Course | Student) -> None:
+        if isinstance(obj, Student):
+            obj.course_ids.remove(self.course_id)
+        elif isinstance(obj, Course):
+            obj.student_ids.remove(self.student_id)
+
+
+class StudentAndCourse(Group):
+    def __init__(self, student: Student | None, course: Course | None) -> None:
+        super().__init__()
+        self.student = student
+        self.course = course
+
+    def student_joins_course(self) -> None:
+        if self.course is None:
+            raise CourseNotFoundError
+        if self.student is None:
+            raise StudentNotFoundError
+        if self.student.id in self.course.student_ids:
+            raise AlreadyJoinedError
+        if len(self.student.course_ids) >= self.student.max_courses:
+            raise TooManyCoursesError
+        if len(self.course.student_ids) >= self.course.places:
+            raise FullyBookedError
+
+        # The DCB magic: one event for "one fact".
+        self.trigger_event(
+            StudentJoinedCourse,
+            student_id=self.student.id,
+            course_id=self.course.id,
+        )
+
+    def student_leaves_course(self) -> None:
+        if self.course is None:
+            raise CourseNotFoundError
+        if self.student is None:
+            raise StudentNotFoundError
+        if self.student.id not in self.course.student_ids:
+            raise NotAlreadyJoinedError
+
+        # The DCB magic: one event for "one fact".
+        self.trigger_event(
+            StudentLeftCourse,
+            student_id=self.student.id,
+            course_id=self.course.id,
+        )
 
 
 class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
@@ -100,34 +152,18 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         self.repository.save(course)
         return course.id
 
-    def join_course(self, course_id: str, student_id: str) -> None:
-        course, student = cast(
-            tuple[Union[Course, None], Union[Student, None]],
-            self.repository.get_many(course_id, student_id)
-        )
-        if course is None:
-            raise CourseNotFoundError
-        if student is None:
-            raise StudentNotFoundError
-        if student.id in course.student_ids:
-            raise AlreadyJoinedError
-        if len(student.course_ids) >= student.max_courses:
-            raise TooManyCoursesError
-        if len(course.student_ids) >= course.places:
-            raise FullyBookedError
+    def join_course(self, student_id: str, course_id: str) -> None:
+        group = self.get_student_and_course(student_id, course_id)
+        group.student_joins_course()
+        self.repository.save(group)
 
-        # The DCB magic: one event for "one fact".
-        student_joined_course = StudentJoinedCourse(
-            student_id=student_id,
-            course_id=course_id,
-            tags=[student_id, course_id],
-        )
+    def leave_course(self, student_id: str, course_id: str) -> None:
+        group = self.get_student_and_course(student_id, course_id)
+        group.student_leaves_course()
+        self.repository.save(group)
 
-        self.events.put(
-            student_joined_course,
-            cb=[*student.cb, *course.cb],
-            after=course.last_known_position,
-        )
+    def get_student_and_course(self, student_id: str, course_id: str) -> StudentAndCourse:
+        return self.repository.get_group(student_id, course_id, cls=StudentAndCourse)
 
     def list_students_for_course(self, course_id: str) -> list[str]:
         course = self.get_course(course_id)

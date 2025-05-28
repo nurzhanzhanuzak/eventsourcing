@@ -58,11 +58,18 @@ class TestEnrolmentWithDCBRefactored(TestEnrolment):
         # Join course.
         self.assertEqual(student.course_ids, [])
         self.assertEqual(course.student_ids, [])
-        app.join_course(course_id=course_id, student_id=student_id)
+        app.join_course(student_id=student_id, course_id=course_id)
         student = app.get_student(student_id)
         course = app.get_course(course_id)
         self.assertEqual(student.course_ids, [course_id])
         self.assertEqual(course.student_ids, [student_id])
+        
+        # Leave course.
+        app.leave_course(student_id=student_id, course_id=course_id)
+        student = app.get_student(student_id)
+        course = app.get_course(course_id)
+        self.assertEqual(student.course_ids, [])
+        self.assertEqual(course.student_ids, [])
         
         # Multi-get.
         objs = app.repository.get_many(course_id, student_id)

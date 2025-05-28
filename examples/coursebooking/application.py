@@ -29,7 +29,7 @@ class EnrolmentWithAggregates(Application[str], Enrolment):
         self.save(course)
         return course.id
 
-    def join_course(self, course_id: str, student_id: str) -> None:
+    def join_course(self, student_id: str, course_id: str) -> None:
         course = self.get_course(course_id)
         student = self.get_student(student_id)
         course.accept_student(student_id)

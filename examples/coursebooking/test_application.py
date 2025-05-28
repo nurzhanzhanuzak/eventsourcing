@@ -48,39 +48,39 @@ class TestEnrolment(TestCase):
         katherine = app.register_student("Katherine", max_courses=3)
 
         # Fill 'Dynamic Consistency Boundaries' course.
-        app.join_course(dcb, sara)
-        app.join_course(dcb, mollie)
-        app.join_course(dcb, allard)
-        app.join_course(dcb, grace)
-        app.join_course(dcb, bastian)
+        app.join_course(sara, dcb)
+        app.join_course(mollie, dcb)
+        app.join_course(allard, dcb)
+        app.join_course(grace, dcb)
+        app.join_course(bastian, dcb)
 
         # Greg can't join because the course is full.
         with self.assertRaises(FullyBookedError):
-            app.join_course(dcb, greg)
+            app.join_course(greg, dcb)
 
         # Greg joins other courses instead.
-        app.join_course(french, greg)
-        app.join_course(spanish, greg)
-        app.join_course(maths, greg)
+        app.join_course(greg, french)
+        app.join_course(greg, spanish)
+        app.join_course(greg, maths)
 
         # Greg has enough to do already.
         with self.assertRaises(TooManyCoursesError):
-            app.join_course(biology, greg)
+            app.join_course(greg, biology)
 
         # Katherine also does French.
-        app.join_course(french, katherine)
+        app.join_course(katherine, french)
 
         # Katherine already does French.
         with self.assertRaises(AlreadyJoinedError):
-            app.join_course(french, katherine)
+            app.join_course(katherine, french)
 
         # Course not found.
         with self.assertRaises(CourseNotFoundError):
-            app.join_course("not-a-course", grace)
+            app.join_course(grace, "not-a-course")
 
         # Student not found.
         with self.assertRaises(StudentNotFoundError):
-            app.join_course(dcb, "not-a-student")
+            app.join_course("not-a-student", dcb)
 
         # List students for Dynamic Consistency Boundaries.
         students = app.list_students_for_course(dcb)
@@ -139,7 +139,7 @@ class TestEnrolmentConsistency(TestEnrolmentWithAggregates):
         course.accept_student(student.id)
 
         # During this operation, Bastian joins French.
-        app.join_course(french, bastian)
+        app.join_course(bastian, french)
 
         # Can't proceed with concurrent operation because course changed.
         with self.assertRaises(IntegrityError):

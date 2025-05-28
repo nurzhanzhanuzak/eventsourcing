@@ -23,14 +23,14 @@ if TYPE_CHECKING:
 
 
 class Mapper:
-    def to_dcb_event(self, event: DomainEvent) -> DCBEvent:
+    def to_dcb_event(self, event: Decision) -> DCBEvent:
         return DCBEvent(
             type=get_topic(type(event)),
             data=msgspec.msgpack.encode(event),
             tags=event.tags,
         )
 
-    def to_domain_event(self, event: DCBEvent) -> DomainEvent:
+    def to_domain_event(self, event: DCBEvent) -> Decision:
         return msgspec.msgpack.decode(
             event.data,
             type=resolve_topic(event.type),
@@ -39,7 +39,7 @@ class Mapper:
 
 class Selector:
     def __init__(
-        self, types: Sequence[type[DomainEvent]] = (), tags: Sequence[str] = ()
+        self, types: Sequence[type[Decision]] = (), tags: Sequence[str] = ()
     ):
         self.types = types
         self.tags = tags
@@ -55,7 +55,7 @@ class EventStore:
 
     def put(
         self,
-        *events: DomainEvent,
+        *events: Decision,
         cb: Selector | Sequence[Selector] | None = None,
         after: int | None = None,
     ) -> int:
@@ -84,7 +84,7 @@ class EventStore:
         cb: Selector | Sequence[Selector] | None = None,
         *,
         after: int | None = None,
-    ) -> Sequence[DomainEvent]:
+    ) -> Sequence[Decision]:
         pass  # pragma: no cover
 
     @overload
@@ -94,7 +94,7 @@ class EventStore:
         *,
         with_last_position: Literal[True],
         after: int | None = None,
-    ) -> tuple[Sequence[DomainEvent], int | None]:
+    ) -> tuple[Sequence[Decision], int | None]:
         pass  # pragma: no cover
 
     @overload
@@ -104,7 +104,7 @@ class EventStore:
         *,
         with_positions: Literal[True],
         after: int | None = None,
-    ) -> Sequence[tuple[DomainEvent, int]]:
+    ) -> Sequence[tuple[Decision, int]]:
         pass  # pragma: no cover
 
     def get(
@@ -115,9 +115,9 @@ class EventStore:
         with_positions: bool = False,
         with_last_position: bool = False,
     ) -> (
-        Sequence[tuple[DomainEvent, int]]
-        | tuple[Sequence[DomainEvent], int | None]
-        | Sequence[DomainEvent]
+        Sequence[tuple[Decision, int]]
+        | tuple[Sequence[Decision], int | None]
+        | Sequence[Decision]
     ):
         query = self._cb_to_dcb_query(cb)
         dcb_sequenced_events, head = self.recorder.read(
@@ -160,7 +160,7 @@ class Repository:
     def __init__(self, eventstore: EventStore):
         self.eventstore = eventstore
 
-    def save(self, obj: EnduringObject) -> int:
+    def save(self, obj: Perspective) -> int:
         new_events = obj.collect_events()
         return self.eventstore.put(
             *new_events, cb=obj.cb, after=obj.last_known_position
@@ -187,7 +187,7 @@ class Repository:
         for event in events:
             for tag in event.tags:
                 obj = objs.get(tag, None)
-                if not isinstance(event, InitEvent) and not obj:
+                if not isinstance(event, Initialised) and not obj:
                     continue
                 obj = event.mutate(obj)
                 objs[tag] = obj
@@ -196,12 +196,19 @@ class Repository:
                 obj.last_known_position = head
         return list(objs.values())
 
+    def get_group(self, *enduring_object_ids: str, cls: type[TGroup]) -> TGroup:
+        enduring_objects = self.get_many(*enduring_object_ids)
+        perspective = cls(*enduring_objects)
+        last_known_positions = [o.last_known_position for o in enduring_objects if o and o.last_known_position]
+        perspective.last_known_position = max(last_known_positions) if last_known_positions else None
+        return perspective
+
 
 class NotFoundError(Exception):
     pass
 
 
-_enduring_object_init_classes: dict[type[Any], type[InitEvent]] = {}
+_enduring_object_init_classes: dict[type[Any], type[Initialised]] = {}
 
 
 class CanMutateEnduringObject(AbstractDCBEvent):
@@ -219,7 +226,7 @@ class CanMutateEnduringObject(AbstractDCBEvent):
         pass
 
 
-class CanInitEnduringObject(CanMutateEnduringObject):
+class CanInitialiseEnduringObject(CanMutateEnduringObject):
     originator_topic: str
 
     def mutate(self, obj: EnduringObject | None) -> EnduringObject | None:
@@ -238,14 +245,12 @@ class CanInitEnduringObject(CanMutateEnduringObject):
         try:
             enduring_object.__init__(**kwargs)  # type: ignore[misc]
         except TypeError as e:
-            msg = (f"{self.__qualname__} can't __init__ "
+            msg = (f"{type(self).__qualname__} can't __init__ "
                    f"{enduring_object_cls.__qualname__} "
                    f"with kwargs {kwargs}: {e}")
             raise TypeError(msg) from e
         return enduring_object
 
-
-T = TypeVar("T")
 
 class MetaPerspective(type):
     def __init__(self, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> None:
@@ -270,14 +275,26 @@ class MetaPerspective(type):
 
 
 class Perspective(metaclass=MetaPerspective):
-    pass
+    def __init__(self, *objs: EnduringObject | None) -> None:  # noqa: A002
+        self.new_decisions: list[Decision] = []
+        self.last_known_position: int | None = None
+
+    def collect_events(self) -> list[Decision]:
+        collected, self.new_decisions = self.new_decisions, []
+        return collected
+
+    @property
+    def cb(self) -> list[Selector]:
+        raise NotImplementedError
+
+T = TypeVar("T")
 
 
 class MetaEnduringObject(MetaPerspective):
     def __init__(cls, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         for item in cls.__dict__.values():
-            if isinstance(item, type) and issubclass(item, InitEvent):
+            if isinstance(item, type) and issubclass(item, Initialised):
                 _enduring_object_init_classes[cls] = item
                 break
 
@@ -301,7 +318,7 @@ class MetaEnduringObject(MetaPerspective):
         return cast(
             T,
             cls._create(
-                event_class=init_enduring_object_class,
+                decision_cls=init_enduring_object_class,
                 **kwargs,
             ),
         )
@@ -311,68 +328,18 @@ class MetaEnduringObject(MetaPerspective):
         return f"{cls.__name__.lower()}_id"
 
 
-class DomainEvent(Struct, CanMutateEnduringObject):
+class Decision(Struct, CanMutateEnduringObject):
     tags: list[str]
 
     def _as_dict(self) -> dict[str, Any]:
         return {key: getattr(self, key) for key in self.__struct_fields__}
 
 
-class InitEvent(DomainEvent, CanInitEnduringObject):
+class Initialised(Decision, CanInitialiseEnduringObject):
     originator_topic: str
 
 
-class EnduringObject(Perspective, metaclass=MetaEnduringObject):
-    @classmethod
-    def _create(cls: type[Self], event_class: type[InitEvent], **kwargs: Any) -> Self:
-        enduring_object_id = cls._create_id()
-        init_event_kwargs: dict[str, Any] = {cls.id_attr_name: enduring_object_id}
-        init_event_kwargs.update(kwargs)
-        init_event_kwargs["originator_topic"] = get_topic(cls)
-        init_event_kwargs["tags"] = [enduring_object_id]
-        try:
-            init_event = event_class(**init_event_kwargs)
-        except TypeError as e:
-            msg = (
-                f"Unable to construct {event_class.__qualname__} event "
-                f"with kwargs {init_event_kwargs}: {e}"
-            )
-            raise TypeError(msg) from e
-        enduring_object = cast(Self, init_event.mutate(None))
-        assert enduring_object is not None
-        enduring_object.pending_events.append(init_event)
-        return enduring_object
-
-    @classmethod
-    def _create_id(cls) -> str:
-        return f"{cls.__name__.lower()}-{uuid4()}"
-
-    def __base_init__(self, id: str) -> None:  # noqa: A002
-        self.id = id
-        self.pending_events: list[DomainEvent] = []
-        self.last_known_position: int | None = None
-
-    def __post_init__(self) -> None:
-        pass
-
-    def collect_events(self) -> list[DomainEvent]:
-        collected, self.pending_events = self.pending_events, []
-        return collected
-
-    @property
-    def cb(self) -> list[Selector]:
-        return [Selector(tags=[self.id])]
-
-    def trigger_event(
-        self, event_class: type[DomainEvent], *, tags: Sequence[str] = (), **kwargs: Any
-    ) -> None:
-        tags = [self.id, *tags]
-        event = event_class(tags=tags, **kwargs)
-        event.mutate(self)
-        self.pending_events.append(event)
-
-
-class DecoratorEvent(DomainEvent):
+class DecoratorEvent(Decision):
     def apply(self, obj: Perspective) -> None:
         """Applies event to perspective by calling method decorated by @event."""
         # Identify the function that was decorated.
@@ -390,3 +357,71 @@ class DecoratorEvent(DomainEvent):
         super().apply(obj)
 
 
+class EnduringObject(Perspective, metaclass=MetaEnduringObject):
+    @classmethod
+    def _create(cls: type[Self], decision_cls: type[Initialised], **kwargs: Any) -> Self:
+        enduring_object_id = cls._create_id()
+        initial_kwargs: dict[str, Any] = {cls.id_attr_name: enduring_object_id}
+        initial_kwargs.update(kwargs)
+        initial_kwargs["originator_topic"] = get_topic(cls)
+        initial_kwargs["tags"] = [enduring_object_id]
+        try:
+            initialised = decision_cls(**initial_kwargs)
+        except TypeError as e:
+            msg = (
+                f"Unable to construct {decision_cls.__qualname__} event "
+                f"with kwargs {initial_kwargs}: {e}"
+            )
+            raise TypeError(msg) from e
+        enduring_object = cast(Self, initialised.mutate(None))
+        assert enduring_object is not None
+        enduring_object.new_decisions.append(initialised)
+        return enduring_object
+
+    @classmethod
+    def _create_id(cls) -> str:
+        return f"{cls.__name__.lower()}-{uuid4()}"
+
+    def __base_init__(self, id: str) -> None:  # noqa: A002
+        super().__init__()
+        self.id = id
+
+    def __post_init__(self) -> None:
+        pass
+
+    @property
+    def cb(self) -> list[Selector]:
+        return [Selector(tags=[self.id])]
+
+    def trigger_event(
+        self, decision_cls: type[Decision], *, tags: Sequence[str] = (), **kwargs: Any
+    ) -> None:
+        tags = [self.id, *tags]
+        decision = decision_cls(tags=tags, **kwargs)
+        decision.mutate(self)
+        self.new_decisions.append(decision)
+
+
+class Group(Perspective):
+    @property
+    def cb(self) -> list[Selector]:
+        return self._flatten(
+            [o.cb for o in self.__dict__.values() if isinstance(o, EnduringObject)]
+        )
+
+    def _flatten(self, xss: list[list[Selector]]) -> list[Selector]:
+        return [x for xs in xss for x in xs]
+
+    def trigger_event(
+        self, decision_cls: type[Decision], *, tags: Sequence[str] = (), **kwargs: Any
+    ) -> None:
+        objs = [o for o in self.__dict__.values() if isinstance(o, EnduringObject)]
+        tags = [o.id for o in objs] + list(tags)
+        decision = decision_cls(tags=tags, **kwargs)
+        for o in objs:
+            decision.mutate(o)
+        self.new_decisions.append(decision)
+
+
+
+TGroup = TypeVar("TGroup", bound=Group)

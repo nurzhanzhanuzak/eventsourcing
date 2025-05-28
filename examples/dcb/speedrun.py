@@ -347,7 +347,7 @@ if __name__ == "__main__":
 
             for course_id in course_ids:
                 for student_id in student_ids:
-                    app.join_course(course_id, student_id)
+                    app.join_course(student_id, course_id)
                     report_ops += 1
                     if interrupted:
                         break

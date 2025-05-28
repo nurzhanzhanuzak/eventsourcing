@@ -53,7 +53,7 @@ class EnrolmentWithDCB(DCBApplication, Enrolment):
         )
         return course_id
 
-    def join_course(self, course_id: str, student_id: str) -> None:
+    def join_course(self, student_id: str, course_id: str) -> None:
         # Decide the consistency boundary.
         consistency_boundary = DCBQuery(
             items=[
