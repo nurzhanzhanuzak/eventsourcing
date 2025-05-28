@@ -13,7 +13,7 @@ from examples.coursebooking.interface import (
     TooManyCoursesError,
 )
 from eventsourcing.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
-from examples.dcb.application import DCBApplication
+from eventsourcing.dcb.application import DCBApplication
 
 
 class EnrolmentWithDCB(DCBApplication, Enrolment):

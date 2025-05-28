@@ -21,7 +21,7 @@ from examples.coursebookingdcbrefactored.eventstore import (
     MsgspecStructMapper,
     Repository,
 )
-from examples.dcb.application import (
+from eventsourcing.dcb.application import (
     DCBApplication,
 )
 
