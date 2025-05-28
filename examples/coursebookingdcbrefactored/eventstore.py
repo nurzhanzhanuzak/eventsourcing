@@ -176,6 +176,25 @@ class Repository:
         obj.last_known_position = head
         return obj
 
+    def get_many(self, *enduring_object_ids: str) -> list[EnduringObject | None]:
+        cb = [
+            Selector(tags=[enduring_object_id])
+            for enduring_object_id in enduring_object_ids
+        ]
+        events, head = self.eventstore.get(cb, with_last_position=True)
+        objs: dict[str, EnduringObject | None] = dict.fromkeys(enduring_object_ids)
+        for event in events:
+            for tag in event.tags:
+                obj = objs.get(tag, None)
+                if not isinstance(event, InitEvent) and not obj:
+                    continue
+                obj = event.mutate(obj)
+                objs[tag] = obj
+        for obj in objs.values():
+            if obj is not None:
+                obj.last_known_position = head
+        return list(objs.values())
+
 
 class NotFoundError(Exception):
     pass

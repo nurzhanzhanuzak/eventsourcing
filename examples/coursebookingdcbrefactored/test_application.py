@@ -21,6 +21,10 @@ class TestEnrolmentWithDCBRefactored(TestEnrolment):
         self.env["PERSISTENCE_MODULE"] = "examples.dcb.postgres_tt"
         super().test_enrolment_with_postgres()
 
+    def test_enrolment(self) -> None:
+        super().test_enrolment()
+
+
     def test_extra(self) -> None:
         app = EnrolmentWithDCBRefactored(self.env)
 
@@ -52,7 +56,22 @@ class TestEnrolmentWithDCBRefactored(TestEnrolment):
         self.assertEqual(3, course.places)
 
         # Join course.
-        # course_id = app.join_course(course_id=)
+        self.assertEqual(student.course_ids, [])
+        self.assertEqual(course.student_ids, [])
+        app.join_course(course_id=course_id, student_id=student_id)
+        student = app.get_student(student_id)
+        course = app.get_course(course_id)
+        self.assertEqual(student.course_ids, [course_id])
+        self.assertEqual(course.student_ids, [student_id])
+        
+        # Multi-get.
+        objs = app.repository.get_many(course_id, student_id)
+        self.assertEqual(2, len(objs))
+        
+        # Check order is preserved.
+        self.assertEqual([course_id, student_id], [o.id for o in objs if o])
+        objs = app.repository.get_many(student_id, course_id)
+        self.assertEqual([student_id, course_id], [o.id for o in objs if o])
 
 
 del TestEnrolment
