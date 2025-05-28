@@ -18,6 +18,7 @@ from eventsourcing.dcb.api import (
     DCBSequencedEvent,
 )
 from eventsourcing.dcb.popo import InMemoryDCBEventStore
+from eventsourcing.dcb.postgres_tt import PostgresDCBRecorderTT
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.postgres import PostgresDatastore, PostgresRecorder
 from eventsourcing.tests.postgres_utils import drop_tables
@@ -26,7 +27,6 @@ from examples.dcb.postgres_ts import (
     PostgresDCBRecorderTS,
     PostgresTSDCBFactory,
 )
-from examples.dcb.postgres_tt import PostgresDCBRecorderTT
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

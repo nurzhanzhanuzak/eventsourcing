@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from psycopg.sql import SQL, Identifier
 
+from eventsourcing.dcb.postgres_tt import PostgresDCBRecorderTT
 from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.persistence import ProgrammingError
 from eventsourcing.postgres import PostgresApplicationRecorder, PostgresDatastore
@@ -21,7 +22,6 @@ from examples.dcb.postgres_ts import (
     PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
     PostgresDCBRecorderTS,
 )
-from examples.dcb.postgres_tt import PostgresDCBRecorderTT
 
 locale.setlocale(locale.LC_ALL, "")
 

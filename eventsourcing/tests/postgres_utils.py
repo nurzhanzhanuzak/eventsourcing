@@ -3,6 +3,11 @@ import os
 import psycopg
 from psycopg.sql import SQL, Identifier
 
+from eventsourcing.dcb.postgres_tt import (
+    DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT,
+    DB_TYPE_NAME_DCB_EVENT_TT,
+    DB_TYPE_NAME_DCB_QUERY_ITEM_TT,
+)
 from eventsourcing.postgres import PostgresDatastore
 from examples.dcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS,
@@ -10,11 +15,6 @@ from examples.dcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
     PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
     PG_TYPE_NAME_DCB_EVENT_TS,
-)
-from examples.dcb.postgres_tt import (
-    DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT,
-    DB_TYPE_NAME_DCB_EVENT_TT,
-    DB_TYPE_NAME_DCB_QUERY_ITEM_TT,
 )
 
 
