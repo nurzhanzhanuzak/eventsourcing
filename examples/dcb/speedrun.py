@@ -19,9 +19,9 @@ from examples.dcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
     PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
     PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
-    PostgresDCBEventStoreTS,
+    PostgresDCBRecorderTS,
 )
-from examples.dcb.postgres_tt import PostgresDCBEventStoreTT
+from examples.dcb.postgres_tt import PostgresDCBRecorderTT
 
 locale.setlocale(locale.LC_ALL, "")
 
@@ -134,7 +134,7 @@ def count_events(app: Enrolment) -> int:
 
     elif isinstance(app, EnrolmentWithDCBRefactored):
         recorder = app.recorder
-        assert isinstance(recorder, (PostgresDCBEventStoreTS, PostgresDCBEventStoreTT))
+        assert isinstance(recorder, (PostgresDCBRecorderTS, PostgresDCBRecorderTT))
         datastore = recorder.datastore
         statement = SQL_SELECT_COUNT_ROWS.format(
             schema=Identifier(datastore.schema),

@@ -4,6 +4,8 @@ import json
 from typing import cast
 from uuid import uuid4
 
+from eventsourcing.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
+from eventsourcing.dcb.application import DCBApplication
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
     CourseNotFoundError,
@@ -12,8 +14,6 @@ from examples.coursebooking.interface import (
     StudentNotFoundError,
     TooManyCoursesError,
 )
-from eventsourcing.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
-from eventsourcing.dcb.application import DCBApplication
 
 
 class EnrolmentWithDCB(DCBApplication, Enrolment):

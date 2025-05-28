@@ -3,8 +3,6 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import TYPE_CHECKING
 
-from eventsourcing.persistence import IntegrityError, ProgrammingError
-from eventsourcing.popo import POPOFactory, POPORecorder, POPOTrackingRecorder
 from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
@@ -13,6 +11,8 @@ from eventsourcing.dcb.api import (
     DCBQuery,
     DCBSequencedEvent,
 )
+from eventsourcing.persistence import IntegrityError, ProgrammingError
+from eventsourcing.popo import POPOFactory, POPORecorder, POPOTrackingRecorder
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence

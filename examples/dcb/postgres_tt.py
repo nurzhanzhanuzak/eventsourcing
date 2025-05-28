@@ -4,12 +4,6 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from psycopg.sql import SQL, Composed, Identifier
 
-from eventsourcing.persistence import IntegrityError, ProgrammingError
-from eventsourcing.postgres import (
-    PostgresDatastore,
-    PostgresFactory,
-    PostgresTrackingRecorder,
-)
 from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
@@ -19,7 +13,13 @@ from eventsourcing.dcb.api import (
     DCBQueryItem,
     DCBSequencedEvent,
 )
-from examples.dcb.postgres_ts import PostgresDCBEventStore
+from eventsourcing.persistence import IntegrityError, ProgrammingError
+from eventsourcing.postgres import (
+    PostgresDatastore,
+    PostgresFactory,
+    PostgresRecorder,
+    PostgresTrackingRecorder,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -386,7 +386,7 @@ SQL_EXPLAIN = SQL("EXPLAIN")
 SQL_EXPLAIN_ANALYZE = SQL("EXPLAIN (ANALYZE, BUFFERS, VERBOSE)")
 
 
-class PostgresDCBEventStoreTT(PostgresDCBEventStore):
+class PostgresDCBRecorderTT(DCBEventStore, PostgresRecorder):
     def __init__(
         self,
         datastore: PostgresDatastore,
@@ -679,7 +679,7 @@ class PostgresTTDCBFactory(
         prefix = self.env.name.lower() or "dcb"
 
         dcb_table_name = prefix + "_events"
-        recorder = PostgresDCBEventStoreTT(
+        recorder = PostgresDCBRecorderTT(
             datastore=self.datastore,
             events_table_name=dcb_table_name,
         )

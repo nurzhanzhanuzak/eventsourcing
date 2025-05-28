@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 from typing import Any, ClassVar
 
-from eventsourcing.utils import Environment, EnvType
 from eventsourcing.dcb.api import DCBInfrastructureFactory
+from eventsourcing.utils import Environment, EnvType
 
 
 class DCBApplication:

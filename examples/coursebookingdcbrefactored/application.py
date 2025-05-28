@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import cast
 
+from eventsourcing.dcb.application import (
+    DCBApplication,
+)
 from eventsourcing.domain import event
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
@@ -20,9 +23,6 @@ from examples.coursebookingdcbrefactored.eventstore import (
     InitialDecision,
     MsgspecStructMapper,
     Repository,
-)
-from eventsourcing.dcb.application import (
-    DCBApplication,
 )
 
 

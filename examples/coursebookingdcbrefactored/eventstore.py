@@ -8,6 +8,13 @@ from uuid import uuid4
 import msgspec
 from typing_extensions import Self
 
+from eventsourcing.dcb.api import (
+    DCBAppendCondition,
+    DCBEvent,
+    DCBEventStore,
+    DCBQuery,
+    DCBQueryItem,
+)
 from eventsourcing.domain import (
     AbstractDCBEvent,
     CallableType,
@@ -19,13 +26,6 @@ from eventsourcing.domain import (
     underscore_method_decorators,
 )
 from eventsourcing.utils import construct_topic, get_topic, resolve_topic
-from eventsourcing.dcb.api import (
-    DCBAppendCondition,
-    DCBEvent,
-    DCBEventStore,
-    DCBQuery,
-    DCBQueryItem,
-)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

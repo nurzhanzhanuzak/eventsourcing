@@ -9,10 +9,6 @@ from uuid import uuid4
 
 import pytest
 
-from eventsourcing.persistence import IntegrityError, ProgrammingError
-from eventsourcing.postgres import PostgresDatastore, PostgresRecorder
-from eventsourcing.tests.postgres_utils import drop_tables
-from eventsourcing.utils import Environment
 from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
@@ -22,12 +18,15 @@ from eventsourcing.dcb.api import (
     DCBSequencedEvent,
 )
 from eventsourcing.dcb.popo import InMemoryDCBEventStore
+from eventsourcing.persistence import IntegrityError, ProgrammingError
+from eventsourcing.postgres import PostgresDatastore, PostgresRecorder
+from eventsourcing.tests.postgres_utils import drop_tables
+from eventsourcing.utils import Environment
 from examples.dcb.postgres_ts import (
-    PostgresDCBEventStore,
-    PostgresDCBEventStoreTS,
+    PostgresDCBRecorderTS,
     PostgresTSDCBFactory,
 )
-from examples.dcb.postgres_tt import PostgresDCBEventStoreTT
+from examples.dcb.postgres_tt import PostgresDCBRecorderTT
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -575,7 +574,7 @@ class TestInMemoryDCBEventStore(DCBEventStoreTestCase):
 
 
 class WithPostgres(TestCase):
-    postgres_dcb_eventstore_class: type[PostgresDCBEventStore]
+    postgres_dcb_eventstore_class: type[PostgresDCBRecorderTT | PostgresDCBRecorderTS]
 
     def setUp(self) -> None:
         self.datastore = PostgresDatastore(
@@ -595,14 +594,14 @@ class WithPostgres(TestCase):
 
 
 class TestPostgresDCBEventStoreTS(DCBEventStoreTestCase, WithPostgres):
-    postgres_dcb_eventstore_class = PostgresDCBEventStoreTS
+    postgres_dcb_eventstore_class = PostgresDCBRecorderTS
 
     def test_postgres_event_store(self) -> None:
         self._test_event_store(self.eventstore)
 
     def test_pg_type_dcb_event(self) -> None:
         # Check "dcb_event" type.
-        event = cast(PostgresDCBEventStoreTS, self.eventstore).construct_pg_dcb_event(
+        event = cast(PostgresDCBRecorderTS, self.eventstore).construct_pg_dcb_event(
             type="EventType1",
             data=b"data",
             tags=["tag1", "tag2"],
@@ -649,7 +648,7 @@ class TestPostgresDCBEventStoreTS(DCBEventStoreTestCase, WithPostgres):
 
 
 class TestPostgresDCBEventStoreTT(DCBEventStoreTestCase, WithPostgres):
-    postgres_dcb_eventstore_class = PostgresDCBEventStoreTT
+    postgres_dcb_eventstore_class = PostgresDCBRecorderTT
 
     def test_postgres_event_store(self) -> None:
         self._test_event_store(self.eventstore)
@@ -799,7 +798,7 @@ class ConcurrentAppendTestCase(TestCase):
 class TestPostgresDCBEventStoreTSCommitOrderVsInsertOrder(
     ConcurrentAppendTestCase, WithPostgres
 ):
-    postgres_dcb_eventstore_class = PostgresDCBEventStoreTS
+    postgres_dcb_eventstore_class = PostgresDCBRecorderTS
 
     def test_commit_vs_insert_order(self) -> None:
         self._test_commit_vs_insert_order(self.eventstore)
@@ -811,7 +810,7 @@ class TestPostgresDCBEventStoreTSCommitOrderVsInsertOrder(
 class TestPostgresDCBEventStoreTTCommitOrderVsInsertOrder(
     ConcurrentAppendTestCase, WithPostgres
 ):
-    postgres_dcb_eventstore_class = PostgresDCBEventStoreTT
+    postgres_dcb_eventstore_class = PostgresDCBRecorderTT
 
     def test_commit_vs_insert_order(self) -> None:
         self._test_commit_vs_insert_order(self.eventstore)
@@ -829,7 +828,7 @@ def eventstore() -> Iterator[DCBEventStore]:
         user="eventsourcing",
         password="eventsourcing",  # noqa:  S106
     )
-    recorder = PostgresDCBEventStoreTS(datastore)
+    recorder = PostgresDCBRecorderTS(datastore)
     recorder.create_table()
     yield recorder
 
