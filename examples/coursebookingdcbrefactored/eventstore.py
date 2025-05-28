@@ -1,14 +1,20 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, overload, Callable
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, overload
 from uuid import uuid4
 
 import msgspec
 from msgspec import Struct
 from typing_extensions import Self
 
-from eventsourcing.domain import ProgrammingError, filter_kwargs_for_method_params, \
-    decorated_funcs, CommandMethodDecorator, decorator_event_classes, AbstractDCBEvent
+from eventsourcing.domain import (
+    AbstractDCBEvent,
+    CommandMethodDecorator,
+    ProgrammingError,
+    decorated_funcs,
+    decorator_event_classes,
+    filter_kwargs_for_method_params,
+)
 from eventsourcing.utils import get_topic, resolve_topic
 from examples.dcb.api import (
     DCBAppendCondition,
@@ -20,7 +26,6 @@ from examples.dcb.api import (
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
 
 
 _enduring_object_init_classes: dict[type[Any], type[Initialised]] = {}
@@ -60,15 +65,19 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
         try:
             enduring_object.__init__(**kwargs)  # type: ignore[misc]
         except TypeError as e:
-            msg = (f"{type(self).__qualname__} can't __init__ "
-                   f"{enduring_object_cls.__qualname__} "
-                   f"with kwargs {kwargs}: {e}")
+            msg = (
+                f"{type(self).__qualname__} can't __init__ "
+                f"{enduring_object_cls.__qualname__} "
+                f"with kwargs {kwargs}: {e}"
+            )
             raise TypeError(msg) from e
         return enduring_object
 
 
 class MetaPerspective(type):
-    def __init__(self, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> None:
+    def __init__(
+        cls, name: str, bases: tuple[type, ...], namespace: dict[str, Any]
+    ) -> None:
         super().__init__(name, bases, namespace)
         for attr, value in namespace.items():
             if isinstance(value, CommandMethodDecorator):
@@ -76,21 +85,27 @@ class MetaPerspective(type):
                 # TODO: Maybe support event name strings, maybe not....
                 assert value.given_event_cls is not None, "Event class not given"
                 # TODO: Actually maybe enforce that given event class is nested on self.
-                event_cls_qualname = f"{self.__qualname__}.{value.given_event_cls.__name__}"
+                event_cls_qualname = (
+                    f"{cls.__qualname__}.{value.given_event_cls.__name__}"
+                )
                 event_cls_dict = {
                     # "__annotations__": annotations,
-                    "__module__": self.__module__,
+                    "__module__": cls.__module__,
                     "__qualname__": event_cls_qualname,
                 }
 
-                event_subclass = type(name, (DecoratorEvent, value.given_event_cls), event_cls_dict)
+                event_subclass = cast(
+                    type[DecoratorEvent],
+                    type(name, (DecoratorEvent, value.given_event_cls), event_cls_dict),
+                )
                 namespace[attr] = event_subclass
-                decorator_event_classes[value] = event_subclass
+                # TODO: Unify DecoratorEvent with core library somehow.
+                decorator_event_classes[value] = event_subclass  # type: ignore[assignment]
                 decorated_funcs[event_subclass] = value.decorated_func
 
 
 class Perspective(metaclass=MetaPerspective):
-    def __init__(self, *objs: EnduringObject | None) -> None:  # noqa: A002
+    def __init__(self, *objs: EnduringObject | None) -> None:
         self.new_decisions: list[Decision] = []
         self.last_known_position: int | None = None
 
@@ -101,6 +116,7 @@ class Perspective(metaclass=MetaPerspective):
     @property
     def cb(self) -> list[Selector]:
         raise NotImplementedError
+
 
 T = TypeVar("T")
 
@@ -175,7 +191,9 @@ class Initialised(Decision, CanInitialiseEnduringObject):
 
 class EnduringObject(Perspective, metaclass=MetaEnduringObject):
     @classmethod
-    def _create(cls: type[Self], decision_cls: type[Initialised], **kwargs: Any) -> Self:
+    def _create(
+        cls: type[Self], decision_cls: type[Initialised], **kwargs: Any
+    ) -> Self:
         enduring_object_id = cls._create_id()
         initial_kwargs: dict[str, Any] = {cls.id_attr_name: enduring_object_id}
         initial_kwargs.update(kwargs)
@@ -258,9 +276,7 @@ class Mapper:
 
 
 class Selector:
-    def __init__(
-        self, types: Sequence[type[Decision]] = (), tags: Sequence[str] = ()
-    ):
+    def __init__(self, types: Sequence[type[Decision]] = (), tags: Sequence[str] = ()):
         self.types = types
         self.tags = tags
 
@@ -406,7 +422,7 @@ class Repository:
         objs: dict[str, EnduringObject | None] = dict.fromkeys(enduring_object_ids)
         for event in events:
             for tag in event.tags:
-                obj = objs.get(tag, None)
+                obj = objs.get(tag)
                 if not isinstance(event, Initialised) and not obj:
                     continue
                 obj = event.mutate(obj)
@@ -419,11 +435,16 @@ class Repository:
     def get_group(self, *enduring_object_ids: str, cls: type[TGroup]) -> TGroup:
         enduring_objects = self.get_many(*enduring_object_ids)
         perspective = cls(*enduring_objects)
-        last_known_positions = [o.last_known_position for o in enduring_objects if o and o.last_known_position]
-        perspective.last_known_position = max(last_known_positions) if last_known_positions else None
+        last_known_positions = [
+            o.last_known_position
+            for o in enduring_objects
+            if o and o.last_known_position
+        ]
+        perspective.last_known_position = (
+            max(last_known_positions) if last_known_positions else None
+        )
         return perspective
 
 
 class NotFoundError(Exception):
     pass
-

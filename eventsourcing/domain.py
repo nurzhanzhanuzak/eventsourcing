@@ -475,8 +475,11 @@ def _spec_filter_kwargs_for_method_params(method: Callable[..., Any]) -> set[str
 class AbstractDCBEvent:
     pass
 
+
 if TYPE_CHECKING:
-    EventSpecType = Union[str, type[CanMutateAggregate[Any]], type[AbstractDCBEvent]]
+    EventSpecType = Union[  # noqa: PYI055
+        str, type[CanMutateAggregate[Any]], type[AbstractDCBEvent]
+    ]
 
 CallableType = Callable[..., None]
 DecoratableType = Union[CallableType, property]
@@ -491,7 +494,9 @@ class CommandMethodDecorator:
         event_topic: str | None = None,
     ):
         self.is_name_inferred_from_method = False
-        self.given_event_cls: type[CanMutateAggregate[Any]] | type[AbstractDCBEvent] | None = None
+        self.given_event_cls: (
+            type[CanMutateAggregate[Any] | AbstractDCBEvent] | None
+        ) = None
         self.event_cls_name: str | None = None
         self.decorated_property: property | None = None
         self.is_property_setter = False
@@ -648,7 +653,7 @@ def event(arg: TDecoratableType, /) -> TDecoratableType:
 
 @overload
 def event(
-    arg: type[CanMutateAggregate[Any]] | type[AbstractDCBEvent], /
+    arg: type[CanMutateAggregate[Any] | AbstractDCBEvent], /
 ) -> Callable[[TDecoratableType], TDecoratableType]:
     """Signature for calling ``@event`` decorator with event class."""
 
@@ -729,9 +734,10 @@ def event(
     if (
         arg is None
         or isinstance(arg, str)
-        or (isinstance(arg, type) and issubclass(
-            arg, (CanMutateAggregate, AbstractDCBEvent)
-        ))
+        or (
+            isinstance(arg, type)
+            and issubclass(arg, (CanMutateAggregate, AbstractDCBEvent))
+        )
     ):
         event_spec = arg
 
@@ -810,7 +816,10 @@ class BoundCommandMethodDecorator:
         try:
             event_cls = decorator_event_classes[self.event_decorator]
         except KeyError as e:
-            msg = f"Event class not registered for event decorator on {self.event_decorator.decorated_func.__qualname__}"
+            msg = (
+                f"Event class not registered for event decorator on "
+                f"{self.event_decorator.decorated_func.__qualname__}"
+            )
             raise KeyError(msg) from e
         kwargs = filter_kwargs_for_method_params(kwargs, event_cls)
         self.aggregate.trigger_event(event_cls, **kwargs)

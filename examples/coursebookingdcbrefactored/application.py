@@ -8,16 +8,18 @@ from examples.coursebooking.interface import (
     CourseNotFoundError,
     Enrolment,
     FullyBookedError,
+    NotAlreadyJoinedError,
     StudentNotFoundError,
-    TooManyCoursesError, NotAlreadyJoinedError,
+    TooManyCoursesError,
 )
 from examples.coursebookingdcbrefactored.eventstore import (
     Decision,
     EnduringObject,
     EventStore,
+    Group,
     Initialised,
     Mapper,
-    Repository, Group,
+    Repository,
 )
 from examples.dcb.application import (
     DCBApplication,
@@ -55,7 +57,6 @@ class Course(EnduringObject):
         self.name = name
         self.places = places
         self.student_ids: list[str] = []
-
 
     class Registered(Initialised):
         course_id: str
@@ -162,7 +163,9 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         group.student_leaves_course()
         self.repository.save(group)
 
-    def get_student_and_course(self, student_id: str, course_id: str) -> StudentAndCourse:
+    def get_student_and_course(
+        self, student_id: str, course_id: str
+    ) -> StudentAndCourse:
         return self.repository.get_group(student_id, course_id, cls=StudentAndCourse)
 
     def list_students_for_course(self, course_id: str) -> list[str]:

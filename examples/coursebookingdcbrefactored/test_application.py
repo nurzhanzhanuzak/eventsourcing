@@ -24,7 +24,6 @@ class TestEnrolmentWithDCBRefactored(TestEnrolment):
     def test_enrolment(self) -> None:
         super().test_enrolment()
 
-
     def test_extra(self) -> None:
         app = EnrolmentWithDCBRefactored(self.env)
 
@@ -63,18 +62,18 @@ class TestEnrolmentWithDCBRefactored(TestEnrolment):
         course = app.get_course(course_id)
         self.assertEqual(student.course_ids, [course_id])
         self.assertEqual(course.student_ids, [student_id])
-        
+
         # Leave course.
         app.leave_course(student_id=student_id, course_id=course_id)
         student = app.get_student(student_id)
         course = app.get_course(course_id)
         self.assertEqual(student.course_ids, [])
         self.assertEqual(course.student_ids, [])
-        
+
         # Multi-get.
         objs = app.repository.get_many(course_id, student_id)
         self.assertEqual(2, len(objs))
-        
+
         # Check order is preserved.
         self.assertEqual([course_id, student_id], [o.id for o in objs if o])
         objs = app.repository.get_many(student_id, course_id)
