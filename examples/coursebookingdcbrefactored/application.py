@@ -159,26 +159,6 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         self.repository.save(student)
         return student.id
 
-    def update_student_name(self, student_id: str, name: str) -> None:
-        student = self.get_student(student_id)
-        student.update_name(name)
-        self.repository.save(student)
-
-    def update_course_name(self, course_id: str, name: str) -> None:
-        course = self.get_course(course_id)
-        course.update_name(name)
-        self.repository.save(course)
-
-    def update_student_max_courses(self, student_id: str, max_courses: int) -> None:
-        student = self.get_student(student_id)
-        student.update_max_courses(max_courses)
-        self.repository.save(student)
-
-    def update_course_places(self, course_id: str, max_courses: int) -> None:
-        course = self.get_course(course_id)
-        course.update_places(max_courses)
-        self.repository.save(course)
-
     def register_course(self, name: str, places: int) -> str:
         course = Course(name=name, places=places)
         self.repository.save(course)
@@ -204,10 +184,30 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         students = self.repository.get_many(*course.student_ids)
         return [cast(Student, c).name for c in students if c is not None]
 
+    def update_student_name(self, student_id: str, name: str) -> None:
+        student = self.get_student(student_id)
+        student.update_name(name)
+        self.repository.save(student)
+
     def list_courses_for_student(self, student_id: str) -> list[str]:
         student = self.get_student(student_id)
         courses = self.repository.get_many(*student.course_ids)
         return [cast(Course, c).name for c in courses if c is not None]
+
+    def update_course_name(self, course_id: str, name: str) -> None:
+        course = self.get_course(course_id)
+        course.update_name(name)
+        self.repository.save(course)
+
+    def update_student_max_courses(self, student_id: str, max_courses: int) -> None:
+        student = self.get_student(student_id)
+        student.update_max_courses(max_courses)
+        self.repository.save(student)
+
+    def update_course_places(self, course_id: str, max_courses: int) -> None:
+        course = self.get_course(course_id)
+        course.update_places(max_courses)
+        self.repository.save(course)
 
     def get_student(self, student_id: str) -> Student:
         return cast(Student, self.repository.get(student_id))
