@@ -165,19 +165,14 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         return course.id
 
     def join_course(self, student_id: str, course_id: str) -> None:
-        group = self.get_student_and_course(student_id, course_id)
+        group = self.repository.get_group(StudentAndCourse, student_id, course_id)
         group.student_joins_course()
         self.repository.save(group)
 
     def leave_course(self, student_id: str, course_id: str) -> None:
-        group = self.get_student_and_course(student_id, course_id)
+        group = self.repository.get_group(StudentAndCourse, student_id, course_id)
         group.student_leaves_course()
         self.repository.save(group)
-
-    def get_student_and_course(
-        self, student_id: str, course_id: str
-    ) -> StudentAndCourse:
-        return self.repository.get_group(StudentAndCourse, student_id, course_id)
 
     def list_students_for_course(self, course_id: str) -> list[str]:
         course = self.get_course(course_id)
@@ -188,6 +183,11 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         student = self.get_student(student_id)
         student.update_name(name)
         self.repository.save(student)
+
+    def update_course_places(self, course_id: str, max_courses: int) -> None:
+        course = self.get_course(course_id)
+        course.update_places(max_courses)
+        self.repository.save(course)
 
     def list_courses_for_student(self, student_id: str) -> list[str]:
         student = self.get_student(student_id)
@@ -203,11 +203,6 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         student = self.get_student(student_id)
         student.update_max_courses(max_courses)
         self.repository.save(student)
-
-    def update_course_places(self, course_id: str, max_courses: int) -> None:
-        course = self.get_course(course_id)
-        course.update_places(max_courses)
-        self.repository.save(course)
 
     def get_student(self, student_id: str) -> Student:
         return cast(Student, self.repository.get(student_id))
