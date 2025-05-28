@@ -12,7 +12,7 @@ from examples.coursebooking.interface import (
     StudentNotFoundError,
     TooManyCoursesError,
 )
-from examples.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
+from eventsourcing.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
 from examples.dcb.application import DCBApplication
 
 

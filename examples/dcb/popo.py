@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.popo import POPOFactory, POPORecorder, POPOTrackingRecorder
-from examples.dcb.api import (
+from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
     DCBEventStore,

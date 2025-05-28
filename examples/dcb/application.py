@@ -4,7 +4,7 @@ import os
 from typing import Any, ClassVar
 
 from eventsourcing.utils import Environment, EnvType
-from examples.dcb.api import DCBInfrastructureFactory
+from eventsourcing.dcb.api import DCBInfrastructureFactory
 
 
 class DCBApplication:

@@ -19,7 +19,7 @@ from eventsourcing.domain import (
     underscore_method_decorators,
 )
 from eventsourcing.utils import construct_topic, get_topic, resolve_topic
-from examples.dcb.api import (
+from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
     DCBEventStore,

@@ -11,7 +11,7 @@ from eventsourcing.postgres import (
     PostgresRecorder,
     PostgresTrackingRecorder,
 )
-from examples.dcb.api import (
+from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
     DCBEventStore,
