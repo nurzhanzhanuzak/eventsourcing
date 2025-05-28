@@ -13,17 +13,25 @@ from examples.coursebooking.interface import (
     TooManyCoursesError,
 )
 from examples.coursebookingdcbrefactored.eventstore import (
-    Decision,
     EnduringObject,
     EventStore,
     Group,
-    Initialised,
-    Mapper,
     Repository,
+    StructDecision,
+    StructInitialised,
+    StructMapper,
 )
 from examples.dcb.application import (
     DCBApplication,
 )
+
+
+class Decision(StructDecision):
+    pass
+
+
+class Initialised(StructInitialised):
+    pass
 
 
 class Student(EnduringObject):
@@ -88,7 +96,6 @@ class StudentLeftCourse(Decision):
 
 class StudentAndCourse(Group):
     def __init__(self, student: Student | None, course: Course | None) -> None:
-        super().__init__()
         self.student = student
         self.course = course
 
@@ -130,7 +137,7 @@ class StudentAndCourse(Group):
 class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
     def __init__(self, env: dict[str, str]):
         super().__init__(env=env)
-        self.events = EventStore(Mapper(), self.recorder)
+        self.events = EventStore(StructMapper(), self.recorder)
         self.repository = Repository(self.events)
 
     def register_student(self, name: str, max_courses: int) -> str:

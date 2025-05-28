@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, overload
 from uuid import uuid4
 
@@ -28,9 +29,10 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 
-_enduring_object_init_classes: dict[type[Any], type[Initialised]] = {}
+_enduring_object_init_classes: dict[type[Any], type[CanInitialiseEnduringObject]] = {}
 
 
+# TODO: Unify this with core library so subclasses can work with event decorator.
 class CanMutateEnduringObject(AbstractDCBEvent):
     tags: list[str]
 
@@ -74,6 +76,27 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
         return enduring_object
 
 
+class DecoratorEvent(CanMutateEnduringObject):
+    def apply(self, obj: Perspective) -> None:
+        """Applies event to perspective by calling method decorated by @event."""
+        # Identify the function that was decorated.
+        decorated_func = decorated_funcs[type(self)]
+
+        # Select event attributes mentioned in function signature.
+        self_dict = self._as_dict()
+        kwargs = filter_kwargs_for_method_params(self_dict, decorated_func)
+
+        # Call the original method with event attribute values.
+        decorated_method = decorated_func.__get__(obj, type(obj))
+        decorated_method(**kwargs)
+
+        # Call super method, just in case any base classes need it.
+        super().apply(obj)
+
+
+T = TypeVar("T")
+
+
 class MetaPerspective(type):
     def __init__(
         cls, name: str, bases: tuple[type, ...], namespace: dict[str, Any]
@@ -103,13 +126,19 @@ class MetaPerspective(type):
                 decorator_event_classes[value] = event_subclass  # type: ignore[assignment]
                 decorated_funcs[event_subclass] = value.decorated_func
 
+    def __call__(cls: type[T], *args: Any, **kwargs: Any) -> T:
+        perspective = cls.__new__(cls)
+        perspective.__base_init__(*args, **kwargs)  # type: ignore[attr-defined]
+        perspective.__init__(*args, **kwargs)  # type: ignore[misc]
+        return perspective
+
 
 class Perspective(metaclass=MetaPerspective):
-    def __init__(self, *objs: EnduringObject | None) -> None:
-        self.new_decisions: list[Decision] = []
+    def __base_init__(self, *args: Any, **kwargs: Any) -> None:
+        self.new_decisions: list[CanMutateEnduringObject] = []
         self.last_known_position: int | None = None
 
-    def collect_events(self) -> list[Decision]:
+    def collect_events(self) -> list[CanMutateEnduringObject]:
         collected, self.new_decisions = self.new_decisions, []
         return collected
 
@@ -118,14 +147,11 @@ class Perspective(metaclass=MetaPerspective):
         raise NotImplementedError
 
 
-T = TypeVar("T")
-
-
 class MetaEnduringObject(MetaPerspective):
     def __init__(cls, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         for item in cls.__dict__.values():
-            if isinstance(item, type) and issubclass(item, Initialised):
+            if isinstance(item, type) and issubclass(item, CanInitialiseEnduringObject):
                 _enduring_object_init_classes[cls] = item
                 break
 
@@ -159,40 +185,10 @@ class MetaEnduringObject(MetaPerspective):
         return f"{cls.__name__.lower()}_id"
 
 
-class DecoratorEvent(CanMutateEnduringObject):
-    def apply(self, obj: Perspective) -> None:
-        """Applies event to perspective by calling method decorated by @event."""
-        # Identify the function that was decorated.
-        decorated_func = decorated_funcs[type(self)]
-
-        # Select event attributes mentioned in function signature.
-        self_dict = self._as_dict()
-        kwargs = filter_kwargs_for_method_params(self_dict, decorated_func)
-
-        # Call the original method with event attribute values.
-        decorated_method = decorated_func.__get__(obj, type(obj))
-        decorated_method(**kwargs)
-
-        # Call super method, just in case any base classes need it.
-        super().apply(obj)
-
-
-# Introduce msgspec.Struct for transcoding.
-class Decision(Struct, CanMutateEnduringObject):
-    tags: list[str]
-
-    def _as_dict(self) -> dict[str, Any]:
-        return {key: getattr(self, key) for key in self.__struct_fields__}
-
-
-class Initialised(Decision, CanInitialiseEnduringObject):
-    originator_topic: str
-
-
 class EnduringObject(Perspective, metaclass=MetaEnduringObject):
     @classmethod
     def _create(
-        cls: type[Self], decision_cls: type[Initialised], **kwargs: Any
+        cls: type[Self], decision_cls: type[CanInitialiseEnduringObject], **kwargs: Any
     ) -> Self:
         enduring_object_id = cls._create_id()
         initial_kwargs: dict[str, Any] = {cls.id_attr_name: enduring_object_id}
@@ -217,7 +213,7 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
         return f"{cls.__name__.lower()}-{uuid4()}"
 
     def __base_init__(self, id: str) -> None:  # noqa: A002
-        super().__init__()
+        super().__base_init__()
         self.id = id
 
     def __post_init__(self) -> None:
@@ -228,10 +224,15 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
         return [Selector(tags=[self.id])]
 
     def trigger_event(
-        self, decision_cls: type[Decision], *, tags: Sequence[str] = (), **kwargs: Any
+        self,
+        decision_cls: type[CanMutateEnduringObject],
+        *,
+        tags: Sequence[str] = (),
+        **kwargs: Any,
     ) -> None:
         tags = [self.id, *tags]
-        decision = decision_cls(tags=tags, **kwargs)
+        kwargs["tags"] = tags
+        decision = decision_cls(**kwargs)
         decision.mutate(self)
         self.new_decisions.append(decision)
 
@@ -247,11 +248,16 @@ class Group(Perspective):
         return [x for xs in xss for x in xs]
 
     def trigger_event(
-        self, decision_cls: type[Decision], *, tags: Sequence[str] = (), **kwargs: Any
+        self,
+        decision_cls: type[CanMutateEnduringObject],
+        *,
+        tags: Sequence[str] = (),
+        **kwargs: Any,
     ) -> None:
         objs = [o for o in self.__dict__.values() if isinstance(o, EnduringObject)]
         tags = [o.id for o in objs] + list(tags)
-        decision = decision_cls(tags=tags, **kwargs)
+        kwargs["tags"] = tags
+        decision = decision_cls(**kwargs)
         for o in objs:
             decision.mutate(o)
         self.new_decisions.append(decision)
@@ -260,23 +266,22 @@ class Group(Perspective):
 TGroup = TypeVar("TGroup", bound=Group)
 
 
-class Mapper:
-    def to_dcb_event(self, event: Decision) -> DCBEvent:
-        return DCBEvent(
-            type=get_topic(type(event)),
-            data=msgspec.msgpack.encode(event),
-            tags=event.tags,
-        )
+class DCBMapper(ABC):
+    @abstractmethod
+    def to_dcb_event(self, event: CanMutateEnduringObject) -> DCBEvent:
+        raise NotImplementedError  # pragma: no cover
 
-    def to_domain_event(self, event: DCBEvent) -> Decision:
-        return msgspec.msgpack.decode(
-            event.data,
-            type=resolve_topic(event.type),
-        )
+    @abstractmethod
+    def to_domain_event(self, event: DCBEvent) -> CanMutateEnduringObject:
+        raise NotImplementedError  # pragma: no cover
 
 
 class Selector:
-    def __init__(self, types: Sequence[type[Decision]] = (), tags: Sequence[str] = ()):
+    def __init__(
+        self,
+        types: Sequence[type[CanMutateEnduringObject]] = (),
+        tags: Sequence[str] = (),
+    ):
         self.types = types
         self.tags = tags
 
@@ -285,13 +290,13 @@ class Selector:
 
 
 class EventStore:
-    def __init__(self, mapper: Mapper, recorder: DCBEventStore):
+    def __init__(self, mapper: DCBMapper, recorder: DCBEventStore):
         self.mapper = mapper
         self.recorder = recorder
 
     def put(
         self,
-        *events: Decision,
+        *events: CanMutateEnduringObject,
         cb: Selector | Sequence[Selector] | None = None,
         after: int | None = None,
     ) -> int:
@@ -320,7 +325,7 @@ class EventStore:
         cb: Selector | Sequence[Selector] | None = None,
         *,
         after: int | None = None,
-    ) -> Sequence[Decision]:
+    ) -> Sequence[StructDecision]:
         pass  # pragma: no cover
 
     @overload
@@ -330,7 +335,7 @@ class EventStore:
         *,
         with_last_position: Literal[True],
         after: int | None = None,
-    ) -> tuple[Sequence[Decision], int | None]:
+    ) -> tuple[Sequence[CanMutateEnduringObject], int | None]:
         pass  # pragma: no cover
 
     @overload
@@ -340,7 +345,7 @@ class EventStore:
         *,
         with_positions: Literal[True],
         after: int | None = None,
-    ) -> Sequence[tuple[Decision, int]]:
+    ) -> Sequence[tuple[StructDecision, int]]:
         pass  # pragma: no cover
 
     def get(
@@ -351,9 +356,9 @@ class EventStore:
         with_positions: bool = False,
         with_last_position: bool = False,
     ) -> (
-        Sequence[tuple[Decision, int]]
-        | tuple[Sequence[Decision], int | None]
-        | Sequence[Decision]
+        Sequence[tuple[CanMutateEnduringObject, int]]
+        | tuple[Sequence[CanMutateEnduringObject], int | None]
+        | Sequence[CanMutateEnduringObject]
     ):
         query = self._cb_to_dcb_query(cb)
         dcb_sequenced_events, head = self.recorder.read(
@@ -423,7 +428,7 @@ class Repository:
         for event in events:
             for tag in event.tags:
                 obj = objs.get(tag)
-                if not isinstance(event, Initialised) and not obj:
+                if not isinstance(event, StructInitialised) and not obj:
                     continue
                 obj = event.mutate(obj)
                 objs[tag] = obj
@@ -448,3 +453,32 @@ class Repository:
 
 class NotFoundError(Exception):
     pass
+
+
+# Introduce msgspec Struct.
+
+
+class StructMapper(DCBMapper):
+    def to_dcb_event(self, event: CanMutateEnduringObject) -> DCBEvent:
+        return DCBEvent(
+            type=get_topic(type(event)),
+            data=msgspec.msgpack.encode(event),
+            tags=event.tags,
+        )
+
+    def to_domain_event(self, event: DCBEvent) -> CanMutateEnduringObject:
+        return msgspec.msgpack.decode(
+            event.data,
+            type=resolve_topic(event.type),
+        )
+
+
+class StructDecision(Struct, CanMutateEnduringObject):
+    tags: list[str]
+
+    def _as_dict(self) -> dict[str, Any]:
+        return {key: getattr(self, key) for key in self.__struct_fields__}
+
+
+class StructInitialised(StructDecision, CanInitialiseEnduringObject):
+    originator_topic: str

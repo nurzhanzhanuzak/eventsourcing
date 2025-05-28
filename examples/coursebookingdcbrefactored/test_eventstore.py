@@ -1,18 +1,18 @@
 from unittest import TestCase
 
-from examples.coursebookingdcbrefactored.eventstore import Decision, Mapper
+from examples.coursebookingdcbrefactored.eventstore import StructDecision, StructMapper
 
 # TODO: Actually test the event store independently of the example application.
 
 
-class StudentRegistered(Decision):
+class StudentRegistered(StructDecision):
     name: str
     max_courses: int
 
 
 class TestMapper(TestCase):
     def test_mapper(self) -> None:
-        mapper = Mapper()
+        mapper = StructMapper()
 
         event = StudentRegistered(
             tags=["student-1"],
