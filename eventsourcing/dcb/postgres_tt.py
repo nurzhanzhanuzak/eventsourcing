@@ -7,12 +7,12 @@ from psycopg.sql import SQL, Composed, Identifier
 from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
-    DCBEventStore,
-    DCBInfrastructureFactory,
     DCBQuery,
     DCBQueryItem,
+    DCBRecorder,
     DCBSequencedEvent,
 )
+from eventsourcing.dcb.persistence import DCBInfrastructureFactory
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.postgres import (
     PostgresDatastore,
@@ -386,7 +386,7 @@ SQL_EXPLAIN = SQL("EXPLAIN")
 SQL_EXPLAIN_ANALYZE = SQL("EXPLAIN (ANALYZE, BUFFERS, VERBOSE)")
 
 
-class PostgresDCBRecorderTT(DCBEventStore, PostgresRecorder):
+class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
     def __init__(
         self,
         datastore: PostgresDatastore,
@@ -675,7 +675,7 @@ class PostgresTTDCBFactory(
     PostgresFactory,
     DCBInfrastructureFactory[PostgresTrackingRecorder],
 ):
-    def dcb_event_store(self) -> DCBEventStore:
+    def dcb_event_store(self) -> DCBRecorder:
         prefix = self.env.name.lower() or "dcb"
 
         dcb_table_name = prefix + "_events"

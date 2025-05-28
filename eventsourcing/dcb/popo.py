@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING
 from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
-    DCBEventStore,
-    DCBInfrastructureFactory,
     DCBQuery,
+    DCBRecorder,
     DCBSequencedEvent,
 )
+from eventsourcing.dcb.persistence import DCBInfrastructureFactory
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.popo import POPOFactory, POPORecorder, POPOTrackingRecorder
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
 
-class InMemoryDCBEventStore(DCBEventStore, POPORecorder):
+class InMemoryDCBRecorder(DCBRecorder, POPORecorder):
     def __init__(self) -> None:
         super().__init__()
         self.events: list[DCBSequencedEvent] = []
@@ -94,5 +94,5 @@ class InMemoryDCBEventStore(DCBEventStore, POPORecorder):
 
 class DCBPOPOFactory(POPOFactory, DCBInfrastructureFactory[POPOTrackingRecorder]):
 
-    def dcb_event_store(self) -> DCBEventStore:
-        return InMemoryDCBEventStore()
+    def dcb_event_store(self) -> DCBRecorder:
+        return InMemoryDCBRecorder()

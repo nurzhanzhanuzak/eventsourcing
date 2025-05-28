@@ -1,11 +1,26 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
+import msgspec
+
+from eventsourcing.dcb.api import DCBEvent
 from eventsourcing.dcb.application import (
     DCBApplication,
 )
+from eventsourcing.dcb.domain import (
+    CanInitialiseEnduringObject,
+    CanMutateEnduringObject,
+    EnduringObject,
+    Group,
+)
+from eventsourcing.dcb.persistence import (
+    DCBEventStore,
+    DCBMapper,
+    DCBRepository,
+)
 from eventsourcing.domain import event
+from eventsourcing.utils import get_topic, resolve_topic
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
     CourseNotFoundError,
@@ -15,15 +30,32 @@ from examples.coursebooking.interface import (
     StudentNotFoundError,
     TooManyCoursesError,
 )
-from examples.coursebookingdcbrefactored.eventstore import (
-    Decision,
-    EnduringObject,
-    EventStore,
-    Group,
-    InitialDecision,
-    MsgspecStructMapper,
-    Repository,
-)
+
+
+class Decision(msgspec.Struct, CanMutateEnduringObject):
+    tags: list[str]
+
+    def _as_dict(self) -> dict[str, Any]:
+        return {key: getattr(self, key) for key in self.__struct_fields__}
+
+
+class MsgspecStructMapper(DCBMapper):
+    def to_dcb_event(self, event: CanMutateEnduringObject) -> DCBEvent:
+        return DCBEvent(
+            type=get_topic(type(event)),
+            data=msgspec.msgpack.encode(event),
+            tags=event.tags,
+        )
+
+    def to_domain_event(self, event: DCBEvent) -> CanMutateEnduringObject:
+        return msgspec.msgpack.decode(
+            event.data,
+            type=resolve_topic(event.type),
+        )
+
+
+class InitialDecision(Decision, CanInitialiseEnduringObject):
+    originator_topic: str
 
 
 class StudentJoinedCourse(Decision):
@@ -151,8 +183,8 @@ class StudentAndCourse(Group):
 class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
     def __init__(self, env: dict[str, str]):
         super().__init__(env=env)
-        self.events = EventStore(MsgspecStructMapper(), self.recorder)
-        self.repository = Repository(self.events)
+        self.events = DCBEventStore(MsgspecStructMapper(), self.recorder)
+        self.repository = DCBRepository(self.events)
 
     def register_student(self, name: str, max_courses: int) -> str:
         student = Student(name=name, max_courses=max_courses)

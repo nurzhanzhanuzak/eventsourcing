@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from examples.coursebookingdcbrefactored.eventstore import (
+from examples.coursebookingdcbrefactored.application import (
     Decision,
     MsgspecStructMapper,
 )

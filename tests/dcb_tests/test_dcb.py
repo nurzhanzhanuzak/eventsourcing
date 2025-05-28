@@ -12,12 +12,12 @@ import pytest
 from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
-    DCBEventStore,
     DCBQuery,
     DCBQueryItem,
+    DCBRecorder,
     DCBSequencedEvent,
 )
-from eventsourcing.dcb.popo import InMemoryDCBEventStore
+from eventsourcing.dcb.popo import InMemoryDCBRecorder
 from eventsourcing.dcb.postgres_tt import PostgresDCBRecorderTT
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.postgres import PostgresDatastore, PostgresRecorder
@@ -100,7 +100,7 @@ class TestDCBObjects(TestCase):
 
 class DCBEventStoreTestCase(TestCase):
 
-    def _test_event_store(self, eventstore: DCBEventStore) -> None:
+    def _test_event_store(self, eventstore: DCBRecorder) -> None:
         # Read all, expect no results.
         result, head = eventstore.read()
         self.assertEqual(0, len(list(result)))
@@ -570,7 +570,7 @@ class DCBEventStoreTestCase(TestCase):
 
 class TestInMemoryDCBEventStore(DCBEventStoreTestCase):
     def test_in_memory_event_store(self) -> None:
-        self._test_event_store(InMemoryDCBEventStore())
+        self._test_event_store(InMemoryDCBRecorder())
 
 
 class WithPostgres(TestCase):
@@ -677,7 +677,7 @@ class TestDCBPostgresFactory(TestCase):
 class ConcurrentAppendTestCase(TestCase):
     insert_num = 10000
 
-    def _test_commit_vs_insert_order(self, event_store: DCBEventStore) -> None:
+    def _test_commit_vs_insert_order(self, event_store: DCBRecorder) -> None:
         race_started = Event()
 
         tag1 = str(uuid4())
@@ -732,7 +732,7 @@ class ConcurrentAppendTestCase(TestCase):
         else:
             self.assertGreater(min_position_for_tag2, max_position_for_tag1)
 
-    def _test_fail_condition_is_effective(self, event_store: DCBEventStore) -> None:
+    def _test_fail_condition_is_effective(self, event_store: DCBRecorder) -> None:
         race_started = Event()
 
         tag1 = str(uuid4())
@@ -820,7 +820,7 @@ class TestPostgresDCBEventStoreTTCommitOrderVsInsertOrder(
 
 
 @pytest.fixture
-def eventstore() -> Iterator[DCBEventStore]:
+def eventstore() -> Iterator[DCBRecorder]:
     datastore = PostgresDatastore(
         dbname="eventsourcing",
         host="127.0.0.1",
@@ -837,7 +837,7 @@ def eventstore() -> Iterator[DCBEventStore]:
 
 @pytest.mark.benchmark(group="dcb-append-one-event")
 def test_recorder_append_one_event(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
 
     def setup() -> Any:
@@ -863,7 +863,7 @@ def test_recorder_append_one_event(
 
 @pytest.mark.benchmark(group="dcb-append-ten-events")
 def test_recorder_append_ten_events(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
 
     def setup() -> Any:
@@ -889,7 +889,7 @@ def test_recorder_append_ten_events(
 
 @pytest.mark.benchmark(group="dcb-read-events-no-query-limit-ten")
 def test_recorder_read_events_no_query_limit_ten(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
     events = generate_events(50000)
     eventstore.append(events)
@@ -903,7 +903,7 @@ def test_recorder_read_events_no_query_limit_ten(
 
 @pytest.mark.benchmark(group="dcb-read-events-no-query-after-thousand-limit-ten")
 def test_recorder_read_events_no_query_after_thousand_limit_ten(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
     events = generate_events(50000)
     eventstore.append(events)
@@ -917,7 +917,7 @@ def test_recorder_read_events_no_query_after_thousand_limit_ten(
 
 @pytest.mark.benchmark(group="dcb-read-events-one-query-one-type")
 def test_recorder_read_events_one_query_one_type(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
     events = generate_events(50000)
     eventstore.append(events)
@@ -933,7 +933,7 @@ def test_recorder_read_events_one_query_one_type(
 
 @pytest.mark.benchmark(group="dcb-read-events-two-queries-one-type")
 def test_recorder_read_events_two_queries_one_type(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
     events = generate_events(50000)
     eventstore.append(events)
@@ -954,7 +954,7 @@ def test_recorder_read_events_two_queries_one_type(
 
 @pytest.mark.benchmark(group="dcb-read-events-one-query-two-types")
 def test_recorder_read_events_one_query_two_types(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
     events = generate_events(50000)
     eventstore.append(events)
@@ -979,7 +979,7 @@ def test_recorder_read_events_one_query_two_types(
 
 @pytest.mark.benchmark(group="dcb-read-events-one-query-one-tag")
 def test_recorder_read_events_one_query_one_tag(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
     events = generate_events(50000)
     eventstore.append(events)
@@ -994,7 +994,7 @@ def test_recorder_read_events_one_query_one_tag(
 
 @pytest.mark.benchmark(group="dcb-read-events-two-queries-one-tag")
 def test_recorder_read_events_two_queries_one_tag(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
     events = generate_events(50000)
     eventstore.append(events)
@@ -1014,7 +1014,7 @@ def test_recorder_read_events_two_queries_one_tag(
 
 @pytest.mark.benchmark(group="dcb-read-events-one-query-two-tags")
 def test_recorder_read_events_one_query_two_tags(
-    eventstore: DCBEventStore, benchmark: BenchmarkFixture
+    eventstore: DCBRecorder, benchmark: BenchmarkFixture
 ) -> None:
     events = generate_events(50000)
     eventstore.append(events)

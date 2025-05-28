@@ -3,10 +3,8 @@ from __future__ import annotations
 from typing import cast
 from unittest import TestCase
 
+from eventsourcing.dcb.domain import Selector
 from examples.coursebookingdcbrefactored.application import Course, Student
-from examples.coursebookingdcbrefactored.eventstore import (
-    Selector,
-)
 
 
 class TestEnduringObjects(TestCase):

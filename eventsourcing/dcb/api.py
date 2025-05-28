@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from eventsourcing.persistence import InfrastructureFactory, TTrackingRecorder
-
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -40,7 +38,7 @@ class DCBSequencedEvent:
     position: int
 
 
-class DCBEventStore(ABC):
+class DCBRecorder(ABC):
 
     @abstractmethod
     def read(
@@ -65,9 +63,3 @@ class DCBEventStore(ABC):
         """
         Appends given events to the event store, unless the condition fails.
         """
-
-
-class DCBInfrastructureFactory(InfrastructureFactory[TTrackingRecorder], ABC):
-    @abstractmethod
-    def dcb_event_store(self) -> DCBEventStore:
-        pass  # pragma: no cover

@@ -7,12 +7,12 @@ from psycopg.sql import SQL, Identifier
 from eventsourcing.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
-    DCBEventStore,
-    DCBInfrastructureFactory,
     DCBQuery,
     DCBQueryItem,
+    DCBRecorder,
     DCBSequencedEvent,
 )
+from eventsourcing.dcb.persistence import DCBInfrastructureFactory
 from eventsourcing.persistence import IntegrityError, ProgrammingError
 from eventsourcing.postgres import (
     PostgresDatastore,
@@ -251,7 +251,7 @@ $BODY$
 )
 
 
-class PostgresDCBRecorderTS(DCBEventStore, PostgresRecorder):
+class PostgresDCBRecorderTS(DCBRecorder, PostgresRecorder):
     def __init__(
         self,
         datastore: PostgresDatastore,
@@ -466,7 +466,7 @@ class PostgresTSDCBFactory(
     PostgresFactory,
     DCBInfrastructureFactory[PostgresTrackingRecorder],
 ):
-    def dcb_event_store(self) -> DCBEventStore:
+    def dcb_event_store(self) -> DCBRecorder:
         prefix = self.env.name.lower() or "dcb"
 
         dcb_table_name = prefix + "_events"

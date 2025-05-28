@@ -14,7 +14,6 @@ from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.persistence import ProgrammingError
 from eventsourcing.postgres import PostgresApplicationRecorder, PostgresDatastore
 from examples.coursebooking.application import EnrolmentWithAggregates
-from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
 from examples.coursebookingdcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS,
     PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
@@ -22,6 +21,7 @@ from examples.coursebookingdcb.postgres_ts import (
     PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
     PostgresDCBRecorderTS,
 )
+from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
 
 locale.setlocale(locale.LC_ALL, "")
 
