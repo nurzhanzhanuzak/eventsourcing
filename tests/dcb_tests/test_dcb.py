@@ -21,7 +21,7 @@ from eventsourcing.dcb.api import (
     DCBQueryItem,
     DCBSequencedEvent,
 )
-from examples.dcb.popo import InMemoryDCBEventStore
+from eventsourcing.dcb.popo import InMemoryDCBEventStore
 from examples.dcb.postgres_ts import (
     PostgresDCBEventStore,
     PostgresDCBEventStoreTS,
