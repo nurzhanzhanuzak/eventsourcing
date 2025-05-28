@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import cast, Union
 
+from eventsourcing.domain import event
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
     CourseNotFoundError,
@@ -17,7 +18,6 @@ from examples.coursebookingdcbrefactored.eventstore import (
     InitEvent,
     Mapper,
     Repository,
-    Selector,
 )
 from examples.dcb.application import (
     DCBApplication,
@@ -38,44 +38,16 @@ class Student(EnduringObject):
     class NameUpdated(DomainEvent):
         name: str
 
-        def apply(self, obj: Student) -> None:
-            obj.name = self.name
-
     class MaxCoursesUpdated(DomainEvent):
         max_courses: int
 
-        def apply(self, obj: Student) -> None:
-            obj.max_courses = self.max_courses
-
+    @event(NameUpdated)
     def update_name(self, name: str) -> None:
-        self.trigger_event(self.NameUpdated, name=name)
+        self.name = name
 
+    @event(MaxCoursesUpdated)
     def update_max_courses(self, max_courses: int) -> None:
-        self.trigger_event(self.MaxCoursesUpdated, max_courses=max_courses)
-
-
-# class Student(EnduringObject):
-#     name: str
-#     max_courses: int
-#
-#     class Registered(InitEvent):
-#         student_id: str
-#         name: str
-#         max_courses: int
-#
-#     class NameUpdated(DomainEvent):
-#         name: str
-#
-#     class MaxCoursesUpdated(DomainEvent):
-#         max_courses: int
-#
-#     @event(NameUpdated)
-#     def update_name(self, name: str) -> None:
-#         self.name = name
-#
-#     @event(MaxCoursesUpdated)
-#     def update_max_courses(self, max_courses: int) -> None:
-#         self.max_courses = max_courses
+        self.max_courses = max_courses
 
 
 class Course(EnduringObject):

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, overload, Callable
 from uuid import uuid4
 
 import msgspec
 from msgspec import Struct
 from typing_extensions import Self
 
-from eventsourcing.domain import ProgrammingError
+from eventsourcing.domain import ProgrammingError, filter_kwargs_for_method_params, \
+    decorated_funcs, CommandMethodDecorator, decorator_event_classes, AbstractDCBEvent
 from eventsourcing.utils import get_topic, resolve_topic
 from examples.dcb.api import (
     DCBAppendCondition,
@@ -203,7 +204,7 @@ class NotFoundError(Exception):
 _enduring_object_init_classes: dict[type[Any], type[InitEvent]] = {}
 
 
-class CanMutateEnduringObject:
+class CanMutateEnduringObject(AbstractDCBEvent):
     tags: list[str]
 
     def _as_dict(self) -> dict[str, Any]:
@@ -234,14 +235,45 @@ class CanInitEnduringObject(CanMutateEnduringObject):
         }
         enduring_object.__base_init__(**common_kwargs)
         enduring_object.__post_init__()
-        enduring_object.__init__(**kwargs)  # type: ignore[misc]
+        try:
+            enduring_object.__init__(**kwargs)  # type: ignore[misc]
+        except TypeError as e:
+            msg = (f"{self.__qualname__} can't __init__ "
+                   f"{enduring_object_cls.__qualname__} "
+                   f"with kwargs {kwargs}: {e}")
+            raise TypeError(msg) from e
         return enduring_object
 
 
 T = TypeVar("T")
 
+class MetaPerspective(type):
+    def __init__(self, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> None:
+        super().__init__(name, bases, namespace)
+        for attr, value in namespace.items():
+            if isinstance(value, CommandMethodDecorator):
+                # Just keep things simple.
+                # TODO: Maybe support event name strings, maybe not....
+                assert value.given_event_cls is not None, "Event class not given"
+                # TODO: Actually maybe enforce that given event class is nested on self.
+                event_cls_qualname = f"{self.__qualname__}.{value.given_event_cls.__name__}"
+                event_cls_dict = {
+                    # "__annotations__": annotations,
+                    "__module__": self.__module__,
+                    "__qualname__": event_cls_qualname,
+                }
 
-class MetaEnduringObject(type):
+                event_subclass = type(name, (DecoratorEvent, value.given_event_cls), event_cls_dict)
+                namespace[attr] = event_subclass
+                decorator_event_classes[value] = event_subclass
+                decorated_funcs[event_subclass] = value.decorated_func
+
+
+class Perspective(metaclass=MetaPerspective):
+    pass
+
+
+class MetaEnduringObject(MetaPerspective):
     def __init__(cls, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         for item in cls.__dict__.values():
@@ -290,7 +322,7 @@ class InitEvent(DomainEvent, CanInitEnduringObject):
     originator_topic: str
 
 
-class EnduringObject(metaclass=MetaEnduringObject):
+class EnduringObject(Perspective, metaclass=MetaEnduringObject):
     @classmethod
     def _create(cls: type[Self], event_class: type[InitEvent], **kwargs: Any) -> Self:
         enduring_object_id = cls._create_id()
@@ -338,3 +370,23 @@ class EnduringObject(metaclass=MetaEnduringObject):
         event = event_class(tags=tags, **kwargs)
         event.mutate(self)
         self.pending_events.append(event)
+
+
+class DecoratorEvent(DomainEvent):
+    def apply(self, obj: Perspective) -> None:
+        """Applies event to perspective by calling method decorated by @event."""
+        # Identify the function that was decorated.
+        decorated_func = decorated_funcs[type(self)]
+
+        # Select event attributes mentioned in function signature.
+        self_dict = self._as_dict()
+        kwargs = filter_kwargs_for_method_params(self_dict, decorated_func)
+
+        # Call the original method with event attribute values.
+        decorated_method = decorated_func.__get__(obj, type(obj))
+        decorated_method(**kwargs)
+
+        # Call super method, just in case any base classes need it.
+        super().apply(obj)
+
+

@@ -369,7 +369,7 @@ class CanInitAggregate(CanMutateAggregate[TAggregateID]):
 
         # Pick out event attributes for the aggregate base class init method.
         self_dict = self._as_dict()
-        base_kwargs = _filter_kwargs_for_method_params(
+        base_kwargs = filter_kwargs_for_method_params(
             self_dict, type(agg).__base_init__
         )
 
@@ -378,7 +378,7 @@ class CanInitAggregate(CanMutateAggregate[TAggregateID]):
         agg.__base_init__(**base_kwargs)
 
         # Pick out event attributes for aggregate subclass class init method.
-        init_kwargs = _filter_kwargs_for_method_params(self_dict, type(agg).__init__)
+        init_kwargs = filter_kwargs_for_method_params(self_dict, type(agg).__init__)
 
         # Provide the aggregate id, if the __init__ method expects it.
         if aggregate_class in _init_mentions_id:
@@ -459,7 +459,7 @@ class LogEvent(DomainEvent):
     """
 
 
-def _filter_kwargs_for_method_params(
+def filter_kwargs_for_method_params(
     kwargs: dict[str, Any], method: Callable[..., Any]
 ) -> dict[str, Any]:
     names = _spec_filter_kwargs_for_method_params(method)
@@ -472,8 +472,11 @@ def _spec_filter_kwargs_for_method_params(method: Callable[..., Any]) -> set[str
     return set(method_signature.parameters)
 
 
+class AbstractDCBEvent:
+    pass
+
 if TYPE_CHECKING:
-    EventSpecType = Union[str, type[CanMutateAggregate[Any]]]
+    EventSpecType = Union[str, type[CanMutateAggregate[Any]], type[AbstractDCBEvent]]
 
 CallableType = Callable[..., None]
 DecoratableType = Union[CallableType, property]
@@ -488,7 +491,7 @@ class CommandMethodDecorator:
         event_topic: str | None = None,
     ):
         self.is_name_inferred_from_method = False
-        self.given_event_cls: type[CanMutateAggregate[Any]] | None = None
+        self.given_event_cls: type[CanMutateAggregate[Any]] | type[AbstractDCBEvent] | None = None
         self.event_cls_name: str | None = None
         self.decorated_property: property | None = None
         self.is_property_setter = False
@@ -505,7 +508,7 @@ class CommandMethodDecorator:
 
         # Event class has been specified.
         elif isinstance(event_spec, type) and issubclass(
-            event_spec, CanMutateAggregate
+            event_spec, (CanMutateAggregate, AbstractDCBEvent)
         ):
             if event_spec in _given_event_classes:
                 name = event_spec.__name__
@@ -645,7 +648,7 @@ def event(arg: TDecoratableType, /) -> TDecoratableType:
 
 @overload
 def event(
-    arg: type[CanMutateAggregate[Any]], /
+    arg: type[CanMutateAggregate[Any]] | type[AbstractDCBEvent], /
 ) -> Callable[[TDecoratableType], TDecoratableType]:
     """Signature for calling ``@event`` decorator with event class."""
 
@@ -726,7 +729,9 @@ def event(
     if (
         arg is None
         or isinstance(arg, str)
-        or (isinstance(arg, type) and issubclass(arg, CanMutateAggregate))
+        or (isinstance(arg, type) and issubclass(
+            arg, (CanMutateAggregate, AbstractDCBEvent)
+        ))
     ):
         event_spec = arg
 
@@ -802,8 +807,12 @@ class BoundCommandMethodDecorator:
         kwargs = _coerce_args_to_kwargs(
             self.event_decorator.decorated_func, args, kwargs
         )
-        event_cls = decorator_event_classes[self.event_decorator]
-        kwargs = _filter_kwargs_for_method_params(kwargs, event_cls)
+        try:
+            event_cls = decorator_event_classes[self.event_decorator]
+        except KeyError as e:
+            msg = f"Event class not registered for event decorator on {self.event_decorator.decorated_func.__qualname__}"
+            raise KeyError(msg) from e
+        kwargs = filter_kwargs_for_method_params(kwargs, event_cls)
         self.aggregate.trigger_event(event_cls, **kwargs)
 
     def __call__(self, *args: Any, **kwargs: Any) -> None:
@@ -814,11 +823,11 @@ class DecoratorEvent(CanMutateAggregate[Any]):
     def apply(self, aggregate: BaseAggregate[Any]) -> None:
         """Applies event to aggregate by calling method decorated by @event."""
         # Identify the function that was decorated.
-        decorated_func = _decorated_funcs[type(self)]
+        decorated_func = decorated_funcs[type(self)]
 
         # Select event attributes mentioned in function signature.
         self_dict = self._as_dict()
-        kwargs = _filter_kwargs_for_method_params(self_dict, decorated_func)
+        kwargs = filter_kwargs_for_method_params(self_dict, decorated_func)
 
         # Call the original method with event attribute values.
         decorated_method = decorated_func.__get__(aggregate, type(aggregate))
@@ -829,7 +838,7 @@ class DecoratorEvent(CanMutateAggregate[Any]):
 
 
 _given_event_classes: set[type] = set()
-_decorated_funcs: dict[type, CallableType] = {}
+decorated_funcs: dict[type, CallableType] = {}
 _created_event_classes: dict[type, list[type[CanInitAggregate[Any]]]] = {}
 
 
@@ -1646,7 +1655,7 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
                     )
 
                 # Cache the decorated method for the event class to use.
-                _decorated_funcs[event_cls] = event_decorator.decorated_func
+                decorated_funcs[event_cls] = event_decorator.decorated_func
 
                 # Set the event class as an attribute of the aggregate class.
                 setattr(cls, event_cls.__name__, event_cls)
