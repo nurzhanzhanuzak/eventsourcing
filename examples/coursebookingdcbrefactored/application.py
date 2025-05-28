@@ -42,20 +42,20 @@ class Student(EnduringObject):
         name: str
         max_courses: int
 
+    class NameUpdated(Decision):
+        name: str
+
+    class MaxCoursesUpdated(Decision):
+        max_courses: int
+
     def __init__(self, name: str, max_courses: int) -> None:
         self.name = name
         self.max_courses = max_courses
         self.course_ids: list[str] = []
 
-    class NameUpdated(Decision):
-        name: str
-
     @event(NameUpdated)
     def update_name(self, name: str) -> None:
         self.name = name
-
-    class MaxCoursesUpdated(Decision):
-        max_courses: int
 
     @event(MaxCoursesUpdated)
     def update_max_courses(self, max_courses: int) -> None:
@@ -78,20 +78,20 @@ class Course(EnduringObject):
         name: str
         places: int
 
+    class NameUpdated(Decision):
+        name: str
+
+    class PlacesUpdated(Decision):
+        places: int
+
     def __init__(self, name: str, places: int) -> None:
         self.name = name
         self.places = places
         self.student_ids: list[str] = []
 
-    class NameUpdated(Decision):
-        name: str
-
     @event(NameUpdated)
     def update_name(self, name: str) -> None:
         self.name = name
-
-    class PlacesUpdated(Decision):
-        places: int
 
     @event(PlacesUpdated)
     def update_places(self, places: int) -> None:
