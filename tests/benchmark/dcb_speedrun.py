@@ -15,7 +15,7 @@ from eventsourcing.persistence import ProgrammingError
 from eventsourcing.postgres import PostgresApplicationRecorder, PostgresDatastore
 from examples.coursebooking.application import EnrolmentWithAggregates
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
-from examples.dcb.postgres_ts import (
+from examples.coursebookingdcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS,
     PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
     PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
@@ -64,7 +64,7 @@ config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
         EnrolmentWithDCBRefactored,
         10,
         {
-            "PERSISTENCE_MODULE": "examples.dcb.postgres_tt",
+            "PERSISTENCE_MODULE": "eventsourcing.dcb.postgres_tt",
             "POSTGRES_DBNAME": SPEEDRUN_DB_NAME,
             "POSTGRES_HOST": "127.0.0.1",
             "POSTGRES_PORT": "5432",
@@ -76,7 +76,7 @@ config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
         EnrolmentWithDCBRefactored,
         100,
         {
-            "PERSISTENCE_MODULE": "examples.dcb.popo",
+            "PERSISTENCE_MODULE": "eventsourcing.dcb.popo",
         },
     ),
     "agg-pg": (

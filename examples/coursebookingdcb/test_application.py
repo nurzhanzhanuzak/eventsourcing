@@ -12,13 +12,13 @@ if TYPE_CHECKING:
 class TestEnrolmentWithDCB(TestEnrolment):
     def setUp(self) -> None:
         super().setUp()
-        self.env["PERSISTENCE_MODULE"] = "examples.dcb.popo"
+        self.env["PERSISTENCE_MODULE"] = "eventsourcing.dcb.popo"
 
     def construct_app(self) -> Enrolment:
         return EnrolmentWithDCB(self.env)
 
     def test_enrolment_with_postgres(self) -> None:
-        self.env["PERSISTENCE_MODULE"] = "examples.dcb.postgres_ts"
+        self.env["PERSISTENCE_MODULE"] = "examples.coursebookingdcb.postgres_ts"
         super().test_enrolment_with_postgres()
 
 
