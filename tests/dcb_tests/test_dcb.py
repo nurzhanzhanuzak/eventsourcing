@@ -808,6 +808,18 @@ class TestPostgresDCBEventStoreTSCommitOrderVsInsertOrder(
         self._test_fail_condition_is_effective(self.eventstore)
 
 
+class TestPostgresDCBEventStoreTTCommitOrderVsInsertOrder(
+    ConcurrentAppendTestCase, WithPostgres
+):
+    postgres_dcb_eventstore_class = PostgresDCBEventStoreTT
+
+    def test_commit_vs_insert_order(self) -> None:
+        self._test_commit_vs_insert_order(self.eventstore)
+
+    def test_fail_condition_is_effective(self) -> None:
+        self._test_fail_condition_is_effective(self.eventstore)
+
+
 @pytest.fixture
 def eventstore() -> Iterator[DCBEventStore]:
     datastore = PostgresDatastore(
