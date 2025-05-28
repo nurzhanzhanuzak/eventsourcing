@@ -113,7 +113,11 @@ class Course(EnduringObject):
 
 
 class StudentAndCourse(Group):
-    def __init__(self, student: Student | None, course: Course | None) -> None:
+    def __init__(
+        self,
+        student: Student | None,
+        course: Course | None,
+    ) -> None:
         self.student = student
         self.course = course
 
