@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from uuid import uuid4
+from typing import cast
 
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
@@ -12,8 +12,11 @@ from examples.coursebooking.interface import (
 )
 from examples.coursebookingdcbrefactored.eventstore import (
     DomainEvent,
+    EnduringObject,
     EventStore,
+    InitEvent,
     Mapper,
+    Repository,
     Selector,
 )
 from examples.dcb.application import (
@@ -21,14 +24,68 @@ from examples.dcb.application import (
 )
 
 
-class StudentRegistered(DomainEvent):
-    name: str
-    max_courses: int
+class Student(EnduringObject):
+    def __init__(self, name: str, max_courses: int) -> None:
+        self.name = name
+        self.max_courses = max_courses
+
+    class Registered(InitEvent):
+        student_id: str
+        name: str
+        max_courses: int
+
+    class NameUpdated(DomainEvent):
+        name: str
+
+        def apply(self, obj: Student) -> None:
+            obj.name = self.name
+
+    class MaxCoursesUpdated(DomainEvent):
+        max_courses: int
+
+        def apply(self, obj: Student) -> None:
+            obj.max_courses = self.max_courses
+
+    def update_name(self, name: str) -> None:
+        self.trigger_event(self.NameUpdated, name=name)
+
+    def update_max_courses(self, max_courses: int) -> None:
+        self.trigger_event(self.MaxCoursesUpdated, max_courses=max_courses)
 
 
-class CourseRegistered(DomainEvent):
-    name: str
-    places: int
+# class Student(EnduringObject):
+#     name: str
+#     max_courses: int
+#
+#     class Registered(InitEvent):
+#         student_id: str
+#         name: str
+#         max_courses: int
+#
+#     class NameUpdated(DomainEvent):
+#         name: str
+#
+#     class MaxCoursesUpdated(DomainEvent):
+#         max_courses: int
+#
+#     @event(NameUpdated)
+#     def update_name(self, name: str) -> None:
+#         self.name = name
+#
+#     @event(MaxCoursesUpdated)
+#     def update_max_courses(self, max_courses: int) -> None:
+#         self.max_courses = max_courses
+
+
+class Course(EnduringObject):
+    def __init__(self, name: str, places: int) -> None:
+        self.name = name
+        self.places = places
+
+    class Registered(InitEvent):
+        course_id: str
+        name: str
+        places: int
 
 
 class StudentJoinedCourse(DomainEvent):
@@ -39,24 +96,35 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
     def __init__(self, env: dict[str, str]):
         super().__init__(env=env)
         self.events = EventStore(Mapper(), self.recorder)
+        self.repository = Repository(self.events)
 
     def register_student(self, name: str, max_courses: int) -> str:
-        student_id = f"student-{uuid4()}"
-        event = StudentRegistered(tags=[student_id], name=name, max_courses=max_courses)
-        self.events.put(event, cb=Selector(tags=[student_id]))
-        return student_id
+        student = Student(name=name, max_courses=max_courses)
+        self.repository.save(student)
+        return student.id
+
+    def update_student_name(self, student_id: str, name: str) -> None:
+        student = self.get_student(student_id)
+        student.update_name(name)
+        self.repository.save(student)
+
+    def update_student_max_courses(self, student_id: str, max_courses: int) -> None:
+        student = self.get_student(student_id)
+        student.update_max_courses(max_courses)
+        self.repository.save(student)
 
     def register_course(self, name: str, places: int) -> str:
-        course_id = f"course-{uuid4()}"
-        event = CourseRegistered(tags=[course_id], name=name, places=places)
-        self.events.put(event, cb=Selector(tags=[course_id]))
-        return course_id
+        course = Course(name=name, places=places)
+        self.repository.save(course)
+        return course.id
 
     def join_course(self, course_id: str, student_id: str) -> None:
         # Decide the consistency boundary.
         cb = [
-            Selector(types=[StudentRegistered, StudentJoinedCourse], tags=[student_id]),
-            Selector(types=[CourseRegistered, StudentJoinedCourse], tags=[course_id]),
+            Selector(
+                types=[Student.Registered, StudentJoinedCourse], tags=[student_id]
+            ),
+            Selector(types=[Course.Registered, StudentJoinedCourse], tags=[course_id]),
         ]
 
         # Select relevant events.
@@ -68,9 +136,9 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         count_courses: int = 0
         count_students: int = 0
         for event in sequence:
-            if isinstance(event, CourseRegistered):
+            if isinstance(event, Course.Registered):
                 places = event.places
-            elif isinstance(event, StudentRegistered):
+            elif isinstance(event, Student.Registered):
                 max_courses = event.max_courses
             elif isinstance(event, StudentJoinedCourse):
                 if student_id in event.tags and course_id in event.tags:
@@ -114,7 +182,7 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         # Get events relevant for the student names.
         sequence = self.events.get(
             [
-                Selector(types=[StudentRegistered], tags=[student_id])
+                Selector(types=[Student.Registered], tags=[student_id])
                 for student_id in ids
             ]
         )
@@ -122,7 +190,7 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         # Project the events into a mapping of student IDs to names.
         names: dict[str, str] = dict.fromkeys(ids, "")
         for event in sequence:
-            if isinstance(event, StudentRegistered):
+            if isinstance(event, Student.Registered):
                 names[event.tags[0]] = event.name
 
         # Return the names.
@@ -142,14 +210,20 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
 
         # Get events relevant for the course names.
         sequence = self.events.get(
-            [Selector(types=[CourseRegistered], tags=[course_id]) for course_id in ids]
+            [Selector(types=[Course.Registered], tags=[course_id]) for course_id in ids]
         )
 
         # Project the events into a mapping of course IDs to names.
         names: dict[str, str] = dict.fromkeys(ids, "")
         for event in sequence:
-            if isinstance(event, CourseRegistered):
+            if isinstance(event, Course.Registered):
                 names[event.tags[0]] = event.name
 
         # Return the names.
         return [name for name in names.values() if name]
+
+    def get_student(self, student_id: str) -> Student:
+        return cast(Student, self.repository.get(student_id))
+
+    def get_course(self, course_id: str) -> Course:
+        return cast(Course, self.repository.get(course_id))
