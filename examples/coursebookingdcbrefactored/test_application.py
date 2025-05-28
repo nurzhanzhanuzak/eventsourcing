@@ -47,12 +47,21 @@ class TestEnrolmentWithDCBRefactored(TestEnrolment):
         student = app.get_student(student_id)
         self.assertEqual(10, student.max_courses)
 
-        # Test course.
-        course_id = app.register_course(name="Max", places=3)
+        # Register course.
+        course_id = app.register_course(name="Bio", places=3)
         self.assertTrue(course_id.startswith("course-"))
         course = app.get_course(course_id)
         self.assertEqual(course_id, course.id)
         self.assertEqual(3, course.places)
+
+        # Update name.
+        app.update_course_name(course_id, "Biology")
+        course = app.get_course(course_id)
+
+        # Update places.
+        app.update_course_places(course_id, 10)
+        course = app.get_course(course_id)
+        self.assertEqual(10, course.places)
 
         # Join course.
         self.assertEqual(student.course_ids, [])

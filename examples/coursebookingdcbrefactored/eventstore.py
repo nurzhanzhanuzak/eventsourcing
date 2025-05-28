@@ -1,22 +1,24 @@
 from __future__ import annotations
 
+import sys
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, overload
 from uuid import uuid4
 
 import msgspec
-from msgspec import Struct
 from typing_extensions import Self
 
 from eventsourcing.domain import (
     AbstractDCBEvent,
+    CallableType,
     CommandMethodDecorator,
     ProgrammingError,
     decorated_funcs,
     decorator_event_classes,
     filter_kwargs_for_method_params,
+    underscore_method_decorators,
 )
-from eventsourcing.utils import get_topic, resolve_topic
+from eventsourcing.utils import construct_topic, get_topic, resolve_topic
 from examples.dcb.api import (
     DCBAppendCondition,
     DCBEvent,
@@ -32,7 +34,6 @@ if TYPE_CHECKING:
 _enduring_object_init_classes: dict[type[Any], type[CanInitialiseEnduringObject]] = {}
 
 
-# TODO: Unify this with core library so subclasses can work with event decorator.
 class CanMutateEnduringObject(AbstractDCBEvent):
     tags: list[str]
 
@@ -79,8 +80,17 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
 class DecoratorEvent(CanMutateEnduringObject):
     def apply(self, obj: Perspective) -> None:
         """Applies event to perspective by calling method decorated by @event."""
-        # Identify the function that was decorated.
-        decorated_func = decorated_funcs[type(self)]
+
+        event_class_topic = construct_topic(type(self))
+
+        try:
+            decorated_func_collection = cross_cutting_decorated_funcs[event_class_topic]
+            assert type(obj) in decorated_func_collection
+            decorated_func = decorated_func_collection[type(obj)]
+
+        except KeyError:
+            # Identify the function that was decorated.
+            decorated_func = decorated_funcs[type(self)]
 
         # Select event attributes mentioned in function signature.
         self_dict = self._as_dict()
@@ -98,34 +108,6 @@ T = TypeVar("T")
 
 
 class MetaPerspective(type):
-    def __init__(
-        cls, name: str, bases: tuple[type, ...], namespace: dict[str, Any]
-    ) -> None:
-        super().__init__(name, bases, namespace)
-        for attr, value in namespace.items():
-            if isinstance(value, CommandMethodDecorator):
-                # Just keep things simple.
-                # TODO: Maybe support event name strings, maybe not....
-                assert value.given_event_cls is not None, "Event class not given"
-                # TODO: Actually maybe enforce that given event class is nested on self.
-                event_cls_qualname = (
-                    f"{cls.__qualname__}.{value.given_event_cls.__name__}"
-                )
-                event_cls_dict = {
-                    # "__annotations__": annotations,
-                    "__module__": cls.__module__,
-                    "__qualname__": event_cls_qualname,
-                }
-
-                event_subclass = cast(
-                    type[DecoratorEvent],
-                    type(name, (DecoratorEvent, value.given_event_cls), event_cls_dict),
-                )
-                namespace[attr] = event_subclass
-                # TODO: Unify DecoratorEvent with core library somehow.
-                decorator_event_classes[value] = event_subclass  # type: ignore[assignment]
-                decorated_funcs[event_subclass] = value.decorated_func
-
     def __call__(cls: type[T], *args: Any, **kwargs: Any) -> T:
         perspective = cls.__new__(cls)
         perspective.__base_init__(*args, **kwargs)  # type: ignore[attr-defined]
@@ -147,13 +129,127 @@ class Perspective(metaclass=MetaPerspective):
         raise NotImplementedError
 
 
+cross_cutting_event_classes: dict[str, type[CanMutateEnduringObject]] = {}
+cross_cutting_decorated_funcs: dict[str, dict[type, CallableType]] = {}
+
+
 class MetaEnduringObject(MetaPerspective):
-    def __init__(cls, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(
+        cls, name: str, bases: tuple[type, ...], namespace: dict[str, Any]
+    ) -> None:
+        super().__init__(name, bases, namespace)
+        # Find and remember the "initialised" class.
         for item in cls.__dict__.values():
             if isinstance(item, type) and issubclass(item, CanInitialiseEnduringObject):
                 _enduring_object_init_classes[cls] = item
                 break
+
+        # Process the event decorators.
+        for attr, value in namespace.items():
+            if isinstance(value, CommandMethodDecorator):
+                if attr == "_":
+                    # Deal with cross cutting events later.
+                    continue
+
+                event_class = value.given_event_cls
+                # Just keep things simple by only supporting given classes (not names).
+                assert event_class is not None, "Event class not given"
+                assert issubclass(event_class, CanMutateEnduringObject)
+                # TODO: Maybe support event name strings, maybe not....
+                event_class_qual = event_class.__qualname__
+
+                assert event_class_qual.startswith(cls.__qualname__ + ".")
+
+                # Subclass given class to make a "decorator class".
+                event_subclass_dict = {
+                    # "__annotations__": annotations,
+                    "__module__": cls.__module__,
+                    "__qualname__": event_class_qual,
+                }
+
+                subclass_name = event_class.__name__
+                decorator_event_subclass = cast(
+                    type[DecoratorEvent],
+                    type(
+                        subclass_name,
+                        (DecoratorEvent, event_class),
+                        event_subclass_dict,
+                    ),
+                )
+                # Update the enduring object class dict.
+                namespace[attr] = decorator_event_subclass
+                # Remember which event event class to trigger when method is called.
+                # TODO: Unify DecoratorEvent with core library somehow.
+                decorator_event_classes[value] = decorator_event_subclass  # type: ignore[assignment]
+                # Remember which method body to execute when event is applied.
+                decorated_funcs[decorator_event_subclass] = value.decorated_func
+
+        # Deal with cross-cutting events.
+        enduring_object_class_topic = construct_topic(cls)
+        for topic, decorator in underscore_method_decorators:
+            if topic.startswith(enduring_object_class_topic):
+
+                event_class = decorator.given_event_cls
+                # Just keep things simple by only supporting given classes (not names).
+                assert event_class is not None, "Event class not given"
+                assert issubclass(event_class, CanMutateEnduringObject)
+                # TODO: Maybe support event name strings, maybe not....
+                event_class_qual = event_class.__qualname__
+
+                # Assume this is a cross-cutting event, and we need to register
+                # multiple handler methods for the same class. Expect its mutate
+                # method will be called once for each enduring object tagged in
+                # its instances. The decorator event can then select which
+                # method body to call, according to the 'obj' argument of its
+                # apply() method. This means we do need to subclass the given
+                # event once only.
+
+                event_class_topic = construct_topic(event_class)
+                try:
+                    # Get the cross-cutting event subclass if already subclassed.
+                    event_subclass = cross_cutting_event_classes[event_class_topic]
+                except KeyError:
+                    # Subclass the cross-cutting event class.
+                    # Keep things simple by only supporting non-nested classes.
+                    assert (
+                        "." not in event_class_qual
+                    ), "Nested cross-cutting classes aren't supported"
+                    # Get the global namespace for the event class.
+                    event_class_globalns = getattr(
+                        sys.modules.get(event_class.__module__, None),
+                        "__dict__",
+                        {},
+                    )
+                    assert event_class_qual in event_class_globalns
+                    event_subclass_dict = {
+                        # "__annotations__": annotations,
+                        "__module__": cls.__module__,
+                        "__qualname__": event_class_qual,
+                    }
+                    subclass_name = event_class.__name__
+                    event_subclass = cast(
+                        type[DecoratorEvent],
+                        type(
+                            subclass_name,
+                            (DecoratorEvent, event_class),
+                            event_subclass_dict,
+                        ),
+                    )
+                    cross_cutting_event_classes[event_class_topic] = event_subclass
+                    event_class_globalns[event_class_qual] = event_subclass
+
+                # Register decorated func for event class / enduring object class.
+                try:
+                    decorated_func_collection = cross_cutting_decorated_funcs[
+                        event_class_topic
+                    ]
+                except KeyError:
+                    decorated_func_collection = {}
+                    cross_cutting_decorated_funcs[event_class_topic] = (
+                        decorated_func_collection
+                    )
+
+                decorated_func_collection[cls] = decorator.decorated_func
 
     def __call__(cls: type[T], **kwargs: Any) -> T:
         # TODO: For convenience, make this error out in the same way
@@ -240,12 +336,13 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
 class Group(Perspective):
     @property
     def cb(self) -> list[Selector]:
-        return self._flatten(
-            [o.cb for o in self.__dict__.values() if isinstance(o, EnduringObject)]
-        )
-
-    def _flatten(self, xss: list[list[Selector]]) -> list[Selector]:
-        return [x for xs in xss for x in xs]
+        return [
+            cb
+            for cbs in [
+                o.cb for o in self.__dict__.values() if isinstance(o, EnduringObject)
+            ]
+            for cb in cbs
+        ]
 
     def trigger_event(
         self,
@@ -308,16 +405,10 @@ class EventStore:
                 fail_if_events_match=query,
                 after=after,
             )
-        # started = datetime_now_with_tzinfo()
         return self.recorder.append(
             events=[self.mapper.to_dcb_event(e) for e in events],
             condition=condition,
         )
-        # duration = int(
-        #     (datetime_now_with_tzinfo() - started).total_seconds() * 1000000
-        # )
-        # print("Appendeded", events, "at position", position, f"in {duration} us")
-        # return position
 
     @overload
     def get(
@@ -325,7 +416,7 @@ class EventStore:
         cb: Selector | Sequence[Selector] | None = None,
         *,
         after: int | None = None,
-    ) -> Sequence[StructDecision]:
+    ) -> Sequence[CanMutateEnduringObject]:
         pass  # pragma: no cover
 
     @overload
@@ -345,7 +436,7 @@ class EventStore:
         *,
         with_positions: Literal[True],
         after: int | None = None,
-    ) -> Sequence[tuple[StructDecision, int]]:
+    ) -> Sequence[tuple[CanMutateEnduringObject, int]]:
         pass  # pragma: no cover
 
     def get(
@@ -428,7 +519,7 @@ class Repository:
         for event in events:
             for tag in event.tags:
                 obj = objs.get(tag)
-                if not isinstance(event, StructInitialised) and not obj:
+                if not isinstance(event, CanInitialiseEnduringObject) and not obj:
                     continue
                 obj = event.mutate(obj)
                 objs[tag] = obj
@@ -437,7 +528,7 @@ class Repository:
                 obj.last_known_position = head
         return list(objs.values())
 
-    def get_group(self, *enduring_object_ids: str, cls: type[TGroup]) -> TGroup:
+    def get_group(self, cls: type[TGroup], *enduring_object_ids: str) -> TGroup:
         enduring_objects = self.get_many(*enduring_object_ids)
         perspective = cls(*enduring_objects)
         last_known_positions = [
@@ -455,10 +546,10 @@ class NotFoundError(Exception):
     pass
 
 
-# Introduce msgspec Struct.
+# Introduce and support msgspec.Struct for event definition and serialisation.
 
 
-class StructMapper(DCBMapper):
+class MsgspecStructMapper(DCBMapper):
     def to_dcb_event(self, event: CanMutateEnduringObject) -> DCBEvent:
         return DCBEvent(
             type=get_topic(type(event)),
@@ -473,12 +564,12 @@ class StructMapper(DCBMapper):
         )
 
 
-class StructDecision(Struct, CanMutateEnduringObject):
+class Decision(msgspec.Struct, CanMutateEnduringObject):
     tags: list[str]
 
     def _as_dict(self) -> dict[str, Any]:
         return {key: getattr(self, key) for key in self.__struct_fields__}
 
 
-class StructInitialised(StructDecision, CanInitialiseEnduringObject):
+class InitialDecision(Decision, CanInitialiseEnduringObject):
     originator_topic: str

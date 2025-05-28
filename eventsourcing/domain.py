@@ -32,6 +32,7 @@ from warnings import warn
 
 from eventsourcing.utils import (
     TopicError,
+    construct_topic,
     get_method_name,
     get_topic,
     register_topic,
@@ -515,7 +516,11 @@ class CommandMethodDecorator:
         elif isinstance(event_spec, type) and issubclass(
             event_spec, (CanMutateAggregate, AbstractDCBEvent)
         ):
-            if event_spec in _given_event_classes:
+            # Guard against associating more than one method body with any given class.
+            if (
+                issubclass(event_spec, CanMutateAggregate)
+                and event_spec in _given_event_classes
+            ):
                 name = event_spec.__name__
                 msg = f"{name} event class used in more than one decorator"
                 raise TypeError(msg)
@@ -559,6 +564,10 @@ class CommandMethodDecorator:
             # Remember the decorated obj as the decorated method.
             self.decorated_func = decorated_obj
 
+            if self.decorated_func.__name__ == "_":
+                underscore_method_decorators.append(
+                    (construct_topic(self.decorated_func), self)
+                )
             # If necessary, derive an event class name from the method.
             if not self.given_event_cls and not self.event_cls_name:
                 original_method_name = self.decorated_func.__name__
@@ -815,7 +824,7 @@ class BoundCommandMethodDecorator:
         )
         try:
             event_cls = decorator_event_classes[self.event_decorator]
-        except KeyError as e:
+        except KeyError as e:  # pragma: no cover
             msg = (
                 f"Event class not registered for event decorator on "
                 f"{self.event_decorator.decorated_func.__qualname__}"
@@ -846,12 +855,20 @@ class DecoratorEvent(CanMutateAggregate[Any]):
         super().apply(aggregate)
 
 
-_given_event_classes: set[type] = set()
-decorated_funcs: dict[type, CallableType] = {}
+# This helps enforce single usage of original event classes in decorators.
+_given_event_classes = set[type]()
+
+# This keeps track of the "created" event classes for an aggregate.
 _created_event_classes: dict[type, list[type[CanInitAggregate[Any]]]] = {}
 
-
+# This remembers which decorator event subclass to trigger when a method is called.
 decorator_event_classes: dict[CommandMethodDecorator, type[DecoratorEvent]] = {}
+
+# This remembers which method body to execute when a decorator event is applied.
+decorated_funcs: dict[type, CallableType] = {}
+
+# This keeps track of decorated "non-command" projection-only methods called "_".
+underscore_method_decorators: list[tuple[str, CommandMethodDecorator]] = []
 
 
 def _raise_type_error_if_func_has_variable_params(method: CallableType) -> None:
