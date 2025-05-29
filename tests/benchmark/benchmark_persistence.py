@@ -41,6 +41,7 @@ envs = {
         "POSTGRES_PORT": "5432",
         "POSTGRES_USER": "eventsourcing",
         "POSTGRES_PASSWORD": "eventsourcing",
+        "ORIGINATOR_ID_TYPE": "text",
     },
     "postgres-functions": {
         "PERSISTENCE_MODULE": "eventsourcing.postgres",
@@ -59,6 +60,7 @@ envs = {
         "POSTGRES_USER": "eventsourcing",
         "POSTGRES_PASSWORD": "eventsourcing",
         "POSTGRES_ENABLE_DB_FUNCTIONS": "y",
+        "ORIGINATOR_ID_TYPE": "text",
     },
 }
 
