@@ -189,26 +189,6 @@ than one aggregate, the student and the course. The preservation of recorded con
 test case below.
 
 
-Testing the consistency boundary
---------------------------------
-
-The extra test case below shows that extending the transactional consistency boundary when using
-event-sourced aggregates to include more than one aggregate is technically sound, by checking
-that the recorded consistency of the course-student nexus is guarded against concurrent operations.
-
-.. literalinclude:: ../../../examples/coursebooking/test_application.py
-    :pyobject: TestEnrolmentConsistency
-
-The meaning of "not less than" is "greater than or equal to". It has been a common misapprehension
-that the "consistency boundary" notion in DDD is equal to one aggregate. The actual idea from DDD
-is that a database transactional consistency boundary must not be less than one aggregate. A
-consistency boundary that includes more than one aggregate, or indeed other things, has always
-been permitted by DDD.
-
-Nevertheless, there are other reasons why DCB is an interesting novel approach for event sourcing,
-so let's continue by :doc:`implementing the specification </topics/examples/coursebooking-dcb>` directly.
-
-
 Speedrun
 --------
 
@@ -276,6 +256,25 @@ of 0.320 milliseconds per operation, and a target for implementing DCB.
 
  Events in database at end:  5,740,145 events  (171,820 new)
 
+
+Testing the consistency boundary
+--------------------------------
+
+The extra test case below shows that extending the transactional consistency boundary when using
+event-sourced aggregates to include more than one aggregate is technically sound, by checking
+that the recorded consistency of the course-student nexus is guarded against concurrent operations.
+
+.. literalinclude:: ../../../examples/coursebooking/test_application.py
+    :pyobject: TestEnrolmentConsistency
+
+The meaning of "not less than" is "greater than or equal to". It has been a common misapprehension
+that the "consistency boundary" notion in DDD is equal to one aggregate. The actual idea from DDD
+is that a database transactional consistency boundary must not be less than one aggregate. A
+consistency boundary that includes more than one aggregate, or indeed other things, has always
+been permitted by DDD.
+
+Nevertheless, there are other reasons why DCB is an interesting novel approach for event sourcing,
+so let's continue by :doc:`implementing the specification </topics/examples/coursebooking-dcb>` directly.
 
 Code reference
 --------------

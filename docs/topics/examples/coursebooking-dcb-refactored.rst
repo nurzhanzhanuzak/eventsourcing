@@ -11,17 +11,18 @@ that we used directly in the :doc:`previous example </topics/examples/coursebook
 
 The refactored higher-level code shown below introduces the notion "enduring object" which is quite
 like "event-sourced aggregate" but with some important differences. And it introduces the notion
-"group", which is a collection of "many" enduring objects that can also make decisions which affect
+"group", which is a collection of many enduring objects that can also make decisions which affect
 the whole group. The more general abstraction that has been derived from the previous example is
-the notion of a decision-making "perspective". A "perspective" is a decision model, a projection
-of a selection of decisions in the past, that can also be capable of making new decisions.
+the notion of a decision-making "perspective". A "perspective" is a selective view of the past,
+that can also be the ground for making new decisions. Here, a projection of a set of decisions
+already made, the forms a decision model with which a events can be generated.
 
 Of course, this is just one possible "higher level" style for coding a DCB application.
 
 Application
 -----------
 
-The refactoed "enrolment" application class :class:`~examples.coursebookingdcbrefactored.application.EnrolmentWithDCBRefactored`
+The refactored "enrolment" application class :class:`~examples.coursebookingdcbrefactored.application.EnrolmentWithDCBRefactored`
 shown below implements :class:`~examples.coursebooking.interface.EnrolmentInterface`. Unlike the previous example,
 its methods are all very short three-line blocks, which mostly create and rebuild a "perspective" (line 1), make a new
 decision (line 2), and then append new events to the database (line 3). Because in this style each method is so compact,
