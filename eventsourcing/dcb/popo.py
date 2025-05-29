@@ -66,16 +66,13 @@ class InMemoryDCBRecorder(DCBRecorder, POPORecorder):
             raise ProgrammingError(msg)
         with self._database_lock:
             if condition is not None:
-                try:
-                    matched, head = self.read(
-                        query=condition.fail_if_events_match,
-                        after=condition.after,
-                        limit=1,
-                    )
-                    if matched:
-                        raise IntegrityError
-                except StopIteration:
-                    pass
+                matched, head = self.read(
+                    query=condition.fail_if_events_match,
+                    after=condition.after,
+                    limit=1,
+                )
+                if matched:
+                    raise IntegrityError
             self.events.extend(
                 DCBSequencedEvent(
                     position=next(self.position_sequence),

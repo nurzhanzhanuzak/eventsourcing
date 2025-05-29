@@ -647,7 +647,7 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
         *,
         explain: bool = False,
     ) -> None:
-        if explain:
+        if explain:  # pragma: no cover
             print()  # noqa: T201
             print("Statement:", statement.as_string().strip())  # noqa: T201
             print("Params:", params)  # noqa: T201

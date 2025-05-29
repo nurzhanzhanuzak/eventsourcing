@@ -28,7 +28,7 @@ class CanMutateEnduringObject(AbstractDCBEvent):
     tags: list[str]
 
     def _as_dict(self) -> dict[str, Any]:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     def mutate(self, obj: EnduringObject | None) -> EnduringObject | None:
         assert obj is not None
@@ -57,7 +57,7 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
         enduring_object.__post_init__()
         try:
             enduring_object.__init__(**kwargs)  # type: ignore[misc]
-        except TypeError as e:
+        except TypeError as e:  # pragma: no cover
             msg = (
                 f"{type(self).__qualname__} can't __init__ "
                 f"{enduring_object_cls.__qualname__} "
@@ -116,7 +116,7 @@ class Perspective(metaclass=MetaPerspective):
 
     @property
     def cb(self) -> list[Selector]:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
 
 cross_cutting_event_classes: dict[str, type[CanMutateEnduringObject]] = {}
@@ -250,11 +250,11 @@ class MetaEnduringObject(MetaPerspective):
         assert issubclass(cls, EnduringObject)
         try:
             init_enduring_object_class = _enduring_object_init_classes[cls]
-        except KeyError:
+        except KeyError:  # pragma: no cover
             msg = (
-                f"Enduring object class {cls.__name__} has no CanInitEnduringObject "
-                f"class. Please define a subclass of CanInitEnduringObject"
-                f"as a nested class on {cls.__name__}."
+                f"Enduring object class {cls.__name__} has no "
+                f"CanInitialiseEnduringObject class. Please define a subclass of "
+                f"CanInitialiseEnduringObject as a nested class on {cls.__name__}."
             )
             raise ProgrammingError(msg) from None
 
@@ -283,7 +283,7 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
         initial_kwargs["tags"] = [enduring_object_id]
         try:
             initialised = decision_cls(**initial_kwargs)
-        except TypeError as e:
+        except TypeError as e:  # pragma: no cover
             msg = (
                 f"Unable to construct {decision_cls.__qualname__} event "
                 f"with kwargs {initial_kwargs}: {e}"
