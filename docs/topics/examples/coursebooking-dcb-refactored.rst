@@ -1,7 +1,7 @@
 .. _DCB example 3:
 
-DCB 3 - Course booking - refactored
-===================================
+DCB 3 - Enrolment - refactored
+==============================
 
 This example shows the same "course booking" example as the :doc:`previous example </topics/examples/coursebooking-dcb>`,
 using a refactored style for `dynamic consistency boundaries <https://dcb.events/>`_, rather than
@@ -51,29 +51,73 @@ in its consistency boundary. The query methods in this example do not need to re
 the recorded events, and so call :func:`~examples.coursebookingdcbrefactored.eventstore.EventStore.get()` with its default of only
 returning domain events.
 
-These refactorings improve the readability and integrity of the code, reducing the source lines of code by 34%
-(from 164 sloc to 109). However, it's worth noting that this example application code still has 47%
-more code than the domain model and application code using aggregates in the
-:doc:`first example </topics/examples/coursebooking>` (74 sloc).
+These refactorings improve the readability and integrity of the code, with a visual appearance that is similar
+to the declarative syntax used by the event-sourced aggregates in the first example. This style dramatically
+reduces the source lines of code, leaving room for the addition of more methods. :-)
 
 Application
 -----------
 
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
-    :pyobject: StudentRegistered
+    :pyobject: EnrolmentWithDCBRefactored
 
-.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
-    :pyobject: CourseRegistered
+
+
+Domain model
+------------
 
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: StudentJoinedCourse
 
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
-    :pyobject: EnrolmentWithDCBRefactored
+    :pyobject: StudentLeftCourse
 
+.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
+    :pyobject: Student
+
+.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
+    :pyobject: Course
+
+.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
+    :pyobject: StudentAndCourse
+
+
+Supporting abstractions
+-----------------------
+
+.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
+    :pyobject: Decision
+
+.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
+    :pyobject: InitialDecision
+
+.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
+    :pyobject: MsgspecStructMapper
+
+.. literalinclude:: ../../../eventsourcing/dcb/domain.py
+    :pyobject: CanInitialiseEnduringObject
+
+.. literalinclude:: ../../../eventsourcing/dcb/domain.py
+    :pyobject: CanMutateEnduringObject
+
+.. literalinclude:: ../../../eventsourcing/dcb/persistence.py
+    :pyobject: DCBMapper
+
+.. literalinclude:: ../../../eventsourcing/dcb/persistence.py
+    :pyobject: DCBEventStore
+
+.. literalinclude:: ../../../eventsourcing/dcb/persistence.py
+    :pyobject: DCBRepository
+
+.. literalinclude:: ../../../eventsourcing/dcb/domain.py
+    :pyobject: EnduringObject
+
+.. literalinclude:: ../../../eventsourcing/dcb/domain.py
+    :pyobject: Group
 
 Test case
 ---------
+
 
 The test case is the same as the :doc:`first example </topics/examples/coursebooking>`, but executed
 with the :class:`~examples.coursebookingdcbrefactored.application.EnrolmentWithDCBRefactored` class above.
@@ -81,10 +125,67 @@ with the :class:`~examples.coursebookingdcbrefactored.application.EnrolmentWithD
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/test_application.py
     :pyobject: TestEnrolmentWithDCBRefactored
 
+It also has some extra steps to cover the extra methods that were added to make further use of the more
+declarative syntax for DCB.
+
+Postgres DCB recorder v3
+------------------------
+
+A third attempt to implement implements the complex DCB query logic in Postgres is shown below. The
+first attempt used array columns and array operator. It didn't work very well. The
+:class:`~eventsourcing.dcb.postgres_ts.PostgresDCBRecorderTT` class shown below implements
+the DCB event store interface using a secondary table of tags that is indexed with a B-tree.
+The design of this implementation was focussed on selecting by tags first, which will typically
+have high cardinality, and selecting by types and sequence position later in the query.
+A multi-clause CTE statement is used to select events, passing the DCB query items as an composite
+type array. A similar approach was tried for conditionally inserting event records, but this proved
+to be suboptimal, and instead a stored procedure was developed that separates the "fail condition"
+query from the conditional insertion of new events. This allows each part to be planned separately,
+achieving much better performance. The index of sequence positions on the main table covers the
+event types, which allows the results of selecting from the table of tags to be efficiently joined
+with the main table and for events to filtered by type using only the indexes. The speedrun performance
+report below shows how much better this third approach is than the version using ``tsvector`` with a GIN
+index.
+
+.. literalinclude:: ../../../eventsourcing/dcb/postgres_tt.py
+
+
+Speed run
+---------
+
+The screen shot included here shows the performance of this implementation. The performance is many times
+faster than the previous example, even with 7 million stored events. It run at around 70% of the speed of the
+event-sourced aggregates in the first example.
+
+One thing to notice about this report is that the number of new events recorded is the same as the number of
+operations, whereas with the event-sourced aggregates implementation there were many more due to there being
+two events recorded for each time a student joins a course (one for the student aggregate and one for the
+course aggregate).
+
+.. image:: ../dcb-speedrun-dcb-pg-tt.png
+    :width: 90%
+
+Because the refactored code above seems very usable, and the performance of the database implementation is
+very good, it was decided to include support for DCB in this library in the :mod:`eventsourcing.dcb` package.
+If you are feeling playful, have fun experimenting with dynamic consistency boundaries in Python!
 
 
 Code reference
 --------------
+
+.. automodule:: eventsourcing.dcb.persistence
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
+
+.. automodule:: eventsourcing.dcb.domain
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__
 
 .. automodule:: examples.coursebookingdcbrefactored.application
     :show-inheritance:
@@ -93,9 +194,3 @@ Code reference
     :undoc-members:
     :special-members: __init__
 
-.. automodule:: examples.coursebookingdcbrefactored.eventstore
-    :show-inheritance:
-    :member-order: bysource
-    :members:
-    :undoc-members:
-    :special-members: __init__

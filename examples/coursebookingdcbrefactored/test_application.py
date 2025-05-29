@@ -6,7 +6,7 @@ from examples.coursebooking.test_application import TestEnrolment
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
 
 if TYPE_CHECKING:
-    from examples.coursebooking.interface import Enrolment
+    from examples.coursebooking.interface import EnrolmentInterface
 
 
 class TestEnrolmentWithDCBRefactored(TestEnrolment):
@@ -14,7 +14,7 @@ class TestEnrolmentWithDCBRefactored(TestEnrolment):
         super().setUp()
         self.env["PERSISTENCE_MODULE"] = "eventsourcing.dcb.popo"
 
-    def construct_app(self) -> Enrolment:
+    def construct_app(self) -> EnrolmentInterface:
         return EnrolmentWithDCBRefactored(self.env)
 
     def test_enrolment_with_postgres(self) -> None:

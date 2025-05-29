@@ -1,7 +1,7 @@
 .. _DCB example 1:
 
-DCB 1 - Course booking - aggregates
-===================================
+DCB 1 - Enrolment - introduction
+================================
 
 This example introduces the `course subscription <https://dcb.events/examples/course-subscriptions/>`_
 challenge, used often when discussing `dynamic consistency boundaries <https://dcb.events/>`_. The
@@ -16,7 +16,7 @@ Dynamic consistency boundaries (DCB) is a new variant of event sourcing presente
 as "killing the aggregate".
 
 A novel scheme is proposed that uses a single sequence of events, an :ref:`application sequence <Overview>`
-in the terminology of this library, without requiring aggregate sequences.
+in the terminology of this library. How does it work?
 
 Each event in DCB has one "type", some "data", and any number of "tags".
 Recorded events also have an assigned "position" in the sequence, and for this reason are referred to as
@@ -121,10 +121,15 @@ recording events in PostgreSQL.
 Enrolment interface
 -------------------
 
-The interface used by the test case is defined as a Python protocol class.
+The interface used by the test case is defined as an abstract base class,
+:class:`~examples.coursebooking.interface.EnrolmentInterface`.
+
+It defines methods for registering students, for registering courses, for joining
+students with courses, for listing students for a course, and for listing courses
+for a student
 
 .. literalinclude:: ../../../examples/coursebooking/interface.py
-    :pyobject: Enrolment
+    :pyobject: EnrolmentInterface
 
 Exception classes used in the test case are also defined separately.
 
@@ -164,15 +169,19 @@ in :doc:`example 11  </topics/examples/aggregate11>`.
 Enrolment with aggregates
 -------------------------
 
-The :class:`examples.coursebooking.application.EnrolmentWithAggregates` class shown below uses the event-sourced
+The :class:`~examples.coursebooking.application.EnrolmentWithAggregates` class shown below implements
+:class:`~examples.coursebooking.interface.EnrolmentInterface` using the event-sourced
 :class:`~examples.coursebooking.domainmodel.Course` and :class:`~examples.coursebooking.domainmodel.Student`
-aggregate classes from the domain model, and implements the enrolment protocol with its methods for registering
-students and for registering courses, for joining students with courses, for listing students for a course, and
-for listing courses for a student.
+aggregate classes.
 
 This meets the "course subscriptions" challenge with event-sourced aggregates, without tricks and without
 accidental complexity, showing that it is possible, and entirely legitimate, to extended the transactional
-consistency boundary when using event-sourced aggregates to include more than one aggregate.
+consistency boundary when using event-sourced aggregates to include more than one aggregate. This is a
+useful technique.
+
+
+.. literalinclude:: ../../../examples/coursebooking/application.py
+    :pyobject: EnrolmentWithAggregates
 
 At the time of writing, this possibility is not mentioned in the list of
 `traditional approaches <https://dcb.events/examples/course-subscriptions/#traditional-approaches>`_ on the dynamic
@@ -184,12 +193,6 @@ than one aggregate, the student and the course. The preservation of recorded con
 test case below.
 
 
-.. literalinclude:: ../../../examples/coursebooking/application.py
-    :pyobject: EnrolmentWithAggregates
-
-.. literalinclude:: ../../../examples/coursebooking/test_application.py
-    :pyobject: TestEnrolmentWithAggregates
-
 Testing the consistency boundary
 --------------------------------
 
@@ -200,15 +203,21 @@ that the recorded consistency of the course-student nexus is guarded against con
 .. literalinclude:: ../../../examples/coursebooking/test_application.py
     :pyobject: TestEnrolmentConsistency
 
-It has been a common misapprehension that the "consistency boundary" notion in DDD is equal to
-one aggregate (`"by definition, the aggregate is the boundary of consistency" <https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-2-the-aggregate-does-not-fit-the-storytelling.html>`_).
-The actual idea from DDD is that a database transactional consistency boundary must not be less
-than one aggregate. The meaning of "not less than" is "greater than or equal to". A consistency boundary
-that includes more than one aggregate, or indeed other things, has always been permitted by DDD.
+The meaning of "not less than" is "greater than or equal to". It has been a common misapprehension
+that the "consistency boundary" notion in DDD is equal to one aggregate. The actual idea from DDD
+is that a database transactional consistency boundary must not be less than one aggregate. A
+consistency boundary that includes more than one aggregate, or indeed other things, has always
+been permitted by DDD.
 
 Nevertheless, there are other reasons why DCB is an interesting novel approach for event sourcing,
 so let's continue by :doc:`implementing the specification </topics/examples/coursebooking-dcb>` directly.
 
+
+Speedrun
+--------
+
+.. image:: ../dcb-speedrun-agg-pg.png
+    :width: 90%
 
 
 Code reference

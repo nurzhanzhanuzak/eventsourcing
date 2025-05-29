@@ -8,12 +8,12 @@ from examples.aggregate9.msgspecstructs import MsgspecMapper
 from examples.coursebooking.domainmodel import Course, Student
 from examples.coursebooking.interface import (
     CourseNotFoundError,
-    Enrolment,
+    EnrolmentInterface,
     StudentNotFoundError,
 )
 
 
-class EnrolmentWithAggregates(Application[str], Enrolment):
+class EnrolmentWithAggregates(Application[str], EnrolmentInterface):
     env: ClassVar[dict[str, str]] = {
         "MAPPER_TOPIC": get_topic(MsgspecMapper),
         "ORIGINATOR_ID_TYPE": "text",

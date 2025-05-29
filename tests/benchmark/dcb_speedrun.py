@@ -28,7 +28,7 @@ locale.setlocale(locale.LC_ALL, "")
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from examples.coursebooking.interface import Enrolment
+    from examples.coursebooking.interface import EnrolmentInterface
 
 env = {}
 # SPEEDRUN_DB_NAME = "course_subscriptions_speedrun"
@@ -47,12 +47,12 @@ def inf_range() -> Iterator[int]:
         i += 1
 
 
-config: dict[str, tuple[type[Enrolment], int, dict[str, str]]] = {
+config: dict[str, tuple[type[EnrolmentInterface], int, dict[str, str]]] = {
     "dcb-pg-ts": (
         EnrolmentWithDCBRefactored,
         10,
         {
-            "PERSISTENCE_MODULE": "examples.dcb.postgres_ts",
+            "PERSISTENCE_MODULE": "examples.coursebookingdcb.postgres_ts",
             "POSTGRES_DBNAME": SPEEDRUN_DB_NAME,
             "POSTGRES_HOST": "127.0.0.1",
             "POSTGRES_PORT": "5432",
@@ -119,7 +119,7 @@ def set_signal_handler() -> None:
 SQL_SELECT_COUNT_ROWS = SQL("SELECT COUNT(*) FROM {schema}.{table_name}")
 
 
-def count_events(app: Enrolment) -> int:
+def count_events(app: EnrolmentInterface) -> int:
     if isinstance(app, EnrolmentWithAggregates):
         recorder: Any = app.recorder
         assert isinstance(recorder, PostgresApplicationRecorder)

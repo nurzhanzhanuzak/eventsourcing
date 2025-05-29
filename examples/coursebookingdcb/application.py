@@ -9,14 +9,14 @@ from eventsourcing.dcb.application import DCBApplication
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
     CourseNotFoundError,
-    Enrolment,
+    EnrolmentInterface,
     FullyBookedError,
     StudentNotFoundError,
     TooManyCoursesError,
 )
 
 
-class EnrolmentWithDCB(DCBApplication, Enrolment):
+class EnrolmentWithDCB(DCBApplication, EnrolmentInterface):
     def register_student(self, name: str, max_courses: int) -> str:
         student_id = f"student-{uuid4()}"
         consistency_boundary = DCBQuery(

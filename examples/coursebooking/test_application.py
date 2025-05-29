@@ -17,14 +17,14 @@ from examples.coursebooking.interface import (
 )
 
 if TYPE_CHECKING:
-    from examples.coursebooking.interface import Enrolment
+    from examples.coursebooking.interface import EnrolmentInterface
 
 
 class TestEnrolment(TestCase):
     def setUp(self) -> None:
         self.env: dict[str, str] = {}
 
-    def construct_app(self) -> Enrolment:
+    def construct_app(self) -> EnrolmentInterface:
         raise NotImplementedError
 
     def test_enrolment(self) -> None:
@@ -111,7 +111,7 @@ class TestEnrolment(TestCase):
 
 
 class TestEnrolmentWithAggregates(TestEnrolment):
-    def construct_app(self) -> Enrolment:
+    def construct_app(self) -> EnrolmentInterface:
         return EnrolmentWithAggregates(self.env)
 
     def test_enrolment_with_postgres(self) -> None:

@@ -24,7 +24,7 @@ from eventsourcing.utils import get_topic, resolve_topic
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
     CourseNotFoundError,
-    Enrolment,
+    EnrolmentInterface,
     FullyBookedError,
     NotAlreadyJoinedError,
     StudentNotFoundError,
@@ -180,7 +180,7 @@ class StudentAndCourse(Group):
         )
 
 
-class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
+class EnrolmentWithDCBRefactored(DCBApplication, EnrolmentInterface):
     def __init__(self, env: dict[str, str]):
         super().__init__(env=env)
         self.events = DCBEventStore(MsgspecStructMapper(), self.recorder)
@@ -201,40 +201,40 @@ class EnrolmentWithDCBRefactored(DCBApplication, Enrolment):
         group.student_joins_course()
         self.repository.save(group)
 
-    def leave_course(self, student_id: str, course_id: str) -> None:
-        group = self.repository.get_group(StudentAndCourse, student_id, course_id)
-        group.student_leaves_course()
-        self.repository.save(group)
-
     def list_students_for_course(self, course_id: str) -> list[str]:
         course = self.get_course(course_id)
         students = self.repository.get_many(*course.student_ids)
         return [cast(Student, c).name for c in students if c is not None]
-
-    def update_student_name(self, student_id: str, name: str) -> None:
-        student = self.get_student(student_id)
-        student.update_name(name)
-        self.repository.save(student)
-
-    def update_course_places(self, course_id: str, max_courses: int) -> None:
-        course = self.get_course(course_id)
-        course.update_places(max_courses)
-        self.repository.save(course)
 
     def list_courses_for_student(self, student_id: str) -> list[str]:
         student = self.get_student(student_id)
         courses = self.repository.get_many(*student.course_ids)
         return [cast(Course, c).name for c in courses if c is not None]
 
-    def update_course_name(self, course_id: str, name: str) -> None:
-        course = self.get_course(course_id)
-        course.update_name(name)
-        self.repository.save(course)
+    def leave_course(self, student_id: str, course_id: str) -> None:
+        group = self.repository.get_group(StudentAndCourse, student_id, course_id)
+        group.student_leaves_course()
+        self.repository.save(group)
+
+    def update_student_name(self, student_id: str, name: str) -> None:
+        student = self.get_student(student_id)
+        student.update_name(name)
+        self.repository.save(student)
 
     def update_student_max_courses(self, student_id: str, max_courses: int) -> None:
         student = self.get_student(student_id)
         student.update_max_courses(max_courses)
         self.repository.save(student)
+
+    def update_course_name(self, course_id: str, name: str) -> None:
+        course = self.get_course(course_id)
+        course.update_name(name)
+        self.repository.save(course)
+
+    def update_course_places(self, course_id: str, max_courses: int) -> None:
+        course = self.get_course(course_id)
+        course.update_places(max_courses)
+        self.repository.save(course)
 
     def get_student(self, student_id: str) -> Student:
         return cast(Student, self.repository.get(student_id))
