@@ -24,13 +24,10 @@ Recorded events also have an assigned "position" in the sequence, and for this r
 :ref:`notification <Notification objects>` objects previously defined in this library. The important difference
 is that events in DCB do not have an aggregate ID and version number.
 
-A command method in a DCB application will usually begin by selecting from an event store a set of sequenced
-events. The event store is given a query that has zero, one, or many "query items". Each query item may have
-zero, one, or many "types", and zero, one, or many "tags". Optionally, the event store is also given a position
-in the sequence of recorded events after which events should be selected.
-
-When querying for events, sequenced events are selected that match at least one query item, and only those
-recorded after a given position in the sequence if such a position is given.
+When querying for events in a DCB application, sequenced events are selected from an event store. The event
+store is given a query that has zero, one, or many "query items". Each query item may have zero, one, or many
+"types", and zero, one, or many "tags". Optionally, the event store is also given a position in the sequence
+of recorded events after which events should be selected.
 
 An event matches a query item if either the event's type is mentioned in the query item's collection of types or
 the query item has zero types, and then only if the event's collection of tags is a superset of the query items's
@@ -46,10 +43,9 @@ After selecting a set of events from the recorded sequence, a command method wil
 set of events into a "decision model". The command method uses the decision model to make its decision,
 generating one or many new events, or raising an error.
 
-The highest "last known" position from the set of events involved in constructing the decision model is used when
-recording new events. Consistency of recorded state is maintained by using that sequence position, along with the
-same query items used for selecting events, to query for any other events recorded since the decision model was
-constructed.
+The highest "last known" position at the time of the query is used when recording new events. Consistency of
+recorded state is maintained by using that sequence position, along with the same query items used for selecting
+events, to query for any other events recorded since the decision model was constructed.
 
 The combination of the query items and the last known position is referred to as the "append condition". If
 this condition fails, because other events have been recorded, then an "integrity error" is raised by the event store
