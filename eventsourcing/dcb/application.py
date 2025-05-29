@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import os
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from eventsourcing.dcb.persistence import DCBInfrastructureFactory
 from eventsourcing.utils import Environment, EnvType
 
+if TYPE_CHECKING:
+    from typing_extensions import Self
+
 
 class DCBApplication:
     name = "DCBApplication"
-    env: ClassVar[dict[str, str]] = {}
+    env: ClassVar[dict[str, str]] = {"PERSISTENCE_MODULE": "eventsourcing.dcb.popo"}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         if "name" not in cls.__dict__:
@@ -27,6 +30,9 @@ class DCBApplication:
         if env is not None:
             _env.update(env)
         return Environment(name, _env)
+
+    def __enter__(self) -> Self:
+        return self
 
     def __exit__(self, *args: object, **kwargs: Any) -> None:
         self.factory.close()

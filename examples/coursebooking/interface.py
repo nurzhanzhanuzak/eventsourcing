@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from contextlib import AbstractContextManager
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 
-class EnrolmentInterface(AbstractContextManager["EnrolmentInterface"], ABC):
+class EnrolmentInterface(ABC):
     def __init__(self, env: dict[str, str] | None = None) -> None:
         super().__init__()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *args: object, **kwargs: Any) -> None:
+        return None  # pragma: no cover
 
     @abstractmethod
     def register_student(self, name: str, max_courses: int) -> str: ...
