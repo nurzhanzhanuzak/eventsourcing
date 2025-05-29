@@ -216,6 +216,16 @@ so let's continue by :doc:`implementing the specification </topics/examples/cour
 Speedrun
 --------
 
+To assess the comparative performance of "event-sourced aggregate" vs "dynamic consistency boundaries"
+a "speedrun" script has been written. It iterates over a sequence of operations, registering a number
+of students, then registering a number of courses, and then subscribing all the students on all the
+courses. It was configured to register 10 students and 10 courses, and therefore make 100 subscriptions,
+in each iteration.
+
+The performance report for the event-sourced aggregates solution is included below. Using PostgreSQL
+as an event store, we can see that it accomplished 93,720 operations in 30s. Which gives us an average
+of 0.320 milliseconds per operation, and a target for implementing DCB.
+
 .. code-block::
 
  Dynamic Consistency Boundaries Speed Run: Course Subscriptions

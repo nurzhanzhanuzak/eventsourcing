@@ -823,7 +823,7 @@ class BoundCommandMethodDecorator:
             self.event_decorator.decorated_func, args, kwargs
         )
         try:
-            event_cls = decorator_event_classes[self.event_decorator]
+            event_cls = decorated_func_callers[self.event_decorator]
         except KeyError as e:  # pragma: no cover
             msg = (
                 f"Event class not registered for event decorator on "
@@ -837,7 +837,7 @@ class BoundCommandMethodDecorator:
         self.trigger(*args, **kwargs)
 
 
-class DecoratorEvent(CanMutateAggregate[Any]):
+class DecoratedFuncCaller(CanMutateAggregate[Any]):
     def apply(self, aggregate: BaseAggregate[Any]) -> None:
         """Applies event to aggregate by calling method decorated by @event."""
         # Identify the function that was decorated.
@@ -861,10 +861,10 @@ _given_event_classes = set[type]()
 # This keeps track of the "created" event classes for an aggregate.
 _created_event_classes: dict[type, list[type[CanInitAggregate[Any]]]] = {}
 
-# This remembers which decorator event subclass to trigger when a method is called.
-decorator_event_classes: dict[CommandMethodDecorator, type[DecoratorEvent]] = {}
+# This remembers which event class to trigger when a decorated method is called.
+decorated_func_callers: dict[CommandMethodDecorator, type[DecoratedFuncCaller]] = {}
 
-# This remembers which method body to execute when a decorator event is applied.
+# This remembers which decorated func a decorated func caller should call.
 decorated_funcs: dict[type, CallableType] = {}
 
 # This keeps track of decorated "non-command" projection-only methods called "_".
@@ -1654,7 +1654,7 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
                     #  the subclassing of events above? Maybe do this first?
                     event_cls = cls._define_event_class(
                         event_decorator.given_event_cls.__name__,
-                        (DecoratorEvent, given_subclass),
+                        (DecoratedFuncCaller, given_subclass),
                         None,
                     )
 
@@ -1675,7 +1675,7 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
                     # Define event class from signature of original method.
                     event_cls = cls._define_event_class(
                         event_decorator.event_cls_name,
-                        (DecoratorEvent, base_event_cls),
+                        (DecoratedFuncCaller, base_event_cls),
                         event_decorator.decorated_func,
                         event_topic=event_decorator.event_topic,
                     )
@@ -1687,8 +1687,8 @@ class BaseAggregate(Generic[TAggregateID], metaclass=MetaAggregate):
                 setattr(cls, event_cls.__name__, event_cls)
 
                 # Remember which event class to trigger.
-                decorator_event_classes[event_decorator] = cast(
-                    "type[DecoratorEvent]", event_cls
+                decorated_func_callers[event_decorator] = cast(
+                    type[DecoratedFuncCaller], event_cls
                 )
 
         # Check any create_id() method defined on this class is static or class method.

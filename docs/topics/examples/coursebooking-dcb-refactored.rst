@@ -3,68 +3,54 @@
 DCB 3 - Enrolment - refactored
 ==============================
 
-This example shows the same "course booking" example as the :doc:`previous example </topics/examples/coursebooking-dcb>`,
-using a refactored style for `dynamic consistency boundaries <https://dcb.events/>`_, rather than
-standard style suggested by the `specification <https://dcb.events/specification/>`_.
+This example is another attempt at the "course subscriptions" challenge, as seen in the
+:doc:`previous example </topics/examples/coursebooking-dcb>`. This time we can show a
+higher-level, more refactored style, for `dynamic consistency boundaries <https://dcb.events/>`_,
+that encapsulates the lower-level objects and methods described in the `DCB specification <https://dcb.events/specification/>`_
+that we used directly in the :doc:`previous example </topics/examples/coursebooking-dcb>`.
 
-Model-specific domain event classes,
-:class:`~examples.coursebookingdcbrefactored.application.StudentRegistered`,
-:class:`~examples.coursebookingdcbrefactored.application.CourseRegistered`,
-:class:`~examples.coursebookingdcbrefactored.application.StudentJoinedCourse`.
-are defined to help with type checking and code navigation. They are used instead of
-the :class:`~examples.dcb.api.DCBEvent` class in the application code.
+The refactored higher-level code shown below introduces the notion "enduring object" which is quite
+like "event-sourced aggregate" but with some important differences. And it introduces the notion
+"group", which is a collection of "many" enduring objects that can also make decisions which affect
+the whole group. The more general abstraction that has been derived from the previous example is
+the notion of a decision-making "perspective". A "perspective" is a decision model, a projection
+of a selection of decisions in the past, that can also be capable of making new decisions.
 
-The base domain event class :class:`~examples.coursebookingdcbrefactored.eventstore.DomainEvent` is defined using
-the Python :data:`msgspec` package which defines dataclasses from type annotations, and is currently the fastest available
-Python serialisation library giving the smallest packed sizes for the bytes of serialised data in
-:class:`~examples.dcb.api.DCBEvent` objects.
-
-A :class:`~examples.coursebookingdcbrefactored.eventstore.Mapper` is used when writing events to convert subclass instances of
-:class:`~examples.coursebookingdcbrefactored.eventstore.DomainEvent` to the :class:`~examples.dcb.api.DCBEvent`
-class, and to convert back from instances of :class:`~examples.dcb.api.DCBSequencedEvent` to the
-domain event classes when reading events. This also encapsulates the serialisation and deserialisation of event data
-that was visible in the previous example.
-
-The :class:`~examples.coursebookingdcbrefactored.eventstore.Selector` class is used instead of the :class:`~examples.dcb.api.DCBQuery`
-and :class:`~examples.dcb.api.DCBQueryItem` classes to define the consistency boundary for the command method, and in the
-query methods. The :class:`~examples.coursebookingdcbrefactored.eventstore.Selector` class uses the domain event classes to indicate
-selected types rather than strings. Instances, and sequences of instances, of :class:`~examples.coursebookingdcbrefactored.eventstore.Selector`
-are converted to :class:`~examples.dcb.api.DCBQuery` objects by the :class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class.
-
-The abstract :class:`~examples.dcb.api.DCBEventStore` interface is encapsulated by the
-:class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class, which uses the
-same concrete :class:`~examples.dcb.popo.InMemoryDCBEventStore` and
-:class:`~examples.dcb.postgres.PostgresDCBEventStoreTS` classes introduced in the previous example.
-The :func:`~examples.coursebookingdcbrefactored.eventstore.EventStore.put`
-and :func:`~examples.coursebookingdcbrefactored.eventstore.EventStore.get` methods of the
-:class:`~examples.coursebookingdcbrefactored.eventstore.EventStore` class support passing either a single instance
-of :class:`~examples.coursebookingdcbrefactored.eventstore.Selector` or a sequence, which simplifies code statements.
-
-The :func:`EventStore.get() <examples.coursebookingdcbrefactored.eventstore.EventStore.get>` method is overloaded with
-three method signatures. It returns only domain events by default. But has optional arguments to request the
-return of events each with their sequenced position. And alternatively, to return a sequence of events with
-along with a single position indicating the last known position. This last option is most useful in a command
-method for subsequently appending new events with selectors and the last known position, to ensure consistency
-of the recorded data according the the technique for dynamic consistency boundaries. In this example at least,
-only the command method actually needs the sequenced positions, and it only needs the last position of the events
-in its consistency boundary. The query methods in this example do not need to receive the sequenced positions of
-the recorded events, and so call :func:`~examples.coursebookingdcbrefactored.eventstore.EventStore.get()` with its default of only
-returning domain events.
-
-These refactorings improve the readability and integrity of the code, with a visual appearance that is similar
-to the declarative syntax used by the event-sourced aggregates in the first example. This style dramatically
-reduces the source lines of code, leaving room for the addition of more methods. :-)
+Of course, this is just one possible "higher level" style for coding a DCB application.
 
 Application
 -----------
 
+The refactoed "enrolment" application class :class:`~examples.coursebookingdcbrefactored.application.EnrolmentWithDCBRefactored`
+shown below implements :class:`~examples.coursebooking.interface.EnrolmentInterface`. Unlike the previous example,
+its methods are all very short three-line blocks, which mostly create and rebuild a "perspective" (line 1), make a new
+decision (line 2), and then append new events to the database (line 3). Because in this style each method is so compact,
+we added some more just for fun!
+
+This version looks a lot like the application that uses event-sourced aggregates in the
+:doc:`first example </topics/examples/coursebooking>`.
+
+One interesting difference is the repository has methods not only to "get" one enduring object, but also to
+get many enduring objects in one request, and also to get a "group" of enduring objects of a particular type.
+Can you find examples of calling these three repository methods in the code below?
+
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: EnrolmentWithDCBRefactored
 
-
-
 Domain model
 ------------
+
+The application uses a domain model that defines :class:`~examples.coursebookingdcbrefactored.application.Student`
+and :class:`~examples.coursebookingdcbrefactored.application.Course` as "enduring objects".
+
+The base class :class:`~eventsourcing.dcb.domain.EnduringObject` works in a similar way to an event-sourced aggregate.
+Each instance has a unique a continuity ID. Each can have command methods that trigger events. Their command methods
+can be decorated with the library's :ref:`event decorator <Event decorator>`. Calling such commands generates new events.
+
+The main difference between "event-sourced aggregates" and "enduring objects" in this code is that "enduring objects"
+generate events that do not have an originator ID or a version number, but instead have a list of tags. The events
+generated by an enduring object are simply tagged with the enduring object's continuity ID. Recorded events that
+pertain to an enduring object will be selected with its continuity ID as a tag.
 
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: Student
@@ -72,61 +58,198 @@ Domain model
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: Course
 
+
+This domain model for "course subscriptions" also defines a "group" called :class:`~examples.coursebookingdcbrefactored.application.StudentAndCourse`.
+It is derived from the base class :class:`~eventsourcing.dcb.domain.Group`.
+A group can trigger events. For example, the :class:`~examples.coursebookingdcbrefactored.application.StudentAndCourse`
+group can trigger two events, :class:`~examples.coursebookingdcbrefactored.application.StudentJoinedCourse` and
+:class:`~examples.coursebookingdcbrefactored.application.StudentLeftCourse`.
+
+A "group" is constructed with many enduring objects and can make decisions, each of which which can
+simultaneously affect all of the enduring objects in the group. This is the "one fact" magic
+of DCB.
+
+Events triggered by a group will each be tagged with all the continuity IDs of the enduring objects in the group. Such
+events will immediately be applied to all the enduring objects, just like an event triggered by an event-sourced
+aggregate or an enduring object will be applied immediately to its current state.
+
+Because of the multi-tagging, such events will also be selected and applied whenever one of the enduring objects
+is subsequently reconstructed. That is why the :class:`~examples.coursebookingdcbrefactored.application.Student` and
+:class:`~examples.coursebookingdcbrefactored.application.Course` have non-command "underscore" methods to register how
+such cross-cutting events will be projected into their current state.
+
+.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
+    :pyobject: StudentAndCourse
+
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: StudentJoinedCourse
 
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: StudentLeftCourse
 
-.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
-    :pyobject: StudentAndCourse
+Again, all of this is just one way of styling a slightly higher-level abstraction over the objects and methods described
+in the DCB specification. But we think it expresses the concerns in the "course subscriptions" challenge clearly and
+concisely.
 
 
 Supporting abstractions
 -----------------------
 
+The abstractions supporting this style of domain model are described briefly below.
+
+The class :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` is the base
+class for "decision" events in the domain model. It has "tags" and defines a method
+that can mutate an "enduring object" instance using the attributes of the event object.
+It does this by calling a convenience method "apply".
+
 .. literalinclude:: ../../../eventsourcing/dcb/domain.py
     :pyobject: CanMutateEnduringObject
+
+The class :class:`~eventsourcing.dcb.domain.CanInitialiseEnduringObject` extends
+:class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` and defines a method
+that can construct an "enduring object" instance from an enduring object class,
+using its "decision" event attributes.
 
 .. literalinclude:: ../../../eventsourcing/dcb/domain.py
     :pyobject: CanInitialiseEnduringObject
 
+The class :class:`~eventsourcing.dcb.domain.DecoratedFuncCaller` extends
+:class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` and is used to
+by the library's :ref:`event decorator <Event decorator>` to "apply" to an
+enduring object any "decision" events of the type mentioned in the decorator.
+
+.. literalinclude:: ../../../eventsourcing/dcb/domain.py
+    :pyobject: DecoratedFuncCaller
+
+The class :class:`~examples.coursebookingdcbrefactored.application.Decision` extends
+:class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` and uses :class:`Struct`
+from the :data:`msgspec` package to define a base class for concrete "decision" events
+that can define instance attributes using type annotations, and that can be serialised and
+serialised very quickly.
+
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: Decision
+
+The class :class:`~examples.coursebookingdcbrefactored.application.InitialDecision` extends
+:class:`~examples.coursebookingdcbrefactored.application.Decision` and
+:class:`~eventsourcing.dcb.domain.CanInitialiseEnduringObject` to define a base class
+for concrete "initial decision" events that can define object attributes using type annotations.
 
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: InitialDecision
 
+The class :class:`~eventsourcing.dcb.persistence.DCBMapper` is an abstract base class that
+defines an interface for converting between :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject`
+instances and :class:`~eventsourcing.dcb.api.DCBEvent` instances.
+
 .. literalinclude:: ../../../eventsourcing/dcb/persistence.py
     :pyobject: DCBMapper
+
+The class :class:`~examples.coursebookingdcbrefactored.application.MsgspecStructMapper` implements
+the :class:`~eventsourcing.dcb.persistence.DCBMapper` interface so that :class:`~examples.coursebookingdcbrefactored.application.Decision`
+instances can be converted to :class:`~eventsourcing.dcb.api.DCBEvent` instances, and so that
+:class:`~eventsourcing.dcb.api.DCBEvent` instances can be converted back to a copy of the original
+:class:`~examples.coursebookingdcbrefactored.application.Decision` instance, both using the super
+fast and compact "msgpack" format.
 
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: MsgspecStructMapper
 
+The class :class:`~eventsourcing.dcb.persistence.DCBEventStore` encapsulates both an instance
+of :class:`~eventsourcing.dcb.persistence.DCBMapper` and an instance of
+:class:`~eventsourcing.dcb.api.DCBRecorder`, and presents methods
+for getting and putting instances of :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject`.
+
+A request to get a set of "decision" events will have one or many :class:`~eventsourcing.dcb.domain.Selector`
+objects. The selectors will be converted to a :class:`~eventsourcing.dcb.api.DCBQuery` that has one
+:class:`~eventsourcing.dcb.api.DCBQueryItem` for each selector. The :class:`~eventsourcing.dcb.api.DCBQuery`
+is used to read :class:`~eventsourcing.dcb.api.DCBEvent` instances from the :class:`~eventsourcing.dcb.api.DCBRecorder`.
+The :class:`~eventsourcing.dcb.persistence.DCBMapper` is then used to reconstruct :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject`
+instances from the :class:`~eventsourcing.dcb.api.DCBEvent` instances.
+
+A request to put a sequence of "decision"
+events works in the reverse direction, first the mapper is used to convert :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject`
+instances to :class:`~eventsourcing.dcb.api.DCBEvent` instances, and then the :class:`~eventsourcing.dcb.api.DCBEvent` instances
+are appended to the database by the recorder.
+
 .. literalinclude:: ../../../eventsourcing/dcb/persistence.py
     :pyobject: DCBEventStore
+
+The class :class:`~eventsourcing.dcb.domain.Selector` is used to define consistency boundaries
+in a domain model, and is therefore used in the method arguments of :class:`~eventsourcing.dcb.persistence.DCBEventStore`.
+
+.. literalinclude:: ../../../eventsourcing/dcb/domain.py
+    :pyobject: Selector
+
+The class :class:`~eventsourcing.dcb.persistence.DCBRepository` has an instance of
+:class:`~eventsourcing.dcb.persistence.DCBEventStore`. It defines a method to get one
+enduring object for a given continuity ID. It has another method to get a sequence of
+enduring objects for a given sequence of continuity IDs. And it has another method to construct
+a particular type of group of enduring objects, given a group class and a sequence of continuity IDs.
+It also has a method to "save" enduring objects and groups, or indeed any perspective, which collects
+new events and uses their "consistency boundary" and "last known position" to append the new events
+with the DCB optimistic concurrency control logic referred to as the "append condition".
 
 .. literalinclude:: ../../../eventsourcing/dcb/persistence.py
     :pyobject: DCBRepository
 
+The class :class:`~eventsourcing.dcb.domain.EnduringObject` is a base class for enduring objects, which can have
+command methods that trigger "decision" events, and which define a projection of a sequence of "decision" events
+into a current state. Subclasses are capable of creating instances when called, by triggering an "initial decision"
+event, that is used to actually construct an enduring object instance, and which is then appended to an internal
+list of new events on that instance. It provides a default implementation of a method to create unique continuity IDs.
+It also has a "trigger event" method that can be used to generate and apply subsequent "decision" events. It defines
+a default consistency boundary that is simply a :class:`~eventsourcing.dcb.domain.Selector` that has the continuity ID
+of an enduring object as its only tag.
+
 .. literalinclude:: ../../../eventsourcing/dcb/domain.py
     :pyobject: EnduringObject
+
+The class :class:`~eventsourcing.dcb.domain.Group` is a base class for cross-cutting decision-making groups of
+enduring objects. It defines a default consistency boundary that is the union of the consistency boundaries of the
+enduring objects in the group. It also has a method to trigger a new "decision" event. New "decision" events are
+applied to all the enduring objects in the group, and then appended to an internal list of new events.
 
 .. literalinclude:: ../../../eventsourcing/dcb/domain.py
     :pyobject: Group
 
-Test case
----------
+The class :class:`~eventsourcing.dcb.domain.Perspective` is the common base class for
+:class:`~eventsourcing.dcb.domain.EnduringObject` and :class:`~eventsourcing.dcb.domain.Group`
+and defines an interface from which consistency boundaries, last known positions, and new "decision" events
+can be collected.
 
+.. literalinclude:: ../../../eventsourcing/dcb/domain.py
+    :pyobject: Perspective
 
-The test case is the same as the :doc:`first example </topics/examples/coursebooking>`, but executed
-with the :class:`~examples.coursebookingdcbrefactored.application.EnrolmentWithDCBRefactored` class above.
+The choice of the term "perspective" for this class, and the usage of the term "enduring object" here, follow from
+the modern process philosophy of Alfred North Whitehead.
 
-.. literalinclude:: ../../../examples/coursebookingdcbrefactored/test_application.py
-    :pyobject: TestEnrolmentWithDCBRefactored
+.. pull-quote::
 
-It also has some extra steps to cover the extra methods that were added to make further use of the more
-declarative syntax for DCB.
+    *"The 'settlement' which an actual entity 'finds' is its datum. It is to be conceived as a limited perspective
+    of the 'settled' world provided by the eternal objects concerned. This datum is 'decided' by the settled world.
+    It is 'prehended' by the new superseding entity. The datum is the objective content of the experience. The
+    decision, providing the datum, is a transference of self-limited appetition; the settled world provides the
+    'real potentiality' that its many actualities be felt compatibly; and the new concrescence starts from this
+    datum. The perspective is provided by the elimination of incompatibilities. The final stage, the 'decision'
+    is how the actual entity, having attained its individual 'satisfaction' thereby adds a determinate condition
+    to the settlement for the future beyond itself. Thus the 'datum' is the 'decision received' and the 'decision'
+    is the 'decision transmitted'. Between these two decisions, received and transmitted, there lie the two stages,
+    'process' and 'satisfaction'."*
+
+    *"A nexus enjoys 'personal order' when (a) it is a 'society' and (b) when
+    the genetic relatedness of its members orders these members 'serially'.
+    By this 'serial ordering' arising from the genetic relatedness, it is meant
+    that any member of the nexus — excluding the first and the last, if there be
+    such — constitutes a 'cut' in the nexus, so that (a) this member inherits
+    from all members on one side of the cut, and from no members on the
+    other side of the cut, and (b) if A and B are two members of the nexus
+    and B inherits from A, then the side of B's cut, inheriting from B, forms
+    part of the side of A's cut, inheriting from A, and the side of A's cut from
+    which A inherits forms part of the side of B's cut from which B inherits.
+    Thus the nexus forms a single line of inheritance of its defining characteristic.
+    Such a nexus is called an 'enduring object'."*
+
 
 Postgres DCB recorder v3
 ------------------------
@@ -149,6 +272,21 @@ index.
 
 .. literalinclude:: ../../../eventsourcing/dcb/postgres_tt.py
     :start-at: DB_TYPE_NAME
+
+Test case
+---------
+
+
+The test case is the same as the :doc:`first example </topics/examples/coursebooking>`, but executed
+with the :class:`~examples.coursebookingdcbrefactored.application.EnrolmentWithDCBRefactored` class above.
+It runs once with the  :class:`~eventsourcing.dcb.popo.InMemoryDCBRecorder` introduced in the previous
+example, and once with the :class:`~eventsourcing.dcb.postgres_tt.PostgresDCBRecorderTT` introduced above.
+
+.. literalinclude:: ../../../examples/coursebookingdcbrefactored/test_application.py
+    :pyobject: TestEnrolmentWithDCBRefactored
+
+It also has some extra steps to cover the extra methods that were added to make further use of the more
+declarative syntax for DCB.
 
 Speedrun
 --------

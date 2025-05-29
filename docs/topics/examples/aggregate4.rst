@@ -34,7 +34,7 @@ It has a :func:`~examples.aggregate4.baseclasses.Aggregate.trigger_event` method
 constructs new domain event objects, applies them to the aggregate, and appends them to an
 internal list of "pending" events".
 
-It has a :func:`~examples.aggregate4.baseclasses.Aggregate.collect_events` method, which
+It has a :func:`~examples.aggregate4.baseclasses.BaseAggregate.collect_events` method, which
 drains the internal list of new "pending" events", so that they can be recorded.
 
 Like in :doc:`example 3  </topics/examples/aggregate3>`, it has an

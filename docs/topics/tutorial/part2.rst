@@ -61,7 +61,7 @@ to reconstruct the initial state of the aggregate.
 
 The "created" event object is held by the aggregate in an internal list of
 "pending events". We can collect pending events from aggregates by calling
-the aggregate's :func:`~eventsourcing.domain.Aggregate.collect_events` method, which is defined on the
+the aggregate's :func:`~eventsourcing.domain.BaseAggregate.collect_events` method, which is defined on the
 :class:`~eventsourcing.domain.Aggregate` base class.
 
 .. code-block:: python
@@ -190,7 +190,7 @@ has the value given when calling the aggregate class.
     assert dog.name == 'Fido'
 
 
-We can call :func:`~eventsourcing.domain.Aggregate.collect_events` to get the "created" event from
+We can call :func:`~eventsourcing.domain.BaseAggregate.collect_events` to get the "created" event from
 the aggregate instance.
 
 .. code-block:: python
@@ -353,7 +353,7 @@ The ``tricks`` attribute is now a list with one item, ``'roll over'``.
     assert dog.tricks == ['roll over']
 
 Creating and updating the aggregate caused two events to occur.
-We can collect these two events by calling :func:`~eventsourcing.domain.Aggregate.collect_events`.
+We can collect these two events by calling :func:`~eventsourcing.domain.BaseAggregate.collect_events`.
 
 .. code-block:: python
 

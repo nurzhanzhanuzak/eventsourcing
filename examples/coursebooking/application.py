@@ -37,14 +37,12 @@ class EnrolmentWithAggregates(Application[str], EnrolmentInterface):
         self.save(course, student)
 
     def list_students_for_course(self, course_id: str) -> list[str]:
-        return [
-            self.get_student(s).name for s in self.get_course(course_id).student_ids
-        ]
+        course = self.get_course(course_id)
+        return [self.get_student(s).name for s in course.student_ids]
 
     def list_courses_for_student(self, student_id: str) -> list[str]:
-        return [
-            self.get_course(s).name for s in self.get_student(student_id).course_ids
-        ]
+        student = self.get_student(student_id)
+        return [self.get_course(s).name for s in student.course_ids]
 
     def get_student(self, student_id: str) -> Student:
         try:

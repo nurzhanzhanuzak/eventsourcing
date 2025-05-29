@@ -692,7 +692,7 @@ by subclasses:
 * the object method :func:`~eventsourcing.domain.Aggregate.trigger_event`
   can be used to trigger subsequent events; and
 
-* the object method :func:`~eventsourcing.domain.Aggregate.collect_events`
+* the object method :func:`~eventsourcing.domain.BaseAggregate.collect_events`
   returns new events that have just been triggered.
 
 These methods are explained below, with a :ref:`simple example <Aggregate simple example>`
@@ -930,7 +930,7 @@ Collecting pending events
 -------------------------
 
 The :class:`~eventsourcing.domain.Aggregate` class has a "public" object method
-:func:`~eventsourcing.domain.Aggregate.collect_events` which can be called to
+:func:`~eventsourcing.domain.BaseAggregate.collect_events` which can be called to
 collect new aggregate event objects. New aggregate event objects are appended
 to the aggregate's list of pending events when a new aggregate is "created"
 and when subsequent events are triggered.
@@ -957,7 +957,7 @@ Hence, the example ``aggregate`` so far has two pending events.
     assert pending_events[1].timestamp == aggregate.modified_on
 
 
-The :func:`~eventsourcing.domain.Aggregate.collect_events` method is called without
+The :func:`~eventsourcing.domain.BaseAggregate.collect_events` method is called without
 any arguments. In the example above, we can see two aggregate event objects have been
 collected, because we created an aggregate and then triggered a subsequent event.
 
@@ -1082,7 +1082,7 @@ Now that more than one domain event has been created, the aggregate's
 
 The resulting domain events are now held internally in the aggregate in
 a list of pending events. The pending events can be collected by calling
-the aggregate's :func:`~eventsourcing.domain.Aggregate.collect_events` method.
+the aggregate's :func:`~eventsourcing.domain.BaseAggregate.collect_events` method.
 These events are pending to be saved, and indeed the library's
 :ref:`application <Application objects>` object has a
 :func:`~eventsourcing.application.Application.save` method which

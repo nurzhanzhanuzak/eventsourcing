@@ -11,8 +11,8 @@ from eventsourcing.domain import (
     CallableType,
     CommandMethodDecorator,
     ProgrammingError,
+    decorated_func_callers,
     decorated_funcs,
-    decorator_event_classes,
     filter_kwargs_for_method_params,
     underscore_method_decorators,
 )
@@ -67,19 +67,21 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
         return enduring_object
 
 
-class DecoratorEvent(CanMutateEnduringObject):
-    def apply(self, obj: Perspective) -> None:
-        """Applies event to perspective by calling method decorated by @event."""
+class DecoratedFuncCaller(CanMutateEnduringObject):
+    def apply(self, obj: EnduringObject) -> None:
+        """Applies event by calling method decorated by @event."""
 
         event_class_topic = construct_topic(type(self))
 
+        # Identify the function that was decorated.
         try:
+            # Either an "underscore" non-command method.
             decorated_func_collection = cross_cutting_decorated_funcs[event_class_topic]
             assert type(obj) in decorated_func_collection
             decorated_func = decorated_func_collection[type(obj)]
 
         except KeyError:
-            # Identify the function that was decorated.
+            # Or a normal command method.
             decorated_func = decorated_funcs[type(self)]
 
         # Select event attributes mentioned in function signature.
@@ -90,7 +92,7 @@ class DecoratorEvent(CanMutateEnduringObject):
         decorated_method = decorated_func.__get__(obj, type(obj))
         decorated_method(**kwargs)
 
-        # Call super method, just in case any base classes need it.
+        # Call super method, just in case.
         super().apply(obj)
 
 
@@ -107,8 +109,8 @@ class MetaPerspective(type):
 
 class Perspective(metaclass=MetaPerspective):
     def __base_init__(self, *args: Any, **kwargs: Any) -> None:
-        self.new_decisions: list[CanMutateEnduringObject] = []
         self.last_known_position: int | None = None
+        self.new_decisions: list[CanMutateEnduringObject] = []
 
     def collect_events(self) -> list[CanMutateEnduringObject]:
         collected, self.new_decisions = self.new_decisions, []
@@ -158,21 +160,21 @@ class MetaEnduringObject(MetaPerspective):
                 }
 
                 subclass_name = event_class.__name__
-                decorator_event_subclass = cast(
-                    type[DecoratorEvent],
+                event_subclass = cast(
+                    type[CanMutateEnduringObject],
                     type(
                         subclass_name,
-                        (DecoratorEvent, event_class),
+                        (DecoratedFuncCaller, event_class),
                         event_subclass_dict,
                     ),
                 )
                 # Update the enduring object class dict.
-                namespace[attr] = decorator_event_subclass
+                namespace[attr] = event_subclass
                 # Remember which event event class to trigger when method is called.
-                # TODO: Unify DecoratorEvent with core library somehow.
-                decorator_event_classes[value] = decorator_event_subclass  # type: ignore[assignment]
+                # TODO: Unify DecoratedFuncCaller with core library somehow.
+                decorated_func_callers[value] = event_subclass  # type: ignore[assignment]
                 # Remember which method body to execute when event is applied.
-                decorated_funcs[decorator_event_subclass] = value.decorated_func
+                decorated_funcs[event_subclass] = value.decorated_func
 
         # Deal with cross-cutting events.
         enduring_object_class_topic = construct_topic(cls)
@@ -218,10 +220,10 @@ class MetaEnduringObject(MetaPerspective):
                     }
                     subclass_name = event_class.__name__
                     event_subclass = cast(
-                        type[DecoratorEvent],
+                        type[DecoratedFuncCaller],
                         type(
                             subclass_name,
-                            (DecoratorEvent, event_class),
+                            (DecoratedFuncCaller, event_class),
                             event_subclass_dict,
                         ),
                     )

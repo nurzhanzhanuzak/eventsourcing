@@ -1065,6 +1065,13 @@ def generate_events(num_events: int) -> list[DCBEvent]:
     ]
 
 
+useful_for_explain_analyse_functions_and_procedures = """
+LOAD 'auto_explain';
+SET auto_explain.log_nested_statements = ON; -- statements inside functions
+SET auto_explain.log_min_duration = 1;       -- exclude very fast queries taking < 1 ms
+-- SET auto_explain.log_analyze = ON;        -- log execution times, too? (expensive!)
+"""
+
 useful_for_listing_functions_and_procedures = """
 select n.nspname as schema_name,
        p.proname as specific_name,

@@ -97,7 +97,7 @@ the resulting state of the aggregate will be persisted.
 The application's :func:`~eventsourcing.application.Application.save` method can be called
 with one or many aggregates as its arguments. The :func:`~eventsourcing.application.Application.save`
 method collects new event objects from these arguments by calling the
-:func:`~eventsourcing.domain.Aggregate.collect_events` method on each aggregate
+:func:`~eventsourcing.domain.BaseAggregate.collect_events` method on each aggregate
 (see :doc:`Part 2 </topics/tutorial/part2>`). It puts all of the aggregate event objects
 that it has collected into an "event store", with the guarantee that all or none of the
 event objects will be stored. If, for some reason, the event objects cannot be saved, an

@@ -110,15 +110,17 @@ with a single database round-trip.
 .. literalinclude:: ../../../examples/coursebookingdcb/postgres_ts.py
     :pyobject: PostgresDCBRecorderTS
 
-Speed run
+Speedrun
 ---------
 
-The screen shot included here shows the performance of this Postgres implementation, using the application from
-the next example which uses a much faster JSON transcoder. Whilst the performance wasn't as terrible as the first
-attempt using array columns and array operator (5 ops/s), it can only do around 10% of the speed of the event-sourced
-aggregates application in the previous example, even with 10% of the volume of data in the database. The naive
-implementation of the complex DCB query logic causes the performance to get worse and worse as the volume of recorded
-events increases, decreasing to only a few ops/s when there are 5 million stored events.
+The performance of this Postgres implementation is shown below. The performance wasn't as terrible as the first
+attempt using array columns and array operator. It accomplished 9960 operations in 30s, giving an average
+of 3.012 milliseconds per operation. This is slightly more than 10% of the performance of the event-sourced
+aggregates in the previous example, which has 10x more events in its database.
+
+This performance might sound acceptable, but with further testing we saw that as the volume of recorded
+events increased, with this implementation, the performance became worse and worse,
+decreasing to only a few operations per second with 5 million stored events.
 
 .. code-block::
 
@@ -173,6 +175,10 @@ events increases, decreasing to only a few ops/s when there are 5 million stored
 
  Events in database at end:  176,550 events  (9,960 new)
 
+Clearly if DCB is to be a viable approach to developing business software, we will need to
+rethink how it might be possible to implement the complex DCB query logic in a way that
+might perform well in a heavy production environment. Let's see what we can do in the
+:doc:`next example </topics/examples/coursebooking-dcb-refactored>`.
 
 Code reference
 --------------

@@ -66,7 +66,7 @@ aggregate state.
 New aggregate events will be triggered when decorated methods are called. The decorated method bodies are used to
 mutate the state of the aggregate, immediately after the decorated methods are called, and later when reconstructing
 aggregates from stored events. New aggregate events can be collected from aggregates using the
-:func:`~eventsourcing.domain.Aggregate.collect_events` method.
+:func:`~eventsourcing.domain.BaseAggregate.collect_events` method.
 
 .. code-block:: python
 

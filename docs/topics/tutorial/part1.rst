@@ -179,7 +179,7 @@ The ``Dog`` class is an event-sourced aggregate. An event object was constructed
 we called the ``Dog`` class, and when we called the ``add_trick()`` method. These two event
 objects can be collected from the aggregate object, and recorded, and used later to reconstruct
 the aggregate. We can collect newly constructed event objects from the aggregate object by
-calling the :func:`~eventsourcing.domain.Aggregate.collect_events` method, which is defined by
+calling the :func:`~eventsourcing.domain.BaseAggregate.collect_events` method, which is defined by
 the :class:`~eventsourcing.domain.Aggregate` class.
 
 .. code-block:: python

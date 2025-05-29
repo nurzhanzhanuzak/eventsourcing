@@ -9,7 +9,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 from psycopg.sql import SQL, Identifier
 
-from eventsourcing.dcb.postgres_tt import PostgresDCBRecorderTT
+from eventsourcing.dcb.postgres_tt import (
+    DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT,
+    PostgresDCBRecorderTT,
+)
 from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.persistence import ProgrammingError
 from eventsourcing.postgres import PostgresApplicationRecorder, PostgresDatastore
@@ -33,6 +36,7 @@ if TYPE_CHECKING:
 env = {}
 # SPEEDRUN_DB_NAME = "course_subscriptions_speedrun"
 SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt"
+# SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt2"
 SPEEDRUN_DB_USER = "eventsourcing"
 SPEEDRUN_DB_PASSWORD = "eventsourcing"  # noqa: S105
 
@@ -70,6 +74,9 @@ config: dict[str, tuple[type[EnrolmentInterface], int, dict[str, str]]] = {
             "POSTGRES_PORT": "5432",
             "POSTGRES_USER": SPEEDRUN_DB_USER,
             "POSTGRES_PASSWORD": SPEEDRUN_DB_PASSWORD,
+            "POSTGRES_POOL_SIZE": "1",
+            "POSTGRES_MAX_OVERFLOW": "0",
+            "POSTGRES_MAX_WAITING": "0",
         },
     ),
     "dcb-mem": (
@@ -216,6 +223,7 @@ if __name__ == "__main__":
                 PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
                 PG_FUNCTION_NAME_DCB_SELECT_EVENTS_TS,
                 PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
+                DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT,
             ]
             for function_name in function_names:
                 statement = statement_template.format(

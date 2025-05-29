@@ -68,7 +68,7 @@ The :class:`~eventsourcing.application.Application` class defines an object meth
 used to update the recorded state of one or many
 :ref:`domain model aggregates <Aggregates>`. The
 :func:`~eventsourcing.application.Application.save` method works by using
-the aggregate's :func:`~eventsourcing.domain.Aggregate.collect_events` method to collect
+the aggregate's :func:`~eventsourcing.domain.BaseAggregate.collect_events` method to collect
 pending domain events; the pending domain events are stored by calling the
 :func:`~eventsourcing.persistence.EventStore.put` method of application's
 :ref:`event store <Store>`.

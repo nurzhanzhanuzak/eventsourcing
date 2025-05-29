@@ -207,6 +207,11 @@ SELECT id FROM inserted
 """
 )
 
+SQL_CONDITIONAL_APPEND = SQL(
+    """
+SELECT * FROM {schema}.{conditional_append}(%(query_items)s, %(after)s, %(events)s)
+"""
+)
 DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT = "dcb_conditional_append_tt"
 DB_FUNCTION_CONDITIONAL_APPEND = SQL(
     """
@@ -303,13 +308,8 @@ $$;
 """
 )
 
-SQL_CONDITIONAL_APPEND = SQL(
-    """
-SELECT * FROM {schema}.{conditional_append}(%(query_items)s, %(after)s, %(events)s)
-"""
-)
 
-SQL_SET_LOCAL_LOCK_TIMEOUT =  SQL("SET LOCAL lock_timeout = '{lock_timeout}s'")
+SQL_SET_LOCAL_LOCK_TIMEOUT = SQL("SET LOCAL lock_timeout = '{lock_timeout}s'")
 SQL_LOCK_TABLE = SQL("LOCK TABLE {schema}.{events_table} IN EXCLUSIVE MODE")
 
 SQL_EXPLAIN = SQL("EXPLAIN")
@@ -492,9 +492,7 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
             with self.datastore.cursor() as curs:
                 return self._unconditional_append(curs, psycopg_dcb_events)
 
-        if self.all_query_items_have_tags(
-            condition.fail_if_events_match
-        ):
+        if self.all_query_items_have_tags(condition.fail_if_events_match):
             # Do single-statement "conditional append".
             psycopg_dcb_query_items = self.construct_psycopg_query_items(
                 condition.fail_if_events_match.items
@@ -518,7 +516,7 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
 
         # Do separate "read" and "append" operations in a transaction.
         with self.datastore.transaction(commit=True) as curs:
-            
+
             # Lock the table in exclusive mode (readers can still read) to ensure
             # nothing else will execute an append condition statement until after
             # we have finished inserting new events, whilst expecting that others
@@ -527,7 +525,7 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
             if self.datastore.lock_timeout:
                 curs.execute(self.sql_set_local_lock_timeout)
             curs.execute(self.sql_lock_table)
-            
+
             # Check the append condition.
             failed, head = self._read(
                 curs=curs,
@@ -538,15 +536,12 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
             )
             if failed:
                 raise IntegrityError(failed)
-            
+
             # If okay, then do an "unconditional append".
             return self._unconditional_append(curs, psycopg_dcb_events)
 
-
     def _unconditional_append(
-        self,
-        curs: Cursor[DictRow],
-        psycopg_dcb_events: list[PsycopgDCBEvent]
+        self, curs: Cursor[DictRow], psycopg_dcb_events: list[PsycopgDCBEvent]
     ) -> int:
         self.execute(
             curs,
@@ -600,18 +595,24 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
         params: Params | None = None,
         *,
         explain: bool = False,
+        prepare: bool = True,
     ) -> None:
         if explain:  # pragma: no cover
             print()  # noqa: T201
             print("Statement:", statement.as_string().strip())  # noqa: T201
             print("Params:", params)  # noqa: T201
             print()  # noqa: T201
-            with self.datastore.transaction(commit=False) as explain_cursor:
-                explain_cursor.execute(SQL_EXPLAIN_ANALYZE + statement, params)
-                rows = explain_cursor.fetchall()
-                print("\n".join([r["QUERY PLAN"] for r in rows]))  # noqa: T201
-                print()  # noqa: T201
-        cursor.execute(statement, params, prepare=True)
+            # with self.datastore.transaction(commit=False) as explain_cursor:
+            #     explain_cursor.execute(SQL_EXPLAIN + statement, params)
+            #     rows = explain_cursor.fetchall()
+            #     print("\n".join([r["QUERY PLAN"] for r in rows]))  # no qa: T201
+            #     print()  # no qa: T201
+            # with self.datastore.transaction(commit=False) as explain_cursor:
+            cursor.execute(SQL_EXPLAIN + statement, params)
+            rows = cursor.fetchall()
+            print("\n".join([r["QUERY PLAN"] for r in rows]))  # noqa: T201
+            print()  # noqa: T201
+        cursor.execute(statement, params, prepare=prepare)
 
 
 class PsycopgDCBEvent(NamedTuple):
