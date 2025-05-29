@@ -266,7 +266,7 @@ to be suboptimal, and instead a stored procedure was developed that separates th
 query from the conditional insertion of new events. This allows each part to be planned separately,
 achieving much better performance. The index of sequence positions on the main table covers the
 event types, which allows the results of selecting from the table of tags to be efficiently joined
-with the main table and for events to filtered by type using only the indexes. The speedrun performance
+with the main table and for events to be filtered by type using only the indexes. The speedrun performance
 report below shows how much better this third approach is than the version using ``tsvector`` with a GIN
 index.
 
