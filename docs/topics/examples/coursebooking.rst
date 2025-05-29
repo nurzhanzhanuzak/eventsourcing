@@ -216,8 +216,59 @@ so let's continue by :doc:`implementing the specification </topics/examples/cour
 Speedrun
 --------
 
-.. image:: ../dcb-speedrun-agg-pg.png
-    :width: 90%
+.. code-block::
+
+ Dynamic Consistency Boundaries Speed Run: Course Subscriptions
+ ==============================================================
+
+ Per iteration: 10 courses, 10 students (120 ops)
+
+ Running 'agg-pg' mode: EnrolmentWithAggregates
+     PERSISTENCE_MODULE: eventsourcing.postgres
+     POSTGRES_DBNAME: course_subscriptions_speedrun_tt
+     POSTGRES_HOST: 127.0.0.1
+     POSTGRES_PORT: 5432
+     POSTGRES_USER: eventsourcing
+     POSTGRES_PASSWORD: <redacted>
+     POSTGRES_ENABLE_DB_FUNCTIONS: y
+
+ Events in database at start:  5,568,325 events
+
+
+ Stopping after: 30s
+
+ [0:00:01s]        25 iterations      3000 ops      335 μs/op    2981 ops/s
+ [0:00:02s]        51 iterations      6120 ops      327 μs/op    3055 ops/s
+ [0:00:03s]        76 iterations      9120 ops      328 μs/op    3048 ops/s
+ [0:00:04s]       102 iterations     12240 ops      325 μs/op    3069 ops/s
+ [0:00:05s]       127 iterations     15240 ops      326 μs/op    3061 ops/s
+ [0:00:06s]       153 iterations     18360 ops      321 μs/op    3106 ops/s
+ [0:00:07s]       179 iterations     21480 ops      323 μs/op    3089 ops/s
+ [0:00:08s]       205 iterations     24600 ops      322 μs/op    3105 ops/s
+ [0:00:09s]       231 iterations     27720 ops      322 μs/op    3096 ops/s
+ [0:00:10s]       256 iterations     30720 ops      323 μs/op    3093 ops/s
+ [0:00:11s]       282 iterations     33840 ops      321 μs/op    3107 ops/s
+ [0:00:12s]       308 iterations     36960 ops      319 μs/op    3134 ops/s
+ [0:00:13s]       334 iterations     40080 ops      320 μs/op    3115 ops/s
+ [0:00:14s]       360 iterations     43200 ops      320 μs/op    3120 ops/s
+ [0:00:15s]       386 iterations     46320 ops      319 μs/op    3131 ops/s
+ [0:00:16s]       413 iterations     49560 ops      318 μs/op    3135 ops/s
+ [0:00:17s]       439 iterations     52680 ops      321 μs/op    3112 ops/s
+ [0:00:18s]       465 iterations     55800 ops      319 μs/op    3128 ops/s
+ [0:00:19s]       491 iterations     58920 ops      317 μs/op    3150 ops/s
+ [0:00:20s]       517 iterations     62040 ops      318 μs/op    3143 ops/s
+ [0:00:21s]       544 iterations     65280 ops      313 μs/op    3192 ops/s
+ [0:00:22s]       570 iterations     68400 ops      317 μs/op    3146 ops/s
+ [0:00:23s]       596 iterations     71520 ops      317 μs/op    3152 ops/s
+ [0:00:24s]       622 iterations     74640 ops      318 μs/op    3142 ops/s
+ [0:00:25s]       649 iterations     77880 ops      317 μs/op    3152 ops/s
+ [0:00:26s]       675 iterations     81000 ops      316 μs/op    3156 ops/s
+ [0:00:27s]       701 iterations     84120 ops      315 μs/op    3171 ops/s
+ [0:00:28s]       728 iterations     87360 ops      315 μs/op    3167 ops/s
+ [0:00:29s]       754 iterations     90480 ops      314 μs/op    3178 ops/s
+ [0:00:30s]       781 iterations     93720 ops      314 μs/op    3175 ops/s
+
+ Events in database at end:  5,740,145 events  (171,820 new)
 
 
 Code reference

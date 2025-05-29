@@ -40,7 +40,7 @@ CREATE TYPE {schema}.{event_type} AS (
 """
 )
 
-DB_TYPE_NAME_DCB_QUERY_ITEM_TT = "query_item_tt"
+DB_TYPE_NAME_DCB_QUERY_ITEM_TT = "dcb_query_item_tt"
 
 DB_TYPE_DCB_QUERY_ITEM = SQL(
     """
@@ -179,7 +179,7 @@ ORDER BY m.id ASC;
 """
 )
 
-SQL_INSERT_EVENTS = SQL(
+SQL_UNCONDITIONAL_APPEND = SQL(
     """
 WITH input AS (
       SELECT * FROM unnest(%(events)s::{event_type}[])
@@ -207,84 +207,7 @@ SELECT id FROM inserted
 """
 )
 
-SQL_CONDITIONAL_APPEND = SQL(
-    """
-WITH query_items AS (
-    SELECT * FROM unnest(
-        %(query_items)s::{schema}.{query_item_type}[]
-    ) WITH ORDINALITY
-),
-initial_matches AS (
-    SELECT
-        t.main_id,
-        qi.ordinality,
-        t.type,
-        t.tag,
-        qi.tags AS required_tags,
-        qi.types AS allowed_types
-    FROM query_items qi
-    JOIN {schema}.{tags_table} t
-      ON t.tag = ANY(qi.tags)
-   WHERE t.main_id > COALESCE(%(after)s, 0)
-),
-matched_groups AS (
-    SELECT
-        main_id,
-        ordinality,
-    COUNT(DISTINCT tag) AS matched_tag_count,
-        array_length(required_tags, 1) AS required_tag_count,
-        allowed_types
-    FROM initial_matches
-    GROUP BY main_id, ordinality, required_tag_count, allowed_types
-),
-qualified_ids AS (
-    SELECT main_id, allowed_types
-    FROM matched_groups
-    WHERE matched_tag_count = required_tag_count
-),
-filtered_ids AS (
-    SELECT m.id
-    FROM {schema}.{events_table} m
-    JOIN qualified_ids q ON q.main_id = m.id
-    WHERE
-        m.id > COALESCE(%(after)s, 0)
-        AND (
-            array_length(q.allowed_types, 1) IS NULL
-            OR array_length(q.allowed_types, 1) = 0
-            OR m.type = ANY(q.allowed_types)
-        )
-    LIMIT 1
-),
-new_events AS (
-      SELECT * FROM unnest(%(events)s::{event_type}[])
-),
-inserted AS (
-    INSERT INTO {schema}.{events_table} (type, data, tags)
-    SELECT e.type, e.data, e.tags
-    FROM new_events e
-    WHERE NOT EXISTS (SELECT 1 FROM filtered_ids)
-    RETURNING id, type, tags
-),
-expanded_tags AS (
-    SELECT
-        ins.id AS main_id,
-        ins.type,
-        tag
-    FROM inserted ins,
-       unnest(ins.tags) AS tag
-),
-tag_insert AS (
-    INSERT INTO {schema}.{tags_table} (tag, type, main_id)
-    SELECT tag, type, main_id
-    FROM expanded_tags
-)
-SELECT COALESCE(MAX(id), -1) AS result
-FROM inserted;
-"""
-)
-
-DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT = "conditional_append_tt"
-
+DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT = "dcb_conditional_append_tt"
 DB_FUNCTION_CONDITIONAL_APPEND = SQL(
     """
 CREATE OR REPLACE FUNCTION {schema}.{conditional_append}(
@@ -296,6 +219,10 @@ LANGUAGE plpgsql AS $$
 DECLARE
     conflict_exists boolean;
 BEGIN
+    -- Step 0: Lock table in exclusive mode (reads can still read)
+    SET LOCAL lock_timeout = '{lock_timeout}s';
+    LOCK TABLE {schema}.{events_table} IN EXCLUSIVE MODE;
+
     -- Step 1: Check for conflicts
     WITH query_items_cte AS (
         SELECT * FROM unnest(query_items) WITH ORDINALITY
@@ -376,11 +303,14 @@ $$;
 """
 )
 
-SQL_SELECT_FROM_CONDITIONAL_APPEND_FUNCTION = SQL(
+SQL_CONDITIONAL_APPEND = SQL(
     """
 SELECT * FROM {schema}.{conditional_append}(%(query_items)s, %(after)s, %(events)s)
 """
 )
+
+SQL_SET_LOCAL_LOCK_TIMEOUT =  SQL("SET LOCAL lock_timeout = '{lock_timeout}s'")
+SQL_LOCK_TABLE = SQL("LOCK TABLE {schema}.{events_table} IN EXCLUSIVE MODE")
 
 SQL_EXPLAIN = SQL("EXPLAIN")
 SQL_EXPLAIN_ANALYZE = SQL("EXPLAIN (ANALYZE, BUFFERS, VERBOSE)")
@@ -425,6 +355,7 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
             "conditional_append": Identifier(
                 DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT
             ),
+            "lock_timeout": self.datastore.lock_timeout,
         }
 
         # Format and extend SQL create statements.
@@ -445,11 +376,10 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
         self.sql_select_all = self.format(SQL_SELECT_ALL)
         self.sql_select_by_type = self.format(SQL_SELECT_EVENTS_BY_TYPE)
         self.sql_select_max_id = self.format(SQL_SELECT_MAX_ID)
-        self.sql_insert_events = self.format(SQL_INSERT_EVENTS)
+        self.sql_unconditional_append = self.format(SQL_UNCONDITIONAL_APPEND)
         self.sql_conditional_append = self.format(SQL_CONDITIONAL_APPEND)
-        self.sql_select_from_conditional_append_function = self.format(
-            SQL_SELECT_FROM_CONDITIONAL_APPEND_FUNCTION
-        )
+        self.sql_set_local_lock_timeout = self.format(SQL_SET_LOCAL_LOCK_TIMEOUT)
+        self.sql_lock_table = self.format(SQL_LOCK_TABLE)
 
     def format(self, sql: SQL) -> Composed:
         return sql.format(**self.sql_kwargs)
@@ -499,7 +429,7 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
             )
             rows = curs.fetchall()
 
-        elif self.has_all_query_items_have_tags(query):
+        elif self.all_query_items_have_tags(query):
             # Select with tags.
             psycopg_dcb_query_items = self.construct_psycopg_query_items(query.items)
 
@@ -557,18 +487,22 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
         assert len(events) > 0
         psycopg_dcb_events = self.construct_psycopg_dcb_events(events)
 
-        # Maybe do single-statement "conditional append".
-        if condition and self.has_all_query_items_have_tags(
+        # Do single-statement "unconditional append".
+        if condition is None:
+            with self.datastore.cursor() as curs:
+                return self._unconditional_append(curs, psycopg_dcb_events)
+
+        if self.all_query_items_have_tags(
             condition.fail_if_events_match
         ):
+            # Do single-statement "conditional append".
             psycopg_dcb_query_items = self.construct_psycopg_query_items(
                 condition.fail_if_events_match.items
             )
             with self.datastore.cursor() as curs:
                 self.execute(
                     curs,
-                    # self.sql_conditional_append,  # Seems this doesn't work very well.
-                    self.sql_select_from_conditional_append_function,
+                    self.sql_conditional_append,
                     {
                         "query_items": psycopg_dcb_query_items,
                         "after": condition.after,
@@ -582,29 +516,49 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
 
                 return row[DB_FUNCTION_NAME_DCB_CONDITIONAL_APPEND_TT]
 
+        # Do separate "read" and "append" operations in a transaction.
         with self.datastore.transaction(commit=True) as curs:
-            if condition is not None:
-                failed, head = self._read(
-                    curs=curs,
-                    query=condition.fail_if_events_match,
-                    after=condition.after,
-                    limit=1,
-                    return_head=False,
-                )
-                if failed:
-                    raise IntegrityError(failed)
-
-            self.execute(
-                curs,
-                self.sql_insert_events,
-                {
-                    "events": psycopg_dcb_events,
-                },
-                explain=False,
+            
+            # Lock the table in exclusive mode (readers can still read) to ensure
+            # nothing else will execute an append condition statement until after
+            # we have finished inserting new events, whilst expecting that others
+            # are playing by the same game. By the way, this is how optimistic
+            # locking works.
+            if self.datastore.lock_timeout:
+                curs.execute(self.sql_set_local_lock_timeout)
+            curs.execute(self.sql_lock_table)
+            
+            # Check the append condition.
+            failed, head = self._read(
+                curs=curs,
+                query=condition.fail_if_events_match,
+                after=condition.after,
+                limit=1,
+                return_head=False,
             )
-            rows = curs.fetchall()
-            assert len(rows) > 0
-            return max(row["id"] for row in rows)
+            if failed:
+                raise IntegrityError(failed)
+            
+            # If okay, then do an "unconditional append".
+            return self._unconditional_append(curs, psycopg_dcb_events)
+
+
+    def _unconditional_append(
+        self,
+        curs: Cursor[DictRow],
+        psycopg_dcb_events: list[PsycopgDCBEvent]
+    ) -> int:
+        self.execute(
+            curs,
+            self.sql_unconditional_append,
+            {
+                "events": psycopg_dcb_events,
+            },
+            explain=False,
+        )
+        rows = curs.fetchall()
+        assert len(rows) > 0
+        return max(row["id"] for row in rows)
 
     def construct_psycopg_dcb_events(
         self, dcb_events: Sequence[DCBEvent]
@@ -636,7 +590,7 @@ class PostgresDCBRecorderTT(DCBRecorder, PostgresRecorder):
             and len(query.items[0].tags) == 0
         )
 
-    def has_all_query_items_have_tags(self, query: DCBQuery) -> bool:
+    def all_query_items_have_tags(self, query: DCBQuery) -> bool:
         return all(len(q.tags) > 0 for q in query.items) and len(query.items) > 0
 
     def execute(

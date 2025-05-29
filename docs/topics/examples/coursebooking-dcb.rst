@@ -120,8 +120,58 @@ aggregates application in the previous example, even with 10% of the volume of d
 implementation of the complex DCB query logic causes the performance to get worse and worse as the volume of recorded
 events increases, decreasing to only a few ops/s when there are 5 million stored events.
 
-.. image:: ../dcb-speedrun-dcb-pg-ts.png
-    :width: 90%
+.. code-block::
+
+ Dynamic Consistency Boundaries Speed Run: Course Subscriptions
+ ==============================================================
+
+ Per iteration: 10 courses, 10 students (120 ops)
+
+ Running 'dcb-pg-ts' mode: EnrolmentWithDCBRefactored
+     PERSISTENCE_MODULE: examples.coursebookingdcb.postgres_ts
+     POSTGRES_DBNAME: course_subscriptions_speedrun_tt
+     POSTGRES_HOST: 127.0.0.1
+     POSTGRES_PORT: 5432
+     POSTGRES_USER: eventsourcing
+     POSTGRES_PASSWORD: <redacted>
+
+ Events in database at start:  166,590 events
+
+
+ Stopping after: 30s
+
+ [0:00:01s]         3 iterations       360 ops     3233 μs/op     309 ops/s
+ [0:00:02s]         6 iterations       720 ops     2853 μs/op     350 ops/s
+ [0:00:03s]         9 iterations      1080 ops     3162 μs/op     316 ops/s
+ [0:00:04s]        11 iterations      1320 ops     3142 μs/op     318 ops/s
+ [0:00:05s]        14 iterations      1680 ops     3111 μs/op     321 ops/s
+ [0:00:06s]        16 iterations      1920 ops     3414 μs/op     292 ops/s
+ [0:00:07s]        19 iterations      2280 ops     3409 μs/op     293 ops/s
+ [0:00:08s]        21 iterations      2520 ops     3416 μs/op     292 ops/s
+ [0:00:09s]        24 iterations      2880 ops     3224 μs/op     310 ops/s
+ [0:00:10s]        26 iterations      3120 ops     3344 μs/op     298 ops/s
+ [0:00:11s]        29 iterations      3480 ops     3422 μs/op     292 ops/s
+ [0:00:12s]        31 iterations      3720 ops     3383 μs/op     295 ops/s
+ [0:00:13s]        34 iterations      4080 ops     3369 μs/op     296 ops/s
+ [0:00:14s]        36 iterations      4320 ops     3398 μs/op     294 ops/s
+ [0:00:15s]        39 iterations      4680 ops     3382 μs/op     295 ops/s
+ [0:00:16s]        41 iterations      4920 ops     3367 μs/op     296 ops/s
+ [0:00:17s]        44 iterations      5280 ops     3450 μs/op     289 ops/s
+ [0:00:18s]        46 iterations      5520 ops     3530 μs/op     283 ops/s
+ [0:00:19s]        49 iterations      5880 ops     2732 μs/op     366 ops/s
+ [0:00:20s]        52 iterations      6240 ops     2421 μs/op     412 ops/s
+ [0:00:21s]        56 iterations      6720 ops     2493 μs/op     400 ops/s
+ [0:00:22s]        59 iterations      7080 ops     2717 μs/op     367 ops/s
+ [0:00:23s]        62 iterations      7440 ops     2801 μs/op     357 ops/s
+ [0:00:24s]        65 iterations      7800 ops     2730 μs/op     366 ops/s
+ [0:00:25s]        68 iterations      8160 ops     2713 μs/op     368 ops/s
+ [0:00:26s]        71 iterations      8520 ops     2860 μs/op     349 ops/s
+ [0:00:27s]        74 iterations      8880 ops     2579 μs/op     387 ops/s
+ [0:00:28s]        77 iterations      9240 ops     2726 μs/op     366 ops/s
+ [0:00:29s]        80 iterations      9600 ops     2555 μs/op     391 ops/s
+ [0:00:30s]        83 iterations      9960 ops     2733 μs/op     365 ops/s
+
+ Events in database at end:  176,550 events  (9,960 new)
 
 
 Code reference
