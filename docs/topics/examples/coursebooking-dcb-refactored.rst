@@ -360,10 +360,13 @@ student aggregate, and one from the course aggregate. With the "one fact" magic 
 
  Events in database at end:  7,124,917 events  (58,440 new)
 
-Because the style of the refactored application code is very nice, and the performance of the Postgres
-recorder is very good, this library now supports DCB by including this version of the Postgres DCB recorder.
-Also included is the in-memory DCB recorders presented in the previous example, along with the abstractions
-for domain models and applications discussed above.
+We think the refactored style looks quite nice, and are surprised by the performance of this Postgres recorder.
+
+This library now supports DCB by including the DCB API object classes, this version of the Postgres DCB recorder
+and the in-memory DCB recorder presented in the previous example, and the abstractions for domain models and
+applications discussed above. If you want to use the msgspec "decision" event classes and mapper, then just
+copy the example code into your project. If you prefer to use Pydantic or dataclasses or attrs or something
+else, then please just craft your own concrete "decision" event classes and mapper.
 
 If you are feeling playful, you can install the Python :data:`eventsourcing` package and have fun experimenting
 with dynamic consistency boundaries in Python!
