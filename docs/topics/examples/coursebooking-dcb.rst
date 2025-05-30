@@ -80,8 +80,8 @@ avoiding the stale read model problem.
 In-memory DCB recorder
 ----------------------
 
-The :class:`~eventsourcing.dcb.popo.InMemoryDCBRecorder` class implements the DCB event store interface
-using only Python objects. You can see the query logic for selecting events implemented with nested
+The :class:`~eventsourcing.dcb.popo.InMemoryDCBRecorder` class implements the :class:`~eventsourcing.dcb.api.DCBRecorder`
+interface using only Python objects. You can see the query logic for selecting events implemented with nested
 generator expressions, and the append condition logic that is implemented in the append method. DCB
 events are stored in memory, and "deep copied" when appending and when reading to avoid any corruption
 of sequenced events.
@@ -96,7 +96,7 @@ Postgres DCB recorder v2
 A second attempt to implement the complex DCB query logic in Postgres is shown below. The
 first attempt used an array column for tags and array operators to search for types and tags. It didn't
 work very well. The :class:`~examples.coursebookingdcb.postgres_ts.PostgresDCBRecorderTS` class shown
-below implements the DCB event store interface using the Postgres ``tsvector`` and ``tsquery`` types,
+below implements :class:`~eventsourcing.dcb.api.DCBRecorder` using the Postgres ``tsvector`` and ``tsquery`` types,
 and a GIN index.
 
 The type and tags of a DCB event are prefixed and concatenated into a ``tsvector`` string. A set of DCB

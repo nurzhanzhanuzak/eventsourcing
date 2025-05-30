@@ -259,7 +259,7 @@ Postgres DCB recorder v3
 A third attempt to implement the complex DCB query logic in Postgres is shown below. The
 first attempt used array columns and array operator. It didn't work very well. The
 :class:`~eventsourcing.dcb.postgres_tt.PostgresDCBRecorderTT` class shown below implements
-the DCB event store interface using a secondary table of tags that is indexed with a B-tree.
+:class:`~eventsourcing.dcb.api.DCBRecorder` using a secondary table of tags that is indexed with a B-tree.
 The design of this implementation was focussed on selecting by tags first, which will typically
 have high cardinality, and selecting by types and sequence position later in the query.
 A multi-clause CTE statement is used to select events, passing the DCB query items as an composite
