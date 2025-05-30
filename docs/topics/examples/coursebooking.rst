@@ -171,11 +171,14 @@ The :class:`~examples.coursebooking.application.EnrolmentWithAggregates` class s
 :class:`~examples.coursebooking.domainmodel.Course` and :class:`~examples.coursebooking.domainmodel.Student`
 aggregate classes.
 
+Please note, the "consistency boundary" for joining a course involves atomically recording new events from more
+than one aggregate, the student and the course. The preservation of recorded consistency is tested in the extra
+test case below.
+
 This meets the "course subscriptions" challenge with event-sourced aggregates, without tricks and without
 accidental complexity. It shows that it is perfectly possible, entirely legitimate, and quite straightforward
 to extend the transactional consistency boundary when using event-sourced aggregates to include more than one
 aggregate. Indeed, this is a useful technique.
-
 
 .. literalinclude:: ../../../examples/coursebooking/application.py
     :pyobject: EnrolmentWithAggregates
@@ -185,23 +188,19 @@ At the time of writing, this possibility is not mentioned in the list of
 consistency boundaries website, which lists only three options: eventual consistency, larger aggregate, reservation
 pattern.
 
-Please note, the "consistency boundary" for joining a course involves atomically recording new events from more
-than one aggregate, the student and the course. The preservation of recorded consistency is tested in the extra
-test case below.
-
 
 Speedrun
 --------
 
-To assess the comparative performance of "event-sourced aggregate" vs "dynamic consistency boundaries"
-a "speedrun" script has been written. It iterates over a sequence of operations, registering a number
-of students, then registering a number of courses, and then subscribing all the students on all the
-courses. It was configured to register 10 students and 10 courses, and therefore make 100 subscriptions,
-in each iteration.
+To assess the comparative performance of the support for event-sourced aggregates provided by this library
+and the support for dynamic consistency boundaries that we will develop in the next examples, a "speedrun"
+script has been written. It iterates over a sequence of operations, first registering a number of students
+and a number of courses, and then subscribing all the students on all the courses. It was configured to register
+10 students and 10 courses, and therefore to make 100 subscriptions in each iteration.
 
 The performance report for the event-sourced aggregates solution is included below. Using PostgreSQL
-as an event store, we can see that it accomplished 93,720 operations in 30s. Which gives us an average
-of 0.320 milliseconds per operation, and a target for implementing DCB.
+as an event store, we can see that with event-sourced we accomplished 93,720 operations in 30s. That
+gives us an average of 0.320 milliseconds per operation, which will be our target for implementing DCB.
 
 .. code-block::
 
