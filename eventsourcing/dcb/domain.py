@@ -45,19 +45,12 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
 
     def mutate(self, obj: EnduringObject | None) -> EnduringObject | None:
         kwargs = self._as_dict()
-        originator_topic = kwargs.pop("originator_topic")
-        enduring_object_cls = cast(
-            type[EnduringObject], resolve_topic(originator_topic)
-        )
-        enduring_object = enduring_object_cls.__new__(enduring_object_cls)
+        originator_topic = resolve_topic(kwargs.pop("originator_topic"))
+        enduring_object_cls = cast(type[EnduringObject], originator_topic)
+        enduring_object_id = kwargs.pop(self.id_attr_name(enduring_object_cls))
         kwargs.pop("tags")
-        common_kwargs = {
-            "id": kwargs.pop(self.id_attr_name(enduring_object_cls)),
-        }
-        enduring_object.__base_init__(**common_kwargs)
-        enduring_object.__post_init__()
         try:
-            enduring_object.__init__(**kwargs)  # type: ignore[misc]
+            enduring_object = type.__call__(enduring_object_cls, **kwargs)
         except TypeError as e:
             msg = (
                 f"{type(self).__qualname__} cannot __init__ "
@@ -65,6 +58,8 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
                 f"with kwargs {kwargs}: {e}"
             )
             raise TypeError(msg) from e
+        enduring_object.id = enduring_object_id
+        enduring_object.__post_init__()
         return enduring_object
 
     @classmethod
@@ -105,20 +100,21 @@ T = TypeVar("T")
 
 
 class MetaPerspective(type):
-    def __call__(cls: type[T], *args: Any, **kwargs: Any) -> T:
-        perspective = cls.__new__(cls)
-        perspective.__base_init__(*args, **kwargs)  # type: ignore[attr-defined]
-        perspective.__init__(*args, **kwargs)  # type: ignore[misc]
-        return perspective
+    pass
 
 
 class Perspective(metaclass=MetaPerspective):
-    def __base_init__(self, *args: Any, **kwargs: Any) -> None:
-        self.last_known_position: int | None = None
-        self.new_decisions: list[CanMutateEnduringObject] = []
+    last_known_position: int | None
+    new_decisions: tuple[CanMutateEnduringObject, ...]
 
-    def collect_events(self) -> list[CanMutateEnduringObject]:
-        collected, self.new_decisions = self.new_decisions, []
+    def __new__(cls, *_: Any, **__: Any) -> Self:
+        perspective = super().__new__(cls)
+        perspective.last_known_position = None
+        perspective.new_decisions = ()
+        return perspective
+
+    def collect_events(self) -> Sequence[CanMutateEnduringObject]:
+        collected, self.new_decisions = self.new_decisions, ()
         return collected
 
     @property
@@ -270,17 +266,23 @@ class MetaEnduringObject(MetaPerspective):
 
 
 class EnduringObject(Perspective, metaclass=MetaEnduringObject):
+    id: str
+
     @classmethod
     def _create(
         cls: type[Self], decision_cls: type[CanInitialiseEnduringObject], **kwargs: Any
     ) -> Self:
         enduring_object_id = cls._create_id()
+        id_attr_name = decision_cls.id_attr_name(cls)
+        assert id_attr_name not in kwargs
+        assert "originator_topic" not in kwargs
+        assert "tags" not in kwargs
         initial_kwargs: dict[str, Any] = {
-            decision_cls.id_attr_name(cls): enduring_object_id
+            id_attr_name: enduring_object_id,
+            "originator_topic": get_topic(cls),
+            "tags": [enduring_object_id],
         }
         initial_kwargs.update(kwargs)
-        initial_kwargs["originator_topic"] = get_topic(cls)
-        initial_kwargs["tags"] = [enduring_object_id]
         try:
             initialised = decision_cls(**initial_kwargs)
         except TypeError as e:
@@ -291,16 +293,12 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
             raise TypeError(msg) from e
         enduring_object = cast(Self, initialised.mutate(None))
         assert enduring_object is not None
-        enduring_object.new_decisions.append(initialised)
+        enduring_object.new_decisions += (initialised,)
         return enduring_object
 
     @classmethod
     def _create_id(cls) -> str:
         return f"{cls.__name__.lower()}-{uuid4()}"
-
-    def __base_init__(self, id: str) -> None:  # noqa: A002
-        super().__base_init__()
-        self.id = id
 
     def __post_init__(self) -> None:
         pass
@@ -320,7 +318,7 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
         kwargs["tags"] = tags
         decision = decision_cls(**kwargs)
         decision.mutate(self)
-        self.new_decisions.append(decision)
+        self.new_decisions += (decision,)
 
 
 class Group(Perspective):
@@ -347,7 +345,7 @@ class Group(Perspective):
         decision = decision_cls(**kwargs)
         for o in objs:
             decision.mutate(o)
-        self.new_decisions.append(decision)
+        self.new_decisions += (decision,)
 
 
 class Selector:
