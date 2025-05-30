@@ -116,7 +116,7 @@ using its "decision" event attributes.
     :pyobject: CanInitialiseEnduringObject
 
 The class :class:`~eventsourcing.dcb.domain.DecoratedFuncCaller` extends
-:class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` and is used to
+:class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` and is used
 by the library's :ref:`event decorator <Event decorator>` to "apply" to an
 enduring object any "decision" events of the type mentioned in the decorator.
 
