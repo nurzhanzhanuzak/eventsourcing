@@ -13,9 +13,10 @@ The refactored higher-level code shown below introduces the notion "enduring obj
 like "event-sourced aggregate" but with some important differences. And it introduces the notion
 "group", which is a collection of many enduring objects that can also make decisions which affect
 the whole group. The more general abstraction that has been derived from the previous example is
-the notion of a decision-making "perspective". A "perspective" is a selective view of the past,
-that can also be the ground for making new decisions. Here, a projection of a set of decisions
-already made, the forms a decision model with which a events can be generated.
+the notion of a decision-making "perspective". In general, a "perspective" is a selective view of
+the past, an apprehension of decisions already made, at the beginning of the process of creating a
+new decision. Here, a "perspective" is a projection of a selection of "decision" events already recorded,
+that forms a decision model with which a new event can be generated.
 
 Of course, this is just one possible "higher level" style for coding a DCB application.
 
@@ -24,9 +25,9 @@ Application
 
 The refactored "enrolment" application class :class:`~examples.coursebookingdcbrefactored.application.EnrolmentWithDCBRefactored`
 shown below implements :class:`~examples.coursebooking.interface.EnrolmentInterface`. Unlike the previous example,
-its methods are all very short three-line blocks, which mostly create and rebuild a "perspective" (line 1), make a new
-decision (line 2), and then append new events to the database (line 3). Because in this style each method is so compact,
-we added some more just for fun!
+its methods are all very short three-line blocks, which mostly initialise or reconstruct a "perspective" (line 1),
+make a new decision (line 2), and then append new events to the database (line 3). Because this style so easy to code,
+we added more methods methods just for fun!
 
 This version looks a lot like the application that uses event-sourced aggregates in the
 :doc:`first example </topics/examples/coursebooking>`.
@@ -75,7 +76,7 @@ events will immediately be applied to all the enduring objects, just like an eve
 aggregate or an enduring object will be applied immediately to its current state.
 
 Because of the multi-tagging, such events will also be selected and applied whenever one of the enduring objects
-is subsequently reconstructed. That is why the :class:`~examples.coursebookingdcbrefactored.application.Student` and
+is subsequently reconstructed. That is why :class:`~examples.coursebookingdcbrefactored.application.Student` and
 :class:`~examples.coursebookingdcbrefactored.application.Course` have non-command "underscore" methods to register how
 such cross-cutting events will be projected into their current state.
 
@@ -255,7 +256,7 @@ the modern process philosophy of Alfred North Whitehead.
 Postgres DCB recorder v3
 ------------------------
 
-A third attempt to implement implements the complex DCB query logic in Postgres is shown below. The
+A third attempt to implement the complex DCB query logic in Postgres is shown below. The
 first attempt used array columns and array operator. It didn't work very well. The
 :class:`~eventsourcing.dcb.postgres_tt.PostgresDCBRecorderTT` class shown below implements
 the DCB event store interface using a secondary table of tags that is indexed with a B-tree.
@@ -360,10 +361,12 @@ student aggregate, and one from the course aggregate. With the "one fact" magic 
  Events in database at end:  7,124,917 events  (58,440 new)
 
 Because the style of the refactored application code is very nice, and the performance of the Postgres
-recorder is very good, this library now supports DCB by including this version of the Postgres DCB recorder,
-an also the in-memory DCB recorders presented in the previous example, along with the abstractions for domain
-models and application discussed above. If you are feeling playful, you can install the Python :data:`eventsourcing`
-package and have fun experimenting with dynamic consistency boundaries in Python!
+recorder is very good, this library now supports DCB by including this version of the Postgres DCB recorder.
+Also included is the in-memory DCB recorders presented in the previous example, along with the abstractions
+for domain models and applications discussed above.
+
+If you are feeling playful, you can install the Python :data:`eventsourcing` package and have fun experimenting
+with dynamic consistency boundaries in Python!
 
 
 Code reference

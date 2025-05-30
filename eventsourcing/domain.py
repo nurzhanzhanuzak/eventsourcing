@@ -625,6 +625,10 @@ class CommandMethodDecorator:
         self, instance: BaseAggregate[Any] | None, owner: type[BaseAggregate[Any]]
     ) -> BoundCommandMethodDecorator | UnboundCommandMethodDecorator | property | Any:
         """Descriptor protocol for getting decorated method or property."""
+        if self.decorated_func.__name__ == "_":
+            msg = "Underscore 'non-command' methods cannot be used to trigger events."
+            raise ProgrammingError(msg)
+
         # If we are decorating a property, then delegate to the property's __get__.
         if self.decorated_property:
             return self.decorated_property.__get__(instance, owner)

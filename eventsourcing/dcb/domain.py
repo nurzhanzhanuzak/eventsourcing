@@ -51,7 +51,7 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
         enduring_object = enduring_object_cls.__new__(enduring_object_cls)
         kwargs.pop("tags")
         common_kwargs = {
-            "id": kwargs.pop(enduring_object_cls.id_attr_name),
+            "id": kwargs.pop(self.id_attr_name(enduring_object_cls)),
         }
         enduring_object.__base_init__(**common_kwargs)
         enduring_object.__post_init__()
@@ -65,6 +65,10 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
             )
             raise TypeError(msg) from e
         return enduring_object
+
+    @classmethod
+    def id_attr_name(cls, enduring_object_class: type[EnduringObject]) -> str:
+        return f"{enduring_object_class.__name__.lower()}_id"
 
 
 class DecoratedFuncCaller(CanMutateEnduringObject):
@@ -154,7 +158,6 @@ class MetaEnduringObject(MetaPerspective):
 
                 # Subclass given class to make a "decorator class".
                 event_subclass_dict = {
-                    # "__annotations__": annotations,
                     "__module__": cls.__module__,
                     "__qualname__": event_class_qual,
                 }
@@ -182,10 +185,10 @@ class MetaEnduringObject(MetaPerspective):
             if topic.startswith(enduring_object_class_topic):
 
                 event_class = decorator.given_event_cls
-                # Just keep things simple by only supporting given classes (not names).
+                # Keep things simple by only supporting given classes (not names).
+                # TODO: Maybe support event name strings, maybe not....
                 assert event_class is not None, "Event class not given"
                 assert issubclass(event_class, CanMutateEnduringObject)
-                # TODO: Maybe support event name strings, maybe not....
                 event_class_qual = event_class.__qualname__
 
                 # Assume this is a cross-cutting event, and we need to register
@@ -197,12 +200,9 @@ class MetaEnduringObject(MetaPerspective):
                 # event once only.
 
                 event_class_topic = construct_topic(event_class)
-                try:
-                    # Get the cross-cutting event subclass if already subclassed.
-                    event_subclass = cross_cutting_event_classes[event_class_topic]
-                except KeyError:
-                    # Subclass the cross-cutting event class.
-                    # Keep things simple by only supporting non-nested classes.
+                if event_class_topic not in cross_cutting_event_classes:
+                    # Subclass the cross-cutting event class once only.
+                    #  - keep things simple by only supporting non-nested classes
                     assert (
                         "." not in event_class_qual
                     ), "Nested cross-cutting classes aren't supported"
@@ -214,7 +214,6 @@ class MetaEnduringObject(MetaPerspective):
                     )
                     assert event_class_qual in event_class_globalns
                     event_subclass_dict = {
-                        # "__annotations__": annotations,
                         "__module__": cls.__module__,
                         "__qualname__": event_class_qual,
                     }
@@ -247,7 +246,8 @@ class MetaEnduringObject(MetaPerspective):
         # TODO: For convenience, make this error out in the same way
         #  as it would if the arguments didn't match the __init__
         #  method and __init__was called directly, and verify the
-        #  event's __init__ is valid when initialising the class.
+        #  event's __init__ is valid when initialising the class,
+        #  just like we do for event-sourced aggregates.
 
         assert issubclass(cls, EnduringObject)
         try:
@@ -268,10 +268,6 @@ class MetaEnduringObject(MetaPerspective):
             ),
         )
 
-    @property
-    def id_attr_name(cls) -> str:
-        return f"{cls.__name__.lower()}_id"
-
 
 class EnduringObject(Perspective, metaclass=MetaEnduringObject):
     @classmethod
@@ -279,7 +275,9 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
         cls: type[Self], decision_cls: type[CanInitialiseEnduringObject], **kwargs: Any
     ) -> Self:
         enduring_object_id = cls._create_id()
-        initial_kwargs: dict[str, Any] = {cls.id_attr_name: enduring_object_id}
+        initial_kwargs: dict[str, Any] = {
+            decision_cls.id_attr_name(cls): enduring_object_id
+        }
         initial_kwargs.update(kwargs)
         initial_kwargs["originator_topic"] = get_topic(cls)
         initial_kwargs["tags"] = [enduring_object_id]

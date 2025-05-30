@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from eventsourcing.domain import ProgrammingError
 from examples.coursebooking.test_application import TestEnrolment
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
 
@@ -87,6 +88,10 @@ class TestEnrolmentWithDCBRefactored(TestEnrolment):
         self.assertEqual([course_id, student_id], [o.id for o in objs if o])
         objs = app.repository.get_many(student_id, course_id)
         self.assertEqual([student_id, course_id], [o.id for o in objs if o])
+
+        # Can't call non-command underscore methods.
+        with self.assertRaisesRegex(ProgrammingError, "cannot be used"):
+            student._(course_id=course_id)
 
 
 del TestEnrolment

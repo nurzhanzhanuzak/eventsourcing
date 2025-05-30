@@ -29,21 +29,22 @@ store is given a query that has zero, one, or many "query items". Each query ite
 "types", and zero, one, or many "tags". Optionally, the event store is also given a position in the sequence
 of recorded events after which events should be selected.
 
-An event matches a query item if either the event's type is mentioned in the query item's collection of types or
-the query item has zero types, and then only if the event's collection of tags is a superset of the query items's
-collection of tags.
+An event matches a query item if either the event's type is mentioned in the query item's collection of types or, if
+the query item has zero types, and then only if the event's tags are a superset of the query item's
+tags.
 
 In this way, a query item with more types will be more inclusive, and a query item with more tags
-will be more restrictive. And each query item will tend to add events to the set of events selected by the query.
+will be more restrictive.
 
-However, if a query altogether has zero types and zero tags, then all events will be selected, optionally after a
-given position in the sequence.
+Each query item will tend to add events to the set of events selected by the query. However, if a query
+altogether has zero types and zero tags, then all events will be selected, optionally after a given position
+in the sequence.
 
-After selecting a set of events from the recorded sequence, a command method will then "project" the selected
+After selecting a set of events from the recorded sequence, a command method will usually "project" the selected
 set of events into a "decision model". The command method uses the decision model to make its decision,
 generating one or many new events, or raising an error.
 
-The highest "last known" position at the time of the query is used when recording new events. Consistency of
+The highest "last known position" at the time of the query is used when recording new events. Consistency of
 recorded state is maintained by using that sequence position, along with the same query items used for selecting
 events, to query for any other events recorded since the decision model was constructed.
 
@@ -79,9 +80,9 @@ Recorded events can cut across different aggregate sequences by having more than
 This is the "one fact" magic of DCB.
 
 The central critique motivating DCB is that the aggregates of DDD establish strict and rigid consistency
-boundaries that may eventually become inappropriate and difficult to refactor. This maybe true, and we should
-also investigate elsewhere how comparatively easy or difficult it is to refactor sequences of events
-recorded by DCB applications.
+boundaries that may eventually become inappropriate and difficult to refactor. This may be true. We will
+investigate later how comparatively easy or difficult it is to refactor sequences of events recorded by
+DCB applications and by event-sourced applications.
 
 Another of the arguments motivating DCB is that, `"by definition, the aggregate is the boundary of consistency"
 <https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-2-the-aggregate-does-not-fit-the-storytelling.html>`_
@@ -171,9 +172,9 @@ The :class:`~examples.coursebooking.application.EnrolmentWithAggregates` class s
 aggregate classes.
 
 This meets the "course subscriptions" challenge with event-sourced aggregates, without tricks and without
-accidental complexity, showing that it is possible, and entirely legitimate, to extended the transactional
-consistency boundary when using event-sourced aggregates to include more than one aggregate. This is a
-useful technique.
+accidental complexity. It shows that it is perfectly possible, entirely legitimate, and quite straightforward
+to extend the transactional consistency boundary when using event-sourced aggregates to include more than one
+aggregate. Indeed, this is a useful technique.
 
 
 .. literalinclude:: ../../../examples/coursebooking/application.py

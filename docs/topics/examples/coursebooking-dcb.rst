@@ -66,10 +66,10 @@ The DCB classes used in this example are :class:`~eventsourcing.dcb.api.DCBEvent
 
 The :class:`~eventsourcing.dcb.api.DCBRecorder` class defines an interface that has methods described in the DCB
 specification for reading and appending DCB events. There is one enhancement, which is to return an :class:`int`
-from the :func:`~eventsourcing.dcb.api.DCBRecorder.append` method. This supports returning the position of last appended
-event, so that user interfaces for systems implemented with CQRS, that have eventually consistent "read" models,
-can transition from a "write" view to a "read" view and wait for new events to be processed, avoiding the stale
-read model problem.
+from the :func:`~eventsourcing.dcb.api.DCBRecorder.append` method. This supports returning the position of the
+last appended event, so that user interfaces for systems implemented with CQRS, that have eventually consistent
+"read" models, can transition from a "write" view to a "read" view and wait for new events to be processed,
+avoiding the stale read model problem.
 
 .. literalinclude:: ../../../eventsourcing/dcb/api.py
     :pyobject: DCBRecorder
@@ -93,7 +93,7 @@ of sequenced events.
 Postgres DCB recorder v2
 ------------------------
 
-A second attempt to implement implements the complex DCB query logic in Postgres is shown below. The
+A second attempt to implement the complex DCB query logic in Postgres is shown below. The
 first attempt used an array column for tags and array operators to search for types and tags. It didn't
 work very well. The :class:`~examples.coursebookingdcb.postgres_ts.PostgresDCBRecorderTS` class shown
 below implements the DCB event store interface using the Postgres ``tsvector`` and ``tsquery`` types,
