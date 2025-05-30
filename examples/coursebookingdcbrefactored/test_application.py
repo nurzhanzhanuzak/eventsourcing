@@ -3,14 +3,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from eventsourcing.domain import ProgrammingError
-from examples.coursebooking.test_application import TestEnrolment
+from examples.coursebooking.enrolment_testcase import EnrolmentTestCase
 from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
 
 if TYPE_CHECKING:
     from examples.coursebooking.interface import EnrolmentInterface
 
 
-class TestEnrolmentWithDCBRefactored(TestEnrolment):
+class TestEnrolmentWithDCBRefactored(EnrolmentTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.env["PERSISTENCE_MODULE"] = "eventsourcing.dcb.popo"
@@ -94,4 +94,4 @@ class TestEnrolmentWithDCBRefactored(TestEnrolment):
             student._(course_id=course_id)
 
 
-del TestEnrolment
+del EnrolmentTestCase

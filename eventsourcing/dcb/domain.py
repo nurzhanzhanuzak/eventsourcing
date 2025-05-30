@@ -141,7 +141,7 @@ class MetaEnduringObject(MetaPerspective):
         for attr, value in namespace.items():
             if isinstance(value, CommandMethodDecorator):
                 if attr == "_":
-                    # Deal with cross cutting events later.
+                    # Deal with cross-cutting events later.
                     continue
 
                 event_class = value.given_event_cls
@@ -151,7 +151,9 @@ class MetaEnduringObject(MetaPerspective):
                 # TODO: Maybe support event name strings, maybe not....
                 event_class_qual = event_class.__qualname__
 
+                # Keep things simple by only supporting nested classes.
                 assert event_class_qual.startswith(cls.__qualname__ + ".")
+                assert cls.__dict__[event_class.__name__] is event_class
 
                 # Subclass given class to make a "decorator class".
                 event_subclass_dict = {
@@ -169,7 +171,7 @@ class MetaEnduringObject(MetaPerspective):
                     ),
                 )
                 # Update the enduring object class dict.
-                namespace[attr] = event_subclass
+                setattr(cls, event_class.__name__, event_subclass)
                 # Remember which event class to trigger when method is called.
                 decorated_func_callers[value] = event_subclass
                 # Remember which method body to execute when event is applied.
@@ -316,6 +318,7 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
     ) -> None:
         tags = [self.id, *tags]
         kwargs["tags"] = tags
+        assert issubclass(decision_cls, DecoratedFuncCaller), decision_cls
         decision = decision_cls(**kwargs)
         decision.mutate(self)
         self.new_decisions += (decision,)

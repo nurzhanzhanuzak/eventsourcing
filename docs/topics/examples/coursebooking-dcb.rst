@@ -183,27 +183,6 @@ might perform well in a heavy production environment. Let's see what we can do i
 Code reference
 --------------
 
-.. automodule:: eventsourcing.dcb.api
-    :show-inheritance:
-    :member-order: bysource
-    :members:
-    :undoc-members:
-    :special-members: __init__
-
-.. automodule:: eventsourcing.dcb.popo
-    :show-inheritance:
-    :member-order: bysource
-    :members:
-    :undoc-members:
-    :special-members: __init__
-
-.. automodule:: eventsourcing.dcb.application
-    :show-inheritance:
-    :member-order: bysource
-    :members:
-    :undoc-members:
-    :special-members: __init__
-
 .. automodule:: examples.coursebookingdcb.application
     :show-inheritance:
     :member-order: bysource

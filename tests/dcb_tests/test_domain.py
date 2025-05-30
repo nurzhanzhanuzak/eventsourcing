@@ -1,8 +1,13 @@
 from typing import Any
 from unittest import TestCase
 
-from eventsourcing.dcb.domain import CanInitialiseEnduringObject, EnduringObject
-from eventsourcing.domain import ProgrammingError
+from eventsourcing.dcb.domain import (
+    CanInitialiseEnduringObject,
+    CanMutateEnduringObject,
+    DecoratedFuncCaller,
+    EnduringObject,
+)
+from eventsourcing.domain import ProgrammingError, event
 
 
 class TestEnduringObject(TestCase):
@@ -47,3 +52,33 @@ class TestEnduringObject(TestCase):
             TypeError, f"cannot __init__ {MyObj.__qualname__} with kwargs"
         ):
             MyObj(a="a")  # type: ignore[call-arg]
+
+    def test_subclassed_events_set_on_enduring_object(self) -> None:
+        class MyObj(EnduringObject):
+            def __init__(self) -> None:
+                pass
+
+            class MyInitialDecision(CanInitialiseEnduringObject):
+                def __init__(
+                    self, originator_topic: str, myobj_id: str, tags: list[str]
+                ) -> None:
+                    self.originator_topic = originator_topic
+                    self.myobj_id = myobj_id
+                    self.tags = tags
+
+                def _as_dict(self) -> dict[str, Any]:
+                    return self.__dict__
+
+            class MyDecision(CanMutateEnduringObject):
+                def __init__(self, tags: list[str]) -> None:
+                    self.tags = tags
+
+                def _as_dict(self) -> dict[str, Any]:
+                    return self.__dict__
+
+            @event(MyDecision)
+            def my_command(self) -> None:
+                pass
+
+        myobj = MyObj()
+        self.assertTrue(issubclass(myobj.MyDecision, DecoratedFuncCaller))

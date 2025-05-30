@@ -1,7 +1,8 @@
 from unittest import TestCase
 
 from eventsourcing.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQueryItem
-from eventsourcing.dcb.persistence import DCBEventStore, DCBRepository, NotFoundError
+from eventsourcing.dcb.application import DCBRepository
+from eventsourcing.dcb.persistence import DCBEventStore, NotFoundError
 from eventsourcing.dcb.popo import InMemoryDCBRecorder
 from eventsourcing.dcb.postgres_tt import PostgresDCBRecorderTT, PostgresTTDCBFactory
 from eventsourcing.persistence import ProgrammingError

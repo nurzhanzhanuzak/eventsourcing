@@ -11,11 +11,8 @@ from eventsourcing.dcb.api import (
     DCBRecorder,
 )
 from eventsourcing.dcb.domain import (
-    CanInitialiseEnduringObject,
     CanMutateEnduringObject,
-    EnduringObject,
     Group,
-    Perspective,
     Selector,
 )
 from eventsourcing.persistence import InfrastructureFactory, TTrackingRecorder
@@ -137,60 +134,6 @@ class DCBEventStore:
                 for s in cb
             ]
         )
-
-
-class DCBRepository:
-    def __init__(self, eventstore: DCBEventStore):
-        self.eventstore = eventstore
-
-    def save(self, obj: Perspective) -> int:
-        new_events = obj.collect_events()
-        return self.eventstore.put(
-            *new_events, cb=obj.cb, after=obj.last_known_position
-        )
-
-    def get(self, enduring_object_id: str) -> EnduringObject:
-        cb = [Selector(tags=[enduring_object_id])]
-        events, head = self.eventstore.get(*cb, with_last_position=True)
-        obj: EnduringObject | None = None
-        for event in events:
-            obj = event.mutate(obj)
-        if obj is None:
-            raise NotFoundError
-        obj.last_known_position = head
-        return obj
-
-    def get_many(self, *enduring_object_ids: str) -> list[EnduringObject | None]:
-        cb = [
-            Selector(tags=[enduring_object_id])
-            for enduring_object_id in enduring_object_ids
-        ]
-        events, head = self.eventstore.get(cb, with_last_position=True)
-        objs: dict[str, EnduringObject | None] = dict.fromkeys(enduring_object_ids)
-        for event in events:
-            for tag in event.tags:
-                obj = objs.get(tag)
-                if not isinstance(event, CanInitialiseEnduringObject) and not obj:
-                    continue
-                obj = event.mutate(obj)
-                objs[tag] = obj
-        for obj in objs.values():
-            if obj is not None:
-                obj.last_known_position = head
-        return list(objs.values())
-
-    def get_group(self, cls: type[TGroup], *enduring_object_ids: str) -> TGroup:
-        enduring_objects = self.get_many(*enduring_object_ids)
-        perspective = cls(*enduring_objects)
-        last_known_positions = [
-            o.last_known_position
-            for o in enduring_objects
-            if o and o.last_known_position
-        ]
-        perspective.last_known_position = (
-            max(last_known_positions) if last_known_positions else None
-        )
-        return perspective
 
 
 class NotFoundError(Exception):

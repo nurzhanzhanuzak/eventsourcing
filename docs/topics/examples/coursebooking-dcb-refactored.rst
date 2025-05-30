@@ -183,7 +183,7 @@ in a domain model, and is therefore used in the method arguments of :class:`~eve
 .. literalinclude:: ../../../eventsourcing/dcb/domain.py
     :pyobject: Selector
 
-The class :class:`~eventsourcing.dcb.persistence.DCBRepository` has an instance of
+The class :class:`~eventsourcing.dcb.application.DCBRepository` has an instance of
 :class:`~eventsourcing.dcb.persistence.DCBEventStore`. It defines a method to get one
 enduring object for a given continuity ID. It has another method to get a sequence of
 enduring objects for a given sequence of continuity IDs. And it has another method to construct
@@ -192,7 +192,7 @@ It also has a method to "save" enduring objects and groups, or indeed any perspe
 new events and uses their "consistency boundary" and "last known position" to append the new events
 with the DCB optimistic concurrency control logic referred to as the "append condition".
 
-.. literalinclude:: ../../../eventsourcing/dcb/persistence.py
+.. literalinclude:: ../../../eventsourcing/dcb/application.py
     :pyobject: DCBRepository
 
 The class :class:`~eventsourcing.dcb.domain.EnduringObject` is a base class for enduring objects, which can have
@@ -371,27 +371,6 @@ with dynamic consistency boundaries in Python!
 
 Code reference
 --------------
-
-.. automodule:: eventsourcing.dcb.domain
-    :show-inheritance:
-    :member-order: bysource
-    :members:
-    :undoc-members:
-    :special-members: __init__
-
-.. automodule:: eventsourcing.dcb.persistence
-    :show-inheritance:
-    :member-order: bysource
-    :members:
-    :undoc-members:
-    :special-members: __init__
-
-.. automodule:: eventsourcing.dcb.postgres_tt
-    :show-inheritance:
-    :member-order: bysource
-    :members:
-    :undoc-members:
-    :special-members: __init__
 
 .. automodule:: examples.coursebookingdcbrefactored.application
     :show-inheritance:

@@ -89,7 +89,7 @@ class InMemoryDCBRecorder(DCBRecorder, POPORecorder):
             position += 1
 
 
-class DCBPOPOFactory(POPOFactory, DCBInfrastructureFactory[POPOTrackingRecorder]):
+class InMemoryDCBFactory(POPOFactory, DCBInfrastructureFactory[POPOTrackingRecorder]):
 
     def dcb_event_store(self) -> DCBRecorder:
         return InMemoryDCBRecorder()

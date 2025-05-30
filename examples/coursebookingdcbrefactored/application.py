@@ -7,6 +7,7 @@ import msgspec
 from eventsourcing.dcb.api import DCBEvent
 from eventsourcing.dcb.application import (
     DCBApplication,
+    DCBRepository,
 )
 from eventsourcing.dcb.domain import (
     CanInitialiseEnduringObject,
@@ -17,7 +18,6 @@ from eventsourcing.dcb.domain import (
 from eventsourcing.dcb.persistence import (
     DCBEventStore,
     DCBMapper,
-    DCBRepository,
 )
 from eventsourcing.domain import event
 from eventsourcing.utils import get_topic, resolve_topic
@@ -145,6 +145,15 @@ class Course(EnduringObject):
 
 
 class StudentAndCourse(Group):
+    cb_types = (
+        Student.Registered,
+        Course.Registered,
+        Student.MaxCoursesUpdated,
+        Course.PlacesUpdated,
+        StudentJoinedCourse,
+        StudentLeftCourse,
+    )
+
     def __init__(
         self,
         student: Student | None,

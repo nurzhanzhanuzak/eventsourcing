@@ -117,8 +117,8 @@ def register_topic(topic: str, obj: SupportsTopic) -> None:
         else:
             if cached_obj != obj:
                 msg = (
-                    f"Object {cached_obj} is already registered "
-                    f"for topic '{topic}', so refusing to cache obj {obj}"
+                    f"Refusing to cache {obj} (oid {id(obj)}): {cached_obj} (oid "
+                    f"{id(cached_obj)}) is already registered for topic '{topic}'"
                 )
                 raise TopicError(msg)
 

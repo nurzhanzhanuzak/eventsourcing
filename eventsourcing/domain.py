@@ -843,6 +843,7 @@ class BoundCommandMethodDecorator:
             )
             raise KeyError(msg) from e
         kwargs = filter_kwargs_for_method_params(kwargs, event_cls)
+        assert issubclass(event_cls, AbstractDecoratedFuncCaller), event_cls
         self.obj.trigger_event(event_cls, **kwargs)
 
     def __call__(self, *args: Any, **kwargs: Any) -> None:

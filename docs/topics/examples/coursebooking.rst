@@ -112,8 +112,8 @@ particular conditions that should lead to particular errors. An application-unde
 once without any configuration so that it will store events in memory, and once with configuration for
 recording events in PostgreSQL.
 
-.. literalinclude:: ../../../examples/coursebooking/test_application.py
-    :pyobject: TestEnrolment
+.. literalinclude:: ../../../examples/coursebooking/enrolment_testcase.py
+    :pyobject: EnrolmentTestCase
 
 Enrolment interface
 -------------------
