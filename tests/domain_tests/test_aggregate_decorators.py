@@ -999,7 +999,7 @@ class TestEventDecorator(TestCase):
 
                 @name.setter
                 @event("EventName")  # after setter (same as without property)
-                def name(self, **kwargs: Any) -> None:
+                def name(self, **kwargs: Any) -> None:  # type: ignore[misc]
                     pass
 
         self.assertEqual(
