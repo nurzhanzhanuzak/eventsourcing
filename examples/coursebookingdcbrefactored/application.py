@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import msgspec
 
@@ -30,6 +30,9 @@ from examples.coursebooking.interface import (
     StudentNotFoundError,
     TooManyCoursesError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class Decision(msgspec.Struct, CanMutateEnduringObject):
@@ -159,15 +162,14 @@ class StudentAndCourse(Group):
         student: Student | None,
         course: Course | None,
     ) -> None:
+        if course is None:
+            raise CourseNotFoundError
+        if student is None:
+            raise StudentNotFoundError
         self.student = student
         self.course = course
 
     def student_joins_course(self) -> None:
-        if self.course is None:
-            raise CourseNotFoundError
-        if self.student is None:
-            raise StudentNotFoundError
-
         # The DCB magic: one event for "one fact".
         self.trigger_event(
             StudentJoinedCourse,
@@ -176,11 +178,6 @@ class StudentAndCourse(Group):
         )
 
     def student_leaves_course(self) -> None:
-        if self.course is None:
-            raise CourseNotFoundError
-        if self.student is None:
-            raise StudentNotFoundError
-
         # The DCB magic: one event for "one fact".
         self.trigger_event(
             StudentLeftCourse,
@@ -212,12 +209,14 @@ class EnrolmentWithDCBRefactored(DCBApplication, EnrolmentInterface):
 
     def list_students_for_course(self, course_id: str) -> list[str]:
         course = self.get_course(course_id)
-        students = self.repository.get_many(*course.student_ids)
+        cb_types = (Student.Registered, Student.NameUpdated)
+        students = self.repository.get_many(*course.student_ids, cb_types=cb_types)
         return [cast(Student, c).name for c in students if c is not None]
 
     def list_courses_for_student(self, student_id: str) -> list[str]:
         student = self.get_student(student_id)
-        courses = self.repository.get_many(*student.course_ids)
+        cb_types = (Course.Registered, Course.NameUpdated)
+        courses = self.repository.get_many(*student.course_ids, cb_types=cb_types)
         return [cast(Course, c).name for c in courses if c is not None]
 
     def leave_course(self, student_id: str, course_id: str) -> None:
@@ -245,8 +244,12 @@ class EnrolmentWithDCBRefactored(DCBApplication, EnrolmentInterface):
         course.update_places(max_courses)
         self.repository.save(course)
 
-    def get_student(self, student_id: str) -> Student:
-        return cast(Student, self.repository.get(student_id))
+    def get_student(
+        self, student_id: str, cb_types: Sequence[type[CanMutateEnduringObject]] = ()
+    ) -> Student:
+        return cast(Student, self.repository.get(student_id, cb_types=cb_types))
 
-    def get_course(self, course_id: str) -> Course:
-        return cast(Course, self.repository.get(course_id))
+    def get_course(
+        self, course_id: str, cb_types: Sequence[type[CanMutateEnduringObject]] = ()
+    ) -> Course:
+        return cast(Course, self.repository.get(course_id, cb_types=cb_types))

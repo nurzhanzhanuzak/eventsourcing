@@ -3,8 +3,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from eventsourcing.domain import ProgrammingError
+from eventsourcing.persistence import IntegrityError
 from examples.coursebooking.enrolment_testcase import EnrolmentTestCase
-from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
+from examples.coursebookingdcbrefactored.application import (
+    EnrolmentWithDCBRefactored,
+    Student,
+    StudentAndCourse,
+)
 
 if TYPE_CHECKING:
     from examples.coursebooking.interface import EnrolmentInterface
@@ -92,6 +97,51 @@ class TestEnrolmentWithDCBRefactored(EnrolmentTestCase):
         # Can't call non-command underscore methods.
         with self.assertRaisesRegex(ProgrammingError, "cannot be used"):
             student._(course_id=course_id)
+
+        # Check joining a course doesn't conflict with concurrent student or course
+        # name changes (because event types are not in the consistency boundary).
+        group = app.repository.get_group(StudentAndCourse, student_id, course_id)
+        group.student_joins_course()
+        app.update_course_name(course_id, "Bio-science")
+        app.update_student_name(student_id, "Bob")
+        app.repository.save(group)
+
+        # Check changing max courses does conflict.
+        group = app.repository.get_group(StudentAndCourse, student_id, course_id)
+        group.student_leaves_course()
+        app.update_student_max_courses(student_id, 1)
+        with self.assertRaises(IntegrityError):
+            app.repository.save(group)
+
+        # Can get limited perspective on an enduring object.
+        student_name = app.get_student(
+            student_id, cb_types=[Student.Registered, Student.NameUpdated]
+        )
+        self.assertEqual(student_name.name, "Bob")
+        self.assertEqual(student_name.max_courses, 4)  # Was changed to 1.
+
+        # Can get limited perspective on an enduring object.
+        student_max_courses = app.get_student(
+            student_id, cb_types=[Student.Registered, Student.MaxCoursesUpdated]
+        )
+        self.assertEqual(student_max_courses.name, "Max")  # Was changed to Maxine.
+        self.assertEqual(student_max_courses.max_courses, 1)
+
+        # Can't update name - type not in cb_types.
+        with self.assertRaises(IntegrityError):
+            student_max_courses.update_name(name="Jac")
+
+        # Can't operate on enduring objects in a group...
+        group = app.repository.get_group(StudentAndCourse, student_id, course_id)
+        with self.assertRaises(IntegrityError):
+            group.student.update_name("Jac")
+
+        # ...unless the event type falls within the consistency boundary.
+        group.student.update_max_courses(100)
+        app.repository.save(group)
+        student = app.get_student(student_id)
+        self.assertEqual("Bob", student.name)
+        self.assertEqual(100, student.max_courses)
 
 
 del EnrolmentTestCase

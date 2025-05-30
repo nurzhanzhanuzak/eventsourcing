@@ -62,8 +62,12 @@ class DCBRepository:
             *new_events, cb=obj.cb, after=obj.last_known_position
         )
 
-    def get(self, enduring_object_id: str) -> EnduringObject:
-        cb = [Selector(tags=[enduring_object_id])]
+    def get(
+        self,
+        enduring_object_id: str,
+        cb_types: Sequence[type[CanMutateEnduringObject]] = (),
+    ) -> EnduringObject:
+        cb = [Selector(tags=[enduring_object_id], types=cb_types)]
         events, head = self.eventstore.get(*cb, with_last_position=True)
         obj: EnduringObject | None = None
         for event in events:
@@ -71,6 +75,7 @@ class DCBRepository:
         if obj is None:
             raise NotFoundError
         obj.last_known_position = head
+        obj.cb_types = cb_types
         return obj
 
     def get_many(
@@ -94,6 +99,7 @@ class DCBRepository:
         for obj in objs.values():
             if obj is not None:
                 obj.last_known_position = head
+                obj.cb_types = cb_types
         return list(objs.values())
 
     def get_group(self, cls: type[TGroup], *enduring_object_ids: str) -> TGroup:

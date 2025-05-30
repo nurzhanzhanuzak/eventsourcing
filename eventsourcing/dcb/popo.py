@@ -72,7 +72,7 @@ class InMemoryDCBRecorder(DCBRecorder, POPORecorder):
                     limit=1,
                 )
                 if matched:
-                    raise IntegrityError
+                    raise IntegrityError(condition)
             self.events.extend(
                 DCBSequencedEvent(
                     position=next(self.position_sequence),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 from uuid import uuid4
 
@@ -17,6 +18,7 @@ from eventsourcing.domain import (
     filter_kwargs_for_method_params,
     underscore_method_decorators,
 )
+from eventsourcing.persistence import IntegrityError
 from eventsourcing.utils import construct_topic, get_topic, resolve_topic
 
 if TYPE_CHECKING:
@@ -105,11 +107,13 @@ class MetaPerspective(type):
 
 class Perspective(metaclass=MetaPerspective):
     last_known_position: int | None
+    cb_types: Sequence[type[CanMutateEnduringObject]] = ()
     new_decisions: tuple[CanMutateEnduringObject, ...]
 
     def __new__(cls, *_: Any, **__: Any) -> Self:
         perspective = super().__new__(cls)
         perspective.last_known_position = None
+        perspective.cb_types = cls.cb_types
         perspective.new_decisions = ()
         return perspective
 
@@ -120,6 +124,14 @@ class Perspective(metaclass=MetaPerspective):
     @property
     def cb(self) -> list[Selector]:
         raise NotImplementedError  # pragma: no cover
+
+    def check_cb_types(self, decision_cls: type[CanMutateEnduringObject]) -> None:
+        if self.cb_types and decision_cls not in self.cb_types:
+            msg = (
+                f"Decision type {decision_cls.__qualname__} "
+                f"not in consistency boundary types: {self.cb_types}"
+            )
+            raise IntegrityError(msg)
 
 
 cross_cutting_event_classes: dict[str, type[CanMutateEnduringObject]] = {}
@@ -307,7 +319,7 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
 
     @property
     def cb(self) -> list[Selector]:
-        return [Selector(tags=[self.id])]
+        return [Selector(tags=[self.id], types=self.cb_types)]
 
     def trigger_event(
         self,
@@ -318,6 +330,7 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
     ) -> None:
         tags = [self.id, *tags]
         kwargs["tags"] = tags
+        self.check_cb_types(decision_cls)
         assert issubclass(decision_cls, DecoratedFuncCaller), decision_cls
         decision = decision_cls(**kwargs)
         decision.mutate(self)
@@ -328,7 +341,7 @@ class Group(Perspective):
     @property
     def cb(self) -> list[Selector]:
         return [
-            cb
+            Selector(types=tuple(self.cb_types) + tuple(cb.types), tags=cb.tags)
             for cbs in [
                 o.cb for o in self.__dict__.values() if isinstance(o, EnduringObject)
             ]
@@ -342,7 +355,8 @@ class Group(Perspective):
         tags: Sequence[str] = (),
         **kwargs: Any,
     ) -> None:
-        objs = [o for o in self.__dict__.values() if isinstance(o, EnduringObject)]
+        self.check_cb_types(decision_cls)
+        objs = self.enduring_objects
         tags = [o.id for o in objs] + list(tags)
         kwargs["tags"] = tags
         decision = decision_cls(**kwargs)
@@ -350,15 +364,18 @@ class Group(Perspective):
             decision.mutate(o)
         self.new_decisions += (decision,)
 
+    @property
+    def enduring_objects(self) -> Sequence[EnduringObject]:
+        return [o for o in self.__dict__.values() if isinstance(o, EnduringObject)]
 
+    def collect_events(self) -> Sequence[CanMutateEnduringObject]:
+        group_events = list(super().collect_events())
+        for o in self.enduring_objects:
+            group_events.extend(o.collect_events())
+        return group_events
+
+
+@dataclass
 class Selector:
-    def __init__(
-        self,
-        types: Sequence[type[CanMutateEnduringObject]] = (),
-        tags: Sequence[str] = (),
-    ):
-        self.types = types
-        self.tags = tags
-
-    def __eq__(self, other: object) -> bool:
-        return type(self) is type(other) and self.__dict__ == other.__dict__
+    types: Sequence[type[CanMutateEnduringObject]] = ()
+    tags: Sequence[str] = ()
