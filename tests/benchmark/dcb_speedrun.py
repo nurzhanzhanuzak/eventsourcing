@@ -17,6 +17,7 @@ from eventsourcing.domain import datetime_now_with_tzinfo
 from eventsourcing.persistence import ProgrammingError
 from eventsourcing.postgres import PostgresApplicationRecorder, PostgresDatastore
 from examples.coursebooking.application import EnrolmentWithAggregates
+from examples.coursebookingdcb.application import EnrolmentWithDCB
 from examples.coursebookingdcb.postgres_ts import (
     PG_FUNCTION_NAME_DCB_CHECK_APPEND_CONDITION_TS,
     PG_FUNCTION_NAME_DCB_INSERT_EVENTS_TS,
@@ -35,8 +36,8 @@ if TYPE_CHECKING:
 
 env = {}
 # SPEEDRUN_DB_NAME = "course_subscriptions_speedrun"
-SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt"
-# SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt2"
+# SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt"
+SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt2"
 SPEEDRUN_DB_USER = "eventsourcing"
 SPEEDRUN_DB_PASSWORD = "eventsourcing"  # noqa: S105
 
@@ -65,7 +66,7 @@ config: dict[str, tuple[type[EnrolmentInterface], int, dict[str, str]]] = {
         },
     ),
     "dcb-pg-tt": (
-        EnrolmentWithDCBRefactored,
+        EnrolmentWithDCB,
         10,
         {
             "PERSISTENCE_MODULE": "eventsourcing.dcb.postgres_tt",
@@ -74,9 +75,9 @@ config: dict[str, tuple[type[EnrolmentInterface], int, dict[str, str]]] = {
             "POSTGRES_PORT": "5432",
             "POSTGRES_USER": SPEEDRUN_DB_USER,
             "POSTGRES_PASSWORD": SPEEDRUN_DB_PASSWORD,
-            "POSTGRES_POOL_SIZE": "1",
-            "POSTGRES_MAX_OVERFLOW": "0",
-            "POSTGRES_MAX_WAITING": "0",
+            "POSTGRES_POOL_SIZE": "5",
+            "POSTGRES_MAX_OVERFLOW": "5",
+            "POSTGRES_MAX_WAITING": "5",
         },
     ),
     "dcb-mem": (
@@ -139,7 +140,7 @@ def count_events(app: EnrolmentInterface) -> int:
             result = conn.execute(statement).fetchone()
             count = result["count"] if result is not None else 0
 
-    elif isinstance(app, EnrolmentWithDCBRefactored):
+    elif isinstance(app, (EnrolmentWithDCBRefactored, EnrolmentWithDCB)):
         recorder = app.recorder
         assert isinstance(recorder, (PostgresDCBRecorderTS, PostgresDCBRecorderTT))
         datastore = recorder.datastore
