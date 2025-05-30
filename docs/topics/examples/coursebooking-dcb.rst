@@ -100,7 +100,7 @@ below implements :class:`~eventsourcing.dcb.api.DCBRecorder` using the Postgres 
 and a GIN index.
 
 The type and tags of a DCB event are prefixed and concatenated into a ``tsvector`` string. A set of DCB
-query items is similarly compounded into a logical ``tsquery`` that expresses the DCB query logic. Database
+query items is similarly compounded into a ``tsquery`` that expresses the DCB query logic. Database
 functions for appending and selecting events are defined, and a custom composite type is defined for efficiently
 sending an array of DCB events to the database.
 
