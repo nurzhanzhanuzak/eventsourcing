@@ -192,15 +192,18 @@ pattern.
 Speedrun
 --------
 
-To assess the comparative performance of the support for event-sourced aggregates provided by this library
-and the support for dynamic consistency boundaries that we will develop in the next examples, a "speedrun"
-script has been written. It iterates over a sequence of operations, first registering a number of students
-and a number of courses, and then subscribing all the students on all the courses. It was configured to register
-10 students and 10 courses, and therefore to make 100 subscriptions in each iteration.
+A "speedrun" script has been written, to help compare the support for dynamic consistency boundaries that we will
+develop in the next examples with the performance of the support for event-sourced aggregates provided by this
+library.
+
+It iterates over a sequence of operations, first registering a number of students and a number of courses, and
+then subscribing all the students on all the courses.
+
+It was configured to register 10 students and 10 courses, and therefore to make 100 subscriptions in each iteration.
 
 The performance report for the event-sourced aggregates solution is included below. Using PostgreSQL
-as an event store, we can see that with event-sourced we accomplished 93,720 operations in 30s. That
-gives us an average of 0.320 milliseconds per operation, which will be our target for implementing DCB.
+as an event store, event-sourced aggregates accomplished 93,720 operations in 30s. That gives an
+average of 0.320 milliseconds per operation, and a target for implementing DCB.
 
 .. code-block::
 
