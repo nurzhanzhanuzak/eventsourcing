@@ -803,14 +803,22 @@ class UnboundCommandMethodDecorator:
         )
 
 
+class CanTriggerEvent(Protocol):
+    def trigger_event(
+        self,
+        event_class: type[Any],
+        **kwargs: Any,
+    ) -> None:
+        pass  # pragma: no cover
+
+
 class BoundCommandMethodDecorator:
-    """Binds a CommandMethodDecorator with an aggregate instance so calls to
-    decorated command methods can be intercepted and will trigger an event.
+    """Binds a CommandMethodDecorator with an object instance that can trigger
+    events, so that calls to decorated command methods can be intercepted and
+    will trigger a "decorated func caller" event.
     """
 
-    def __init__(
-        self, event_decorator: CommandMethodDecorator, aggregate: BaseAggregate[Any]
-    ):
+    def __init__(self, event_decorator: CommandMethodDecorator, obj: CanTriggerEvent):
         """:param CommandMethodDecorator event_decorator:
         :param Aggregate aggregate:
         """
@@ -820,7 +828,7 @@ class BoundCommandMethodDecorator:
         self.__qualname__ = event_decorator.decorated_func.__qualname__
         self.__annotations__ = event_decorator.decorated_func.__annotations__
         self.__doc__ = event_decorator.decorated_func.__doc__
-        self.aggregate = aggregate
+        self.obj = obj
 
     def trigger(self, *args: Any, **kwargs: Any) -> None:
         kwargs = _coerce_args_to_kwargs(
@@ -835,13 +843,17 @@ class BoundCommandMethodDecorator:
             )
             raise KeyError(msg) from e
         kwargs = filter_kwargs_for_method_params(kwargs, event_cls)
-        self.aggregate.trigger_event(event_cls, **kwargs)
+        self.obj.trigger_event(event_cls, **kwargs)
 
     def __call__(self, *args: Any, **kwargs: Any) -> None:
         self.trigger(*args, **kwargs)
 
 
-class DecoratedFuncCaller(CanMutateAggregate[Any]):
+class AbstractDecoratedFuncCaller:
+    pass
+
+
+class DecoratedFuncCaller(CanMutateAggregate[Any], AbstractDecoratedFuncCaller):
     def apply(self, aggregate: BaseAggregate[Any]) -> None:
         """Applies event to aggregate by calling method decorated by @event."""
         # Identify the function that was decorated.
@@ -866,7 +878,9 @@ _given_event_classes = set[type]()
 _created_event_classes: dict[type, list[type[CanInitAggregate[Any]]]] = {}
 
 # This remembers which event class to trigger when a decorated method is called.
-decorated_func_callers: dict[CommandMethodDecorator, type[DecoratedFuncCaller]] = {}
+decorated_func_callers: dict[
+    CommandMethodDecorator, type[AbstractDecoratedFuncCaller]
+] = {}
 
 # This remembers which decorated func a decorated func caller should call.
 decorated_funcs: dict[type, CallableType] = {}

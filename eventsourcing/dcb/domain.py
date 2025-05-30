@@ -8,6 +8,7 @@ from typing_extensions import Self
 
 from eventsourcing.domain import (
     AbstractDCBEvent,
+    AbstractDecoratedFuncCaller,
     CallableType,
     CommandMethodDecorator,
     ProgrammingError,
@@ -71,7 +72,7 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
         return f"{enduring_object_class.__name__.lower()}_id"
 
 
-class DecoratedFuncCaller(CanMutateEnduringObject):
+class DecoratedFuncCaller(CanMutateEnduringObject, AbstractDecoratedFuncCaller):
     def apply(self, obj: EnduringObject) -> None:
         """Applies event by calling method decorated by @event."""
 
@@ -164,7 +165,7 @@ class MetaEnduringObject(MetaPerspective):
 
                 subclass_name = event_class.__name__
                 event_subclass = cast(
-                    type[CanMutateEnduringObject],
+                    type[DecoratedFuncCaller],
                     type(
                         subclass_name,
                         (DecoratedFuncCaller, event_class),
@@ -173,9 +174,8 @@ class MetaEnduringObject(MetaPerspective):
                 )
                 # Update the enduring object class dict.
                 namespace[attr] = event_subclass
-                # Remember which event event class to trigger when method is called.
-                # TODO: Unify DecoratedFuncCaller with core library somehow.
-                decorated_func_callers[value] = event_subclass  # type: ignore[assignment]
+                # Remember which event class to trigger when method is called.
+                decorated_func_callers[value] = event_subclass
                 # Remember which method body to execute when event is applied.
                 decorated_funcs[event_subclass] = value.decorated_func
 
@@ -188,8 +188,8 @@ class MetaEnduringObject(MetaPerspective):
                 # Keep things simple by only supporting given classes (not names).
                 # TODO: Maybe support event name strings, maybe not....
                 assert event_class is not None, "Event class not given"
+                # Make sure event decorator has a CanMutateEnduringObject class. 
                 assert issubclass(event_class, CanMutateEnduringObject)
-                event_class_qual = event_class.__qualname__
 
                 # Assume this is a cross-cutting event, and we need to register
                 # multiple handler methods for the same class. Expect its mutate
@@ -198,11 +198,11 @@ class MetaEnduringObject(MetaPerspective):
                 # method body to call, according to the 'obj' argument of its
                 # apply() method. This means we do need to subclass the given
                 # event once only.
-
                 event_class_topic = construct_topic(event_class)
                 if event_class_topic not in cross_cutting_event_classes:
                     # Subclass the cross-cutting event class once only.
                     #  - keep things simple by only supporting non-nested classes
+                    event_class_qual = event_class.__qualname__
                     assert (
                         "." not in event_class_qual
                     ), "Nested cross-cutting classes aren't supported"
