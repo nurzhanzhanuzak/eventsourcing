@@ -58,9 +58,9 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
         enduring_object.__post_init__()
         try:
             enduring_object.__init__(**kwargs)  # type: ignore[misc]
-        except TypeError as e:  # pragma: no cover
+        except TypeError as e:
             msg = (
-                f"{type(self).__qualname__} can't __init__ "
+                f"{type(self).__qualname__} cannot __init__ "
                 f"{enduring_object_cls.__qualname__} "
                 f"with kwargs {kwargs}: {e}"
             )
@@ -188,7 +188,7 @@ class MetaEnduringObject(MetaPerspective):
                 # Keep things simple by only supporting given classes (not names).
                 # TODO: Maybe support event name strings, maybe not....
                 assert event_class is not None, "Event class not given"
-                # Make sure event decorator has a CanMutateEnduringObject class. 
+                # Make sure event decorator has a CanMutateEnduringObject class.
                 assert issubclass(event_class, CanMutateEnduringObject)
 
                 # Assume this is a cross-cutting event, and we need to register
@@ -252,7 +252,7 @@ class MetaEnduringObject(MetaPerspective):
         assert issubclass(cls, EnduringObject)
         try:
             init_enduring_object_class = _enduring_object_init_classes[cls]
-        except KeyError:  # pragma: no cover
+        except KeyError:
             msg = (
                 f"Enduring object class {cls.__name__} has no "
                 f"CanInitialiseEnduringObject class. Please define a subclass of "
@@ -283,7 +283,7 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
         initial_kwargs["tags"] = [enduring_object_id]
         try:
             initialised = decision_cls(**initial_kwargs)
-        except TypeError as e:  # pragma: no cover
+        except TypeError as e:
             msg = (
                 f"Unable to construct {decision_cls.__qualname__} event "
                 f"with kwargs {initial_kwargs}: {e}"
