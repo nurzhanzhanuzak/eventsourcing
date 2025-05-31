@@ -548,8 +548,6 @@ serving applications and running systems with efficient
 inter-process communication technologies like `gRPC <https://github.com/pyeventsourcing/eventsourcing-grpc#readme>`_.
 
 
-
-
 Register issues
 ===============
 

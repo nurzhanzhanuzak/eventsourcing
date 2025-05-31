@@ -113,7 +113,9 @@ of existence, and proposes this general structure as being adequate and applicab
 for analysing (and therefore for designing) the ordinary objects we may encounter
 in the world.
 
-    *An ordinary physical object, which has temporal endurance, is a society
+.. pull-quote::
+
+    *"An ordinary physical object, which has temporal endurance, is a society
     [of 'actual occasions' or 'actual entities']. In the ideally simple case,
     it has personal [serial] order and is an 'enduring object'. A society may
     (or may not) be analysable into many strands of 'enduring objects'. This
@@ -123,7 +125,7 @@ in the world.
     they form the subject-matter of the science of dynamics. Actual entities perish,
     but do not change; they are what they are. A nexus which (i) enjoys social order,
     and (ii) is analysable into strands of enduring objects may be termed a
-    'corpuscular society'.*
+    'corpuscular society'."*
 
 We know that Whitehead's scheme was enormously influential for Christopher Alexander
 when inventing his pattern language scheme. And we know that Christopher Alexander's

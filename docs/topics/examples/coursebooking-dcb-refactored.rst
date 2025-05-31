@@ -257,20 +257,28 @@ Postgres DCB recorder v3
 ------------------------
 
 A third attempt to implement the complex DCB query logic in Postgres is shown below. The
-first attempt used array columns and array operator. It didn't work very well. The
-:class:`~eventsourcing.dcb.postgres_tt.PostgresDCBRecorderTT` class shown below implements
-:class:`~eventsourcing.dcb.api.DCBRecorder` using a secondary table of tags that is indexed with a B-tree.
-The design of this implementation was focussed on selecting by tags first, which will typically
-have high cardinality, and selecting by types and sequence position later in the query.
-A multi-clause CTE statement is used to select events, passing the DCB query items as an composite
-type array. A similar approach was tried for conditionally inserting event records, but this proved
-to be suboptimal, and instead a stored procedure was developed that separates the "fail condition"
-query from the conditional insertion of new events. This allows each part to be planned separately,
-achieving much better performance. The index of sequence positions on the main table covers the
-event types, which allows the results of selecting from the table of tags to be efficiently joined
-with the main table and for events to be filtered by type using only the indexes. The speedrun performance
-report below shows how much better this third approach is than the version using ``tsvector`` with a GIN
-index.
+first attempt used array columns and array operators. The second attempt used text search.
+The :class:`~eventsourcing.dcb.postgres_tt.PostgresDCBRecorderTT` class shown below implements
+:class:`~eventsourcing.dcb.api.DCBRecorder` using a secondary table of tags.
+
+The design for this implementation focuses on selecting by tags first, which will typically have
+high cardinality and will therefore be highly selective. It using a secondary table of tags that is
+indexed with a B-tree. The sequence positions on the main table are indexed with a B-tree that "covers"
+the type column. GIN indexes are not used. This design supports fast selection of events by tag, and
+allows events to be selected by tag and filtered by position and type using only the indexes.
+
+The Python code passes DCB query items and DCB events to Postgres as composite arrays. A multi-clause
+CTE statement is used to select events. There are different execution paths for the append operation. One
+is to start a transaction, then execute a statement to select events, and then execute a statement to insert
+events if the append condition does not fail. That works quite well, but involves several round-trips from
+the Python code to the database. For this reason, a single CTE was developed for conditionally inserting
+event records, but this proved to be suboptimal due to the way its execution was being planned by the database.
+Instead, a stored procedure was developed that has a "fail condition" select statement and an "unconditional append"
+insert statement. Having two statements allows each part of the function to be planned separately. Executing these
+two statements in a database function means a conditional append operation can be performed efficiently with one
+round-trip. Logging execution times directly from the database shows that the database typically executes this
+function in 100-200 μs with millions of recorded events, which is at least 10x faster than the previous attempts
+using GIN indexes.
 
 .. literalinclude:: ../../../eventsourcing/dcb/postgres_tt.py
     :start-at: DB_TYPE_NAME
@@ -288,7 +296,19 @@ example, and once with the :class:`~eventsourcing.dcb.postgres_tt.PostgresDCBRec
     :pyobject: TestEnrolmentWithDCBRefactored
 
 It also has some extra steps to cover the extra methods that were added to make further use of the more
-declarative syntax for DCB.
+declarative syntax for DCB, such as a student leaving a course, changes of name of students and courses,
+and changes to the number of "places" a course has and the "max courses" for student.
+
+The extra steps also show the non-conflicting nature of the course subscription "group" with respect to changes
+to enduring objects in the group that generate event types outside the consistency boundary of the group. That
+is to say, joining a course doesn't conflict with concurrent student or course name changes, because the
+"name updated" event types are not in the consistency boundary of the "student and course" group. However,
+concurrent changes to the "max courses" of a student, and changes to the "places" of a course, do conflict
+because those event types are within the group's consistency boundary.
+
+The extra steps also show the command method of enduring objects in a group can be executed, but only if the
+events they trigger are within the consistency boundary of the group. New events from the group and from its
+enduring objects are collected when a group is saved.
 
 Speedrun
 --------
@@ -296,9 +316,9 @@ Speedrun
 The performance of :class:`~eventsourcing.dcb.postgres_tt.PostgresDCBRecorderTT` is demonstrated in the report
 below. With 7 million recorded events, it is more than 5x faster than the previous example.
 
-With sub-millisecond response times, this implementation closes the performance gap with event-sourced aggregates,
-running through at more than 60% of the first example. This is a good result, considering the much greater complexity
-of the persistence model required for DCB.
+With sub-millisecond application command response times, this implementation effectively closes the performance gap
+with event-sourced aggregates, running through at more than 60% of the speed. This is a good result, considering
+the much greater complexity of the persistence model required for DCB.
 
 Another point of interest is the number of new events. The "one fact" magic of DCB can be seen by looking at the
 number of new events at the end of the report (58,440). The number of new events is exactly the same as the number of
