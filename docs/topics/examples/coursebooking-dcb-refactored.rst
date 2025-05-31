@@ -27,7 +27,7 @@ The refactored "enrolment" application class :class:`~examples.coursebookingdcbr
 shown below implements :class:`~examples.coursebooking.interface.EnrolmentInterface`. Unlike the previous example,
 its methods are all very short three-line blocks, which mostly initialise or reconstruct a "perspective" (line 1),
 make a new decision (line 2), and then append new events to the database (line 3). Because this style so easy to code,
-we added more methods methods just for fun!
+we added more methods just for fun!
 
 This version looks a lot like the application that uses event-sourced aggregates in the
 :doc:`first example </topics/examples/coursebooking>`.
