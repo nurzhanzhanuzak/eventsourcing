@@ -79,7 +79,6 @@ DB_TABLE_DCB_TAGS = SQL(
     """
 CREATE TABLE IF NOT EXISTS {schema}.{tags_table} (
     tag text,
-    type text,
     main_id bigint REFERENCES {events_table} (id)
 ) WITH (
     autovacuum_enabled = true,
@@ -134,7 +133,6 @@ initial_matches AS (
     SELECT
         t.main_id,
         qi.ordinality,
-        t.type,
         t.tag,
         qi.tags AS required_tags,
         qi.types AS allowed_types
@@ -188,19 +186,18 @@ inserted AS (
     INSERT INTO {schema}.{events_table} (type, data, tags)
     SELECT i.type, i.data, i.tags
     FROM input i
-    RETURNING id, type, tags
+    RETURNING id, tags
 ),
 expanded_tags AS (
     SELECT
         ins.id AS main_id,
-        ins.type,
         tag
     FROM inserted ins,
        unnest(ins.tags) AS tag
 ),
 tag_insert AS (
-    INSERT INTO {schema}.{tags_table} (tag, type, main_id)
-    SELECT tag, type, main_id
+    INSERT INTO {schema}.{tags_table} (tag, main_id)
+    SELECT tag, main_id
     FROM expanded_tags
 )
 SELECT id FROM inserted
@@ -236,7 +233,6 @@ BEGIN
         SELECT
             t.main_id,
             qi.ordinality,
-            t.type,
             t.tag,
             qi.tags AS required_tags,
             qi.types AS allowed_types
@@ -286,16 +282,16 @@ BEGIN
             INSERT INTO {schema}.{events_table} (type, data, tags)
             SELECT type, data, tags
             FROM new_data
-            RETURNING id, type, tags
+            RETURNING id, tags
         ),
         expanded_tags AS (
-            SELECT ins.id AS main_id, ins.type, tag
+            SELECT ins.id AS main_id, tag
             FROM inserted ins,
                  unnest(ins.tags) AS tag
         ),
         tag_insert AS (
-            INSERT INTO {schema}.{tags_table} (tag, type, main_id)
-            SELECT tag, type, main_id
+            INSERT INTO {schema}.{tags_table} (tag, main_id)
+            SELECT tag, main_id
             FROM expanded_tags
         )
         SELECT id FROM inserted;
