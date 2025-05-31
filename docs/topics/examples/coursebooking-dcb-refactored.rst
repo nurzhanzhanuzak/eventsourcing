@@ -306,7 +306,7 @@ is to say, joining a course doesn't conflict with concurrent student or course n
 concurrent changes to the "max courses" of a student, and changes to the "places" of a course, do conflict
 because those event types are within the group's consistency boundary.
 
-The extra steps also show the command method of enduring objects in a group can be executed, but only if the
+The extra steps also show the command methods of enduring objects in a group can be executed, but only if the
 events they trigger are within the consistency boundary of the group. New events from the group and from its
 enduring objects are collected when a group is saved.
 
