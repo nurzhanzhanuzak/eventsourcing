@@ -127,7 +127,7 @@ The class :class:`~examples.coursebookingdcbrefactored.application.Decision` ext
 :class:`~eventsourcing.dcb.domain.Mutates` and uses :class:`Struct`
 from the :data:`msgspec` package to define a base class for concrete "decision" events
 that can define instance attributes using type annotations, and that can be serialised and
-serialised very quickly.
+deserialised very quickly.
 
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: Decision
