@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 from eventsourcing.dcb.domain import (
-    CanInitialiseEnduringObject,
-    CanMutateEnduringObject,
     EnduringObject,
+    Initialises,
+    Mutates,
     Perspective,
     Selector,
 )
@@ -16,26 +16,30 @@ from eventsourcing.dcb.persistence import (
     NotFoundError,
     TGroup,
 )
-from eventsourcing.utils import Environment, EnvType
+from eventsourcing.utils import Environment, EnvType, resolve_topic
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from typing_extensions import Self
 
 
 class DCBApplication:
     name = "DCBApplication"
-    env: ClassVar[dict[str, str]] = {"PERSISTENCE_MODULE": "eventsourcing.dcb.popo"}
+    env: Mapping[str, str] = {"PERSISTENCE_MODULE": "eventsourcing.dcb.popo"}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         if "name" not in cls.__dict__:
             cls.name = cls.__name__
 
     def __init__(self, env: EnvType | None = None):
-        self.env = self.construct_env(self.name, env)  # type: ignore[misc]
+        self.env = self.construct_env(self.name, env)
         self.factory = DCBInfrastructureFactory.construct(self.env)
         self.recorder = self.factory.dcb_event_store()
+        if "MAPPER_TOPIC" in self.env:
+            mapper = resolve_topic(self.env["MAPPER_TOPIC"])()
+            self.events = DCBEventStore(mapper, self.recorder)
+            self.repository = DCBRepository(self.events)
 
     def construct_env(self, name: str, env: EnvType | None = None) -> Environment:
         """Constructs environment from which application will be configured."""
@@ -65,7 +69,7 @@ class DCBRepository:
     def get(
         self,
         enduring_object_id: str,
-        cb_types: Sequence[type[CanMutateEnduringObject]] = (),
+        cb_types: Sequence[type[Mutates]] = (),
     ) -> EnduringObject:
         cb = [Selector(tags=[enduring_object_id], types=cb_types)]
         events, head = self.eventstore.get(*cb, with_last_position=True)
@@ -81,7 +85,7 @@ class DCBRepository:
     def get_many(
         self,
         *enduring_object_ids: str,
-        cb_types: Sequence[type[CanMutateEnduringObject]] = (),
+        cb_types: Sequence[type[Mutates]] = (),
     ) -> list[EnduringObject | None]:
         cb = [
             Selector(tags=[enduring_object_id], types=cb_types)
@@ -92,7 +96,7 @@ class DCBRepository:
         for event in events:
             for tag in event.tags:
                 obj = objs.get(tag)
-                if not isinstance(event, CanInitialiseEnduringObject) and not obj:
+                if not isinstance(event, Initialises) and not obj:
                     continue
                 obj = event.mutate(obj)
                 objs[tag] = obj

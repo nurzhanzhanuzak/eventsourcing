@@ -99,24 +99,24 @@ Supporting abstractions
 
 The abstractions supporting this style of domain model are described briefly below.
 
-The class :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` is the base
+The class :class:`~eventsourcing.dcb.domain.Mutates` is the base
 class for "decision" events in the domain model. It has "tags" and defines a method
 that can mutate an "enduring object" instance using the attributes of the event object.
 It does this by calling a convenience method "apply".
 
 .. literalinclude:: ../../../eventsourcing/dcb/domain.py
-    :pyobject: CanMutateEnduringObject
+    :pyobject: Mutates
 
-The class :class:`~eventsourcing.dcb.domain.CanInitialiseEnduringObject` extends
-:class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` and defines a method
+The class :class:`~eventsourcing.dcb.domain.Initialises` extends
+:class:`~eventsourcing.dcb.domain.Mutates` and defines a method
 that can construct an "enduring object" instance from an enduring object class,
 using its "decision" event attributes.
 
 .. literalinclude:: ../../../eventsourcing/dcb/domain.py
-    :pyobject: CanInitialiseEnduringObject
+    :pyobject: Initialises
 
 The class :class:`~eventsourcing.dcb.domain.DecoratedFuncCaller` extends
-:class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` and is used
+:class:`~eventsourcing.dcb.domain.Mutates` and is used
 by the library's :ref:`event decorator <Event decorator>` to "apply" to an
 enduring object any "decision" events of the type mentioned in the decorator.
 
@@ -124,7 +124,7 @@ enduring object any "decision" events of the type mentioned in the decorator.
     :pyobject: DecoratedFuncCaller
 
 The class :class:`~examples.coursebookingdcbrefactored.application.Decision` extends
-:class:`~eventsourcing.dcb.domain.CanMutateEnduringObject` and uses :class:`Struct`
+:class:`~eventsourcing.dcb.domain.Mutates` and uses :class:`Struct`
 from the :data:`msgspec` package to define a base class for concrete "decision" events
 that can define instance attributes using type annotations, and that can be serialised and
 serialised very quickly.
@@ -134,14 +134,14 @@ serialised very quickly.
 
 The class :class:`~examples.coursebookingdcbrefactored.application.InitialDecision` extends
 :class:`~examples.coursebookingdcbrefactored.application.Decision` and
-:class:`~eventsourcing.dcb.domain.CanInitialiseEnduringObject` to define a base class
+:class:`~eventsourcing.dcb.domain.Initialises` to define a base class
 for concrete "initial decision" events that can define object attributes using type annotations.
 
 .. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
     :pyobject: InitialDecision
 
 The class :class:`~eventsourcing.dcb.persistence.DCBMapper` is an abstract base class that
-defines an interface for converting between :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject`
+defines an interface for converting between :class:`~eventsourcing.dcb.domain.Mutates`
 instances and :class:`~eventsourcing.dcb.api.DCBEvent` instances.
 
 .. literalinclude:: ../../../eventsourcing/dcb/persistence.py
@@ -160,17 +160,17 @@ fast and compact "msgpack" format.
 The class :class:`~eventsourcing.dcb.persistence.DCBEventStore` encapsulates both an instance
 of :class:`~eventsourcing.dcb.persistence.DCBMapper` and an instance of
 :class:`~eventsourcing.dcb.api.DCBRecorder`, and presents methods
-for getting and putting instances of :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject`.
+for getting and putting instances of :class:`~eventsourcing.dcb.domain.Mutates`.
 
 A request to get a set of "decision" events will have one or many :class:`~eventsourcing.dcb.domain.Selector`
 objects. The selectors will be converted to a :class:`~eventsourcing.dcb.api.DCBQuery` that has one
 :class:`~eventsourcing.dcb.api.DCBQueryItem` for each selector. The :class:`~eventsourcing.dcb.api.DCBQuery`
 is used to read :class:`~eventsourcing.dcb.api.DCBEvent` instances from the :class:`~eventsourcing.dcb.api.DCBRecorder`.
-The :class:`~eventsourcing.dcb.persistence.DCBMapper` is then used to reconstruct :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject`
+The :class:`~eventsourcing.dcb.persistence.DCBMapper` is then used to reconstruct :class:`~eventsourcing.dcb.domain.Mutates`
 instances from the :class:`~eventsourcing.dcb.api.DCBEvent` instances.
 
 A request to put a sequence of "decision"
-events works in the reverse direction, first the mapper is used to convert :class:`~eventsourcing.dcb.domain.CanMutateEnduringObject`
+events works in the reverse direction, first the mapper is used to convert :class:`~eventsourcing.dcb.domain.Mutates`
 instances to :class:`~eventsourcing.dcb.api.DCBEvent` instances, and then the :class:`~eventsourcing.dcb.api.DCBEvent` instances
 are appended to the database by the recorder.
 

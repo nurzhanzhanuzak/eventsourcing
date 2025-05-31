@@ -11,8 +11,8 @@ from eventsourcing.dcb.api import (
     DCBRecorder,
 )
 from eventsourcing.dcb.domain import (
-    CanMutateEnduringObject,
     Group,
+    Mutates,
     Selector,
 )
 from eventsourcing.persistence import InfrastructureFactory, TTrackingRecorder
@@ -26,11 +26,11 @@ TGroup = TypeVar("TGroup", bound=Group)
 
 class DCBMapper(ABC):
     @abstractmethod
-    def to_dcb_event(self, event: CanMutateEnduringObject) -> DCBEvent:
+    def to_dcb_event(self, event: Mutates) -> DCBEvent:
         raise NotImplementedError  # pragma: no cover
 
     @abstractmethod
-    def to_domain_event(self, event: DCBEvent) -> CanMutateEnduringObject:
+    def to_domain_event(self, event: DCBEvent) -> Mutates:
         raise NotImplementedError  # pragma: no cover
 
 
@@ -41,7 +41,7 @@ class DCBEventStore:
 
     def put(
         self,
-        *events: CanMutateEnduringObject,
+        *events: Mutates,
         cb: Selector | Sequence[Selector] | None = None,
         after: int | None = None,
     ) -> int:
@@ -64,7 +64,7 @@ class DCBEventStore:
         cb: Selector | Sequence[Selector] | None = None,
         *,
         after: int | None = None,
-    ) -> Sequence[CanMutateEnduringObject]:
+    ) -> Sequence[Mutates]:
         pass  # pragma: no cover
 
     @overload
@@ -74,7 +74,7 @@ class DCBEventStore:
         *,
         with_last_position: Literal[True],
         after: int | None = None,
-    ) -> tuple[Sequence[CanMutateEnduringObject], int | None]:
+    ) -> tuple[Sequence[Mutates], int | None]:
         pass  # pragma: no cover
 
     @overload
@@ -84,7 +84,7 @@ class DCBEventStore:
         *,
         with_positions: Literal[True],
         after: int | None = None,
-    ) -> Sequence[tuple[CanMutateEnduringObject, int]]:
+    ) -> Sequence[tuple[Mutates, int]]:
         pass  # pragma: no cover
 
     def get(
@@ -95,9 +95,9 @@ class DCBEventStore:
         with_positions: bool = False,
         with_last_position: bool = False,
     ) -> (
-        Sequence[tuple[CanMutateEnduringObject, int]]
-        | tuple[Sequence[CanMutateEnduringObject], int | None]
-        | Sequence[CanMutateEnduringObject]
+        Sequence[tuple[Mutates, int]]
+        | tuple[Sequence[Mutates], int | None]
+        | Sequence[Mutates]
     ):
         query = self._cb_to_dcb_query(cb)
         dcb_sequenced_events, head = self.recorder.read(

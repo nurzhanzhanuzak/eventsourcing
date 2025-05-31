@@ -26,7 +26,9 @@ from examples.coursebookingdcb.postgres_ts import (
     PG_PROCEDURE_NAME_DCB_APPEND_EVENTS_TS,
     PostgresDCBRecorderTS,
 )
-from examples.coursebookingdcbrefactored.application import EnrolmentWithDCBRefactored
+from examples.coursebookingdcbrefactored.application import (
+    EnrolmentWithDCBRefactored,
+)
 
 locale.setlocale(locale.LC_ALL, "")
 
@@ -42,8 +44,8 @@ SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt"
 SPEEDRUN_DB_USER = "eventsourcing"
 SPEEDRUN_DB_PASSWORD = "eventsourcing"  # noqa: S105
 
-NUM_COURSES = 1
-NUM_STUDENTS = 1
+NUM_COURSES = 10
+NUM_STUDENTS = 10
 
 
 def inf_range() -> Iterator[int]:

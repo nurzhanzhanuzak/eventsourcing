@@ -7,16 +7,14 @@ import msgspec
 from eventsourcing.dcb.api import DCBEvent
 from eventsourcing.dcb.application import (
     DCBApplication,
-    DCBRepository,
 )
 from eventsourcing.dcb.domain import (
-    CanInitialiseEnduringObject,
-    CanMutateEnduringObject,
     EnduringObject,
     Group,
+    Initialises,
+    Mutates,
 )
 from eventsourcing.dcb.persistence import (
-    DCBEventStore,
     DCBMapper,
 )
 from eventsourcing.domain import event
@@ -32,10 +30,10 @@ from examples.coursebooking.interface import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
 
-class Decision(msgspec.Struct, CanMutateEnduringObject):
+class Decision(msgspec.Struct, Mutates):
     tags: list[str]
 
     def _as_dict(self) -> dict[str, Any]:
@@ -43,21 +41,21 @@ class Decision(msgspec.Struct, CanMutateEnduringObject):
 
 
 class MsgspecStructMapper(DCBMapper):
-    def to_dcb_event(self, event: CanMutateEnduringObject) -> DCBEvent:
+    def to_dcb_event(self, event: Mutates) -> DCBEvent:
         return DCBEvent(
             type=get_topic(type(event)),
             data=msgspec.msgpack.encode(event),
             tags=event.tags,
         )
 
-    def to_domain_event(self, event: DCBEvent) -> CanMutateEnduringObject:
+    def to_domain_event(self, event: DCBEvent) -> Mutates:
         return msgspec.msgpack.decode(
             event.data,
             type=resolve_topic(event.type),
         )
 
 
-class InitialDecision(Decision, CanInitialiseEnduringObject):
+class InitialDecision(Decision, Initialises):
     originator_topic: str
 
 
@@ -187,10 +185,7 @@ class StudentAndCourse(Group):
 
 
 class EnrolmentWithDCBRefactored(DCBApplication, EnrolmentInterface):
-    def __init__(self, env: dict[str, str]):
-        super().__init__(env=env)
-        self.events = DCBEventStore(MsgspecStructMapper(), self.recorder)
-        self.repository = DCBRepository(self.events)
+    env: Mapping[str, str] = {"MAPPER_TOPIC": get_topic(MsgspecStructMapper)}
 
     def register_student(self, name: str, max_courses: int) -> str:
         student = Student(name=name, max_courses=max_courses)
@@ -207,49 +202,47 @@ class EnrolmentWithDCBRefactored(DCBApplication, EnrolmentInterface):
         group.student_joins_course()
         self.repository.save(group)
 
-    def list_students_for_course(self, course_id: str) -> list[str]:
-        course = self.get_course(course_id)
-        cb_types = (Student.Registered, Student.NameUpdated)
-        students = self.repository.get_many(*course.student_ids, cb_types=cb_types)
-        return [cast(Student, c).name for c in students if c is not None]
-
-    def list_courses_for_student(self, student_id: str) -> list[str]:
-        student = self.get_student(student_id)
-        cb_types = (Course.Registered, Course.NameUpdated)
-        courses = self.repository.get_many(*student.course_ids, cb_types=cb_types)
-        return [cast(Course, c).name for c in courses if c is not None]
-
     def leave_course(self, student_id: str, course_id: str) -> None:
         group = self.repository.get_group(StudentAndCourse, student_id, course_id)
         group.student_leaves_course()
         self.repository.save(group)
 
-    def update_student_name(self, student_id: str, name: str) -> None:
+    def list_students_for_course(self, course_id: str) -> list[str]:
+        course = self.get_course(course_id)
+        students = self.repository.get_many(*course.student_ids)
+        return [cast(Student, c).name for c in students if c is not None]
+
+    def list_courses_for_student(self, student_id: str) -> list[str]:
         student = self.get_student(student_id)
+        courses = self.repository.get_many(*student.course_ids)
+        return [cast(Course, c).name for c in courses if c is not None]
+
+    def update_student_name(self, student_id: str, name: str) -> None:
+        cb_types = (Student.Registered, Student.NameUpdated)
+        student = self.get_student(student_id, cb_types=cb_types)
         student.update_name(name)
         self.repository.save(student)
 
     def update_student_max_courses(self, student_id: str, max_courses: int) -> None:
-        student = self.get_student(student_id)
+        cb_types = (Student.Registered, Student.MaxCoursesUpdated)
+        student = self.get_student(student_id, cb_types=cb_types)
         student.update_max_courses(max_courses)
         self.repository.save(student)
 
     def update_course_name(self, course_id: str, name: str) -> None:
-        course = self.get_course(course_id)
+        cb_types = (Course.Registered, Course.NameUpdated)
+        course = self.get_course(course_id, cb_types=cb_types)
         course.update_name(name)
         self.repository.save(course)
 
     def update_course_places(self, course_id: str, max_courses: int) -> None:
-        course = self.get_course(course_id)
+        cb_types = (Course.Registered, Course.PlacesUpdated)
+        course = self.get_course(course_id, cb_types=cb_types)
         course.update_places(max_courses)
         self.repository.save(course)
 
-    def get_student(
-        self, student_id: str, cb_types: Sequence[type[CanMutateEnduringObject]] = ()
-    ) -> Student:
-        return cast(Student, self.repository.get(student_id, cb_types=cb_types))
+    def get_student(self, oid: str, cb_types: Sequence[type[Decision]] = ()) -> Student:
+        return cast(Student, self.repository.get(oid, cb_types))
 
-    def get_course(
-        self, course_id: str, cb_types: Sequence[type[CanMutateEnduringObject]] = ()
-    ) -> Course:
-        return cast(Course, self.repository.get(course_id, cb_types=cb_types))
+    def get_course(self, oid: str, cb_types: Sequence[type[Decision]] = ()) -> Course:
+        return cast(Course, self.repository.get(oid, cb_types))

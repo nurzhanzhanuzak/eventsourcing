@@ -2,10 +2,10 @@ from typing import Any
 from unittest import TestCase
 
 from eventsourcing.dcb.domain import (
-    CanInitialiseEnduringObject,
-    CanMutateEnduringObject,
     DecoratedFuncCaller,
     EnduringObject,
+    Initialises,
+    Mutates,
 )
 from eventsourcing.domain import ProgrammingError, event
 
@@ -23,7 +23,7 @@ class TestEnduringObject(TestCase):
             def __init__(self, a: str) -> None:
                 self.a = a
 
-            class Created(CanInitialiseEnduringObject):
+            class Created(Initialises):
                 pass
 
         with self.assertRaisesRegex(
@@ -36,7 +36,7 @@ class TestEnduringObject(TestCase):
             def __init__(self) -> None:
                 pass
 
-            class Created(CanInitialiseEnduringObject):
+            class Created(Initialises):
                 def __init__(
                     self, myobj_id: str, originator_topic: str, tags: list[str], a: str
                 ) -> None:
@@ -58,7 +58,7 @@ class TestEnduringObject(TestCase):
             def __init__(self) -> None:
                 pass
 
-            class MyInitialDecision(CanInitialiseEnduringObject):
+            class MyInitialDecision(Initialises):
                 def __init__(
                     self, originator_topic: str, myobj_id: str, tags: list[str]
                 ) -> None:
@@ -69,7 +69,7 @@ class TestEnduringObject(TestCase):
                 def _as_dict(self) -> dict[str, Any]:
                     return self.__dict__
 
-            class MyDecision(CanMutateEnduringObject):
+            class MyDecision(Mutates):
                 def __init__(self, tags: list[str]) -> None:
                     self.tags = tags
 

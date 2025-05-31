@@ -24,10 +24,10 @@ from eventsourcing.utils import construct_topic, get_topic, resolve_topic
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-_enduring_object_init_classes: dict[type[Any], type[CanInitialiseEnduringObject]] = {}
+_enduring_object_init_classes: dict[type[Any], type[Initialises]] = {}
 
 
-class CanMutateEnduringObject(AbstractDCBEvent):
+class Mutates(AbstractDCBEvent):
     tags: list[str]
 
     def _as_dict(self) -> dict[str, Any]:
@@ -42,7 +42,7 @@ class CanMutateEnduringObject(AbstractDCBEvent):
         pass
 
 
-class CanInitialiseEnduringObject(CanMutateEnduringObject):
+class Initialises(Mutates):
     originator_topic: str
 
     def mutate(self, obj: EnduringObject | None) -> EnduringObject | None:
@@ -69,7 +69,7 @@ class CanInitialiseEnduringObject(CanMutateEnduringObject):
         return f"{enduring_object_class.__name__.lower()}_id"
 
 
-class DecoratedFuncCaller(CanMutateEnduringObject, AbstractDecoratedFuncCaller):
+class DecoratedFuncCaller(Mutates, AbstractDecoratedFuncCaller):
     def apply(self, obj: EnduringObject) -> None:
         """Applies event by calling method decorated by @event."""
 
@@ -107,8 +107,8 @@ class MetaPerspective(type):
 
 class Perspective(metaclass=MetaPerspective):
     last_known_position: int | None
-    cb_types: Sequence[type[CanMutateEnduringObject]] = ()
-    new_decisions: tuple[CanMutateEnduringObject, ...]
+    cb_types: Sequence[type[Mutates]] = ()
+    new_decisions: tuple[Mutates, ...]
 
     def __new__(cls, *_: Any, **__: Any) -> Self:
         perspective = super().__new__(cls)
@@ -117,7 +117,7 @@ class Perspective(metaclass=MetaPerspective):
         perspective.new_decisions = ()
         return perspective
 
-    def collect_events(self) -> Sequence[CanMutateEnduringObject]:
+    def collect_events(self) -> Sequence[Mutates]:
         collected, self.new_decisions = self.new_decisions, ()
         return collected
 
@@ -125,7 +125,7 @@ class Perspective(metaclass=MetaPerspective):
     def cb(self) -> list[Selector]:
         raise NotImplementedError  # pragma: no cover
 
-    def check_cb_types(self, decision_cls: type[CanMutateEnduringObject]) -> None:
+    def check_cb_types(self, decision_cls: type[Mutates]) -> None:
         if self.cb_types and decision_cls not in self.cb_types:
             msg = (
                 f"Decision type {decision_cls.__qualname__} "
@@ -134,7 +134,7 @@ class Perspective(metaclass=MetaPerspective):
             raise IntegrityError(msg)
 
 
-cross_cutting_event_classes: dict[str, type[CanMutateEnduringObject]] = {}
+cross_cutting_event_classes: dict[str, type[Mutates]] = {}
 cross_cutting_decorated_funcs: dict[str, dict[type, CallableType]] = {}
 
 
@@ -145,7 +145,7 @@ class MetaEnduringObject(MetaPerspective):
         super().__init__(name, bases, namespace)
         # Find and remember the "initialised" class.
         for item in cls.__dict__.values():
-            if isinstance(item, type) and issubclass(item, CanInitialiseEnduringObject):
+            if isinstance(item, type) and issubclass(item, Initialises):
                 _enduring_object_init_classes[cls] = item
                 break
 
@@ -159,7 +159,7 @@ class MetaEnduringObject(MetaPerspective):
                 event_class = value.given_event_cls
                 # Just keep things simple by only supporting given classes (not names).
                 assert event_class is not None, "Event class not given"
-                assert issubclass(event_class, CanMutateEnduringObject)
+                assert issubclass(event_class, Mutates)
                 # TODO: Maybe support event name strings, maybe not....
                 event_class_qual = event_class.__qualname__
 
@@ -198,8 +198,8 @@ class MetaEnduringObject(MetaPerspective):
                 # Keep things simple by only supporting given classes (not names).
                 # TODO: Maybe support event name strings, maybe not....
                 assert event_class is not None, "Event class not given"
-                # Make sure event decorator has a CanMutateEnduringObject class.
-                assert issubclass(event_class, CanMutateEnduringObject)
+                # Make sure event decorator has a Mutates class.
+                assert issubclass(event_class, Mutates)
 
                 # Assume this is a cross-cutting event, and we need to register
                 # multiple handler methods for the same class. Expect its mutate
@@ -265,8 +265,8 @@ class MetaEnduringObject(MetaPerspective):
         except KeyError:
             msg = (
                 f"Enduring object class {cls.__name__} has no "
-                f"CanInitialiseEnduringObject class. Please define a subclass of "
-                f"CanInitialiseEnduringObject as a nested class on {cls.__name__}."
+                f"Initialises class. Please define a subclass of "
+                f"Initialises as a nested class on {cls.__name__}."
             )
             raise ProgrammingError(msg) from None
 
@@ -284,7 +284,7 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
 
     @classmethod
     def _create(
-        cls: type[Self], decision_cls: type[CanInitialiseEnduringObject], **kwargs: Any
+        cls: type[Self], decision_cls: type[Initialises], **kwargs: Any
     ) -> Self:
         enduring_object_id = cls._create_id()
         id_attr_name = decision_cls.id_attr_name(cls)
@@ -323,7 +323,7 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
 
     def trigger_event(
         self,
-        decision_cls: type[CanMutateEnduringObject],
+        decision_cls: type[Mutates],
         *,
         tags: Sequence[str] = (),
         **kwargs: Any,
@@ -350,7 +350,7 @@ class Group(Perspective):
 
     def trigger_event(
         self,
-        decision_cls: type[CanMutateEnduringObject],
+        decision_cls: type[Mutates],
         *,
         tags: Sequence[str] = (),
         **kwargs: Any,
@@ -368,7 +368,7 @@ class Group(Perspective):
     def enduring_objects(self) -> Sequence[EnduringObject]:
         return [o for o in self.__dict__.values() if isinstance(o, EnduringObject)]
 
-    def collect_events(self) -> Sequence[CanMutateEnduringObject]:
+    def collect_events(self) -> Sequence[Mutates]:
         group_events = list(super().collect_events())
         for o in self.enduring_objects:
             group_events.extend(o.collect_events())
@@ -377,5 +377,5 @@ class Group(Perspective):
 
 @dataclass
 class Selector:
-    types: Sequence[type[CanMutateEnduringObject]] = ()
+    types: Sequence[type[Mutates]] = ()
     tags: Sequence[str] = ()
