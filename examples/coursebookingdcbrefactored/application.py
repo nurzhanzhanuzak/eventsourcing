@@ -149,15 +149,6 @@ class Course(EnduringObject[CourseID]):
 
 
 class StudentAndCourse(Group):
-    cb_types = (
-        Student.Registered,
-        Course.Registered,
-        Student.MaxCoursesUpdated,
-        Course.PlacesUpdated,
-        StudentJoinedCourse,
-        StudentLeftCourse,
-    )
-
     def __init__(
         self,
         student: Student | None,
