@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, cast
 from uuid import uuid4
 
-from typing_extensions import Self
+from typing_extensions import Self, TypeVar
 
 from eventsourcing.domain import (
     AbstractDCBEvent,
@@ -33,7 +33,7 @@ class Mutates(AbstractDCBEvent):
     def _as_dict(self) -> dict[str, Any]:
         raise NotImplementedError  # pragma: no cover
 
-    def mutate(self, obj: EnduringObject | None) -> EnduringObject | None:
+    def mutate(self, obj: EnduringObject[Any] | None) -> EnduringObject[Any] | None:
         assert obj is not None
         self.apply(obj)
         return obj
@@ -65,7 +65,7 @@ class Initialises(Mutates):
         return enduring_object
 
     @classmethod
-    def id_attr_name(cls, enduring_object_class: type[EnduringObject]) -> str:
+    def id_attr_name(cls, enduring_object_class: type[EnduringObject[Any]]) -> str:
         return f"{enduring_object_class.__name__.lower()}_id"
 
 
@@ -279,8 +279,11 @@ class MetaEnduringObject(MetaPerspective):
         )
 
 
-class EnduringObject(Perspective, metaclass=MetaEnduringObject):
-    id: str
+TID = TypeVar("TID", bound=str, default=str)
+
+
+class EnduringObject(Perspective, Generic[TID], metaclass=MetaEnduringObject):
+    id: TID
 
     @classmethod
     def _create(
@@ -311,8 +314,8 @@ class EnduringObject(Perspective, metaclass=MetaEnduringObject):
         return enduring_object
 
     @classmethod
-    def _create_id(cls) -> str:
-        return f"{cls.__name__.lower()}-{uuid4()}"
+    def _create_id(cls) -> TID:
+        return cast(TID, f"{cls.__name__.lower()}-{uuid4()}")
 
     def __post_init__(self) -> None:
         pass

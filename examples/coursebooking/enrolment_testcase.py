@@ -6,9 +6,11 @@ from unittest import TestCase, TestSuite
 from eventsourcing.tests.postgres_utils import drop_tables
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
+    CourseID,
     CourseNotFoundError,
     EnrolmentInterface,
     FullyBookedError,
+    StudentID,
     StudentNotFoundError,
     TooManyCoursesError,
 )
@@ -70,11 +72,11 @@ class EnrolmentTestCase(TestCase):
 
         # Course not found.
         with self.assertRaises(CourseNotFoundError):
-            app.join_course(grace, "not-a-course")
+            app.join_course(grace, CourseID("not-a-course"))
 
         # Student not found.
         with self.assertRaises(StudentNotFoundError):
-            app.join_course("not-a-student", dcb)
+            app.join_course(StudentID("not-a-student"), dcb)
 
         # List students for Dynamic Consistency Boundaries.
         students = app.list_students_for_course(dcb)

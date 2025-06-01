@@ -5,6 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 import msgspec
+from typing_extensions import TypeVar
 
 from eventsourcing.domain import (
     BaseAggregate,
@@ -14,7 +15,9 @@ from eventsourcing.domain import (
 )
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
+    CourseID,
     FullyBookedError,
+    StudentID,
     TooManyCoursesError,
 )
 
@@ -34,7 +37,10 @@ class MsgspecStringIDCreatedEvent(DomainEvent, CanInitAggregate[str], frozen=Tru
     originator_topic: str
 
 
-class MsgspecStringIDAggregate(BaseAggregate[str]):
+TID = TypeVar("TID", bound=str, default=str)
+
+
+class MsgspecStringIDAggregate(BaseAggregate[TID]):
     class Event(MsgspecStringIDEvent, frozen=True):
         pass
 
@@ -42,14 +48,14 @@ class MsgspecStringIDAggregate(BaseAggregate[str]):
         pass
 
 
-class Aggregate(MsgspecStringIDAggregate):
+class Aggregate(MsgspecStringIDAggregate[TID]):
     pass
 
 
-class Student(Aggregate):
+class Student(Aggregate[StudentID]):
     @staticmethod
-    def create_id() -> str:
-        return "student-" + str(uuid4())
+    def create_id() -> StudentID:
+        return StudentID("student-" + str(uuid4()))
 
     def __init__(self, name: str, max_courses: int) -> None:
         self.name = name
@@ -63,10 +69,10 @@ class Student(Aggregate):
         self.course_ids.append(course_id)
 
 
-class Course(Aggregate):
+class Course(Aggregate[CourseID]):
     @staticmethod
-    def create_id() -> str:
-        return "course-" + str(uuid4())
+    def create_id() -> CourseID:
+        return CourseID("course-" + str(uuid4()))
 
     def __init__(self, name: str, places: int) -> None:
         self.name = name

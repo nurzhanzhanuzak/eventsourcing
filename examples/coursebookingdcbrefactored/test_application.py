@@ -49,7 +49,7 @@ class TestEnrolmentWithDCBRefactored(EnrolmentTestCase):
         self.assertEqual("Maxine", student.name)
 
         # Update max_courses.
-        app.update_student_max_courses(student_id, 10)
+        app.update_max_courses(student_id, 10)
         student = app.get_student(student_id)
         self.assertEqual(10, student.max_courses)
 
@@ -63,6 +63,7 @@ class TestEnrolmentWithDCBRefactored(EnrolmentTestCase):
         # Update name.
         app.update_course_name(course_id, "Biology")
         course = app.get_course(course_id)
+        self.assertEqual("Biology", course.name)
 
         # Update places.
         app.update_course_places(course_id, 10)
@@ -109,20 +110,20 @@ class TestEnrolmentWithDCBRefactored(EnrolmentTestCase):
         # Check changing max courses does conflict.
         group = app.repository.get_group(StudentAndCourse, student_id, course_id)
         group.student_leaves_course()
-        app.update_student_max_courses(student_id, 1)
+        app.update_max_courses(student_id, 1)
         with self.assertRaises(IntegrityError):
             app.repository.save(group)
 
         # Can get limited perspective on an enduring object.
         student_name = app.get_student(
-            student_id, cb_types=[Student.Registered, Student.NameUpdated]
+            student_id, types=[Student.Registered, Student.NameUpdated]
         )
         self.assertEqual(student_name.name, "Bob")
         self.assertEqual(student_name.max_courses, 4)  # Was changed to 1.
 
         # Can get limited perspective on an enduring object.
         student_max_courses = app.get_student(
-            student_id, cb_types=[Student.Registered, Student.MaxCoursesUpdated]
+            student_id, types=[Student.Registered, Student.MaxCoursesUpdated]
         )
         self.assertEqual(student_max_courses.name, "Max")  # Was changed to Maxine.
         self.assertEqual(student_max_courses.max_courses, 1)

@@ -7,8 +7,10 @@ from eventsourcing.utils import get_topic
 from examples.aggregate9.msgspecstructs import MsgspecMapper
 from examples.coursebooking.domainmodel import Course, Student
 from examples.coursebooking.interface import (
+    CourseID,
     CourseNotFoundError,
     EnrolmentInterface,
+    StudentID,
     StudentNotFoundError,
 )
 
@@ -19,12 +21,12 @@ class EnrolmentWithAggregates(Application[str], EnrolmentInterface):
         "ORIGINATOR_ID_TYPE": "text",
     }
 
-    def register_student(self, name: str, max_courses: int) -> str:
+    def register_student(self, name: str, max_courses: int) -> StudentID:
         student = Student(name, max_courses=max_courses)
         self.save(student)
         return student.id
 
-    def register_course(self, name: str, places: int) -> str:
+    def register_course(self, name: str, places: int) -> CourseID:
         course = Course(name, places=places)
         self.save(course)
         return course.id

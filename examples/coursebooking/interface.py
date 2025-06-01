@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, NewType
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -18,19 +18,24 @@ class EnrolmentInterface(ABC):
         return None  # pragma: no cover
 
     @abstractmethod
-    def register_student(self, name: str, max_courses: int) -> str: ...
+    def register_student(self, name: str, max_courses: int) -> StudentID: ...
 
     @abstractmethod
-    def register_course(self, name: str, places: int) -> str: ...
+    def register_course(self, name: str, places: int) -> CourseID: ...
 
     @abstractmethod
-    def join_course(self, student_id: str, course_id: str) -> None: ...
+    def join_course(self, student_id: StudentID, course_id: CourseID) -> None: ...
 
     @abstractmethod
-    def list_students_for_course(self, course_id: str) -> list[str]: ...
+    def list_students_for_course(self, course_id: CourseID) -> list[str]: ...
 
     @abstractmethod
-    def list_courses_for_student(self, student_id: str) -> list[str]: ...
+    def list_courses_for_student(self, student_id: StudentID) -> list[str]: ...
+
+
+StudentID = NewType("StudentID", str)
+
+CourseID = NewType("CourseID", str)
 
 
 class TooManyCoursesError(Exception):
@@ -45,13 +50,13 @@ class AlreadyJoinedError(Exception):
     pass
 
 
-class NotAlreadyJoinedError(Exception):
-    pass
-
-
 class StudentNotFoundError(Exception):
     pass
 
 
 class CourseNotFoundError(Exception):
+    pass
+
+
+class NotAlreadyJoinedError(Exception):
     pass

@@ -126,24 +126,14 @@ students with courses, for listing students for a course, and for listing course
 for a student
 
 .. literalinclude:: ../../../examples/coursebooking/interface.py
-    :pyobject: EnrolmentInterface
+    :start-at: EnrolmentInterface
+    :end-before: TooManyCoursesError
 
 Exception classes used in the test case are also defined separately.
 
 .. literalinclude:: ../../../examples/coursebooking/interface.py
-    :pyobject: TooManyCoursesError
-
-.. literalinclude:: ../../../examples/coursebooking/interface.py
-    :pyobject: FullyBookedError
-
-.. literalinclude:: ../../../examples/coursebooking/interface.py
-    :pyobject: AlreadyJoinedError
-
-.. literalinclude:: ../../../examples/coursebooking/interface.py
-    :pyobject: StudentNotFoundError
-
-.. literalinclude:: ../../../examples/coursebooking/interface.py
-    :pyobject: CourseNotFoundError
+    :start-at: TooManyCoursesError
+    :end-before: NotAlreadyJoinedError
 
 
 Event-sourced aggregates
@@ -157,10 +147,10 @@ in :doc:`example 11  </topics/examples/aggregate11>`.
 
 
 .. literalinclude:: ../../../examples/coursebooking/domainmodel.py
-    :pyobject: Course
+    :pyobject: Student
 
 .. literalinclude:: ../../../examples/coursebooking/domainmodel.py
-    :pyobject: Student
+    :pyobject: Course
 
 
 Enrolment with aggregates

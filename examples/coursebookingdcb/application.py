@@ -8,17 +8,19 @@ from eventsourcing.dcb.api import DCBAppendCondition, DCBEvent, DCBQuery, DCBQue
 from eventsourcing.dcb.application import DCBApplication
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
+    CourseID,
     CourseNotFoundError,
     EnrolmentInterface,
     FullyBookedError,
+    StudentID,
     StudentNotFoundError,
     TooManyCoursesError,
 )
 
 
 class EnrolmentWithDCB(DCBApplication, EnrolmentInterface):
-    def register_student(self, name: str, max_courses: int) -> str:
-        student_id = f"student-{uuid4()}"
+    def register_student(self, name: str, max_courses: int) -> StudentID:
+        student_id = StudentID(f"student-{uuid4()}")
         consistency_boundary = DCBQuery(
             items=[DCBQueryItem(tags=[student_id])],
         )
@@ -35,8 +37,8 @@ class EnrolmentWithDCB(DCBApplication, EnrolmentInterface):
         )
         return student_id
 
-    def register_course(self, name: str, places: int) -> str:
-        course_id = f"course-{uuid4()}"
+    def register_course(self, name: str, places: int) -> CourseID:
+        course_id = CourseID(f"course-{uuid4()}")
         course_registered = DCBEvent(
             type="CourseRegistered",
             data=json.dumps({"name": name, "places": places}).encode(),
@@ -53,7 +55,7 @@ class EnrolmentWithDCB(DCBApplication, EnrolmentInterface):
         )
         return course_id
 
-    def join_course(self, student_id: str, course_id: str) -> None:
+    def join_course(self, student_id: StudentID, course_id: CourseID) -> None:
         # Decide the consistency boundary.
         consistency_boundary = DCBQuery(
             items=[
@@ -121,7 +123,7 @@ class EnrolmentWithDCB(DCBApplication, EnrolmentInterface):
             ),
         )
 
-    def list_students_for_course(self, course_id: str) -> list[str]:
+    def list_students_for_course(self, course_id: CourseID) -> list[str]:
         # Get events relevant for a list of course student IDs.
         course_students_consistency_boundary = DCBQuery(
             items=[
@@ -161,7 +163,7 @@ class EnrolmentWithDCB(DCBApplication, EnrolmentInterface):
         # Return the names.
         return list(student_names.values())
 
-    def list_courses_for_student(self, student_id: str) -> list[str]:
+    def list_courses_for_student(self, student_id: StudentID) -> list[str]:
         # Get events relevant for a list of course student IDs.
         student_courses_consistency_boundary = DCBQuery(
             items=[
