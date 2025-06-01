@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, NewType
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from typing_extensions import Self
 
 
@@ -14,7 +16,12 @@ class EnrolmentInterface(ABC):
     def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *args: object, **kwargs: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         return None  # pragma: no cover
 
     @abstractmethod

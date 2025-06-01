@@ -879,6 +879,7 @@ class Application(Generic[TAggregateID]):
         self.factory.close()
 
     def __enter__(self) -> Self:
+        self.factory.__enter__()
         return self
 
     def __exit__(self, *args: object, **kwargs: Any) -> None:

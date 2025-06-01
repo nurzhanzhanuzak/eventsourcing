@@ -20,6 +20,7 @@ from eventsourcing.utils import Environment, EnvType, resolve_topic
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from types import TracebackType
 
     from typing_extensions import Self
 
@@ -50,10 +51,16 @@ class DCBApplication:
         return Environment(name, _env)
 
     def __enter__(self) -> Self:
+        self.factory.__enter__()
         return self
 
-    def __exit__(self, *args: object, **kwargs: Any) -> None:
-        self.factory.close()
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.factory.__exit__(exc_type, exc_val, exc_tb)
 
 
 class DCBRepository:

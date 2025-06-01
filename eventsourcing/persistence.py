@@ -12,7 +12,7 @@ from functools import lru_cache
 from queue import Queue
 from threading import Condition, Event, Lock, Semaphore, Thread, Timer
 from time import monotonic, sleep, time
-from types import GenericAlias, ModuleType
+from types import GenericAlias, ModuleType, TracebackType
 from typing import Any, Callable, Generic, Union, cast
 from uuid import UUID
 
@@ -854,6 +854,17 @@ class InfrastructureFactory(ABC, Generic[TTrackingRecorder]):
         Snapshotting is not enabled by default.
         """
         return strtobool(self.env.get(self.IS_SNAPSHOTTING_ENABLED, "no"))
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        pass
 
     def close(self) -> None:
         """Closes any database connections, and anything else that needs closing."""

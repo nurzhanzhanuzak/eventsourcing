@@ -43,6 +43,7 @@ from eventsourcing.utils import Environment, EnvType, resolve_topic, retry, strt
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
+    from types import TracebackType
     from uuid import UUID
 
     from psycopg.abc import Query
@@ -241,10 +242,16 @@ class PostgresDatastore:
             self.pool.close()
 
     def __enter__(self) -> Self:
+        self.pool.__enter__()
         return self
 
-    def __exit__(self, *args: object, **kwargs: Any) -> None:
-        self.close()
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.pool.__exit__(exc_type, exc_val, exc_tb)
 
     def __del__(self) -> None:
         self.close()
@@ -1360,6 +1367,18 @@ class PostgresFactory(InfrastructureFactory[PostgresTrackingRecorder]):
         if self.env_create_table():
             recorder.create_table()
         return recorder
+
+    def __enter__(self) -> Self:
+        self.datastore.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.datastore.__exit__(exc_type, exc_val, exc_tb)
 
     def close(self) -> None:
         with contextlib.suppress(AttributeError):
