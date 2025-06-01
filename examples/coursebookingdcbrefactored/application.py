@@ -221,26 +221,22 @@ class EnrolmentWithDCBRefactored(DCBApplication, EnrolmentInterface):
         return [cast(Course, c).name for c in courses if c is not None]
 
     def update_student_name(self, student_id: StudentID, name: str) -> None:
-        student = self.get_student(
-            student_id, (Student.Registered, Student.NameUpdated)
-        )
+        student = self.get_student(student_id)
         student.update_name(name)
         self.repository.save(student)
 
     def update_max_courses(self, student_id: StudentID, max_courses: int) -> None:
-        student = self.get_student(
-            student_id, (Student.Registered, Student.MaxCoursesUpdated)
-        )
+        student = self.get_student(student_id)
         student.update_max_courses(max_courses)
         self.repository.save(student)
 
     def update_course_name(self, course_id: CourseID, name: str) -> None:
-        course = self.get_course(course_id, (Course.Registered, Course.NameUpdated))
+        course = self.get_course(course_id)
         course.update_name(name)
         self.repository.save(course)
 
-    def update_course_places(self, course_id: CourseID, max_courses: int) -> None:
-        course = self.get_course(course_id, (Course.Registered, Course.PlacesUpdated))
+    def update_places(self, course_id: CourseID, max_courses: int) -> None:
+        course = self.get_course(course_id)
         course.update_places(max_courses)
         self.repository.save(course)
 
