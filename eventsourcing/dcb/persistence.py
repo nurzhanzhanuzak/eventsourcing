@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal, TypeVar, overload
+from typing import TYPE_CHECKING, Literal, overload
 
 from eventsourcing.dcb.api import (
     DCBAppendCondition,
@@ -11,7 +11,6 @@ from eventsourcing.dcb.api import (
     DCBRecorder,
 )
 from eventsourcing.dcb.domain import (
-    Group,
     Mutates,
     Selector,
 )
@@ -20,8 +19,6 @@ from eventsourcing.utils import get_topic
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-TGroup = TypeVar("TGroup", bound=Group)
 
 
 class DCBMapper(ABC):

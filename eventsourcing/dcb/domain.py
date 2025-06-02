@@ -11,12 +11,10 @@ from eventsourcing.domain import (
     AbstractDCBEvent,
     AbstractDecoratedFuncCaller,
     CallableType,
-    CommandMethodDecorator,
     ProgrammingError,
+    all_func_decorators,
     decorated_func_callers,
-    decorated_funcs,
     filter_kwargs_for_method_params,
-    underscore_method_decorators,
 )
 from eventsourcing.persistence import IntegrityError
 from eventsourcing.utils import construct_topic, get_topic, resolve_topic
@@ -33,7 +31,7 @@ class Mutates(AbstractDCBEvent):
     def _as_dict(self) -> dict[str, Any]:
         raise NotImplementedError  # pragma: no cover
 
-    def mutate(self, obj: EnduringObject[Any] | None) -> EnduringObject[Any] | None:
+    def mutate(self, obj: TPerspective | None) -> TPerspective | None:
         assert obj is not None
         self.apply(obj)
         return obj
@@ -45,7 +43,7 @@ class Mutates(AbstractDCBEvent):
 class Initialises(Mutates):
     originator_topic: str
 
-    def mutate(self, obj: EnduringObject | None) -> EnduringObject | None:
+    def mutate(self, obj: TPerspective | None) -> TPerspective | None:
         kwargs = self._as_dict()
         originator_topic = resolve_topic(kwargs.pop("originator_topic"))
         enduring_object_cls = cast(type[EnduringObject], originator_topic)
@@ -70,21 +68,14 @@ class Initialises(Mutates):
 
 
 class DecoratedFuncCaller(Mutates, AbstractDecoratedFuncCaller):
-    def apply(self, obj: EnduringObject) -> None:
+    def apply(self, obj: Perspective) -> None:
         """Applies event by calling method decorated by @event."""
-
-        event_class_topic = construct_topic(type(self))
 
         # Identify the function that was decorated.
         try:
-            # Either an "underscore" non-command method.
-            decorated_func_collection = cross_cutting_decorated_funcs[event_class_topic]
-            assert type(obj) in decorated_func_collection
-            decorated_func = decorated_func_collection[type(obj)]
-
+            decorated_func = cross_cutting_decorated_funcs[(type(obj), type(self))]
         except KeyError:
-            # Or a normal command method.
-            decorated_func = decorated_funcs[type(self)]
+            return
 
         # Select event attributes mentioned in function signature.
         self_dict = self._as_dict()
@@ -92,7 +83,15 @@ class DecoratedFuncCaller(Mutates, AbstractDecoratedFuncCaller):
 
         # Call the original method with event attribute values.
         decorated_method = decorated_func.__get__(obj, type(obj))
-        decorated_method(**kwargs)
+        try:
+            decorated_method(**kwargs)
+        except TypeError as e:  # pragma: no cover
+            # TODO: Write a test that does this...
+            msg = (
+                f"Failed to apply {type(self).__qualname__} to "
+                f"{type(obj).__qualname__} with kwargs {kwargs}: {e}"
+            )
+            raise TypeError(msg) from e
 
         # Call super method, just in case.
         super().apply(obj)
@@ -117,6 +116,9 @@ class Perspective(metaclass=MetaPerspective):
         perspective.new_decisions = ()
         return perspective
 
+    def append(self, *events: Mutates) -> None:
+        self.new_decisions += (*events,)
+
     def collect_events(self) -> Sequence[Mutates]:
         collected, self.new_decisions = self.new_decisions, ()
         return collected
@@ -134,8 +136,13 @@ class Perspective(metaclass=MetaPerspective):
             raise IntegrityError(msg)
 
 
-cross_cutting_event_classes: dict[str, type[Mutates]] = {}
-cross_cutting_decorated_funcs: dict[str, dict[type, CallableType]] = {}
+TPerspective = TypeVar("TPerspective", bound=Perspective)
+
+
+given_event_subclasses: dict[type[Mutates], type[DecoratedFuncCaller]] = {}
+cross_cutting_decorated_funcs: dict[
+    tuple[MetaPerspective, type[Mutates]], CallableType
+] = {}
 
 
 class MetaEnduringObject(MetaPerspective):
@@ -149,108 +156,214 @@ class MetaEnduringObject(MetaPerspective):
                 _enduring_object_init_classes[cls] = item
                 break
 
-        # Process the event decorators.
-        for attr, value in namespace.items():
-            if isinstance(value, CommandMethodDecorator):
-                if attr == "_":
-                    # Deal with cross-cutting events later.
-                    continue
+        # Find the event decorators.
+        topic_prefix = construct_topic(cls) + "."
 
-                event_class = value.given_event_cls
-                # Just keep things simple by only supporting given classes (not names).
-                assert event_class is not None, "Event class not given"
-                assert issubclass(event_class, Mutates)
-                # TODO: Maybe support event name strings, maybe not....
-                event_class_qual = event_class.__qualname__
+        for decorator in all_func_decorators:
+            func_topic = construct_topic(decorator.decorated_func)
+            if not func_topic.startswith(topic_prefix):
+                # Only deal with decorators on this slice.
+                continue
 
-                # Keep things simple by only supporting nested classes.
-                assert event_class_qual.startswith(cls.__qualname__ + ".")
-                assert cls.__dict__[event_class.__name__] is event_class
+            given_event_class = decorator.given_event_cls
+            # Keep things simple by only supporting given classes (not names).
+            # TODO: Maybe support event name strings, maybe not....
+            assert given_event_class is not None, "Event class not given"
+            # Make sure event decorator has a Mutates class.
+            assert issubclass(given_event_class, Mutates)
 
-                # Subclass given class to make a "decorator class".
+            # Assume this is a cross-cutting event, and we need to register
+            # multiple handler methods for the same class. Expect its mutate
+            # method will be called once for each enduring object tagged in
+            # its instances. The decorator event can then select which
+            # method body to call, according to the type of the 'obj' argument
+            # of its apply() method. This means we do need to subclass the given
+            # event class, but only once.
+            if given_event_class in given_event_subclasses:  # pragma: no cover
+                # TODO: We never get here...
+                # Decorator is seeing an original event class.
+                assert not issubclass(given_event_class, DecoratedFuncCaller)
+                event_subclass = given_event_subclasses[given_event_class]
+            elif issubclass(given_event_class, DecoratedFuncCaller):
+                # Decorator is already seeing a subclass of an original class.
+                assert given_event_class in given_event_subclasses.values()
+                event_subclass = given_event_class
+            else:
+                # Subclass the original event class once only.
+                event_class_topic = construct_topic(given_event_class)
+
+                event_class_globalns = getattr(
+                    sys.modules.get(given_event_class.__module__, None),
+                    "__dict__",
+                    {},
+                )
+
+                if event_class_topic.startswith(topic_prefix):
+                    # Looks like a nested event on this class.
+                    assert given_event_class.__name__ in cls.__dict__
+                    assert cls.__dict__[given_event_class.__name__] is given_event_class
+                elif "." not in given_event_class.__qualname__:
+                    # Looks like a module-level event class.
+                    # Get the global namespace for the event class.
+                    # Check the given event class is in the globalns.
+                    assert given_event_class.__name__ in event_class_globalns
+                    assert (
+                        event_class_globalns[given_event_class.__name__]
+                        is given_event_class
+                    )
+                else:  # pragma: no cover
+                    # TODO: Write a test that does this....
+                    msg = f"Decorating {cls} with {given_event_class} is not supported"
+                    raise ProgrammingError(msg)
+                # Define a subclass of the given event class.
                 event_subclass_dict = {
                     "__module__": cls.__module__,
-                    "__qualname__": event_class_qual,
+                    "__qualname__": given_event_class.__qualname__,
                 }
-
-                subclass_name = event_class.__name__
+                subclass_name = given_event_class.__name__
                 event_subclass = cast(
                     type[DecoratedFuncCaller],
                     type(
                         subclass_name,
-                        (DecoratedFuncCaller, event_class),
+                        (DecoratedFuncCaller, given_event_class),
                         event_subclass_dict,
                     ),
                 )
-                # Update the enduring object class dict.
-                setattr(cls, event_class.__name__, event_subclass)
-                # Remember which event class to trigger when method is called.
-                decorated_func_callers[value] = event_subclass
-                # Remember which method body to execute when event is applied.
-                decorated_funcs[event_subclass] = value.decorated_func
 
-        # Deal with cross-cutting events.
-        enduring_object_class_topic = construct_topic(cls)
-        for topic, decorator in underscore_method_decorators:
-            if topic.startswith(enduring_object_class_topic):
+                # Replace the given event class in its namespace.
+                if event_class_topic.startswith(topic_prefix):
+                    setattr(cls, subclass_name, event_subclass)
+                else:
+                    event_class_globalns[subclass_name] = event_subclass
 
-                event_class = decorator.given_event_cls
-                # Keep things simple by only supporting given classes (not names).
-                # TODO: Maybe support event name strings, maybe not....
-                assert event_class is not None, "Event class not given"
-                # Make sure event decorator has a Mutates class.
-                assert issubclass(event_class, Mutates)
+                # Remember which subclass for given event class.
+                given_event_subclasses[given_event_class] = event_subclass
 
-                # Assume this is a cross-cutting event, and we need to register
-                # multiple handler methods for the same class. Expect its mutate
-                # method will be called once for each enduring object tagged in
-                # its instances. The decorator event can then select which
-                # method body to call, according to the 'obj' argument of its
-                # apply() method. This means we do need to subclass the given
-                # event once only.
-                event_class_topic = construct_topic(event_class)
-                if event_class_topic not in cross_cutting_event_classes:
-                    # Subclass the cross-cutting event class once only.
-                    #  - keep things simple by only supporting non-nested classes
-                    event_class_qual = event_class.__qualname__
-                    assert (
-                        "." not in event_class_qual
-                    ), "Nested cross-cutting classes aren't supported"
-                    # Get the global namespace for the event class.
-                    event_class_globalns = getattr(
-                        sys.modules.get(event_class.__module__, None),
-                        "__dict__",
-                        {},
-                    )
-                    assert event_class_qual in event_class_globalns
-                    event_subclass_dict = {
-                        "__module__": cls.__module__,
-                        "__qualname__": event_class_qual,
-                    }
-                    subclass_name = event_class.__name__
-                    event_subclass = cast(
-                        type[DecoratedFuncCaller],
-                        type(
-                            subclass_name,
-                            (DecoratedFuncCaller, event_class),
-                            event_subclass_dict,
-                        ),
-                    )
-                    cross_cutting_event_classes[event_class_topic] = event_subclass
-                    event_class_globalns[event_class_qual] = event_subclass
+            # Register decorated func for (event class, enduring object class) tuple.
+            cross_cutting_decorated_funcs[(cls, event_subclass)] = (
+                decorator.decorated_func
+            )
 
-                # Register decorated func for event class / enduring object class.
-                try:
-                    decorated_func_collection = cross_cutting_decorated_funcs[
-                        event_class_topic
-                    ]
-                except KeyError:
-                    decorated_func_collection = {}
-                    cross_cutting_decorated_funcs[event_class_topic] = (
-                        decorated_func_collection
-                    )
+            # Maybe remember which event class to trigger when method is called.
+            if not func_topic.endswith("._"):
+                decorated_func_callers[decorator] = event_subclass
 
-                decorated_func_collection[cls] = decorator.decorated_func
+        #
+        # # Find the event decorators.
+        # event_decorators: list[tuple[str, CommandMethodDecorator]] = []
+        # for attr, value in namespace.items():
+        #     if isinstance(value, CommandMethodDecorator):
+        #         event_decorators.append((attr, value))
+        #
+        # # Process the event decorators.
+        # for attr, event_decorator in event_decorators:
+        #     if attr == "_":
+        #         # Deal with cross-cutting events later.
+        #         continue
+        #
+        #     given_event_class = event_decorator.given_event_cls
+        #     # Just keep things simple by only supporting given classes (not names).
+        #     assert given_event_class is not None, "Event class not given"
+        #     assert issubclass(given_event_class, Mutates)
+        #     # TODO: Maybe support event name strings, maybe not....
+        #     event_class_qual = given_event_class.__qualname__
+        #
+        #     # Keep things simple by only supporting nested classes.
+        #     assert event_class_qual.startswith(cls.__qualname__ + ".")
+        #     assert cls.__dict__[given_event_class.__name__] is given_event_class
+        #
+        #     # Subclass given class to make a "decorator class".
+        #     event_subclass_dict = {
+        #         "__module__": cls.__module__,
+        #         "__qualname__": event_class_qual,
+        #     }
+        #
+        #     subclass_name = given_event_class.__name__
+        #     event_subclass = cast(
+        #         type[DecoratedFuncCaller],
+        #         type(
+        #             subclass_name,
+        #             (DecoratedFuncCaller, given_event_class),
+        #             event_subclass_dict,
+        #         ),
+        #     )
+        #     # Update the enduring object class dict.
+        #     setattr(cls, given_event_class.__name__, event_subclass)
+        #     # Remember which event class to trigger when method is called.
+        #     decorated_func_callers[event_decorator] = event_subclass
+        #     # Remember which method body to execute when event is applied.
+        #     assert (cls, event_subclass) not in cross_cutting_decorated_funcs
+        #     cross_cutting_decorated_funcs[(cls, event_subclass)] = (
+        #         event_decorator.decorated_func
+        #     )
+        #
+        # # Deal with cross-cutting events.
+        # slice_topic = construct_topic(cls)
+        # expected_func_prefix = slice_topic + "."
+        #
+        # for decorator in all_func_decorators:
+        #     func_topic = construct_topic(decorator.decorated_func)
+        #     if not func_topic.startswith(expected_func_prefix):
+        #         # Only deal with decorators on this enduring object class.
+        #         continue
+        #
+        #
+        #     given_event_class = decorator.given_event_cls
+        #     # Keep things simple by only supporting given classes (not names).
+        #     # TODO: Maybe support event name strings, maybe not....
+        #     assert given_event_class is not None, "Event class not given"
+        #     # Make sure event decorator has a Mutates class.
+        #     assert issubclass(given_event_class, Mutates)
+        #
+        #     # Assume this is a cross-cutting event, and we need to register
+        #     # multiple handler methods for the same class. Expect its mutate
+        #     # method will be called once for each enduring object tagged in
+        #     # its instances. The decorator event can then select which
+        #     # method body to call, according to the type of the 'obj' argument
+        #     # of its apply() method. This means we do need to subclass the given
+        #     # event class, but only once.
+        #     if given_event_class in given_event_subclasses:
+        #         event_subclass = given_event_subclasses[given_event_class]
+        #     else:
+        #         # Subclass the cross-cutting event class once only.
+        #         #  - keep things simple by only supporting non-nested classes
+        #         event_class_qual = given_event_class.__qualname__
+        #         assert (
+        #             "." not in event_class_qual
+        #         ), "Nested cross-cutting classes aren't supported"
+        #         # Get the global namespace for the event class.
+        #         event_class_globalns = getattr(
+        #             sys.modules.get(given_event_class.__module__, None),
+        #             "__dict__",
+        #             {},
+        #         )
+        #         # Check the given event class is in the globalns.
+        #         assert event_class_qual in event_class_globalns
+        #         assert event_class_globalns[event_class_qual] is given_event_class
+        #         # Define a subclass of the given event class.
+        #         event_subclass_dict = {
+        #             "__module__": cls.__module__,
+        #             "__qualname__": event_class_qual,
+        #         }
+        #         subclass_name = given_event_class.__name__
+        #         event_subclass = cast(
+        #             type[DecoratedFuncCaller],
+        #             type(
+        #                 subclass_name,
+        #                 (DecoratedFuncCaller, given_event_class),
+        #                 event_subclass_dict,
+        #             ),
+        #         )
+        #         # Replace the given event class in its namespace.
+        #         event_class_globalns[event_class_qual] = event_subclass
+        #
+        #         # Remember which subclass for given event class.
+        #         given_event_subclasses[given_event_class] = event_subclass
+        #
+        #     # Register decorated func for event class / enduring object class.
+        #     cross_cutting_decorated_funcs[(cls, event_subclass)] = (
+        #         decorator.decorated_func
+        #     )
 
     def __call__(cls: type[T], **kwargs: Any) -> T:
         # TODO: For convenience, make this error out in the same way
@@ -382,3 +495,93 @@ class Group(Perspective):
 class Selector:
     types: Sequence[type[Mutates]] = ()
     tags: Sequence[str] = ()
+
+
+class MetaSlice(MetaPerspective):
+    def __init__(
+        cls, name: str, bases: tuple[type, ...], namespace: dict[str, Any]
+    ) -> None:
+        super().__init__(name, bases, namespace)
+
+        # Find the event decorators.
+        slice_topic = construct_topic(cls)
+        expected_func_prefix = slice_topic + "."
+
+        for decorator in all_func_decorators:
+            func_topic = construct_topic(decorator.decorated_func)
+            if not func_topic.startswith(expected_func_prefix):
+                # Only deal with decorators on this slice.
+                continue
+
+            given_event_class = decorator.given_event_cls
+            # Keep things simple by only supporting given classes (not names).
+            # TODO: Maybe support event name strings, maybe not....
+            assert given_event_class is not None, "Event class not given"
+            # Make sure event decorator has a Mutates class.
+            assert issubclass(given_event_class, Mutates)
+
+            # Assume this is a cross-cutting event, and we need to register
+            # multiple handler methods for the same class. Expect its mutate
+            # method will be called once for each enduring object tagged in
+            # its instances. The decorator event can then select which
+            # method body to call, according to the type of the 'obj' argument
+            # of its apply() method. This means we do need to subclass the given
+            # event class, but only once.
+            if given_event_class in given_event_subclasses:  # pragma: no cover
+                # Decorator is seeing an original event class.
+                # --- apparently we never get here.
+                assert not issubclass(given_event_class, DecoratedFuncCaller)
+                event_subclass = given_event_subclasses[given_event_class]
+            elif issubclass(given_event_class, DecoratedFuncCaller):
+                # Decorator is already seeing a subclass of an original class.
+                assert given_event_class in given_event_subclasses.values()
+                event_subclass = given_event_class
+            else:
+                # Subclass the cross-cutting event class once only.
+                #  - keep things simple by only supporting non-nested classes
+                event_class_qual = given_event_class.__qualname__
+                assert (
+                    "." not in event_class_qual
+                ), "Nested cross-cutting classes aren't supported"
+                # Get the global namespace for the event class.
+                event_class_globalns = getattr(
+                    sys.modules.get(given_event_class.__module__, None),
+                    "__dict__",
+                    {},
+                )
+                # Check the given event class is in the globalns.
+                assert event_class_qual in event_class_globalns
+                assert event_class_globalns[event_class_qual] is given_event_class
+                # Define a subclass of the given event class.
+                event_subclass_dict = {
+                    "__module__": cls.__module__,
+                    "__qualname__": event_class_qual,
+                }
+                subclass_name = given_event_class.__name__
+                event_subclass = cast(
+                    type[DecoratedFuncCaller],
+                    type(
+                        subclass_name,
+                        (DecoratedFuncCaller, given_event_class),
+                        event_subclass_dict,
+                    ),
+                )
+                # Replace the given event class in its namespace.
+                event_class_globalns[event_class_qual] = event_subclass
+
+                # Remember which subclass for given event class.
+                given_event_subclasses[given_event_class] = event_subclass
+
+            # Register decorated func for event class / enduring object class.
+            cross_cutting_decorated_funcs[(cls, event_subclass)] = (
+                decorator.decorated_func
+            )
+
+
+class Slice(Perspective, metaclass=MetaSlice):
+    def execute(self) -> None:
+        pass
+
+
+TSlice = TypeVar("TSlice", bound=Slice)
+TGroup = TypeVar("TGroup", bound=Group)

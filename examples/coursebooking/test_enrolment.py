@@ -23,7 +23,7 @@ class EnrolmentTestCase(TestCase):
     def construct_app(self) -> EnrolmentInterface:
         raise NotImplementedError
 
-    def test_enrolment(self) -> None:
+    def check_enrolment(self) -> None:
         # Construct and enter application object.
         with self.construct_app() as app:
 
@@ -101,7 +101,7 @@ class EnrolmentTestCase(TestCase):
         self.env["POSTGRES_USER"] = "eventsourcing"
         self.env["POSTGRES_PASSWORD"] = "eventsourcing"  # noqa: S105
         try:
-            self.test_enrolment()
+            self.check_enrolment()
         finally:
             drop_tables()
 

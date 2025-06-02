@@ -7,7 +7,7 @@ from eventsourcing.persistence import IntegrityError
 from examples.coursebooking.application import (
     EnrolmentWithAggregates,
 )
-from examples.coursebooking.enrolment_testcase import EnrolmentTestCase
+from examples.coursebooking.test_enrolment import EnrolmentTestCase
 
 if TYPE_CHECKING:
     from examples.coursebooking.interface import EnrolmentInterface
@@ -23,7 +23,7 @@ class TestEnrolmentWithAggregates(EnrolmentTestCase):
 
 
 class TestEnrolmentConsistency(TestEnrolmentWithAggregates):
-    def test_enrolment(self) -> None:
+    def check_enrolment(self) -> None:
         # Construct application object.
         app = self.construct_app()
 

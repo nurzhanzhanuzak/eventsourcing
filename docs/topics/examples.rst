@@ -79,3 +79,4 @@ Dynamic consistency boundaries
    examples/coursebooking
    examples/coursebooking-dcb
    examples/coursebooking-dcb-refactored
+   examples/coursebooking-dcb-slices

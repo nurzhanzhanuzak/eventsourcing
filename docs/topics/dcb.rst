@@ -54,3 +54,10 @@ Code reference
     :members:
     :undoc-members:
     :special-members: __init__
+
+.. automodule:: eventsourcing.dcb.msgspecstruct
+    :show-inheritance:
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members: __init__

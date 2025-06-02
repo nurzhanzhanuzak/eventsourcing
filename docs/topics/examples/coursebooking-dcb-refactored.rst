@@ -20,6 +20,7 @@ that forms a decision model with which a new event can be generated.
 
 Of course, this is just one possible "higher level" style for coding a DCB application.
 
+
 Application
 -----------
 
@@ -123,39 +124,12 @@ enduring object any "decision" events of the type mentioned in the decorator.
 .. literalinclude:: ../../../eventsourcing/dcb/domain.py
     :pyobject: DecoratedFuncCaller
 
-The class :class:`~examples.coursebookingdcbrefactored.application.Decision` extends
-:class:`~eventsourcing.dcb.domain.Mutates` and uses :class:`Struct`
-from the :data:`msgspec` package to define a base class for concrete "decision" events
-that can define instance attributes using type annotations, and that can be serialised and
-deserialised very quickly.
-
-.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
-    :pyobject: Decision
-
-The class :class:`~examples.coursebookingdcbrefactored.application.InitialDecision` extends
-:class:`~examples.coursebookingdcbrefactored.application.Decision` and
-:class:`~eventsourcing.dcb.domain.Initialises` to define a base class
-for concrete "initial decision" events that can define object attributes using type annotations.
-
-.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
-    :pyobject: InitialDecision
-
 The class :class:`~eventsourcing.dcb.persistence.DCBMapper` is an abstract base class that
 defines an interface for converting between :class:`~eventsourcing.dcb.domain.Mutates`
 instances and :class:`~eventsourcing.dcb.api.DCBEvent` instances.
 
 .. literalinclude:: ../../../eventsourcing/dcb/persistence.py
     :pyobject: DCBMapper
-
-The class :class:`~examples.coursebookingdcbrefactored.application.MsgspecStructMapper` implements
-the :class:`~eventsourcing.dcb.persistence.DCBMapper` interface so that :class:`~examples.coursebookingdcbrefactored.application.Decision`
-instances can be converted to :class:`~eventsourcing.dcb.api.DCBEvent` instances, and so that
-:class:`~eventsourcing.dcb.api.DCBEvent` instances can be converted back to a copy of the original
-:class:`~examples.coursebookingdcbrefactored.application.Decision` instance, both using the super
-fast and compact "msgpack" format.
-
-.. literalinclude:: ../../../examples/coursebookingdcbrefactored/application.py
-    :pyobject: MsgspecStructMapper
 
 The class :class:`~eventsourcing.dcb.persistence.DCBEventStore` encapsulates both an instance
 of :class:`~eventsourcing.dcb.persistence.DCBMapper` and an instance of
@@ -252,6 +226,33 @@ the modern process philosophy of Alfred North Whitehead.
     Thus the nexus forms a single line of inheritance of its defining characteristic.
     Such a nexus is called an 'enduring object'."*
 
+The class :class:`~eventsourcing.dcb.msgspecstruct.Decision` extends
+:class:`~eventsourcing.dcb.domain.Mutates` and uses :class:`Struct`
+from the :data:`msgspec` package to define a base class for concrete "decision" events
+that can define instance attributes using type annotations, and that can be serialised and
+deserialised very quickly.
+
+.. literalinclude:: ../../../eventsourcing/dcb/msgspecstruct.py
+    :pyobject: Decision
+
+The class :class:`~eventsourcing.dcb.msgspecstruct.InitialDecision` extends
+:class:`~examples.coursebookingdcbrefactored.application.Decision` and
+:class:`~eventsourcing.dcb.domain.Initialises` to define a base class
+for concrete "initial decision" events that can define object attributes using type annotations.
+
+.. literalinclude:: ../../../eventsourcing/dcb/msgspecstruct.py
+    :pyobject: InitialDecision
+
+The class :class:`~eventsourcing.dcb.msgspecstruct.MsgspecStructMapper` implements
+the :class:`~eventsourcing.dcb.persistence.DCBMapper` interface so that :class:`~examples.coursebookingdcbrefactored.application.Decision`
+instances can be converted to :class:`~eventsourcing.dcb.api.DCBEvent` instances, and so that
+:class:`~eventsourcing.dcb.api.DCBEvent` instances can be converted back to a copy of the original
+:class:`~examples.coursebookingdcbrefactored.application.Decision` instance, both using the super
+fast and compact `msgpack <https://msgpack.org>`_ format.
+
+.. literalinclude:: ../../../eventsourcing/dcb/msgspecstruct.py
+    :pyobject: MsgspecStructMapper
+
 
 Postgres DCB recorder v3
 ------------------------
@@ -261,11 +262,15 @@ first attempt used array columns and array operators. The second attempt used te
 The :class:`~eventsourcing.dcb.postgres_tt.PostgresDCBRecorderTT` class shown below implements
 :class:`~eventsourcing.dcb.api.DCBRecorder` using a secondary table of tags.
 
-The design for this implementation focuses on selecting by tags first, which will typically have
-high cardinality and will therefore be highly selective. It using a secondary table of tags that is
-indexed with a B-tree. The sequence positions on the main table are indexed with a B-tree that "covers"
-the type column. GIN indexes are not used. This design supports fast selection of events by tag, and
-allows events to be selected by tag and filtered by position and type using only the indexes.
+Tags are expected to follow from individual enduring objects in the real world, and therefore typically
+to have high cardinality, and therefore to be highly selective. Event types are expected to follow from types
+of software object classes, and therefore to have low cardinality.
+
+The design for this implementation focuses on selecting by tags first, using a B-tree index on the secondary
+table of tags, and then filtered by position and type. The sequence positions on the main table are also indexed
+with a B-tree that "covers" the type column. In this way, recorded events can be selected by tag and filtered by
+type, and ordered and limited, for a set of DCB query items, using only B-tree indexes. GIN indexes are not used
+in this implementation.
 
 The Python code passes DCB query items and DCB events to Postgres as composite arrays. A multi-clause
 CTE statement is used to select events. There are different execution paths for the append operation. One
@@ -274,9 +279,9 @@ events if the append condition does not fail. That works quite well, but involve
 the Python code to the database. For this reason, a single CTE was developed for conditionally inserting
 event records, but this proved to be suboptimal due to the way its execution was being planned by the database.
 Instead, a stored procedure was developed that has a "fail condition" select statement and an "unconditional append"
-insert statement. Having two statements allows each part of the function to be planned separately. Executing these
-two statements in a database function means a conditional append operation can be performed efficiently with one
-round-trip. Logging execution times directly from the database shows that the database typically executes this
+insert statement. Having a function with two statements allows each part of the function to be planned separately.
+Executing these two statements in a database function means a conditional append operation can be performed efficiently
+with one round-trip. Logging execution times directly from the database shows that the database typically executes this
 function in 100-200 μs with millions of recorded events, which is at least 10x faster than the previous attempts
 using GIN indexes.
 
@@ -299,16 +304,21 @@ It also has some extra steps to cover the extra methods that were added to make 
 declarative syntax for DCB, such as a student leaving a course, changes of name of students and courses,
 and changes to the number of "places" a course has and the "max courses" for student.
 
-The extra steps also show the non-conflicting nature of the course subscription "group" with respect to changes
-to enduring objects in the group that generate event types outside the consistency boundary of the group. That
-is to say, joining a course doesn't conflict with concurrent student or course name changes, because the
-"name updated" event types are not in the consistency boundary of the "student and course" group. However,
-concurrent changes to the "max courses" of a student, and changes to the "places" of a course, do conflict
-because those event types are within the group's consistency boundary.
+The extra steps also show that when the course subscription "group" is defined with a more limited consistency
+boundary, concurrent changes to enduring objects in the group that generate event types outside the consistency
+boundary of the group are non-conflicting. That is to say, joining a course doesn't conflict with concurrent
+student or course name changes, when the "name updated" event types are not in the consistency boundary of the
+"student and course" group. However, concurrent changes to the "max courses" of a student, and changes to the
+"places" of a course, do conflict because those event types are within the group's consistency boundary.
 
 The extra steps also show the command methods of enduring objects in a group can be executed, but only if the
 events they trigger are within the consistency boundary of the group. New events from the group and from its
 enduring objects are collected when a group is saved.
+
+These adjustments to the consistency boundary, on one hand, show that the consistency boundary can be more
+restrictive. However, because the "decision model" defined by these enduring objects expects all the attributes
+to be updated correctly, when only some events are included, some attributes will have incorrect and stale values.
+This aspect is remedied by using the "vertical slices" style that is shown in the :doc:`next example </topics/examples/coursebooking-dcb-slices>`.
 
 Speedrun
 --------

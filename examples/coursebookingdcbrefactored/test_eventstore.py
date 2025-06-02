@@ -1,9 +1,6 @@
 from unittest import TestCase
 
-from examples.coursebookingdcbrefactored.application import (
-    Decision,
-    MsgspecStructMapper,
-)
+from eventsourcing.dcb.msgspecstruct import Decision, MsgspecStructMapper
 
 # TODO: Actually test the event store independently of the example application.
 

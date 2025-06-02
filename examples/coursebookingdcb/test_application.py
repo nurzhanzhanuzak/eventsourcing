@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from examples.coursebooking.enrolment_testcase import EnrolmentTestCase
+from examples.coursebooking.test_enrolment import EnrolmentTestCase
 from examples.coursebookingdcb.application import EnrolmentWithDCB
 
 if TYPE_CHECKING:

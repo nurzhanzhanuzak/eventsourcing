@@ -1,25 +1,22 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
-import msgspec
-
-from eventsourcing.dcb.api import DCBEvent
 from eventsourcing.dcb.application import (
     DCBApplication,
 )
 from eventsourcing.dcb.domain import (
     EnduringObject,
     Group,
-    Initialises,
-    Mutates,
 )
-from eventsourcing.dcb.persistence import (
-    DCBMapper,
+from eventsourcing.dcb.msgspecstruct import (
+    Decision,
+    InitialDecision,
+    MsgspecStructMapper,
 )
 from eventsourcing.domain import event
-from eventsourcing.utils import get_topic, resolve_topic
+from eventsourcing.utils import get_topic
 from examples.coursebooking.interface import (
     AlreadyJoinedError,
     CourseID,
@@ -34,32 +31,6 @@ from examples.coursebooking.interface import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-
-
-class Decision(msgspec.Struct, Mutates):
-    tags: list[str]
-
-    def _as_dict(self) -> dict[str, Any]:
-        return {key: getattr(self, key) for key in self.__struct_fields__}
-
-
-class MsgspecStructMapper(DCBMapper):
-    def to_dcb_event(self, event: Mutates) -> DCBEvent:
-        return DCBEvent(
-            type=get_topic(type(event)),
-            data=msgspec.msgpack.encode(event),
-            tags=event.tags,
-        )
-
-    def to_domain_event(self, event: DCBEvent) -> Mutates:
-        return msgspec.msgpack.decode(
-            event.data,
-            type=resolve_topic(event.type),
-        )
-
-
-class InitialDecision(Decision, Initialises):
-    originator_topic: str
 
 
 class StudentJoinedCourse(Decision):
@@ -231,11 +202,11 @@ class EnrolmentWithDCBRefactored(DCBApplication, EnrolmentInterface):
         course.update_places(max_courses)
         self.repository.save(course)
 
-    def get_student(self, tag: StudentID, types: DecisionTypes = ()) -> Student:
-        return cast(Student, self.repository.get(tag, types))
+    def get_student(self, student_id: StudentID, types: DecisionTypes = ()) -> Student:
+        return cast(Student, self.repository.get(student_id, types))
 
-    def get_course(self, tag: CourseID, types: DecisionTypes = ()) -> Course:
-        return cast(Course, self.repository.get(tag, types))
+    def get_course(self, course_id: CourseID, types: DecisionTypes = ()) -> Course:
+        return cast(Course, self.repository.get(course_id, types))
 
 
 DecisionTypes = Sequence[type[Decision]]

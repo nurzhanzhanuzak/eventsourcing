@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from eventsourcing.domain import ProgrammingError
 from eventsourcing.persistence import IntegrityError
-from examples.coursebooking.enrolment_testcase import EnrolmentTestCase
+from examples.coursebooking.test_enrolment import EnrolmentTestCase
 from examples.coursebookingdcbrefactored.application import (
     Course,
     EnrolmentWithDCBRefactored,
@@ -25,8 +25,8 @@ class TestEnrolmentWithDCBRefactored(EnrolmentTestCase):
         self.env["PERSISTENCE_MODULE"] = "eventsourcing.dcb.postgres_tt"
         super().test_enrolment_with_postgres()
 
-    def test_enrolment(self) -> None:
-        super().test_enrolment()
+    def check_enrolment(self) -> None:
+        super().check_enrolment()
 
         with self.construct_app() as app:
 

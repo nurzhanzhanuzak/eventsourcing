@@ -32,7 +32,6 @@ from warnings import warn
 
 from eventsourcing.utils import (
     TopicError,
-    construct_topic,
     get_method_name,
     get_topic,
     register_topic,
@@ -564,10 +563,7 @@ class CommandMethodDecorator:
             # Remember the decorated obj as the decorated method.
             self.decorated_func = decorated_obj
 
-            if self.decorated_func.__name__ == "_":
-                underscore_method_decorators.append(
-                    (construct_topic(self.decorated_func), self)
-                )
+            all_func_decorators.append(self)
             # If necessary, derive an event class name from the method.
             if not self.given_event_cls and not self.event_cls_name:
                 original_method_name = self.decorated_func.__name__
@@ -886,8 +882,8 @@ decorated_func_callers: dict[
 # This remembers which decorated func a decorated func caller should call.
 decorated_funcs: dict[type, CallableType] = {}
 
-# This keeps track of decorated "non-command" projection-only methods called "_".
-underscore_method_decorators: list[tuple[str, CommandMethodDecorator]] = []
+# This keeps track of decorators on "non-command" projection-only methods.
+all_func_decorators: list[CommandMethodDecorator] = []
 
 
 def _raise_type_error_if_func_has_variable_params(method: CallableType) -> None:

@@ -9,12 +9,13 @@ from eventsourcing.dcb.domain import (
     Mutates,
     Perspective,
     Selector,
+    TGroup,
+    TPerspective,
 )
 from eventsourcing.dcb.persistence import (
     DCBEventStore,
     DCBInfrastructureFactory,
     NotFoundError,
-    TGroup,
 )
 from eventsourcing.utils import Environment, EnvType, resolve_topic
 
@@ -125,3 +126,10 @@ class DCBRepository:
             max(last_known_positions) if last_known_positions else None
         )
         return perspective
+
+    def project_perspective(self, p: TPerspective) -> TPerspective:
+        events, head = self.eventstore.get(p.cb, with_last_position=True)
+        for event in events:
+            event.mutate(p)
+        p.last_known_position = head
+        return p
