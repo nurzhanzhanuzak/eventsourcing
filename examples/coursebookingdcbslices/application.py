@@ -291,15 +291,19 @@ class StudentLeavesCourse(Slice):
 
     @property
     def cb(self) -> list[Selector]:
+        # return [
+        #     Selector(
+        #         types=[StudentRegistered, StudentJoinedCourse, StudentLeftCourse],
+        #         tags=[self.student_id],
+        #     ),
+        #     Selector(
+        #         types=[CourseRegistered, StudentJoinedCourse, StudentLeftCourse],
+        #         tags=[self.course_id],
+        #     ),
+        # ]
         return [
-            Selector(
-                types=[StudentRegistered, StudentJoinedCourse, StudentLeftCourse],
-                tags=[self.student_id],
-            ),
-            Selector(
-                types=[CourseRegistered, StudentJoinedCourse, StudentLeftCourse],
-                tags=[self.course_id],
-            ),
+            Selector(types=type(self).projected_types, tags=[tag])
+            for tag in [self.student_id, self.course_id]
         ]
 
     @event(StudentRegistered)
@@ -346,7 +350,7 @@ class StudentsIDs(Slice):
 
     @property
     def cb(self) -> list[Selector]:
-        return [Selector(types=[StudentJoinedCourse], tags=[self.course_id])]
+        return [Selector(types=type(self).projected_types, tags=[self.course_id])]
 
     @event(StudentJoinedCourse)
     def _(self, student_id: StudentID) -> None:
@@ -362,7 +366,8 @@ class StudentNames(Slice):
     @property
     def cb(self) -> list[Selector]:
         return [
-            Selector(types=[StudentRegistered, StudentNameUpdated], tags=[student_id])
+            # Selector(types=[StudentRegistered, StudentNameUpdated], tags=[student_id])
+            Selector(types=type(self).projected_types, tags=[student_id])
             for student_id in self.student_id_names
         ]
 
@@ -388,7 +393,8 @@ class CourseIDs(Slice):
 
     @property
     def cb(self) -> list[Selector]:
-        return [Selector(types=[StudentJoinedCourse], tags=[self.student_id])]
+        # return [Selector(types=[StudentJoinedCourse], tags=[self.student_id])]
+        return [Selector(types=type(self).projected_types, tags=[self.student_id])]
 
     @event(StudentJoinedCourse)
     def _(self, course_id: CourseID) -> None:
@@ -404,7 +410,8 @@ class CourseNames(Slice):
     @property
     def cb(self) -> list[Selector]:
         return [
-            Selector(types=[CourseRegistered, CourseNameUpdated], tags=[student_id])
+            # Selector(types=[CourseRegistered, CourseNameUpdated], tags=[student_id])
+            Selector(types=type(self).projected_types, tags=[student_id])
             for student_id in self.course_id_names
         ]
 
