@@ -16,7 +16,6 @@ from eventsourcing.domain import (
     decorated_func_callers,
     filter_kwargs_for_method_params,
 )
-from eventsourcing.persistence import IntegrityError
 from eventsourcing.utils import construct_topic, get_topic, resolve_topic
 
 if TYPE_CHECKING:
@@ -106,13 +105,11 @@ class MetaPerspective(type):
 
 class Perspective(metaclass=MetaPerspective):
     last_known_position: int | None
-    cb_types: Sequence[type[Mutates]] = ()
     new_decisions: tuple[Mutates, ...]
 
     def __new__(cls, *_: Any, **__: Any) -> Self:
         perspective = super().__new__(cls)
         perspective.last_known_position = None
-        perspective.cb_types = cls.cb_types
         perspective.new_decisions = ()
         return perspective
 
@@ -126,14 +123,6 @@ class Perspective(metaclass=MetaPerspective):
     @property
     def cb(self) -> list[Selector]:
         raise NotImplementedError  # pragma: no cover
-
-    def check_cb_types(self, decision_cls: type[Mutates]) -> None:
-        if self.cb_types and decision_cls not in self.cb_types:
-            msg = (
-                f"Decision type {decision_cls.__qualname__} "
-                f"not in consistency boundary types: {self.cb_types}"
-            )
-            raise IntegrityError(msg)
 
 
 TPerspective = TypeVar("TPerspective", bound=Perspective)
@@ -435,7 +424,7 @@ class EnduringObject(Perspective, Generic[TID], metaclass=MetaEnduringObject):
 
     @property
     def cb(self) -> list[Selector]:
-        return [Selector(tags=[self.id], types=self.cb_types)]
+        return [Selector(tags=[self.id])]
 
     def trigger_event(
         self,
@@ -446,7 +435,6 @@ class EnduringObject(Perspective, Generic[TID], metaclass=MetaEnduringObject):
     ) -> None:
         tags = [self.id, *tags]
         kwargs["tags"] = tags
-        self.check_cb_types(decision_cls)
         assert issubclass(decision_cls, DecoratedFuncCaller), decision_cls
         decision = decision_cls(**kwargs)
         decision.mutate(self)
@@ -457,7 +445,7 @@ class Group(Perspective):
     @property
     def cb(self) -> list[Selector]:
         return [
-            Selector(types=tuple(self.cb_types) + tuple(cb.types), tags=cb.tags)
+            Selector(tags=cb.tags)
             for cbs in [
                 o.cb for o in self.__dict__.values() if isinstance(o, EnduringObject)
             ]
@@ -471,7 +459,6 @@ class Group(Perspective):
         tags: Sequence[str] = (),
         **kwargs: Any,
     ) -> None:
-        self.check_cb_types(decision_cls)
         objs = self.enduring_objects
         tags = [o.id for o in objs] + list(tags)
         kwargs["tags"] = tags

@@ -291,7 +291,6 @@ using GIN indexes.
 Test case
 ---------
 
-
 The test case is the same as the :doc:`first example </topics/examples/coursebooking>`, but executed
 with the :class:`~examples.coursebookingdcbrefactored.application.EnrolmentWithDCBRefactored` class above.
 It runs once with the  :class:`~eventsourcing.dcb.popo.InMemoryDCBRecorder` introduced in the previous
@@ -304,21 +303,17 @@ It also has some extra steps to cover the extra methods that were added to make 
 declarative syntax for DCB, such as a student leaving a course, changes of name of students and courses,
 and changes to the number of "places" a course has and the "max courses" for student.
 
-The extra steps also show that when the course subscription "group" is defined with a more limited consistency
-boundary, concurrent changes to enduring objects in the group that generate event types outside the consistency
-boundary of the group are non-conflicting. That is to say, joining a course doesn't conflict with concurrent
-student or course name changes, when the "name updated" event types are not in the consistency boundary of the
-"student and course" group. However, concurrent changes to the "max courses" of a student, and changes to the
-"places" of a course, do conflict because those event types are within the group's consistency boundary.
+The extra steps also show the command methods of enduring objects in a group can be executed. New events
+from the group and from its enduring objects are collected when a group is saved.
 
-The extra steps also show the command methods of enduring objects in a group can be executed, but only if the
-events they trigger are within the consistency boundary of the group. New events from the group and from its
-enduring objects are collected when a group is saved.
+The extra steps also show that concurrent changes to enduring objects conflict with the student-course
+group, both for relevant events (such as changes to the 'max_courses' and 'places' numbers which are
+relevant when a student joins a course) but also for irrelevant events (such as changed to a student's name).
+It would be possible to reconstruct enduring objects and groups with more restricted consistency boundaries,
+but then attributes that would be updated from events that are not included will have stale values. This
+aspect is remedied by using the "vertical slices" style that is shown in the
+:doc:`next example </topics/examples/coursebooking-dcb-slices>`.
 
-These adjustments to the consistency boundary, on one hand, show that the consistency boundary can be more
-restrictive. However, because the "decision model" defined by these enduring objects expects all the attributes
-to be updated correctly, when only some events are included, some attributes will have incorrect and stale values.
-This aspect is remedied by using the "vertical slices" style that is shown in the :doc:`next example </topics/examples/coursebooking-dcb-slices>`.
 
 Speedrun
 --------

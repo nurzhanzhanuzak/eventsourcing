@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 from eventsourcing.dcb.domain import (
     EnduringObject,
     Initialises,
-    Mutates,
     Perspective,
     Selector,
     TGroup,
@@ -20,7 +19,7 @@ from eventsourcing.dcb.persistence import (
 from eventsourcing.utils import Environment, EnvType, resolve_topic
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Mapping
     from types import TracebackType
 
     from typing_extensions import Self
@@ -77,9 +76,8 @@ class DCBRepository:
     def get(
         self,
         enduring_object_id: str,
-        cb_types: Sequence[type[Mutates]] = (),
     ) -> EnduringObject:
-        cb = [Selector(tags=[enduring_object_id], types=cb_types)]
+        cb = [Selector(tags=[enduring_object_id])]
         events, head = self.eventstore.get(*cb, with_last_position=True)
         obj: EnduringObject | None = None
         for event in events:
@@ -87,16 +85,14 @@ class DCBRepository:
         if obj is None:
             raise NotFoundError
         obj.last_known_position = head
-        obj.cb_types = cb_types
         return obj
 
     def get_many(
         self,
         *enduring_object_ids: str,
-        cb_types: Sequence[type[Mutates]] = (),
     ) -> list[EnduringObject | None]:
         cb = [
-            Selector(tags=[enduring_object_id], types=cb_types)
+            Selector(tags=[enduring_object_id])
             for enduring_object_id in enduring_object_ids
         ]
         events, head = self.eventstore.get(cb, with_last_position=True)
@@ -111,11 +107,10 @@ class DCBRepository:
         for obj in objs.values():
             if obj is not None:
                 obj.last_known_position = head
-                obj.cb_types = cb_types
         return list(objs.values())
 
     def get_group(self, cls: type[TGroup], *enduring_object_ids: str) -> TGroup:
-        enduring_objects = self.get_many(*enduring_object_ids, cb_types=cls.cb_types)
+        enduring_objects = self.get_many(*enduring_object_ids)
         perspective = cls(*enduring_objects)
         last_known_positions = [
             o.last_known_position

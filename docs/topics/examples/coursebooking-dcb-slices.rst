@@ -157,7 +157,6 @@ models for event sourcing. And DCB with "vertical slices" is indeed a very comme
 Test case
 ---------
 
-
 The test case is the same as all the previous DCB examples, but this time executed
 with the :class:`~examples.coursebookingdcbslices.application.EnrolmentWithDCBSlices` class above.
 It runs once with the  :class:`~eventsourcing.dcb.popo.InMemoryDCBRecorder` introduced in the previous

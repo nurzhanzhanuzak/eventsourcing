@@ -202,11 +202,11 @@ class EnrolmentWithDCBRefactored(DCBApplication, EnrolmentInterface):
         course.update_places(max_courses)
         self.repository.save(course)
 
-    def get_student(self, student_id: StudentID, types: DecisionTypes = ()) -> Student:
-        return cast(Student, self.repository.get(student_id, types))
+    def get_student(self, student_id: StudentID) -> Student:
+        return cast(Student, self.repository.get(student_id))
 
-    def get_course(self, course_id: CourseID, types: DecisionTypes = ()) -> Course:
-        return cast(Course, self.repository.get(course_id, types))
+    def get_course(self, course_id: CourseID) -> Course:
+        return cast(Course, self.repository.get(course_id))
 
 
 DecisionTypes = Sequence[type[Decision]]

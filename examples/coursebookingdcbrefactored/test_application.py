@@ -4,12 +4,8 @@ from eventsourcing.domain import ProgrammingError
 from eventsourcing.persistence import IntegrityError
 from examples.coursebooking.test_enrolment import EnrolmentTestCase
 from examples.coursebookingdcbrefactored.application import (
-    Course,
     EnrolmentWithDCBRefactored,
-    Student,
     StudentAndCourse,
-    StudentJoinedCourse,
-    StudentLeftCourse,
 )
 
 
@@ -70,6 +66,27 @@ class TestEnrolmentWithDCBRefactored(EnrolmentTestCase):
             self.assertEqual(student.course_ids, [])
             self.assertEqual(course.student_ids, [])
 
+            # Can operate on enduring objects in group.
+            group = app.repository.get_group(StudentAndCourse, student_id, course_id)
+            group.student.update_max_courses(100)
+            app.repository.save(group)
+            student = app.get_student(student_id)
+            self.assertEqual(100, student.max_courses)
+
+            # Check concurrent change raises IntegrityError.
+            group = app.repository.get_group(StudentAndCourse, student_id, course_id)
+            group.student_joins_course()
+            app.update_max_courses(student_id, 1)
+            with self.assertRaises(IntegrityError):
+                app.repository.save(group)
+
+            # Check concurrent change raises IntegrityError.
+            group = app.repository.get_group(StudentAndCourse, student_id, course_id)
+            group.student_joins_course()
+            app.update_student_name(student_id, "Maxy")
+            with self.assertRaises(IntegrityError):
+                app.repository.save(group)
+
             # Check get_many() preserves order.
             objs = app.repository.get_many(course_id, student_id)
             self.assertEqual([course_id, student_id], [o.id for o in objs if o])
@@ -79,92 +96,6 @@ class TestEnrolmentWithDCBRefactored(EnrolmentTestCase):
             # Can't call non-command underscore methods.
             with self.assertRaisesRegex(ProgrammingError, "cannot be used"):
                 student._(course_id=course_id)
-
-            # Define a group with a more limited context boundary.
-            class StudentAndCourseLimitedCB(StudentAndCourse):
-                cb_types = (
-                    Student.Registered,
-                    Course.Registered,
-                    Student.MaxCoursesUpdated,
-                    Course.PlacesUpdated,
-                    StudentJoinedCourse,
-                    StudentLeftCourse,
-                )
-
-            # Check joining a course doesn't conflict with concurrent name changes.
-            group = app.repository.get_group(
-                StudentAndCourseLimitedCB, student_id, course_id
-            )
-            group.student_joins_course()
-            app.update_course_name(course_id, "Bio-science")
-            app.update_student_name(student_id, "Bob")
-            app.repository.save(group)
-
-            # Check conflicting with concurrent changes raises IntegrityError.
-            group = app.repository.get_group(
-                StudentAndCourseLimitedCB, student_id, course_id
-            )
-            group.student_leaves_course()
-            app.update_max_courses(student_id, 1)
-            with self.assertRaises(IntegrityError):
-                app.repository.save(group)
-
-            # Check conflicting with concurrent changes raises IntegrityError.
-            group = app.repository.get_group(
-                StudentAndCourseLimitedCB, student_id, course_id
-            )
-            group.student_leaves_course()
-            app.update_places(course_id, 1)
-            with self.assertRaises(IntegrityError):
-                app.repository.save(group)
-
-            # Can get limited perspective on an enduring object - named changed.
-            student = app.get_student(
-                student_id, types=[Student.Registered, Student.NameUpdated]
-            )
-            self.assertEqual(student.name, "Bob")
-
-            # Slightly dodgy, have old values, this was changed to 1.
-            self.assertEqual(student.max_courses, 4)
-
-            # Can update name.
-            student.update_name("Bobby")
-
-            # Can't update max_courses - decision type not in cb.
-            with self.assertRaises(IntegrityError):
-                student.update_max_courses(max_courses=1000)
-
-            # Can get limited perspective on an enduring object - max courses.
-            student = app.get_student(
-                student_id, types=[Student.Registered, Student.MaxCoursesUpdated]
-            )
-            self.assertEqual(student.max_courses, 1)
-
-            # Slightly dodgy, have old values, this was changed to 'Bobby'.
-            self.assertEqual(student.name, "Max")
-
-            # Can update max_courses.
-            student.update_max_courses(max_courses=1000)
-
-            # Can't update name - decision type not in cb.
-            with self.assertRaises(IntegrityError):
-                student.update_name(name="Jac")
-
-            # Can operate on enduring objects in group if decision type in cb.
-            group = app.repository.get_group(
-                StudentAndCourseLimitedCB, student_id, course_id
-            )
-            group.student.update_max_courses(100)
-            app.repository.save(group)
-            student = app.get_student(student_id)
-            self.assertEqual(100, student.max_courses)
-
-            # Can't operate on enduring objects in group if decision type not in cb.
-            group = app.repository.get_group(
-                StudentAndCourseLimitedCB, student_id, course_id
-            )
-            with self.assertRaises(IntegrityError):
-                group.student.update_name("Jac")
 
 
 del EnrolmentTestCase

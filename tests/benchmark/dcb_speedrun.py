@@ -29,6 +29,7 @@ from examples.coursebookingdcb.postgres_ts import (
 from examples.coursebookingdcbrefactored.application import (
     EnrolmentWithDCBRefactored,
 )
+from examples.coursebookingdcbslices.application import EnrolmentWithDCBSlices
 
 locale.setlocale(locale.LC_ALL, "")
 
@@ -44,8 +45,8 @@ SPEEDRUN_DB_NAME = "course_subscriptions_speedrun_tt"
 SPEEDRUN_DB_USER = "eventsourcing"
 SPEEDRUN_DB_PASSWORD = "eventsourcing"  # noqa: S105
 
-NUM_COURSES = 10
-NUM_STUDENTS = 10
+NUM_COURSES = 1
+NUM_STUDENTS = 1
 
 
 def inf_range() -> Iterator[int]:
@@ -73,6 +74,22 @@ config: dict[str, tuple[type[EnrolmentInterface], int, dict[str, str]]] = {
     ),
     "dcb-pg-tt": (
         EnrolmentWithDCBRefactored,
+        # EnrolmentWithDCBSlices,
+        10,
+        {
+            "PERSISTENCE_MODULE": "eventsourcing.dcb.postgres_tt",
+            "POSTGRES_DBNAME": SPEEDRUN_DB_NAME,
+            "POSTGRES_HOST": "127.0.0.1",
+            "POSTGRES_PORT": "5432",
+            "POSTGRES_USER": SPEEDRUN_DB_USER,
+            "POSTGRES_PASSWORD": SPEEDRUN_DB_PASSWORD,
+            "POSTGRES_POOL_SIZE": "1",
+            "POSTGRES_MAX_OVERFLOW": "0",
+            "POSTGRES_MAX_WAITING": "0",
+        },
+    ),
+    "dcb-pg-tt-slices": (
+        EnrolmentWithDCBSlices,
         10,
         {
             "PERSISTENCE_MODULE": "eventsourcing.dcb.postgres_tt",
@@ -149,7 +166,9 @@ def count_events(app: EnrolmentInterface) -> int:
             result = conn.execute(statement).fetchone()
             count = result["count"] if result is not None else 0
 
-    elif isinstance(app, (EnrolmentWithDCBRefactored, EnrolmentWithDCB)):
+    elif isinstance(
+        app, (EnrolmentWithDCBRefactored, EnrolmentWithDCB, EnrolmentWithDCBSlices)
+    ):
         recorder = app.recorder
         if isinstance(recorder, (PostgresDCBRecorderTS, PostgresDCBRecorderTT)):
             datastore = recorder.datastore
@@ -174,6 +193,7 @@ if __name__ == "__main__":
     modes = [
         "dcb-pg-ts",
         "dcb-pg-tt",
+        "dcb-pg-tt-slices",
         "dcb-mem",
         "agg-pg",
         "agg-mem",
