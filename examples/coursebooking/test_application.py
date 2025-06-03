@@ -23,7 +23,7 @@ class TestEnrolmentWithAggregates(EnrolmentTestCase):
 
 
 class TestEnrolmentConsistency(TestEnrolmentWithAggregates):
-    def check_enrolment(self) -> None:
+    def test_enrolment(self) -> None:
         # Construct application object.
         app = self.construct_app()
 

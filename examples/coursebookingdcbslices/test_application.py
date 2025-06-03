@@ -26,7 +26,7 @@ class TestEnrolmentWithDCBSlices(EnrolmentTestCase):
         super().test_enrolment_with_postgres()
 
     def test_enrolment(self) -> None:
-        self.check_enrolment()
+        super().test_enrolment()
 
         with self.construct_app() as app:
 

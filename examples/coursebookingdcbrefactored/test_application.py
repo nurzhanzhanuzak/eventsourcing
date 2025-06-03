@@ -21,8 +21,8 @@ class TestEnrolmentWithDCBRefactored(EnrolmentTestCase):
         self.env["PERSISTENCE_MODULE"] = "eventsourcing.dcb.postgres_tt"
         super().test_enrolment_with_postgres()
 
-    def check_enrolment(self) -> None:
-        super().check_enrolment()
+    def test_enrolment(self) -> None:
+        super().test_enrolment()
 
         with self.construct_app() as app:
 
