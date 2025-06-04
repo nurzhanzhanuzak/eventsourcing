@@ -479,7 +479,7 @@ class Course(Slice):
 
     @event(CourseRegistered)
     def _(self, name: str, places: int) -> None:
-        self.student_was_registered = True
+        self.course_was_registered = True
         self.name = name
         self.places = places
 
