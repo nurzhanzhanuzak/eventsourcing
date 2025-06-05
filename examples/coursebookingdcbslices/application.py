@@ -76,17 +76,18 @@ class RegisterStudent(Slice):
         self.max_courses = max_courses
 
     @property
-    def cb(self) -> list[Selector]:
-        return [Selector(types=[StudentRegistered], tags=[self.student_id])]
+    def cb(self) -> Selector:
+        return Selector(types=[StudentRegistered], tags=[self.student_id])
 
     def execute(self) -> None:
-        decision = StudentRegistered(
-            student_id=self.student_id,
-            name=self.name,
-            max_courses=self.max_courses,
-            tags=[self.student_id],
+        self.append(
+            StudentRegistered(
+                student_id=self.student_id,
+                name=self.name,
+                max_courses=self.max_courses,
+                tags=[self.student_id],
+            )
         )
-        self.append(decision)
 
 
 class UpdateStudentName(Slice):
@@ -96,8 +97,8 @@ class UpdateStudentName(Slice):
         self.student_was_registered: bool = False
 
     @property
-    def cb(self) -> list[Selector]:
-        return [Selector(types=[StudentRegistered, StudentNameUpdated], tags=[self.id])]
+    def cb(self) -> Selector:
+        return Selector(types=[StudentRegistered, StudentNameUpdated], tags=[self.id])
 
     @event(StudentRegistered)
     def _(self) -> None:
@@ -105,8 +106,7 @@ class UpdateStudentName(Slice):
 
     def execute(self) -> None:
         assert self.student_was_registered
-        decision = StudentNameUpdated(tags=[self.id], name=self.name)
-        self.append(decision)
+        self.append(StudentNameUpdated(tags=[self.id], name=self.name))
 
 
 class UpdateMaxCourses(Slice):
@@ -116,12 +116,11 @@ class UpdateMaxCourses(Slice):
         self.max_courses = max_courses
 
     @property
-    def cb(self) -> list[Selector]:
-        return [
-            Selector(
-                types=[StudentRegistered, StudentMaxCoursesUpdated], tags=[self.id]
-            )
-        ]
+    def cb(self) -> Selector:
+        return Selector(
+            types=[StudentRegistered, StudentMaxCoursesUpdated],
+            tags=[self.id],
+        )
 
     @event(StudentRegistered)
     def _(self) -> None:
@@ -129,10 +128,9 @@ class UpdateMaxCourses(Slice):
 
     def execute(self) -> None:
         assert self.student_was_registered
-        decision = StudentMaxCoursesUpdated(
-            tags=[self.id], max_courses=self.max_courses
+        self.append(
+            StudentMaxCoursesUpdated(tags=[self.id], max_courses=self.max_courses)
         )
-        self.append(decision)
 
 
 class RegisterCourse(Slice):
@@ -142,17 +140,18 @@ class RegisterCourse(Slice):
         self.places = places
 
     @property
-    def cb(self) -> list[Selector]:
-        return [Selector(types=[CourseRegistered], tags=[self.course_id])]
+    def cb(self) -> Selector:
+        return Selector(types=[CourseRegistered], tags=[self.course_id])
 
     def execute(self) -> None:
-        decision = CourseRegistered(
-            course_id=self.course_id,
-            name=self.name,
-            places=self.places,
-            tags=[self.course_id],
+        self.append(
+            CourseRegistered(
+                course_id=self.course_id,
+                name=self.name,
+                places=self.places,
+                tags=[self.course_id],
+            )
         )
-        self.append(decision)
 
 
 class UpdateCourseName(Slice):
@@ -162,8 +161,8 @@ class UpdateCourseName(Slice):
         self.course_was_registered: bool = False
 
     @property
-    def cb(self) -> list[Selector]:
-        return [Selector(types=[CourseRegistered, CourseNameUpdated], tags=[self.id])]
+    def cb(self) -> Selector:
+        return Selector(types=[CourseRegistered, CourseNameUpdated], tags=[self.id])
 
     @event(CourseRegistered)
     def _(self) -> None:
@@ -171,8 +170,7 @@ class UpdateCourseName(Slice):
 
     def execute(self) -> None:
         assert self.course_was_registered
-        decision = CourseNameUpdated(tags=[self.id], name=self.name)
-        self.append(decision)
+        self.append(CourseNameUpdated(tags=[self.id], name=self.name))
 
 
 class UpdatePlaces(Slice):
@@ -182,8 +180,8 @@ class UpdatePlaces(Slice):
         self.course_was_registered: bool = False
 
     @property
-    def cb(self) -> list[Selector]:
-        return [Selector(types=[CourseRegistered, CoursePlacesUpdated], tags=[self.id])]
+    def cb(self) -> Selector:
+        return Selector(types=[CourseRegistered, CoursePlacesUpdated], tags=[self.id])
 
     @event(CourseRegistered)
     def _(self) -> None:
@@ -191,8 +189,7 @@ class UpdatePlaces(Slice):
 
     def execute(self) -> None:
         assert self.course_was_registered
-        decision = CoursePlacesUpdated(tags=[self.id], places=self.places)
-        self.append(decision)
+        self.append(CoursePlacesUpdated(tags=[self.id], places=self.places))
 
 
 class StudentJoinsCourse(Slice):
@@ -272,12 +269,13 @@ class StudentJoinsCourse(Slice):
             raise TooManyCoursesError
         if self.student_id in self.students_on_course:
             raise AlreadyJoinedError
-        decision = StudentJoinedCourse(
-            tags=[self.student_id, self.course_id],
-            student_id=self.student_id,
-            course_id=self.course_id,
+        self.append(
+            StudentJoinedCourse(
+                tags=[self.student_id, self.course_id],
+                student_id=self.student_id,
+                course_id=self.course_id,
+            )
         )
-        self.append(decision)
 
 
 class StudentLeavesCourse(Slice):
@@ -291,19 +289,15 @@ class StudentLeavesCourse(Slice):
 
     @property
     def cb(self) -> list[Selector]:
-        # return [
-        #     Selector(
-        #         types=[StudentRegistered, StudentJoinedCourse, StudentLeftCourse],
-        #         tags=[self.student_id],
-        #     ),
-        #     Selector(
-        #         types=[CourseRegistered, StudentJoinedCourse, StudentLeftCourse],
-        #         tags=[self.course_id],
-        #     ),
-        # ]
         return [
-            Selector(types=type(self).projected_types, tags=[tag])
-            for tag in [self.student_id, self.course_id]
+            Selector(
+                types=[StudentRegistered, StudentJoinedCourse, StudentLeftCourse],
+                tags=[self.student_id],
+            ),
+            Selector(
+                types=[CourseRegistered, StudentJoinedCourse, StudentLeftCourse],
+                tags=[self.course_id],
+            ),
         ]
 
     @event(StudentRegistered)
@@ -335,12 +329,13 @@ class StudentLeavesCourse(Slice):
             raise StudentNotFoundError
         if self.student_id not in self.students_on_course:
             raise NotAlreadyJoinedError
-        decision = StudentLeftCourse(
-            tags=[self.student_id, self.course_id],
-            student_id=self.student_id,
-            course_id=self.course_id,
+        self.append(
+            StudentLeftCourse(
+                tags=[self.student_id, self.course_id],
+                student_id=self.student_id,
+                course_id=self.course_id,
+            )
         )
-        self.append(decision)
 
 
 class StudentsIDs(Slice):
@@ -349,12 +344,16 @@ class StudentsIDs(Slice):
         self.student_ids: list[StudentID] = []
 
     @property
-    def cb(self) -> list[Selector]:
-        return [Selector(types=type(self).projected_types, tags=[self.course_id])]
+    def cb(self) -> Selector:
+        return Selector(types=type(self).projected_types, tags=[self.course_id])
 
     @event(StudentJoinedCourse)
     def _(self, student_id: StudentID) -> None:
         self.student_ids.append(student_id)
+
+    @event(StudentLeftCourse)
+    def _(self, student_id: StudentID) -> None:
+        self.student_ids.remove(student_id)
 
 
 class StudentNames(Slice):
@@ -366,7 +365,6 @@ class StudentNames(Slice):
     @property
     def cb(self) -> list[Selector]:
         return [
-            # Selector(types=[StudentRegistered, StudentNameUpdated], tags=[student_id])
             Selector(types=type(self).projected_types, tags=[student_id])
             for student_id in self.student_id_names
         ]
@@ -392,13 +390,16 @@ class CourseIDs(Slice):
         self.course_ids: list[CourseID] = []
 
     @property
-    def cb(self) -> list[Selector]:
-        # return [Selector(types=[StudentJoinedCourse], tags=[self.student_id])]
-        return [Selector(types=type(self).projected_types, tags=[self.student_id])]
+    def cb(self) -> Selector:
+        return Selector(types=type(self).projected_types, tags=[self.student_id])
 
     @event(StudentJoinedCourse)
     def _(self, course_id: CourseID) -> None:
         self.course_ids.append(course_id)
+
+    @event(StudentLeftCourse)
+    def _(self, course_id: CourseID) -> None:
+        self.course_ids.remove(course_id)
 
 
 class CourseNames(Slice):
@@ -410,7 +411,6 @@ class CourseNames(Slice):
     @property
     def cb(self) -> list[Selector]:
         return [
-            # Selector(types=[CourseRegistered, CourseNameUpdated], tags=[student_id])
             Selector(types=type(self).projected_types, tags=[student_id])
             for student_id in self.course_id_names
         ]
@@ -439,8 +439,8 @@ class Student(Slice):
         self.course_ids: list[CourseID] = []
 
     @property
-    def cb(self) -> list[Selector]:
-        return [Selector(tags=[self.id])]
+    def cb(self) -> Selector:
+        return Selector(tags=[self.id])
 
     @event(StudentRegistered)
     def _(self, name: str, max_courses: int) -> None:
@@ -474,8 +474,8 @@ class Course(Slice):
         self.student_ids: list[StudentID] = []
 
     @property
-    def cb(self) -> list[Selector]:
-        return [Selector(tags=[self.id])]
+    def cb(self) -> Selector:
+        return Selector(tags=[self.id])
 
     @event(CourseRegistered)
     def _(self, name: str, places: int) -> None:

@@ -104,7 +104,36 @@ class MetaPerspective(type):
     pass
 
 
-class SupportsEventDecorator(MetaPerspective):
+class Perspective(metaclass=MetaPerspective):
+    def __new__(cls, *_: Any, **__: Any) -> Self:
+        perspective = super().__new__(cls)
+        perspective.__base_init__()
+        return perspective
+
+    def __base_init__(self) -> None:
+        self.last_known_position: int | None = None
+        self.new_decisions: list[Mutates] = []
+
+    def append(self, *new_decisions: Mutates) -> None:
+        self.new_decisions.extend(new_decisions)
+
+    def collect_events(self) -> Sequence[Mutates]:
+        collected, self.new_decisions = self.new_decisions, []
+        return collected
+
+    @property
+    def cb(self) -> Selector | Sequence[Selector]:
+        raise NotImplementedError  # pragma: no cover
+
+
+TPerspective = TypeVar("TPerspective", bound=Perspective)
+
+
+given_event_class_mapping: dict[type[Mutates], type[DecoratedFuncCaller]] = {}
+decorated_funcs: dict[tuple[MetaPerspective, type[Mutates]], CallableType] = {}
+
+
+class MetaSupportsEventDecorator(MetaPerspective):
     def __init__(
         cls, name: str, bases: tuple[type, ...], namespace: dict[str, Any]
     ) -> None:
@@ -198,36 +227,7 @@ class SupportsEventDecorator(MetaPerspective):
         return func_caller
 
 
-class Perspective(metaclass=MetaPerspective):
-    last_known_position: int | None
-    new_decisions: tuple[Mutates, ...]
-
-    def __new__(cls, *_: Any, **__: Any) -> Self:
-        perspective = super().__new__(cls)
-        perspective.last_known_position = None
-        perspective.new_decisions = ()
-        return perspective
-
-    def append(self, *events: Mutates) -> None:
-        self.new_decisions += (*events,)
-
-    def collect_events(self) -> Sequence[Mutates]:
-        collected, self.new_decisions = self.new_decisions, ()
-        return collected
-
-    @property
-    def cb(self) -> list[Selector]:
-        raise NotImplementedError  # pragma: no cover
-
-
-TPerspective = TypeVar("TPerspective", bound=Perspective)
-
-
-given_event_class_mapping: dict[type[Mutates], type[DecoratedFuncCaller]] = {}
-decorated_funcs: dict[tuple[MetaPerspective, type[Mutates]], CallableType] = {}
-
-
-class MetaEnduringObject(SupportsEventDecorator):
+class MetaEnduringObject(MetaSupportsEventDecorator):
     def __init__(
         cls, name: str, bases: tuple[type, ...], namespace: dict[str, Any]
     ) -> None:
@@ -368,7 +368,7 @@ class Selector:
     tags: Sequence[str] = ()
 
 
-class MetaSlice(SupportsEventDecorator):
+class MetaSlice(MetaSupportsEventDecorator):
     pass
 
 
