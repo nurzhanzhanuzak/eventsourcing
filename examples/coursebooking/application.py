@@ -31,28 +31,28 @@ class EnrolmentWithAggregates(Application[str], EnrolmentInterface):
         self.save(course)
         return course.id
 
-    def join_course(self, student_id: str, course_id: str) -> None:
+    def join_course(self, student_id: StudentID, course_id: CourseID) -> None:
         course = self.get_course(course_id)
         student = self.get_student(student_id)
         course.accept_student(student_id)
         student.join_course(course_id)
         self.save(course, student)
 
-    def list_students_for_course(self, course_id: str) -> list[str]:
+    def list_students_for_course(self, course_id: CourseID) -> list[str]:
         course = self.get_course(course_id)
         return [self.get_student(s).name for s in course.student_ids]
 
-    def list_courses_for_student(self, student_id: str) -> list[str]:
+    def list_courses_for_student(self, student_id: StudentID) -> list[str]:
         student = self.get_student(student_id)
         return [self.get_course(s).name for s in student.course_ids]
 
-    def get_student(self, student_id: str) -> Student:
+    def get_student(self, student_id: StudentID) -> Student:
         try:
             return self.repository.get(student_id)
         except AggregateNotFoundError:
             raise StudentNotFoundError from None
 
-    def get_course(self, course_id: str) -> Course:
+    def get_course(self, course_id: CourseID) -> Course:
         try:
             return self.repository.get(course_id)
         except AggregateNotFoundError:
